@@ -1,10 +1,12 @@
-export function Logo({ size = "md", className = "" }: { size?: "sm" | "md" | "lg"; className?: string }) {
-  const text = size === "lg" ? "text-2xl" : size === "sm" ? "text-base" : "text-xl";
-  const dot = size === "lg" ? "h-3 w-3" : size === "sm" ? "h-2 w-2" : "h-2.5 w-2.5";
+import { cn } from "@/lib/utils";
+
+export function Logo({  className = "" , hideText = false , isCenter = false }: { className?: string, hideText?: boolean, isCenter?: boolean }) {
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      <span className={`${dot} rounded-full bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.7)]`} />
-      <span className={`font-bold tracking-tight text-foreground ${text}`}>Reactova</span>
-    </div>
+    <>
+      <div className={cn("flex items-baseline ", isCenter && "justify-center",`${className}`) } >
+        <img src="/logo.png" alt="Logo" className={`h-10 w-auto ${className}`} />
+        {!hideText && <span className={`inline-block font-bold leading-none md:text-3xl text-xl`}>eactova</span>}
+      </div>
+    </>
   );
 }

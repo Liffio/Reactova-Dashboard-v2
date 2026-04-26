@@ -1,5 +1,5 @@
-import type { Config } from "tailwindcss";
-
+import type { Config } from "tailwindcss"; 
+import tailwindcssAnimate from "tailwindcss-animate";
 export default {
   darkMode: ["class"],
   content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
@@ -8,7 +8,16 @@ export default {
     container: {
       center: true,
       padding: "2rem",
-      screens: { "2xl": "1400px" },
+      screens: { 
+        "2xl": "1400px",
+        "3xl": "1600px",
+        "4xl": "1800px",
+        "5xl": "2000px",
+        "6xl": "2200px",
+        "7xl": "2400px",
+        "8xl": "2600px",
+      },
+  
     },
     extend: {
       fontFamily: {
@@ -96,5 +105,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;

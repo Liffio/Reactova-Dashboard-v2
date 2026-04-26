@@ -59,7 +59,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
         </div>
 
         {/* Workspace switcher */}
-        <div className="px-3 pb-3 relative">
+        <div className="px-3 pb-3 relative mt-3">
           <button
             onClick={() => setWsOpen((v) => !v)}
             className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-card border border-border hover:border-primary/40 transition-colors"
@@ -141,13 +141,16 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
               <div className="text-sm font-semibold truncate">{user.name}</div>
               <div className="text-xs text-muted-foreground truncate">{user.email}</div>
             </div>
+            <div className="flex items-center gap-3 px-2">
+              <button
+                onClick={() => navigate("/login")}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-          <button
-            onClick={() => navigate("/login")}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-          >
-            <LogOut className="h-4 w-4" /> Logout
-          </button>
+         
         </div>
       </aside>
     </>

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { useRegisterMutation } from "@/hooks/useAuth";
 
 function strength(pw: string) {
   let s = 0;
@@ -19,9 +20,14 @@ function strength(pw: string) {
 
 export default function Register() {
   const [show, setShow] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [country, setCountry] = useState("");
+  const [cpw, setCpw] = useState("");
   const [pw, setPw] = useState("");
   const [agreed, setAgreed] = useState(false);
   const navigate = useNavigate();
+  const registerMutation = useRegisterMutation();
   const s = useMemo(() => strength(pw), [pw]);
   const segs = [0, 1, 2, 3];
   const color = s <= 1 ? "bg-destructive" : s === 2 ? "bg-warning" : s === 3 ? "bg-info" : "bg-success";
@@ -36,18 +42,42 @@ export default function Register() {
 
         <form
           className="space-y-4"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
+            if (pw !== cpw) {
+              return;
+            }
+            await registerMutation.mutateAsync({
+              name,
+              email,
+              password: pw,
+              country: country || undefined
+            });
             navigate("/onboarding");
           }}
         >
           <div className="space-y-1.5">
             <Label htmlFor="name">Full Name</Label>
-            <Input id="name" required className="bg-input border-border" placeholder="Alex Morgan" />
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              className="bg-input border-border"
+              placeholder="Alex Morgan"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" required className="bg-input border-border" placeholder="you@brand.com" />
+            <Input
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              required
+              className="bg-input border-border"
+              placeholder="you@brand.com"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pw">Password</Label>
@@ -81,14 +111,28 @@ export default function Register() {
               ))}
             </div>
           </div>
-          <div className="space-y-1.5">
+            <div className="space-y-1.5">
             <Label htmlFor="cpw">Confirm Password</Label>
-            <Input id="cpw" type={show ? "text" : "password"} required className="bg-input border-border" />
-          </div>
-          <div className="space-y-1.5">
+            <Input
+              id="cpw"
+              value={cpw}
+              onChange={(e) => setCpw(e.target.value)}
+              type={show ? "text" : "password"}
+              required
+              className="bg-input border-border"
+            />
+            </div>
+            <div className="space-y-1.5">
             <Label htmlFor="country">Country</Label>
-            <Input id="country" required className="bg-input border-border" placeholder="United States" />
-          </div>
+            <Input
+              id="country"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              required
+              className="bg-input border-border"
+              placeholder="United States"
+            />
+            </div>
 
           <label className="flex items-start gap-2 text-xs text-muted-foreground">
             <Checkbox checked={agreed} onCheckedChange={(c) => setAgreed(!!c)} className="mt-0.5" />
@@ -100,7 +144,18 @@ export default function Register() {
             </span>
           </label>
 
-          <Button type="submit" className="w-full" disabled={!agreed}>Create Account</Button>
+          {pw !== cpw && cpw.length > 0 && <p className="text-xs text-destructive">Passwords do not match</p>}
+          {registerMutation.error && (
+            <p className="text-xs text-destructive">{(registerMutation.error as Error).message}</p>
+          )}
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={!agreed || pw !== cpw || registerMutation.isPending}
+          >
+            {registerMutation.isPending ? "Creating..." : "Create Account"}
+          </Button>
         </form>
 
         <div className="my-6 h-px bg-border" />

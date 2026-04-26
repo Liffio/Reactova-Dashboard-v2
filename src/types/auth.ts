@@ -10,6 +10,8 @@ export type AuthMePayload = {
   role: string;
   modules: AuthorizationModule[];
   permissions: string[];
+  isPlatformSuperAdmin: boolean;
+  isOnboarded: boolean;
 };
 
 export type AuthorizationPayload = Omit<AuthMePayload, "user">;

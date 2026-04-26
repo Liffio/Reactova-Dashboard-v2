@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
 import {
   TrendingUp, ShoppingBag, Instagram, Check, X, Lock, Info, Plus,
   Zap, Infinity as InfinityIcon, MessageSquare, UserCheck, ChevronLeft,
@@ -15,6 +16,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { apiRequest } from "@/lib/api";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { setAuthMe } from "@/store/authSlice";
+import type { AuthMePayload } from "@/types/auth";
+import { toast } from "sonner";
 
 const NICHES = [
   "Business & Marketing", "Fitness & Nutrition", "Education & Coaching",
@@ -25,6 +31,10 @@ const NICHES = [
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dispatch = useAppDispatch();
+  const workspaceIdFromStore = useAppSelector((state) => state.auth.workspaceId);
+  const isOnboarded = useAppSelector((state) => state.auth.isOnboarded);
   const [step, setStep] = useState(1);
   const [niches, setNiches] = useState<string[]>([]);
   const [handle, setHandle] = useState("");
@@ -32,6 +42,86 @@ export default function Onboarding() {
   const [igConnected, setIgConnected] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [showCompletion, setShowCompletion] = useState(false);
+
+  const resolveWorkspaceId = async () => {
+    if (workspaceIdFromStore) {
+      return workspaceIdFromStore;
+    }
+
+    const authMe = await apiRequest<AuthMePayload>("/api/v1/auth/me");
+    dispatch(setAuthMe(authMe));
+    if (!authMe.workspaceId) {
+      throw new Error("Missing workspace context. Please sign in again.");
+    }
+
+    return authMe.workspaceId;
+  };
+
+  const saveWorkspace = useMutation({
+    mutationFn: async (body: { igHandle?: string; onboarding?: Record<string, unknown> }) => {
+      const workspaceId = await resolveWorkspaceId();
+      return apiRequest(`/api/v1/workspaces/${workspaceId}`, {
+        method: "PATCH",
+        workspaceId,
+        body
+      });
+    }
+  });
+
+  const startMetaOAuth = useMutation({
+    mutationFn: async () => {
+      const workspaceId = await resolveWorkspaceId();
+      const { url } = await apiRequest<{ url: string }>("/api/v1/integrations/meta/oauth/start", {
+        workspaceId
+      });
+      window.location.href = url;
+    }
+  });
+
+  const completeOnboarding = useMutation({
+    mutationFn: async () => {
+      const workspaceId = await resolveWorkspaceId();
+      await apiRequest(`/api/v1/workspaces/${workspaceId}`, {
+        method: "PATCH",
+        workspaceId,
+        body: {
+          isOnboarded: true
+        }
+      });
+      const authMe = await apiRequest<AuthMePayload>("/api/v1/auth/me", { workspaceId });
+      dispatch(setAuthMe(authMe));
+    }
+  });
+
+  useEffect(() => {
+    if (isOnboarded) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [isOnboarded, navigate]);
+
+  useEffect(() => {
+    const connected = searchParams.get("meta");
+    const stepParam = searchParams.get("step");
+    const parsedStep = Number(stepParam);
+    const requestedStep = Number.isFinite(parsedStep) ? Math.max(1, Math.min(4, parsedStep)) : null;
+    if (connected === "connected=1" || connected === "connected") {
+      setIgConnected(true);
+      setStep((prev) => Math.max(prev, requestedStep ?? 4));
+      toast.success("Instagram connected via Meta");
+      searchParams.delete("meta");
+      searchParams.delete("step");
+      setSearchParams(searchParams, { replace: true });
+    }
+    if (connected === "error") {
+      const reason = searchParams.get("reason");
+      const decodedReason = reason ? decodeURIComponent(reason) : "";
+      toast.error(decodedReason ? `Meta connect failed: ${decodedReason}` : "Meta connect failed");
+      searchParams.delete("meta");
+      searchParams.delete("reason");
+      searchParams.delete("step");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const canNext =
     (step === 1 && niches.length > 0 && handle.trim().length > 0) ||
@@ -155,8 +245,19 @@ export default function Onboarding() {
                         <Check className="h-3 w-3" /> Connected
                       </span>
                     ) : (
-                      <Button onClick={() => setIgConnected(true)} className="w-full sm:w-auto">
-                        <Instagram className="h-4 w-4" /> Connect Instagram Account
+                      <Button
+                        onClick={async () => {
+                          try {
+                            await startMetaOAuth.mutateAsync();
+                          } catch (error) {
+                            toast.error((error as Error).message);
+                          }
+                        }}
+                        className="w-full sm:w-auto"
+                        disabled={startMetaOAuth.isPending}
+                      >
+                        <Instagram className="h-4 w-4" />{" "}
+                        {startMetaOAuth.isPending ? "Redirecting to Meta…" : "Connect Instagram (Meta API)"}
                       </Button>
                     )}
                   </div>
@@ -190,9 +291,26 @@ export default function Onboarding() {
                 Every comment that matches your keyword will receive a personalized DM — automatically.
               </p>
             </div>
-            <Button onClick={() => setShowWizard(true)} variant="accent" size="lg">
-              Start Building <ArrowRight className="h-4 w-4" />
-            </Button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Button onClick={() => setShowWizard(true)} variant="accent" size="lg">
+                Start Building <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                disabled={completeOnboarding.isPending}
+                onClick={async () => {
+                  try {
+                    await completeOnboarding.mutateAsync();
+                    navigate("/dashboard", { replace: true });
+                  } catch (error) {
+                    toast.error((error as Error).message);
+                  }
+                }}
+              >
+                {completeOnboarding.isPending ? "Completing..." : "Finish onboarding"}
+              </Button>
+            </div>
           </div>
         )}
 
@@ -209,7 +327,32 @@ export default function Onboarding() {
               <Button variant="outline" onClick={() => setStep((s) => s - 1)}>Back</Button>
             )}
             {step < 4 && (
-              <Button onClick={() => setStep((s) => s + 1)} disabled={!canNext}>Next</Button>
+              <Button variant="ghost" onClick={() => setStep((s) => s + 1)}>
+                Skip
+              </Button>
+            )}
+            {step < 4 && (
+              <Button
+                onClick={async () => {
+                  try {
+                    if (step === 1) {
+                      await saveWorkspace.mutateAsync({
+                        igHandle: handle ? `@${handle}` : undefined,
+                        onboarding: { niches, step: 1 }
+                      });
+                    }
+                    if (step === 2) {
+                      await saveWorkspace.mutateAsync({ onboarding: { goal, step: 2 } });
+                    }
+                    setStep((s) => s + 1);
+                  } catch (error) {
+                    toast.error((error as Error).message);
+                  }
+                }}
+                disabled={!canNext || saveWorkspace.isPending}
+              >
+                Next
+              </Button>
             )}
           </div>
         </div>
@@ -218,7 +361,15 @@ export default function Onboarding() {
       {showWizard && (
         <AutomationWizard
           onClose={() => setShowWizard(false)}
-          onLaunch={() => { setShowWizard(false); setShowCompletion(true); }}
+          onLaunch={async () => {
+            try {
+              await completeOnboarding.mutateAsync();
+              setShowWizard(false);
+              setShowCompletion(true);
+            } catch (error) {
+              toast.error((error as Error).message);
+            }
+          }}
         />
       )}
       {showCompletion && (

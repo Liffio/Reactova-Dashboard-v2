@@ -10,19 +10,14 @@ import { PlanGate } from "@/components/PlanGate";
 import { useApp } from "@/state/AppContext";
 import { StatusDot } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
-
-const clients = [
-  { id: 1, name: "Maya Studios", handle: "@maya.studios", status: "active" as const, dms: 3214, lastActive: "2h ago" },
-  { id: 2, name: "Northern Lights Co", handle: "@northern.lights", status: "active" as const, dms: 1892, lastActive: "5h ago" },
-  { id: 3, name: "Brew by Mira", handle: "@brewbymira", status: "paused" as const, dms: 240, lastActive: "1d ago" },
-  { id: 4, name: "Code & Caffeine", handle: "@codecaffeine", status: "failed" as const, dms: 0, lastActive: "3d ago" },
-  { id: 5, name: "Aurora Travels", handle: "@aurora.travels", status: "disconnected" as const, dms: 0, lastActive: "1w ago" },
-];
+import { useAgencyDashboardQuery, useAgencySwitchWorkspaceMutation } from "@/hooks/useAgency";
 
 export default function Agency() {
-  const { current } = useApp();
+  const { current, setCurrentId } = useApp();
   const [tab, setTab] = useState<"overview" | "branding" | "domain" | "access">("overview");
   const [open, setOpen] = useState(false);
+  const dashboardQuery = useAgencyDashboardQuery(current.id);
+  const switchWorkspaceMutation = useAgencySwitchWorkspaceMutation(current.id);
 
   if (current.plan !== "Agency") {
     return (
@@ -32,8 +27,9 @@ export default function Agency() {
     );
   }
 
-  const total = clients.length;
-  const additional = Math.max(0, total - 30);
+  const total = dashboardQuery.data?.billing.usedWorkspaces ?? 0;
+  const additional = dashboardQuery.data?.billing.extraWorkspaces ?? 0;
+  const clients = dashboardQuery.data?.clients ?? [];
 
   return (
     <DashboardLayout title="Agency Panel" subtitle="Manage all your client workspaces from one place.">
@@ -56,10 +52,13 @@ export default function Agency() {
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Stat label="Total Client Workspaces" value={total.toString()} sub={`${total} of 30 included · ${additional} additional`} />
-            <Stat label="Total DMs Sent" value={clients.reduce((a, b) => a + b.dms, 0).toLocaleString()} sub="this month" />
-            <Stat label="Active Clients" value={clients.filter(c => c.status === "active").length.toString()} sub="• online" />
+            <Stat label="Total DMs Sent" value={clients.reduce((a, b) => a + b.dmsSentThisMonth, 0).toLocaleString()} sub="this month" />
+            <Stat label="Active Clients" value={clients.filter(c => c.status === "ACTIVE").length.toString()} sub="online" />
             <Stat label="Monthly Agency Cost" value={`$${299 + additional * 9}`} sub={`$299 base + $${additional * 9} additional`} />
           </div>
+
+          {dashboardQuery.isLoading && <p className="text-sm text-muted-foreground">Loading agency dashboard...</p>}
+          {dashboardQuery.error && <p className="text-sm text-destructive">{(dashboardQuery.error as Error).message}</p>}
 
           <section className="rounded-xl bg-card border border-border overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border gap-3">
@@ -85,16 +84,24 @@ export default function Agency() {
                   {clients.map((c) => (
                     <tr key={c.id} className="stripe-row hover:bg-primary/5">
                       <td className="px-5 py-3">
-                        <div className="font-medium">{c.name}</div>
+                        <div className="font-medium">{c.handle.replace("@", "")}</div>
                         <div className="text-xs text-muted-foreground font-mono">{c.handle}</div>
                       </td>
-                      <td className="px-5 py-3"><span className="px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase bg-muted-foreground/15 text-muted-foreground">Agency Client</span></td>
-                      <td className="px-5 py-3"><div className="flex items-center gap-2"><StatusDot status={c.status} /><span className="capitalize">{c.status}</span></div></td>
-                      <td className="px-5 py-3 font-mono">{c.dms.toLocaleString()}</td>
-                      <td className="px-5 py-3 text-muted-foreground">{c.lastActive}</td>
+                      <td className="px-5 py-3"><span className="px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase bg-muted-foreground/15 text-muted-foreground">{c.plan}</span></td>
+                      <td className="px-5 py-3"><div className="flex items-center gap-2"><StatusDot status={c.status === "PAYMENT_FAILED" ? "failed" : c.status === "PAUSED" ? "paused" : c.status === "INSTAGRAM_DISCONNECTED" ? "disconnected" : "active"} /><span className="capitalize">{c.status.toLowerCase()}</span></div></td>
+                      <td className="px-5 py-3 font-mono">{c.dmsSentThisMonth.toLocaleString()}</td>
+                      <td className="px-5 py-3 text-muted-foreground">{c.activeWorkflows} workflows</td>
                       <td className="px-5 py-3 text-right">
                         <div className="inline-flex gap-1">
-                          <button className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><ExternalLink className="h-4 w-4" /></button>
+                          <button
+                            onClick={async () => {
+                              await switchWorkspaceMutation.mutateAsync(c.id);
+                              setCurrentId(c.id);
+                            }}
+                            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </button>
                           <button className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><SettingsIcon className="h-4 w-4" /></button>
                           <button className="p-1.5 rounded-md hover:bg-destructive/15 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
                         </div>

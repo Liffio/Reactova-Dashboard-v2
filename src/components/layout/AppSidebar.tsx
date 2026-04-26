@@ -1,8 +1,8 @@
-import { useState, type ComponentType } from "react";
+import { useMemo, useState, type ComponentType } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Home, Zap, Link2, CalendarDays, LayoutTemplate, BarChart2, Users,
-  Gift, Settings, LogOut, ChevronDown, Plus, Building2, Check,
+  Gift, Settings, LogOut, ChevronDown, Plus, Building2, Check, Shield,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { PlanBadge } from "@/components/PlanBadge";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useModules } from "@/hooks/useModules";
 import { useLogoutMutation } from "@/hooks/useAuth";
 import type { AuthorizationModule } from "@/types/auth";
+import { useAppSelector } from "@/store/hooks";
 
 const navigationByModule: Record<
   string,
@@ -44,6 +45,7 @@ const hasAction = (module: AuthorizationModule, action: string): boolean => modu
 export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
   const { user, current, workspaces, setCurrentId } = useApp();
   const modules = useModules();
+  const isPlatformSuperAdmin = useAppSelector((state) => state.auth.isPlatformSuperAdmin);
   const logoutMutation = useLogoutMutation();
   const [wsOpen, setWsOpen] = useState(false);
   const navigate = useNavigate();
@@ -61,8 +63,19 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
     const moduleEntries = navigationByModule[module.key] ?? [];
     return moduleEntries.filter((entry) => !entry.action || hasAction(module, entry.action));
   });
+  const platformAdminNavigation = useMemo(() => {
+    if (!isPlatformSuperAdmin) {
+      return [];
+    }
+    return [
+      { to: "/rbac-master", icon: Shield, label: "RBAC Master", section: "general" as const, action: undefined as string | undefined }
+    ];
+  }, [isPlatformSuperAdmin]);
   const mainNavigation = visibleNavigation.filter((item) => item.section === "main");
-  const generalNavigation = visibleNavigation.filter((item) => item.section === "general");
+  const generalNavigation = [
+    ...visibleNavigation.filter((item) => item.section === "general"),
+    ...platformAdminNavigation
+  ];
 
   return (
     <>
@@ -165,7 +178,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
               </button>
             </div>
           </div>
-         
+
         </div>
       </aside>
     </>

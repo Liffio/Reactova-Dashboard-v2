@@ -8,6 +8,8 @@ type AuthState = {
   role: string | null;
   permissions: string[];
   modules: AuthorizationPayload["modules"];
+  isPlatformSuperAdmin: boolean;
+  isOnboarded: boolean;
 };
 
 const initialState: AuthState = {
@@ -16,7 +18,9 @@ const initialState: AuthState = {
   workspaceId: null,
   role: null,
   permissions: [],
-  modules: []
+  modules: [],
+  isPlatformSuperAdmin: false,
+  isOnboarded: false
 };
 
 const authSlice = createSlice({
@@ -38,12 +42,16 @@ const authSlice = createSlice({
       state.role = action.payload.role;
       state.permissions = action.payload.permissions;
       state.modules = action.payload.modules;
+      state.isPlatformSuperAdmin = action.payload.isPlatformSuperAdmin;
+      state.isOnboarded = action.payload.isOnboarded;
     },
     setAuthorization: (state, action: PayloadAction<AuthorizationPayload | null>) => {
       state.workspaceId = action.payload?.workspaceId ?? null;
       state.role = action.payload?.role ?? null;
       state.permissions = action.payload?.permissions ?? [];
       state.modules = action.payload?.modules ?? [];
+      state.isPlatformSuperAdmin = action.payload?.isPlatformSuperAdmin ?? false;
+      state.isOnboarded = action.payload?.isOnboarded ?? false;
     },
     clearAuthSession: (state) => {
       state.accessToken = null;
@@ -52,6 +60,8 @@ const authSlice = createSlice({
       state.role = null;
       state.permissions = [];
       state.modules = [];
+      state.isPlatformSuperAdmin = false;
+      state.isOnboarded = false;
       localStorage.removeItem("reactova_access_token");
     }
   }

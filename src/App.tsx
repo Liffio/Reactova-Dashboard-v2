@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider } from "@/state/AppContext";
 import { store } from "@/store";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { PlatformAdminRoute } from "@/components/auth/PlatformAdminRoute";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Login from "./pages/Login";
@@ -22,6 +23,7 @@ import Leads from "./pages/Leads";
 import Affiliate from "./pages/Affiliate";
 import Settings from "./pages/Settings";
 import Agency from "./pages/Agency";
+import RbacMaster from "./pages/RbacMaster";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +50,7 @@ const App = () => (
               <Route path="/affiliate" element={<ProtectedRoute module="affiliate"><Affiliate /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute module="workspace"><Settings /></ProtectedRoute>} />
               <Route path="/agency" element={<ProtectedRoute module="agency"><Agency /></ProtectedRoute>} />
+              <Route path="/rbac-master" element={<PlatformAdminRoute><RbacMaster /></PlatformAdminRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

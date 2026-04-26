@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
+import { useCan } from "@/hooks/useCan";
 
 const initial = [
   { id: 1, name: "Free Guide Funnel", keywords: ["GUIDE", "FREE", "PDF"], dms: 1420, status: "active" as const, date: "Apr 12, 2026" },
@@ -20,15 +21,28 @@ const initial = [
 export default function Automations() {
   const [items, setItems] = useState(initial);
   const [open, setOpen] = useState(false);
+  const canCreate = useCan("automation", "create");
+  const canUpdate = useCan("automation", "update");
+  const canDelete = useCan("automation", "delete");
 
   return (
     <DashboardLayout title="Automations" subtitle="Convert comments into DMs on autopilot.">
       <div className="flex justify-end -mt-2">
-        <Button variant="accent" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Create New Automation</Button>
+        <Button variant="accent" onClick={() => setOpen(true)} disabled={!canCreate}>
+          <Plus className="h-4 w-4" /> Create New Automation
+        </Button>
       </div>
 
       {items.length === 0 ? (
-        <EmptyState icon={Zap} title="No automations yet" description="Create your first automation to start converting comments into DMs" ctaLabel="Create Automation" onCta={() => setOpen(true)} />
+        <EmptyState
+          icon={Zap}
+          title="No automations yet"
+          description="Create your first automation to start converting comments into DMs"
+          ctaLabel={canCreate ? "Create Automation" : "No permission to create"}
+          onCta={() => {
+            if (canCreate) setOpen(true);
+          }}
+        />
       ) : (
         <section className="rounded-xl bg-card border border-border overflow-hidden">
           <div className="overflow-x-auto">
@@ -60,10 +74,18 @@ export default function Automations() {
                     <td className="px-5 py-3 text-muted-foreground">{a.date}</td>
                     <td className="px-5 py-3 text-right">
                       <div className="inline-flex gap-1">
-                        <button className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground" onClick={() => setOpen(true)}>
+                        <button
+                          className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-40"
+                          onClick={() => setOpen(true)}
+                          disabled={!canUpdate}
+                        >
                           <Edit className="h-4 w-4" />
                         </button>
-                        <button className="p-1.5 rounded-md hover:bg-destructive/15 text-muted-foreground hover:text-destructive" onClick={() => setItems((x) => x.filter((i) => i.id !== a.id))}>
+                        <button
+                          className="p-1.5 rounded-md hover:bg-destructive/15 text-muted-foreground hover:text-destructive disabled:opacity-40"
+                          onClick={() => setItems((x) => x.filter((i) => i.id !== a.id))}
+                          disabled={!canDelete}
+                        >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
@@ -76,7 +98,7 @@ export default function Automations() {
         </section>
       )}
 
-      {open && <AutomationDrawer onClose={() => setOpen(false)} />}
+      {open && canCreate && <AutomationDrawer onClose={() => setOpen(false)} />}
     </DashboardLayout>
   );
 }

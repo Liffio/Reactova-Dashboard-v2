@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useCan } from "@/hooks/useCan";
 
 const swatches = ["#7C6AF7", "#F97316", "#22C55E", "#EAB308", "#EF4444", "#34B7F1"];
 
@@ -18,6 +19,7 @@ export default function BioLink() {
     { id: 2, title: "Latest YouTube Video", url: "https://youtube.com/@alex" },
     { id: 3, title: "Book a Call", url: "https://cal.com/alex" },
   ]);
+  const canUpdate = useCan("biolink", "update");
 
   return (
     <DashboardLayout title="Bio Link" subtitle="A simple landing page for your Instagram bio.">
@@ -47,12 +49,21 @@ export default function BioLink() {
                     <Input value={l.title} onChange={(e) => setLinks(links.map(x => x.id === l.id ? { ...x, title: e.target.value } : x))} className="bg-input border-border h-8 text-sm" />
                     <Input value={l.url} onChange={(e) => setLinks(links.map(x => x.id === l.id ? { ...x, url: e.target.value } : x))} className="bg-input border-border h-8 text-sm" />
                   </div>
-                  <button className="p-1.5 text-muted-foreground hover:text-destructive" onClick={() => setLinks(links.filter(x => x.id !== l.id))}>
+                  <button
+                    className="p-1.5 text-muted-foreground hover:text-destructive disabled:opacity-40"
+                    onClick={() => setLinks(links.filter(x => x.id !== l.id))}
+                    disabled={!canUpdate}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               ))}
-              <Button variant="outline" className="w-full" onClick={() => setLinks([...links, { id: Date.now(), title: "New link", url: "https://" }])}>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setLinks([...links, { id: Date.now(), title: "New link", url: "https://" }])}
+                disabled={!canUpdate}
+              >
                 <Plus className="h-4 w-4" /> Add Link
               </Button>
             </div>
@@ -81,7 +92,7 @@ export default function BioLink() {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline">Copy Link</Button>
             <Button variant="outline">View Analytics</Button>
-            <Button>Save Changes</Button>
+            <Button disabled={!canUpdate}>Save Changes</Button>
           </div>
         </div>
 

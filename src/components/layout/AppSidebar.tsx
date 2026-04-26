@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentType } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Home, Zap, Link2, CalendarDays, LayoutTemplate, BarChart2, Users,
@@ -9,24 +9,42 @@ import { PlanBadge } from "@/components/PlanBadge";
 import { StatusDot } from "@/components/StatusBadge";
 import { useApp } from "@/state/AppContext";
 import { cn } from "@/lib/utils";
+import { useModules } from "@/hooks/useModules";
+import { useLogoutMutation } from "@/hooks/useAuth";
+import type { AuthorizationModule } from "@/types/auth";
 
-const main = [
-  { to: "/dashboard", icon: Home, label: "Dashboard" },
-  { to: "/automations", icon: Zap, label: "Automations" },
-  { to: "/short-links", icon: Link2, label: "Short Links" },
-  { to: "/scheduler", icon: CalendarDays, label: "Posts & Scheduler" },
-  { to: "/bio-link", icon: LayoutTemplate, label: "Bio Link" },
-  { to: "/analytics", icon: BarChart2, label: "Analytics" },
-  { to: "/leads", icon: Users, label: "Leads" },
-];
+const navigationByModule: Record<
+  string,
+  Array<{
+    to: string;
+    label: string;
+    icon: ComponentType<{ className?: string }>;
+    section: "main" | "general";
+    action?: string;
+  }>
+> = {
+  workspace: [
+    { to: "/dashboard", icon: Home, label: "Dashboard", section: "main", action: "read" },
+    { to: "/settings", icon: Settings, label: "Settings", section: "general", action: "read" }
+  ],
+  automation: [
+    { to: "/automations", icon: Zap, label: "Automations", section: "main", action: "read" },
+    { to: "/scheduler", icon: CalendarDays, label: "Posts & Scheduler", section: "main", action: "read" }
+  ],
+  shortlink: [{ to: "/short-links", icon: Link2, label: "Short Links", section: "main", action: "read" }],
+  biolink: [{ to: "/bio-link", icon: LayoutTemplate, label: "Bio Link", section: "main", action: "read" }],
+  analytics: [{ to: "/analytics", icon: BarChart2, label: "Analytics", section: "main", action: "read" }],
+  lead: [{ to: "/leads", icon: Users, label: "Leads", section: "main", action: "read" }],
+  affiliate: [{ to: "/affiliate", icon: Gift, label: "Affiliate Program", section: "general", action: "read" }],
+  agency: [{ to: "/agency", icon: Building2, label: "Agency Panel", section: "main", action: "read" }]
+};
 
-const bottom = [
-  { to: "/affiliate", icon: Gift, label: "Affiliate Program" },
-  { to: "/settings", icon: Settings, label: "Settings" },
-];
+const hasAction = (module: AuthorizationModule, action: string): boolean => module.actions.includes(action);
 
 export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
   const { user, current, workspaces, setCurrentId } = useApp();
+  const modules = useModules();
+  const logoutMutation = useLogoutMutation();
   const [wsOpen, setWsOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -39,7 +57,12 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
         : "text-muted-foreground hover:bg-card hover:text-foreground"
     );
 
-  const isAgency = current.plan === "Agency";
+  const visibleNavigation = modules.flatMap((module) => {
+    const moduleEntries = navigationByModule[module.key] ?? [];
+    return moduleEntries.filter((entry) => !entry.action || hasAction(module, entry.action));
+  });
+  const mainNavigation = visibleNavigation.filter((item) => item.section === "main");
+  const generalNavigation = visibleNavigation.filter((item) => item.section === "general");
 
   return (
     <>
@@ -95,7 +118,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
 
         <nav className="flex-1 overflow-y-auto px-3 space-y-1 scrollbar-thin">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-1">Menu</div>
-          {main.map((item) => (
+          {mainNavigation.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -107,19 +130,8 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
             </NavLink>
           ))}
 
-          {isAgency && (
-            <NavLink
-              to="/agency"
-              onClick={onClose}
-              className={({ isActive }) => itemCls(isActive)}
-            >
-              <Building2 className="h-4 w-4" />
-              <span>Agency Panel</span>
-            </NavLink>
-          )}
-
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground px-3 pt-5 pb-1">General</div>
-          {bottom.map((item) => (
+          {generalNavigation.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -135,15 +147,18 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
         <div className="p-3 border-t border-border space-y-3">
           <div className="flex items-center gap-3 px-2">
             <div className="h-9 w-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold text-sm">
-              {user.name.split(" ").map(n => n[0]).join("")}
+              {(user?.name ?? "NA").split(" ").map(n => n[0]).join("")}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold truncate">{user.name}</div>
-              <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+              <div className="text-sm font-semibold truncate">{user?.name ?? "Unknown User"}</div>
+              <div className="text-xs text-muted-foreground truncate">{user?.email ?? "-"}</div>
             </div>
             <div className="flex items-center gap-3 px-2">
               <button
-                onClick={() => navigate("/login")}
+                onClick={async () => {
+                  await logoutMutation.mutateAsync();
+                  navigate("/login");
+                }}
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
               >
                 <LogOut className="h-4 w-4" />

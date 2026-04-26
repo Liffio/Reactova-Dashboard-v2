@@ -117,7 +117,7 @@ export function DashboardLayout({ title, subtitle, actions, children }: { title:
               {theme === "dark" ? <Sun className="h-5 w-5 text-muted-foreground" /> : <Moon className="h-5 w-5 text-muted-foreground" />}
             </button>
             <div className="h-9 w-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold text-sm">
-              {user.name.split(" ").map(n => n[0]).join("")}
+              {(user?.name ?? "NA").split(" ").map(n => n[0]).join("")}
             </div>
           </div>
           {actions && (

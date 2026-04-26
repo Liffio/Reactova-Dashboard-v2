@@ -1,5 +1,19 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode
+} from "react";
+import { useQuery } from "@tanstack/react-query";
 import { PlanName } from "@/components/PlanBadge";
+import { apiRequest } from "@/lib/api";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { clearAuthSession, setAuthMe } from "@/store/authSlice";
+import type { AuthMePayload } from "@/types/auth";
+import { useWorkspacesQuery } from "@/hooks/useWorkspaces";
 
 export type WorkspaceStatus = "active" | "paused" | "failed" | "disconnected";
 
@@ -15,31 +29,141 @@ export interface Workspace {
   renewAmount?: number;
 }
 
+type AuthorizationModule = AuthMePayload["modules"][number];
+
 interface AppCtx {
-  user: { name: string; email: string };
+  user: { name: string; email: string } | null;
   workspaces: Workspace[];
   current: Workspace;
   setCurrentId: (id: string) => void;
+  accessToken: string | null;
+  modules: AuthorizationModule[];
+  signIn: (_email: string, _password: string) => Promise<void>;
+  refreshAuth: () => Promise<void>;
 }
 
-const initialWorkspaces: Workspace[] = [
-  { id: "w1", handle: "@reactova.studio", name: "Reactova Studio", plan: "Agency", status: "active", nextBilling: "May 14, 2026", dmsThisMonth: 12480, renewsInDays: 2, renewAmount: 299 },
-  { id: "w2", handle: "@fitwithmaya", name: "Fit with Maya", plan: "Pro", status: "active", nextBilling: "May 22, 2026", dmsThisMonth: 3214 },
-  { id: "w3", handle: "@codecaffeine", name: "Code & Caffeine", plan: "Starter", status: "paused", nextBilling: "May 30, 2026", dmsThisMonth: 540 },
-  { id: "w4", handle: "@aurora.travels", name: "Aurora Travels", plan: "Free", status: "disconnected", nextBilling: "—", dmsThisMonth: 0 },
-];
-
 const Ctx = createContext<AppCtx | null>(null);
+const defaultWorkspace: Workspace = {
+  id: "default",
+  handle: "@workspace",
+  name: "Workspace",
+  plan: "Free",
+  status: "active",
+  nextBilling: "—",
+  dmsThisMonth: 0
+};
+
+const mapPlan = (planKey?: string): PlanName => {
+  switch (planKey) {
+    case "STARTER":
+      return "Starter";
+    case "PRO":
+      return "Pro";
+    case "BUSINESS":
+      return "Business";
+    case "AGENCY":
+      return "Agency";
+    default:
+      return "Free";
+  }
+};
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [workspaces] = useState<Workspace[]>(initialWorkspaces);
-  const [currentId, setCurrentId] = useState<string>("w1");
-  const current = workspaces.find((w) => w.id === currentId) ?? workspaces[0];
-  return (
-    <Ctx.Provider value={{ user: { name: "Alex Morgan", email: "alex@reactova.com" }, workspaces, current, setCurrentId }}>
-      {children}
-    </Ctx.Provider>
+  const dispatch = useAppDispatch();
+  const [currentId, setCurrentId] = useState<string>("");
+  const accessToken = useAppSelector((state) => state.auth.accessToken);
+  const authUser = useAppSelector((state) => state.auth.user);
+  const authWorkspaceId = useAppSelector((state) => state.auth.workspaceId);
+  const modules = useAppSelector((state) => state.auth.modules);
+
+  const workspacesQuery = useWorkspacesQuery();
+  const workspaces = useMemo<Workspace[]>(() => {
+    if (!workspacesQuery.data) {
+      return [];
+    }
+    return workspacesQuery.data.map((workspace) => ({
+      id: workspace.id,
+      handle: workspace.igHandle ?? "@workspace",
+      name: workspace.igHandle ?? "Workspace",
+      plan: mapPlan(workspace.plan),
+      status:
+        workspace.status === "PAUSED"
+          ? "paused"
+          : workspace.status === "PAYMENT_FAILED"
+            ? "failed"
+            : workspace.status === "INSTAGRAM_DISCONNECTED"
+              ? "disconnected"
+              : "active",
+      nextBilling: workspace.billingCycleEnd
+        ? new Date(workspace.billingCycleEnd).toLocaleDateString()
+        : "—",
+      dmsThisMonth: 0
+    }));
+  }, [workspacesQuery.data]);
+
+  const selectedWorkspaceId = currentId || authWorkspaceId || workspaces[0]?.id;
+
+  const authMeQuery = useQuery({
+    queryKey: ["auth-me", accessToken, currentId],
+    queryFn: () =>
+      apiRequest<AuthMePayload>("/api/v1/auth/me", {
+        workspaceId: currentId || undefined
+      }),
+    enabled: Boolean(accessToken),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false
+  });
+
+  useEffect(() => {
+    if (authMeQuery.data) {
+      dispatch(setAuthMe(authMeQuery.data));
+      return;
+    }
+
+    if (authMeQuery.error) {
+      dispatch(clearAuthSession());
+    }
+  }, [authMeQuery.data, authMeQuery.error, dispatch]);
+
+  const current = useMemo(
+    () =>
+      workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ??
+      workspaces[0] ??
+      defaultWorkspace,
+    [selectedWorkspaceId, workspaces]
   );
+
+  const refreshAuth = useCallback(async () => {
+    await authMeQuery.refetch();
+  }, [authMeQuery]);
+
+  const signIn = useCallback(async () => {
+    return;
+  }, []);
+
+  const ctxValue = useMemo<AppCtx>(
+    () => ({
+      user: authUser ? { name: authUser.name, email: authUser.email } : null,
+      workspaces,
+      current,
+      setCurrentId,
+      accessToken,
+      modules,
+      signIn,
+      refreshAuth
+    }),
+    [
+      authUser,
+      workspaces,
+      current,
+      accessToken,
+      modules,
+      signIn,
+      refreshAuth
+    ]
+  );
+
+  return <Ctx.Provider value={ctxValue}>{children}</Ctx.Provider>;
 }
 
 export function useApp() {

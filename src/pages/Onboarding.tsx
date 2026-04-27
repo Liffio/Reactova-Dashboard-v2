@@ -7,6 +7,7 @@ import {
   Calendar, ArrowRight,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,6 +30,21 @@ const NICHES = [
   "Food & Cooking", "Law & Legal Services", "Other",
 ];
 
+type MetaOAuthDiagnostic = {
+  code?: string;
+  at?: string;
+  targetHandle?: string | null;
+  pageCount?: number;
+  pages?: Array<{
+    id: string;
+    name?: string | null;
+    hasInstagramBusinessAccount?: boolean;
+    hasConnectedInstagramAccount?: boolean;
+    instagramBusinessUsername?: string | null;
+    connectedInstagramUsername?: string | null;
+  }>;
+};
+
 export default function Onboarding() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -42,6 +58,8 @@ export default function Onboarding() {
   const [igConnected, setIgConnected] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [showCompletion, setShowCompletion] = useState(false);
+  const [metaFixReason, setMetaFixReason] = useState<string | null>(null);
+  const [metaDiagnostic, setMetaDiagnostic] = useState<MetaOAuthDiagnostic | null>(null);
 
   const resolveWorkspaceId = async () => {
     if (workspaceIdFromStore) {
@@ -93,6 +111,14 @@ export default function Onboarding() {
     }
   });
 
+  const loadMetaDiagnostic = async () => {
+    const workspaceId = await resolveWorkspaceId();
+    const workspaces = await apiRequest<Array<{ id: string; meta?: Record<string, unknown> }>>("/api/v1/workspaces");
+    const workspace = workspaces.find((item) => item.id === workspaceId);
+    const diagnostic = (workspace?.meta?.lastOAuthDiagnostic as MetaOAuthDiagnostic | undefined) ?? null;
+    setMetaDiagnostic(diagnostic);
+  };
+
   useEffect(() => {
     if (isOnboarded) {
       navigate("/dashboard", { replace: true });
@@ -106,6 +132,8 @@ export default function Onboarding() {
     const requestedStep = Number.isFinite(parsedStep) ? Math.max(1, Math.min(4, parsedStep)) : null;
     if (connected === "connected=1" || connected === "connected") {
       setIgConnected(true);
+      setMetaFixReason(null);
+      setMetaDiagnostic(null);
       setStep((prev) => Math.max(prev, requestedStep ?? 4));
       toast.success("Instagram connected via Meta");
       searchParams.delete("meta");
@@ -115,6 +143,13 @@ export default function Onboarding() {
     if (connected === "error") {
       const reason = searchParams.get("reason");
       const decodedReason = reason ? decodeURIComponent(reason) : "";
+      setMetaFixReason(decodedReason || null);
+      setStep((prev) => (prev >= 3 ? prev : 3));
+      if (decodedReason === "no_instagram_business_account") {
+        void loadMetaDiagnostic().catch(() => {
+          setMetaDiagnostic(null);
+        });
+      }
       toast.error(decodedReason ? `Meta connect failed: ${decodedReason}` : "Meta connect failed");
       searchParams.delete("meta");
       searchParams.delete("reason");
@@ -122,6 +157,10 @@ export default function Onboarding() {
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  const openExternal = (url: string) => {
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
   const canNext =
     (step === 1 && niches.length > 0 && handle.trim().length > 0) ||
@@ -131,6 +170,7 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+      <ThemeToggle className="fixed top-4 right-4 p-2 rounded-lg border border-border bg-card/80 backdrop-blur hover:bg-card transition-colors z-20" />
       <div className="absolute top-6 left-6"><Logo /></div>
 
       {/* Step card */}
@@ -277,6 +317,87 @@ export default function Onboarding() {
                 </div>
               </div>
             </div>
+
+            {metaFixReason === "no_instagram_business_account" && (
+              <div className="p-4 rounded-xl border border-warning/40 bg-warning/5 space-y-3">
+                <div className="text-sm font-semibold">Fix these before reconnecting Instagram</div>
+                <p className="text-xs text-muted-foreground">
+                  We could not find a linked Instagram account on your authorized Facebook Page. Complete this checklist,
+                  then retry from here.
+                </p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 mt-0.5 text-warning" />
+                    <span>Use an Instagram Professional account (Creator or Business).</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 mt-0.5 text-warning" />
+                    <span>Link that Instagram account to the same Facebook Page you authorize in Meta login.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 mt-0.5 text-warning" />
+                    <span>Enable message access in Instagram privacy settings for connected tools.</span>
+                  </div>
+                </div>
+                {metaDiagnostic && (
+                  <div className="rounded-lg border border-border bg-background p-3 space-y-2">
+                    <div className="text-xs font-semibold">Latest connection diagnostics</div>
+                    <div className="text-xs text-muted-foreground">
+                      {metaDiagnostic.pageCount ?? 0} page(s) returned from Meta
+                      {metaDiagnostic.targetHandle ? ` for @${metaDiagnostic.targetHandle.replace(/^@/, "")}` : ""}.
+                    </div>
+                    {(metaDiagnostic.pages ?? []).slice(0, 3).map((page) => (
+                      <div key={page.id} className="text-xs border border-border rounded-md p-2">
+                        <div className="font-medium">{page.name || "Unnamed page"} ({page.id})</div>
+                        <div className="text-muted-foreground">
+                          instagram_business_account: {page.hasInstagramBusinessAccount ? "linked" : "not linked"}
+                        </div>
+                        <div className="text-muted-foreground">
+                          connected_instagram_account: {page.hasConnectedInstagramAccount ? "linked" : "not linked"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => openExternal("https://www.instagram.com/accounts/edit/")}
+                  >
+                    Open Instagram settings
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => openExternal("https://www.facebook.com/pages/?category=your_pages")}
+                  >
+                    Open Facebook Pages
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => openExternal("https://business.facebook.com/settings")}
+                  >
+                    Open Meta business settings
+                  </Button>
+                </div>
+                <Button
+                  type="button"
+                  className="w-full sm:w-auto"
+                  disabled={startMetaOAuth.isPending}
+                  onClick={async () => {
+                    try {
+                      await startMetaOAuth.mutateAsync();
+                    } catch (error) {
+                      toast.error((error as Error).message);
+                    }
+                  }}
+                >
+                  {startMetaOAuth.isPending ? "Rechecking with Meta..." : "I fixed this, reconnect now"}
+                </Button>
+              </div>
+            )}
           </div>
         )}
 

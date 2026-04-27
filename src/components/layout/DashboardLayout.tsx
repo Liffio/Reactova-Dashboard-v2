@@ -1,9 +1,10 @@
-import { ReactNode, useEffect, useState } from "react";
-import { Bell, Menu, Moon, Sun } from "lucide-react";
+import { ReactNode, useState } from "react";
+import { Bell, Menu } from "lucide-react";
 import { AppSidebar } from "./AppSidebar";
 import { useApp } from "@/state/AppContext";
 import { PlanBadge } from "@/components/PlanBadge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type NotificationItem = {
   id: string;
@@ -16,26 +17,12 @@ type NotificationItem = {
 export function DashboardLayout({ title, subtitle, actions, children }: { title: string; subtitle?: string; actions?: ReactNode; children: ReactNode }) {
   const { current, user } = useApp();
   const [open, setOpen] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([
     { id: "1", title: "Campaign scheduled", detail: "Your post is set for 9:00 AM tomorrow.", time: "2m ago", unread: true },
     { id: "2", title: "New lead captured", detail: "A new lead came from your bio link page.", time: "18m ago", unread: true },
     { id: "3", title: "Workspace sync complete", detail: "All connected social accounts are up to date.", time: "1h ago", unread: false },
   ]);
-
-  useEffect(() => {
-    const currentTheme = document.documentElement.classList.contains("dark") ? "dark" : "light";
-    setTheme(currentTheme);
-  }, []);
-
-  const toggleTheme = () => {
-    const nextTheme = theme === "dark" ? "light" : "dark";
-    document.documentElement.classList.remove("light", "dark");
-    document.documentElement.classList.add(nextTheme);
-    localStorage.setItem("theme", nextTheme);
-    setTheme(nextTheme);
-  };
 
   const unreadCount = notifications.filter((item) => item.unread).length;
   const markAllAsRead = () => {
@@ -107,15 +94,7 @@ export function DashboardLayout({ title, subtitle, actions, children }: { title:
                 </div>
               </PopoverContent>
             </Popover>
-            <button
-              type="button"
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              title={theme === "dark" ? "Light mode" : "Dark mode"}
-              onClick={toggleTheme}
-              className="p-2 rounded-lg hover:bg-card transition-colors"
-            >
-              {theme === "dark" ? <Sun className="h-5 w-5 text-muted-foreground" /> : <Moon className="h-5 w-5 text-muted-foreground" />}
-            </button>
+            <ThemeToggle />
             <div className="h-9 w-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold text-sm">
               {(user?.name ?? "NA").split(" ").map(n => n[0]).join("")}
             </div>

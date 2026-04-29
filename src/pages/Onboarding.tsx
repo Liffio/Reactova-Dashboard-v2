@@ -253,7 +253,7 @@ export default function Onboarding() {
             <div>
               <h2 className="text-2xl font-bold">Let's connect your Instagram account</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Reactova uses the official Meta API — your account stays safe.
+                Reactova uses the official Instagram Business API — you'll log in directly with your Instagram credentials.
               </p>
             </div>
 
@@ -297,7 +297,7 @@ export default function Onboarding() {
                         disabled={startMetaOAuth.isPending}
                       >
                         <Instagram className="h-4 w-4" />{" "}
-                        {startMetaOAuth.isPending ? "Redirecting to Meta…" : "Connect Instagram (Meta API)"}
+                        {startMetaOAuth.isPending ? "Connecting…" : "Connect Instagram"}
                       </Button>
                     )}
                   </div>

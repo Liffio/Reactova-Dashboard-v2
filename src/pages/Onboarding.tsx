@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   TrendingUp, ShoppingBag, Instagram, Check, X, Lock, Info, Plus,
   Zap, Infinity as InfinityIcon, MessageSquare, UserCheck, ChevronLeft,
@@ -482,6 +482,7 @@ export default function Onboarding() {
       {showWizard && (
         <AutomationWizard
           onClose={() => setShowWizard(false)}
+          resolveWorkspaceId={resolveWorkspaceId}
           onLaunch={async () => {
             try {
               await completeOnboarding.mutateAsync();
@@ -521,10 +522,41 @@ function GoalCard({ selected, onClick, icon, title, desc }: { selected: boolean;
 }
 
 /* ----------------- Automation Wizard Modal ----------------- */
-function AutomationWizard({ onClose, onLaunch }: { onClose: () => void; onLaunch: () => void }) {
+type AutomationWizardData = {
+  tokenValid: boolean;
+  workspace: {
+    id: string;
+    plan: string;
+    igHandle: string | null;
+  };
+  profile: {
+    id: string;
+    username: string | null;
+    profilePictureUrl: string | null;
+  };
+  media: Array<{
+    id: string;
+    caption: string;
+    mediaType: string;
+    mediaUrl: string | null;
+    thumbnailUrl: string | null;
+    permalink: string | null;
+    timestamp: string | null;
+  }>;
+};
+
+function AutomationWizard({
+  onClose,
+  onLaunch,
+  resolveWorkspaceId
+}: {
+  onClose: () => void;
+  onLaunch: () => void;
+  resolveWorkspaceId: () => Promise<string>;
+}) {
   const [sub, setSub] = useState<1 | 2 | 3 | 4>(1);
   const [postMode, setPostMode] = useState<"specific" | "any" | "next">("specific");
-  const [selectedPost, setSelectedPost] = useState<number | null>(0);
+  const [selectedPost, setSelectedPost] = useState<string | null>(null);
   const [keywordMode, setKeywordMode] = useState<"specific" | "any">("specific");
   const [keywords, setKeywords] = useState<string[]>(["GUIDE"]);
   const [kwInput, setKwInput] = useState("");
@@ -535,6 +567,49 @@ function AutomationWizard({ onClose, onLaunch }: { onClose: () => void; onLaunch
   const [hasButton, setHasButton] = useState(true);
   const [btnLabel, setBtnLabel] = useState("Get Your Free Guide");
   const [btnUrl, setBtnUrl] = useState("https://reactova.com/guide");
+
+  const wizardData = useQuery({
+    queryKey: ["automation-wizard-data"],
+    queryFn: async () => {
+      const workspaceId = await resolveWorkspaceId();
+      return apiRequest<AutomationWizardData>("/api/v1/automations/wizard-data", { workspaceId });
+    }
+  });
+
+  const createAutomation = useMutation({
+    mutationFn: async () => {
+      const workspaceId = await resolveWorkspaceId();
+      const cleanKeywords =
+        keywordMode === "any" ? [] : keywords.map((item) => item.trim()).filter(Boolean);
+      const cleanReplies = autoReply ? replies.map((item) => item.trim()).filter(Boolean) : [];
+      const payload = {
+        name: `${(wizardData.data?.profile.username ?? "Instagram").replace(/^@/, "")} - Comment DM`,
+        keywords: cleanKeywords,
+        excludedKeywords: [],
+        anyComment: keywordMode === "any",
+        postId: postMode === "specific" ? (selectedPost ?? undefined) : undefined,
+        dmMessage: dmText.trim(),
+        autoReply,
+        replyMessages: cleanReplies,
+        dmButtonLabel: dmType === "text-button" && hasButton ? btnLabel.trim() : undefined,
+        dmButtonUrl: dmType === "text-button" && hasButton ? btnUrl.trim() : undefined
+      };
+
+      await apiRequest("/api/v1/automations", {
+        method: "POST",
+        workspaceId,
+        body: payload
+      });
+    }
+  });
+
+  useEffect(() => {
+    if (!selectedPost && wizardData.data?.media?.length) {
+      setSelectedPost(wizardData.data.media[0].id);
+    }
+  }, [selectedPost, wizardData.data?.media]);
+
+  const selectedMedia = wizardData.data?.media.find((item) => item.id === selectedPost) ?? null;
 
   const addKw = () => {
     const v = kwInput.trim();
@@ -559,17 +634,37 @@ function AutomationWizard({ onClose, onLaunch }: { onClose: () => void; onLaunch
         </div>
 
         <div className="px-5 py-3 border-b border-border flex items-center gap-2">
-          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-accent to-primary" />
-          <div className="text-sm font-medium">@yourbrand</div>
+          {wizardData.data?.profile.profilePictureUrl ? (
+            <img
+              src={wizardData.data.profile.profilePictureUrl}
+              alt="Instagram profile"
+              className="h-7 w-7 rounded-full object-cover"
+            />
+          ) : (
+            <div className="h-7 w-7 rounded-full bg-gradient-to-br from-accent to-primary" />
+          )}
+          <div className="text-sm font-medium">
+            @{wizardData.data?.profile.username ?? "yourbrand"}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4 scrollbar-thin">
+          {wizardData.isLoading && (
+            <div className="p-3 rounded-lg border border-border bg-background text-sm text-muted-foreground">
+              Loading Instagram profile and reels...
+            </div>
+          )}
+          {wizardData.isError && (
+            <div className="p-3 rounded-lg border border-destructive/40 bg-destructive/5 text-sm text-destructive">
+              {(wizardData.error as Error).message}
+            </div>
+          )}
           {sub === 1 && (
             <>
               <Label>The Comment is on...</Label>
               <Segmented
                 value={postMode}
-                onChange={(v) => setPostMode(v as any)}
+                onChange={(v) => setPostMode(v as "specific" | "any" | "next")}
                 options={[
                   { v: "specific", l: "Specific Post/Reel" },
                   { v: "any", l: "Any Post/Reel" },
@@ -578,17 +673,21 @@ function AutomationWizard({ onClose, onLaunch }: { onClose: () => void; onLaunch
               />
               {postMode === "specific" && (
                 <div className="grid grid-cols-3 gap-2">
-                  {Array.from({ length: 6 }).map((_, i) => (
+                  {(wizardData.data?.media ?? []).map((item) => (
                     <button
-                      key={i}
-                      onClick={() => setSelectedPost(i)}
+                      key={item.id}
+                      onClick={() => setSelectedPost(item.id)}
                       className={cn(
                         "relative aspect-square rounded-lg border-2 bg-muted overflow-hidden transition-all",
-                        selectedPost === i ? "border-primary" : "border-border hover:border-muted-foreground/50"
+                        selectedPost === item.id ? "border-primary" : "border-border hover:border-muted-foreground/50"
                       )}
                     >
-                      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10" />
-                      {selectedPost === i && (
+                      {item.thumbnailUrl ? (
+                        <img src={item.thumbnailUrl} alt={item.caption || "Instagram media"} className="absolute inset-0 h-full w-full object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10" />
+                      )}
+                      {selectedPost === item.id && (
                         <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
                           <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center">
                             <Check className="h-4 w-4 text-white" />
@@ -599,6 +698,11 @@ function AutomationWizard({ onClose, onLaunch }: { onClose: () => void; onLaunch
                   ))}
                 </div>
               )}
+              {postMode === "specific" && (wizardData.data?.media?.length ?? 0) === 0 && (
+                <div className="text-xs text-muted-foreground">
+                  No posts/reels found on this Instagram profile yet.
+                </div>
+              )}
             </>
           )}
 
@@ -607,7 +711,7 @@ function AutomationWizard({ onClose, onLaunch }: { onClose: () => void; onLaunch
               <Label>What kind of comment should trigger this automation?</Label>
               <Segmented
                 value={keywordMode}
-                onChange={(v) => setKeywordMode(v as any)}
+                onChange={(v) => setKeywordMode(v as "specific" | "any")}
                 options={[
                   { v: "specific", l: "Specific keyword" },
                   { v: "any", l: "Any comment" },
@@ -737,19 +841,42 @@ function AutomationWizard({ onClose, onLaunch }: { onClose: () => void; onLaunch
           {sub === 4 && (
             <>
               <h3 className="text-lg font-bold text-center">Awesome! Let's review once before we launch! 🚀</h3>
-              <ReviewRow title="When someone..." body="comments on this specific post">
+              <ReviewRow
+                title="When someone..."
+                body={
+                  postMode === "specific"
+                    ? "comments on this specific post"
+                    : postMode === "next"
+                      ? "comments on your next post/reel"
+                      : "comments on any post/reel"
+                }
+              >
                 <div className="flex gap-2 items-start">
-                  <div className="h-12 w-12 rounded-md bg-gradient-to-br from-primary/20 to-accent/20 shrink-0" />
-                  <div className="text-xs text-muted-foreground line-clamp-2">"New launch dropping this Friday — comment GUIDE for early access 🔥"</div>
+                  {selectedMedia?.thumbnailUrl ? (
+                    <img
+                      src={selectedMedia.thumbnailUrl}
+                      alt={selectedMedia.caption || "Selected Instagram media"}
+                      className="h-12 w-12 rounded-md object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-md bg-gradient-to-br from-primary/20 to-accent/20 shrink-0" />
+                  )}
+                  <div className="text-xs text-muted-foreground line-clamp-2">
+                    "{selectedMedia?.caption || "Selected Instagram content"}"
+                  </div>
                 </div>
               </ReviewRow>
-              <ReviewRow title="and includes the following keywords in their comment">
-                <div className="flex gap-1.5 flex-wrap">
-                  {keywords.map((k) => (
-                    <span key={k} className="px-2 py-0.5 rounded-full bg-primary/15 text-primary text-xs">{k}</span>
-                  ))}
-                </div>
-              </ReviewRow>
+              {keywordMode === "specific" ? (
+                <ReviewRow title="and includes the following keywords in their comment">
+                  <div className="flex gap-1.5 flex-wrap">
+                    {keywords.map((k) => (
+                      <span key={k} className="px-2 py-0.5 rounded-full bg-primary/15 text-primary text-xs">{k}</span>
+                    ))}
+                  </div>
+                </ReviewRow>
+              ) : (
+                <ReviewRow title="and includes any comment text" />
+              )}
               {autoReply && (
                 <ReviewRow title="leave a reply to their comment on the post">
                   <div className="text-xs text-muted-foreground italic">"{replies[0]}"</div>
@@ -772,10 +899,30 @@ function AutomationWizard({ onClose, onLaunch }: { onClose: () => void; onLaunch
         <div className="px-5 py-4 border-t border-border flex items-center justify-between">
           <div className="text-xs text-muted-foreground">Step {Math.min(sub, 3)} of 3</div>
           <div className="flex gap-2">
-            {sub > 1 && <Button variant="outline" onClick={() => setSub((s) => (s - 1) as any)}>Back</Button>}
-            {sub < 3 && <Button onClick={() => setSub((s) => (s + 1) as any)}>Next</Button>}
+            {sub > 1 && <Button variant="outline" onClick={() => setSub((s) => (s - 1) as 1 | 2 | 3 | 4)}>Back</Button>}
+            {sub < 3 && <Button onClick={() => setSub((s) => (s + 1) as 1 | 2 | 3 | 4)}>Next</Button>}
             {sub === 3 && <Button onClick={() => setSub(4)}>Review & Launch</Button>}
-            {sub === 4 && <Button onClick={onLaunch}>Confirm & Launch</Button>}
+            {sub === 4 && (
+              <Button
+                disabled={
+                  createAutomation.isPending ||
+                  wizardData.isLoading ||
+                  !!wizardData.error ||
+                  (postMode === "specific" && !selectedPost) ||
+                  (keywordMode === "specific" && keywords.length === 0)
+                }
+                onClick={async () => {
+                  try {
+                    await createAutomation.mutateAsync();
+                    onLaunch();
+                  } catch (error) {
+                    toast.error((error as Error).message);
+                  }
+                }}
+              >
+                {createAutomation.isPending ? "Launching..." : "Confirm & Launch"}
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -856,7 +1003,7 @@ function CompletionModal({ onDone }: { onDone: () => void }) {
   );
 }
 
-function FeatureRow({ icon: Icon, text }: { icon: any; text: string }) {
+function FeatureRow({ icon: Icon, text }: { icon: React.ComponentType<{ className?: string }>; text: string }) {
   return (
     <div className="flex items-center gap-2.5 text-sm">
       <div className="h-7 w-7 rounded-md bg-primary/15 flex items-center justify-center shrink-0">

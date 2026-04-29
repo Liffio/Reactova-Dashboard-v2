@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import {
   TrendingUp, TrendingDown, Zap, Link2, MousePointerClick, Users,
   Plus, ArrowUpRight, AlertTriangle,
@@ -8,6 +9,19 @@ import { Button } from "@/components/ui/button";
 import { PlanBadge } from "@/components/PlanBadge";
 import { StatusBadge, StatusDot } from "@/components/StatusBadge";
 import { useApp } from "@/state/AppContext";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { useCreateWorkspaceMutation } from "@/hooks/useCreateWorkspace";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const recent = [
   { post: "Reel: Launch teaser", keyword: "GUIDE", dms: 423, status: "active" as const, date: "Apr 22, 2026" },
@@ -18,9 +32,22 @@ const recent = [
 ];
 
 export default function Dashboard() {
-  const { workspaces } = useApp();
+  const { workspaces, setCurrentId, refreshAuth } = useApp();
   const navigate = useNavigate();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [workspaceHandle, setWorkspaceHandle] = useState("");
+  const [workspacePlan, setWorkspacePlan] = useState<"FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY">("FREE");
+  const [showLinkPrompt, setShowLinkPrompt] = useState(false);
   const billingAlerts = workspaces.filter((w) => w.renewsInDays && w.renewsInDays <= 3);
+  const createWorkspaceMutation = useCreateWorkspaceMutation(async (workspaceId) => {
+    setCurrentId(workspaceId);
+    await refreshAuth();
+    setWorkspaceHandle("");
+    setWorkspacePlan("FREE");
+    setCreateOpen(false);
+    setShowLinkPrompt(true);
+    toast.success("Workspace created");
+  });
 
   return (
     <DashboardLayout title="Dashboard" subtitle="Plan, prioritize, and grow your audience.">
@@ -109,12 +136,69 @@ export default function Dashboard() {
               </div>
             </div>
           ))}
-          <button className="p-5 rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-card/50 transition-colors flex flex-col items-center justify-center min-h-[180px] text-muted-foreground hover:text-primary">
+          <button
+            type="button"
+            onClick={() => setCreateOpen((prev) => !prev)}
+            className="p-5 rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-card/50 transition-colors flex flex-col items-center justify-center min-h-[180px] text-muted-foreground hover:text-primary"
+          >
             <Plus className="h-6 w-6 mb-2" />
             <span className="text-sm font-medium">Add Workspace</span>
           </button>
         </div>
+        {createOpen && (
+          <div className="mt-4 rounded-xl bg-card border border-border p-4 space-y-3">
+            <h3 className="font-semibold text-sm">Create Workspace</h3>
+            <Input
+              value={workspaceHandle}
+              onChange={(event) => setWorkspaceHandle(event.target.value.replace(/^@/, ""))}
+              placeholder="Workspace handle (optional)"
+              className="bg-input border-border max-w-md"
+            />
+            <select
+              value={workspacePlan}
+              onChange={(event) =>
+                setWorkspacePlan(event.target.value as "FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY")
+              }
+              className="h-10 w-full max-w-md rounded-md border border-border bg-input px-3 text-sm"
+            >
+              <option value="FREE">Free</option>
+              <option value="STARTER">Starter</option>
+              <option value="PRO">Pro</option>
+              <option value="BUSINESS">Business</option>
+              <option value="AGENCY">Agency</option>
+            </select>
+            <Button
+              className="w-full sm:w-auto"
+              disabled={createWorkspaceMutation.isPending}
+              onClick={() =>
+                createWorkspaceMutation.mutate(
+                  {
+                    igHandle: workspaceHandle.trim() ? `@${workspaceHandle.trim().replace(/^@/, "")}` : undefined,
+                    plan: workspacePlan
+                  },
+                  { onError: (error) => toast.error((error as Error).message) }
+                )
+              }
+            >
+              {createWorkspaceMutation.isPending ? "Creating..." : "Create workspace"}
+            </Button>
+          </div>
+        )}
       </section>
+      <AlertDialog open={showLinkPrompt} onOpenChange={setShowLinkPrompt}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Link Instagram for this workspace?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This workspace was created successfully. To run automations and workspace features, you need to link an Instagram account from settings.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Not now</AlertDialogCancel>
+            <AlertDialogAction onClick={() => navigate("/settings")}>Yes, go to settings</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

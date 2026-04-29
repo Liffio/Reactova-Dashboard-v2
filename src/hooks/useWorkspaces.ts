@@ -4,10 +4,14 @@ import { useAppSelector } from "@/store/hooks";
 
 export type WorkspaceApi = {
   id: string;
+  userId: string;
   igHandle?: string | null;
   plan: "FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY";
   status: "ACTIVE" | "PAUSED" | "PAYMENT_FAILED" | "INSTAGRAM_DISCONNECTED";
   billingCycleEnd?: string | null;
+  onboarding?: Record<string, unknown> | null;
+  meta?: Record<string, unknown> | null;
+  createdAt: string;
 };
 
 export function useWorkspacesQuery() {

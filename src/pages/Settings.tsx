@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Instagram, Trash2, Plus, RefreshCw } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,8 @@ import { CopyField } from "@/components/CopyButton";
 import { PlanGate } from "@/components/PlanGate";
 import { useApp } from "@/state/AppContext";
 import { cn } from "@/lib/utils";
+import { apiRequest } from "@/lib/api";
+import { toast } from "sonner";
 import {
   useCreateInviteMutation,
   useRemoveMemberMutation,
@@ -52,7 +55,33 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 
 function General() {
-  const { current } = useApp();
+  const { current, refreshAuth } = useApp();
+  const queryClient = useQueryClient();
+  const [unlinkConfirm, setUnlinkConfirm] = useState(false);
+  const reconnectMutation = useMutation({
+    mutationFn: async () => {
+      const { url } = await apiRequest<{ url: string }>("/api/v1/integrations/meta/oauth/start", {
+        workspaceId: current.id
+      });
+      window.location.href = url;
+    },
+    onError: (error) => toast.error((error as Error).message)
+  });
+  const unlinkMutation = useMutation({
+    mutationFn: async () =>
+      apiRequest<void>("/api/v1/integrations/meta/unlink", {
+        method: "POST",
+        workspaceId: current.id
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      await refreshAuth();
+      setUnlinkConfirm(false);
+      toast.success("Instagram disconnected for this workspace");
+    },
+    onError: (error) => toast.error((error as Error).message)
+  });
+
   return (
     <div className="space-y-5">
       <Card title="Workspace">
@@ -62,12 +91,45 @@ function General() {
       <Card title="Instagram Connection">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-success" />
+            <span className={cn("h-2 w-2 rounded-full", current.status === "disconnected" ? "bg-warning" : "bg-success")} />
             <span className="font-mono text-sm">{current.handle}</span>
           </div>
-          <Button variant="outline" className="text-destructive hover:text-destructive">Disconnect</Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => reconnectMutation.mutate()}
+              disabled={reconnectMutation.isPending}
+            >
+              <Instagram className="h-4 w-4" />
+              {reconnectMutation.isPending ? "Opening..." : "Reconnect"}
+            </Button>
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={() => unlinkMutation.mutate()}
+              disabled={!unlinkConfirm || unlinkMutation.isPending}
+            >
+              {unlinkMutation.isPending ? "Disconnecting..." : "Disconnect"}
+            </Button>
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground">During Instagram authorisation, the Meta OAuth screen shows the registered app name — this is a Meta platform limitation and does not affect your Reactova branding.</p>
+        <p className="text-xs text-muted-foreground">
+          During Instagram authorisation, Meta can show the registered app name. This is a Meta platform limitation and does not affect your Reactova branding.
+        </p>
+        <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 space-y-2">
+          <p className="text-xs text-warning">
+            Warning: reconnecting or unlinking this Instagram account is workspace-specific and permanently removes this workspace's linked automations,
+            short links, bio link, and generated leads. This cannot be undone.
+          </p>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={unlinkConfirm}
+              onChange={(event) => setUnlinkConfirm(event.target.checked)}
+            />
+            I understand this workspace data will be permanently lost when switching accounts.
+          </label>
+        </div>
       </Card>
       <div className="p-5 rounded-xl bg-destructive/5 border border-destructive/30 space-y-3">
         <h3 className="font-semibold text-destructive">Danger Zone</h3>

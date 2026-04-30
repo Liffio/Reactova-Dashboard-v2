@@ -16,7 +16,7 @@ import type { AuthorizationModule } from "@/types/auth";
 import { useAppSelector } from "@/store/hooks";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,26 +35,39 @@ const navigationByModule: Record<
     label: string;
     icon: ComponentType<{ className?: string }>;
     section: "main" | "general";
+    order: number;
     action?: string;
   }>
 > = {
   workspace: [
-    { to: "/dashboard", icon: Home, label: "Dashboard", section: "main", action: "read" },
-    { to: "/settings", icon: Settings, label: "Settings", section: "general", action: "read" }
+    { to: "/dashboard", icon: Home, label: "Dashboard", section: "main", order: 1, action: "read" },
+    { to: "/settings", icon: Settings, label: "Settings", section: "general", order: 1, action: "read" }
   ],
   automation: [
-    { to: "/automations", icon: Zap, label: "Automations", section: "main", action: "read" },
-    { to: "/scheduler", icon: CalendarDays, label: "Posts & Scheduler", section: "main", action: "read" }
+    { to: "/automations", icon: Zap, label: "Automations", section: "main", order: 2, action: "read" },
+    { to: "/scheduler", icon: CalendarDays, label: "Posts & Scheduler", section: "main", order: 3, action: "read" }
   ],
-  shortlink: [{ to: "/short-links", icon: Link2, label: "Short Links", section: "main", action: "read" }],
-  biolink: [{ to: "/bio-link", icon: LayoutTemplate, label: "Bio Link", section: "main", action: "read" }],
-  analytics: [{ to: "/analytics", icon: BarChart2, label: "Analytics", section: "main", action: "read" }],
-  lead: [{ to: "/leads", icon: Users, label: "Leads", section: "main", action: "read" }],
-  affiliate: [{ to: "/affiliate", icon: Gift, label: "Affiliate Program", section: "general", action: "read" }],
-  agency: [{ to: "/agency", icon: Building2, label: "Agency Panel", section: "main", action: "read" }]
+  shortlink: [{ to: "/short-links", icon: Link2, label: "Short Links", section: "main", order: 4, action: "read" }],
+  biolink: [{ to: "/bio-link", icon: LayoutTemplate, label: "Bio Link", section: "main", order: 5, action: "read" }],
+  analytics: [{ to: "/analytics", icon: BarChart2, label: "Analytics", section: "main", order: 6, action: "read" }],
+  lead: [{ to: "/leads", icon: Users, label: "Leads", section: "main", order: 7, action: "read" }],
+  affiliate: [{ to: "/affiliate", icon: Gift, label: "Affiliate Program", section: "general", order: 2, action: "read" }],
+  agency: [{ to: "/agency", icon: Building2, label: "Agency Panel", section: "main", order: 8, action: "read" }]
 };
 
 const hasAction = (module: AuthorizationModule, action: string): boolean => module.actions.includes(action);
+const sortByOrder = <T extends { order: number }>(items: T[]): T[] =>
+  items
+    .map((item, idx) => ({ item, idx }))
+    .sort((a, b) => {
+      const orderA = Number.isFinite(a.item.order) ? a.item.order : Number.MAX_SAFE_INTEGER;
+      const orderB = Number.isFinite(b.item.order) ? b.item.order : Number.MAX_SAFE_INTEGER;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      return a.idx - b.idx;
+    })
+    .map(({ item }) => item);
 
 export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
   const { user, current, workspaces, setCurrentId, refreshAuth } = useApp();
@@ -98,14 +111,21 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
       return [];
     }
     return [
-      { to: "/rbac-master", icon: Shield, label: "RBAC Master", section: "general" as const, action: undefined as string | undefined }
+      {
+        to: "/rbac-master",
+        icon: Shield,
+        label: "RBAC Master",
+        section: "general" as const,
+        order: 999,
+        action: undefined as string | undefined
+      }
     ];
   }, [isPlatformSuperAdmin]);
-  const mainNavigation = visibleNavigation.filter((item) => item.section === "main");
-  const generalNavigation = [
+  const mainNavigation = sortByOrder(visibleNavigation.filter((item) => item.section === "main"));
+  const generalNavigation = sortByOrder([
     ...visibleNavigation.filter((item) => item.section === "general"),
     ...platformAdminNavigation
-  ];
+  ]);
 
   return (
     <>

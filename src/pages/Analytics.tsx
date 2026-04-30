@@ -2,37 +2,42 @@ import { useState } from "react";
 import { MessageSquare, MousePointerClick, ShoppingCart, Filter, ArrowRight } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { cn } from "@/lib/utils";
+import { useApp } from "@/state/AppContext";
+import { useAnalyticsPageQuery, type AnalyticsApiRange } from "@/hooks/useAnalytics";
 
 const ranges = ["7d", "30d", "90d", "Custom"] as const;
 type R = typeof ranges[number];
 
-const lineData = [12, 19, 14, 27, 32, 24, 38, 42, 35, 48, 52, 47, 60, 58];
-const bars = [
-  { kw: "GUIDE", v: 1420 },
-  { kw: "FREE", v: 982 },
-  { kw: "PDF", v: 712 },
-  { kw: "JOIN", v: 510 },
-  { kw: "ASK", v: 280 },
-];
-const maxBar = Math.max(...bars.map((b) => b.v));
-
-const funnel = [
-  { icon: MessageSquare, label: "Comments Received", value: 8420, drop: null },
-  { icon: Filter, label: "Keyword Matched", value: 5142, drop: "39%" },
-  { icon: MessageSquare, label: "DMs Sent", value: 4801, drop: "7%" },
-  { icon: MousePointerClick, label: "Link Clicked", value: 1240, drop: "74%" },
-  { icon: ShoppingCart, label: "Sale Attributed", value: 312, drop: "75%" },
-];
-
-const perf = [
-  { name: "Free Guide Funnel", kw: "GUIDE", dms: 1420, clicks: 612, conv: "21.9%", roi: "high" as const },
-  { name: "Webinar Signup", kw: "JOIN", dms: 510, clicks: 188, conv: "9.4%", roi: "medium" as const },
-  { name: "Q&A Reel", kw: "ASK", dms: 280, clicks: 41, conv: "1.2%", roi: "low" as const },
-];
-
 export default function Analytics() {
+  const { current } = useApp();
   const [range, setRange] = useState<R>("30d");
-  const max = Math.max(...lineData);
+  const selectedRange: AnalyticsApiRange = range === "Custom" ? "30d" : range;
+  const analyticsQuery = useAnalyticsPageQuery(current.id, selectedRange);
+  const lineData = analyticsQuery.data?.lineSeries ?? [];
+  const bars = analyticsQuery.data?.topKeywords ?? [];
+  const maxBar = Math.max(1, ...bars.map((b) => b.value));
+  const maxLine = Math.max(1, ...lineData.map((point) => point.value));
+  const funnel = analyticsQuery.data
+    ? [
+        { icon: MessageSquare, label: "Comments Received", value: analyticsQuery.data.funnel.commentsReceived },
+        { icon: Filter, label: "Keyword Matched", value: analyticsQuery.data.funnel.keywordMatched },
+        { icon: MessageSquare, label: "DMs Sent", value: analyticsQuery.data.funnel.dmsSent },
+        { icon: MousePointerClick, label: "Link Clicked", value: analyticsQuery.data.funnel.linkClicked },
+        { icon: ShoppingCart, label: "Sale Attributed", value: analyticsQuery.data.funnel.saleAttributed }
+      ]
+    : [];
+  const funnelWithDrop = funnel.map((step, index) => {
+    if (index === 0) {
+      return { ...step, drop: null as string | null };
+    }
+    const previous = funnel[index - 1]?.value ?? 0;
+    const currentValue = step.value;
+    const dropPercent = previous > 0 ? ((previous - currentValue) / previous) * 100 : 0;
+    return {
+      ...step,
+      drop: `${Math.max(0, Math.round(dropPercent))}%`
+    };
+  });
 
   return (
     <DashboardLayout title="Analytics" subtitle="Every comment to every conversion.">
@@ -45,10 +50,10 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat label="Total DMs Sent" value="14,283" />
-        <Stat label="DM Open Rate" value="68.2%" />
-        <Stat label="Total Link Clicks" value="3,891" />
-        <Stat label="Conversion Rate" value="2.7%" highlight />
+        <Stat label="Total DMs Sent" value={(analyticsQuery.data?.summary.totalDmsSent ?? 0).toLocaleString()} />
+        <Stat label="DM Delivery Rate" value={`${(analyticsQuery.data?.summary.dmDeliveryRate ?? 0).toFixed(2)}%`} />
+        <Stat label="Total Link Clicks" value={(analyticsQuery.data?.summary.totalLinkClicks ?? 0).toLocaleString()} />
+        <Stat label="Conversion Rate" value={`${(analyticsQuery.data?.summary.conversionRate ?? 0).toFixed(2)}%`} highlight />
       </div>
 
       <section className="rounded-xl bg-card border border-border p-6">
@@ -57,7 +62,7 @@ export default function Analytics() {
           <p className="text-xs text-muted-foreground">Track every step from comment to sale</p>
         </div>
         <div className="flex items-stretch gap-2 overflow-x-auto scrollbar-thin pb-2">
-          {funnel.map((f, i) => (
+          {funnelWithDrop.map((f, i) => (
             <div key={i} className="flex items-center gap-2 shrink-0">
               <div className="p-4 rounded-xl bg-background border border-border min-w-[150px]">
                 <f.icon className="h-5 w-5 text-primary mb-2" />
@@ -79,14 +84,14 @@ export default function Analytics() {
               fill="none"
               stroke="hsl(var(--primary))"
               strokeWidth="2.5"
-              points={lineData.map((v, i) => `${(i / (lineData.length - 1)) * 580 + 10},${190 - (v / max) * 170}`).join(" ")}
+              points={lineData.map((point, i) => `${(i / Math.max(1, lineData.length - 1)) * 580 + 10},${190 - (point.value / maxLine) * 170}`).join(" ")}
             />
             <polygon
               fill="hsl(var(--primary) / 0.15)"
-              points={`10,190 ${lineData.map((v, i) => `${(i / (lineData.length - 1)) * 580 + 10},${190 - (v / max) * 170}`).join(" ")} 590,190`}
+              points={`10,190 ${lineData.map((point, i) => `${(i / Math.max(1, lineData.length - 1)) * 580 + 10},${190 - (point.value / maxLine) * 170}`).join(" ")} 590,190`}
             />
-            {lineData.map((v, i) => (
-              <circle key={i} cx={(i / (lineData.length - 1)) * 580 + 10} cy={190 - (v / max) * 170} r="3" fill="hsl(var(--primary))" />
+            {lineData.map((point, i) => (
+              <circle key={i} cx={(i / Math.max(1, lineData.length - 1)) * 580 + 10} cy={190 - (point.value / maxLine) * 170} r="3" fill="hsl(var(--primary))" />
             ))}
           </svg>
         </div>
@@ -94,16 +99,19 @@ export default function Analytics() {
           <h3 className="font-semibold mb-4">Top Performing Keywords</h3>
           <div className="space-y-3">
             {bars.map((b) => (
-              <div key={b.kw}>
+              <div key={b.keyword}>
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="font-mono">{b.kw}</span>
-                  <span className="text-muted-foreground font-mono">{b.v}</span>
+                  <span className="font-mono">{b.keyword}</span>
+                  <span className="text-muted-foreground font-mono">{b.value}</span>
                 </div>
                 <div className="h-2 bg-background rounded-full overflow-hidden">
-                  <div className="h-full bg-accent" style={{ width: `${(b.v / maxBar) * 100}%` }} />
+                  <div className="h-full bg-accent" style={{ width: `${(b.value / maxBar) * 100}%` }} />
                 </div>
               </div>
             ))}
+            {!analyticsQuery.isLoading && bars.length === 0 && (
+              <p className="text-xs text-muted-foreground">No keyword data available for selected range.</p>
+            )}
           </div>
         </div>
       </div>
@@ -123,22 +131,27 @@ export default function Analytics() {
               </tr>
             </thead>
             <tbody>
-              {perf.map((p, i) => (
-                <tr key={i} className="stripe-row">
+              {(analyticsQuery.data?.automationPerformance ?? []).map((p) => (
+                <tr key={p.id} className="stripe-row">
                   <td className="px-5 py-3 font-medium">{p.name}</td>
-                  <td className="px-5 py-3"><span className="px-2 py-0.5 rounded-full bg-muted text-xs font-mono">{p.kw}</span></td>
-                  <td className="px-5 py-3 font-mono">{p.dms.toLocaleString()}</td>
-                  <td className="px-5 py-3 font-mono">{p.clicks.toLocaleString()}</td>
-                  <td className="px-5 py-3 font-mono">{p.conv}</td>
+                  <td className="px-5 py-3"><span className="px-2 py-0.5 rounded-full bg-muted text-xs font-mono">{p.keyword ?? "—"}</span></td>
+                  <td className="px-5 py-3 font-mono">{p.dmsSent.toLocaleString()}</td>
+                  <td className="px-5 py-3 font-mono">{p.linkClicks.toLocaleString()}</td>
+                  <td className="px-5 py-3 font-mono">{p.conversionRate.toFixed(2)}%</td>
                   <td className="px-5 py-3">
                     <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-medium border",
-                      p.roi === "high" && "bg-success/15 text-success border-success/30",
-                      p.roi === "medium" && "bg-warning/15 text-warning border-warning/30",
-                      p.roi === "low" && "bg-destructive/15 text-destructive border-destructive/30",
-                    )}>{p.roi.toUpperCase()}</span>
+                      p.roiBand === "high" && "bg-success/15 text-success border-success/30",
+                      p.roiBand === "medium" && "bg-warning/15 text-warning border-warning/30",
+                      p.roiBand === "low" && "bg-destructive/15 text-destructive border-destructive/30",
+                    )}>{p.roiBand.toUpperCase()}</span>
                   </td>
                 </tr>
               ))}
+              {!analyticsQuery.isLoading && (analyticsQuery.data?.automationPerformance.length ?? 0) === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-8 text-center text-muted-foreground">No automation performance data available.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

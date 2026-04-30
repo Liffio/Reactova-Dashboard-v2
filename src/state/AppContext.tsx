@@ -25,6 +25,9 @@ export interface Workspace {
   status: WorkspaceStatus;
   nextBilling: string;
   dmsThisMonth: number;
+  leadsThisMonth: number;
+  clicksThisMonth: number;
+  activeAutomations: number;
   renewsInDays?: number;
   renewAmount?: number;
 }
@@ -50,7 +53,10 @@ const defaultWorkspace: Workspace = {
   plan: "Free",
   status: "active",
   nextBilling: "—",
-  dmsThisMonth: 0
+  dmsThisMonth: 0,
+  leadsThisMonth: 0,
+  clicksThisMonth: 0,
+  activeAutomations: 0
 };
 
 const mapPlan = (planKey?: string): PlanName => {
@@ -83,8 +89,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     return workspacesQuery.data.map((workspace) => ({
       id: workspace.id,
-      handle: workspace.igHandle ?? "@workspace",
-      name: workspace.igHandle ?? "Workspace",
+      handle: workspace.igHandle ?? "Unlinked workspace",
+      name: workspace.igHandle ?? "Unlinked workspace",
       plan: mapPlan(workspace.plan),
       status:
         workspace.status === "PAUSED"
@@ -97,7 +103,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       nextBilling: workspace.billingCycleEnd
         ? new Date(workspace.billingCycleEnd).toLocaleDateString()
         : "—",
-      dmsThisMonth: 0
+      dmsThisMonth: workspace.dmsThisMonth,
+      leadsThisMonth: workspace.leadsThisMonth,
+      clicksThisMonth: workspace.clicksThisMonth,
+      activeAutomations: workspace.activeAutomations
     }));
   }, [workspacesQuery.data]);
 

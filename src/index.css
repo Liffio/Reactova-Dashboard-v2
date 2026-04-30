@@ -189,3 +189,29 @@
   .scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
   .scrollbar-thin::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 8px; }
 }
+
+.app-toast-progress {
+  width: 100%;
+  transform-origin: left center;
+  animation: app-toast-shrink linear forwards;
+  animation-duration: var(--app-toast-duration, 5000ms);
+}
+
+.app-toast:hover .app-toast-progress {
+  animation-play-state: paused;
+}
+
+@keyframes app-toast-shrink {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (max-width: 639px) {
+  .app-toast {
+    max-width: calc(100vw - 20px) !important;
+  }
+}

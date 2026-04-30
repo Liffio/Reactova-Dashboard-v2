@@ -5,28 +5,24 @@ import { useApp } from "@/state/AppContext";
 import { PlanBadge } from "@/components/PlanBadge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ThemeToggle } from "@/components/ThemeToggle";
-
-type NotificationItem = {
-  id: string;
-  title: string;
-  detail: string;
-  time: string;
-  unread: boolean;
-};
+import {
+  useMarkAllNotificationsReadMutation,
+  useMarkNotificationReadMutation,
+  useNotificationsQuery
+} from "@/hooks/useNotifications";
 
 export function DashboardLayout({ title, subtitle, actions, children }: { title: string; subtitle?: string; actions?: ReactNode; children: ReactNode }) {
   const { current, user } = useApp();
   const [open, setOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    { id: "1", title: "Campaign scheduled", detail: "Your post is set for 9:00 AM tomorrow.", time: "2m ago", unread: true },
-    { id: "2", title: "New lead captured", detail: "A new lead came from your bio link page.", time: "18m ago", unread: true },
-    { id: "3", title: "Workspace sync complete", detail: "All connected social accounts are up to date.", time: "1h ago", unread: false },
-  ]);
+  const notificationsQuery = useNotificationsQuery(current.id);
+  const markReadMutation = useMarkNotificationReadMutation(current.id);
+  const markAllReadMutation = useMarkAllNotificationsReadMutation(current.id);
+  const notifications = notificationsQuery.data?.notifications ?? [];
 
-  const unreadCount = notifications.filter((item) => item.unread).length;
+  const unreadCount = notifications.filter((item) => !item.isRead).length;
   const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((item) => ({ ...item, unread: false })));
+    markAllReadMutation.mutate();
   };
 
   return (
@@ -80,17 +76,33 @@ export function DashboardLayout({ title, subtitle, actions, children }: { title:
                   {notifications.map((item) => (
                     <div key={item.id} className="px-4 py-3 border-b last:border-b-0 border-border bg-popover">
                       <div className="flex items-start gap-2">
-                        {item.unread ? <span className="mt-1.5 h-2 w-2 rounded-full bg-accent shrink-0" /> : <span className="mt-1.5 h-2 w-2 shrink-0" />}
+                        {!item.isRead ? <span className="mt-1.5 h-2 w-2 rounded-full bg-accent shrink-0" /> : <span className="mt-1.5 h-2 w-2 shrink-0" />}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium truncate">{item.title}</p>
-                            <span className="text-[11px] text-muted-foreground shrink-0">{item.time}</span>
+                            <p className="text-sm font-medium truncate">{item.name}</p>
+                            <span className="text-[11px] text-muted-foreground shrink-0">
+                              {new Date(item.createdAt).toLocaleString()}
+                            </span>
                           </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">{item.detail}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{item.details}</p>
+                          {!item.isRead && (
+                            <button
+                              type="button"
+                              onClick={() => markReadMutation.mutate(item.id)}
+                              className="mt-1 text-[11px] text-primary hover:text-primary/80 transition-colors"
+                            >
+                              Mark as read
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))}
+                  {!notificationsQuery.isLoading && notifications.length === 0 && (
+                    <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+                      No notifications yet.
+                    </div>
+                  )}
                 </div>
               </PopoverContent>
             </Popover>

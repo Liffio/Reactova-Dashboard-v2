@@ -21,7 +21,7 @@ import { apiRequest } from "@/lib/api";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setAuthMe } from "@/store/authSlice";
 import type { AuthMePayload } from "@/types/auth";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 const NICHES = [
   "Business & Marketing", "Fitness & Nutrition", "Education & Coaching",
@@ -396,6 +396,17 @@ export default function Onboarding() {
                 >
                   {startMetaOAuth.isPending ? "Rechecking with Meta..." : "I fixed this, reconnect now"}
                 </Button>
+              </div>
+            )}
+            {metaFixReason === "instagram_already_linked" && (
+              <div className="p-4 rounded-xl border border-destructive/40 bg-destructive/5 space-y-2">
+                <div className="text-sm font-semibold text-destructive">This Instagram account is already linked</div>
+                <p className="text-xs text-muted-foreground">
+                  For security and data isolation, the same Instagram account cannot be connected to multiple workspaces under this user/account.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Disconnect it from the existing workspace first, then retry onboarding connection.
+                </p>
               </div>
             )}
           </div>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Instagram, Trash2, Plus, RefreshCw } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -11,7 +12,7 @@ import { PlanGate } from "@/components/PlanGate";
 import { useApp } from "@/state/AppContext";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/api";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import {
   useCreateInviteMutation,
   useRemoveMemberMutation,
@@ -20,6 +21,11 @@ import {
   useTeamOptionsQuery,
   useUpdateMemberMutation
 } from "@/hooks/useTeamAccess";
+import { useDeleteWorkspaceMutation } from "@/hooks/useDeleteWorkspace";
+import {
+  useNotificationsQuery,
+  useUpdateNotificationPreferenceMutation
+} from "@/hooks/useNotifications";
 
 const tabs = ["General", "Billing", "Notifications", "Team", "API"] as const;
 type Tab = typeof tabs[number];
@@ -55,9 +61,11 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 
 function General() {
-  const { current, refreshAuth } = useApp();
+  const { current, workspaces, setCurrentId, refreshAuth } = useApp();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [unlinkConfirm, setUnlinkConfirm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const reconnectMutation = useMutation({
     mutationFn: async () => {
       const { url } = await apiRequest<{ url: string }>("/api/v1/integrations/meta/oauth/start", {
@@ -80,6 +88,14 @@ function General() {
       toast.success("Instagram disconnected for this workspace");
     },
     onError: (error) => toast.error((error as Error).message)
+  });
+  const deleteWorkspaceMutation = useDeleteWorkspaceMutation(async (deletedWorkspaceId) => {
+    const nextWorkspace = workspaces.find((workspace) => workspace.id !== deletedWorkspaceId);
+    setCurrentId(nextWorkspace?.id ?? "");
+    await refreshAuth();
+    setDeleteConfirm(false);
+    toast.success("Workspace deleted");
+    navigate("/dashboard");
   });
 
   return (
@@ -134,7 +150,28 @@ function General() {
       <div className="p-5 rounded-xl bg-destructive/5 border border-destructive/30 space-y-3">
         <h3 className="font-semibold text-destructive">Danger Zone</h3>
         <p className="text-sm text-muted-foreground">Permanently delete this workspace and all of its automations, leads, and short links.</p>
-        <Button variant="destructive">Delete Workspace</Button>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={deleteConfirm}
+            onChange={(event) => setDeleteConfirm(event.target.checked)}
+          />
+          I understand this action permanently deletes this workspace and its data.
+        </label>
+        <Button
+          variant="destructive"
+          disabled={!deleteConfirm || deleteWorkspaceMutation.isPending || workspaces.length <= 1}
+          onClick={() =>
+            deleteWorkspaceMutation.mutate(current.id, {
+              onError: (error) => toast.error((error as Error).message)
+            })
+          }
+        >
+          {deleteWorkspaceMutation.isPending ? "Deleting..." : "Delete Workspace"}
+        </Button>
+        {workspaces.length <= 1 && (
+          <p className="text-xs text-muted-foreground">At least one workspace must remain on your account.</p>
+        )}
       </div>
     </div>
   );
@@ -192,23 +229,29 @@ function Billing() {
 }
 
 function Notifications() {
-  const items = [
-    "DM Delivery Failures",
-    "Billing Reminders (3 days before renewal)",
-    "New Lead Captured",
-    "Weekly Performance Summary",
-    "Affiliate Commission Approved",
-    "Instagram Disconnected",
-  ];
+  const { current } = useApp();
+  const notificationsQuery = useNotificationsQuery(current.id);
+  const updatePreferenceMutation = useUpdateNotificationPreferenceMutation(current.id);
   return (
     <Card title="Notifications">
       <div className="space-y-3">
-        {items.map((i, idx) => (
-          <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-            <div className="text-sm">{i}</div>
-            <Switch defaultChecked={idx < 4} />
+        {(notificationsQuery.data?.preferences ?? []).map((item) => (
+          <div key={item.type} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+            <div className="text-sm">{item.label}</div>
+            <Switch
+              checked={item.isEnabled}
+              onCheckedChange={(checked) =>
+                updatePreferenceMutation.mutate({
+                  type: item.type,
+                  isEnabled: checked
+                })
+              }
+            />
           </div>
         ))}
+        {!notificationsQuery.isLoading && (notificationsQuery.data?.preferences.length ?? 0) === 0 && (
+          <p className="text-xs text-muted-foreground">No notification preferences found for this workspace.</p>
+        )}
       </div>
     </Card>
   );

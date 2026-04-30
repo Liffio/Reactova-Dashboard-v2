@@ -12,6 +12,10 @@ export type WorkspaceApi = {
   onboarding?: Record<string, unknown> | null;
   meta?: Record<string, unknown> | null;
   createdAt: string;
+  dmsThisMonth: number;
+  leadsThisMonth: number;
+  clicksThisMonth: number;
+  activeAutomations: number;
 };
 
 export function useWorkspacesQuery() {

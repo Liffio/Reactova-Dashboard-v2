@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { useCan } from "@/hooks/useCan";
 import { useAppSelector } from "@/store/hooks";
 import { apiRequest } from "@/lib/api";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 type AutomationStatus = "ACTIVE" | "PAUSED" | "DRAFT";
 type PostMode = "specific" | "any" | "next";
@@ -270,7 +270,7 @@ function AutomationDrawer({
   const [buttonLabel, setButtonLabel] = useState(initial?.dmButtonLabel ?? defaultForm.dmButtonLabel);
   const [buttonUrl, setButtonUrl] = useState(initial?.dmButtonUrl ?? defaultForm.dmButtonUrl);
   const [followBeforeDm, setFollowBeforeDm] = useState(initial?.followBeforeDm ?? defaultForm.followBeforeDm);
-  const [postMode, setPostMode] = useState<PostMode>(initial?.postId ? "specific" : "any");
+  const [postMode, setPostMode] = useState<PostMode>("specific");
   const [selectedPostId, setSelectedPostId] = useState<string | null>(initial?.postId ?? null);
   const queryClient = useQueryClient();
 

@@ -1,17 +1,20 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  TrendingUp, TrendingDown, Zap, Link2, MousePointerClick, Users,
+  TrendingUp, TrendingDown, Zap, Link2, Users,
   Plus, ArrowUpRight, AlertTriangle,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { PlanBadge } from "@/components/PlanBadge";
 import { StatusBadge, StatusDot } from "@/components/StatusBadge";
 import { useApp } from "@/state/AppContext";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useCreateWorkspaceMutation } from "@/hooks/useCreateWorkspace";
+import { useDashboardQuery } from "@/hooks/useDashboard";
+import { useDeleteWorkspaceMutation } from "@/hooks/useDeleteWorkspace";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,22 +26,27 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const recent = [
-  { post: "Reel: Launch teaser", keyword: "GUIDE", dms: 423, status: "active" as const, date: "Apr 22, 2026" },
-  { post: "Post: Behind the scenes", keyword: "BTS", dms: 187, status: "active" as const, date: "Apr 20, 2026" },
-  { post: "Reel: Tutorial #4", keyword: "FREE", dms: 0, status: "paused" as const, date: "Apr 18, 2026" },
-  { post: "Post: Q&A Friday", keyword: "ASK", dms: 12, status: "draft" as const, date: "Apr 15, 2026" },
-  { post: "Reel: Customer story", keyword: "STORY", dms: 99, status: "active" as const, date: "Apr 12, 2026" },
-];
-
 export default function Dashboard() {
-  const { workspaces, setCurrentId, refreshAuth } = useApp();
+  const { current, setCurrentId, refreshAuth } = useApp();
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);
   const [workspaceHandle, setWorkspaceHandle] = useState("");
   const [workspacePlan, setWorkspacePlan] = useState<"FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY">("FREE");
   const [showLinkPrompt, setShowLinkPrompt] = useState(false);
-  const billingAlerts = workspaces.filter((w) => w.renewsInDays && w.renewsInDays <= 3);
+  const [workspaceToDelete, setWorkspaceToDelete] = useState<{ id: string; handle: string } | null>(null);
+  const dashboardQuery = useDashboardQuery(current.id);
+  const workspaceSummaries = dashboardQuery.data?.workspaceSummaries ?? [];
+  const today = Date.now();
+  const billingAlerts = workspaceSummaries
+    .filter((workspace) => workspace.billingCycleEnd)
+    .map((workspace) => {
+      const daysUntilRenewal = Math.ceil(
+        (new Date(workspace.billingCycleEnd as string).getTime() - today) / (24 * 60 * 60 * 1000)
+      );
+      return { workspace, daysUntilRenewal };
+    })
+    .filter((item) => item.daysUntilRenewal >= 0 && item.daysUntilRenewal <= 3);
+
   const createWorkspaceMutation = useCreateWorkspaceMutation(async (workspaceId) => {
     setCurrentId(workspaceId);
     await refreshAuth();
@@ -48,24 +56,55 @@ export default function Dashboard() {
     setShowLinkPrompt(true);
     toast.success("Workspace created");
   });
+  const deleteWorkspaceMutation = useDeleteWorkspaceMutation(async (deletedWorkspaceId) => {
+    const nextWorkspace = workspaceSummaries.find((workspace) => workspace.id !== deletedWorkspaceId);
+    setCurrentId(nextWorkspace?.id ?? "");
+    await refreshAuth();
+    setWorkspaceToDelete(null);
+    toast.success("Workspace deleted");
+  });
 
+ 
   return (
     <DashboardLayout title="Dashboard" subtitle="Plan, prioritize, and grow your audience.">
-      {billingAlerts.map((w) => (
-        <div key={w.id} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-accent/10 border border-accent/40 text-sm">
+      {dashboardQuery.error && (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {(dashboardQuery.error as Error).message}
+        </div>
+      )}
+      {billingAlerts.map(({ workspace, daysUntilRenewal }) => (
+        <div key={workspace.id} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-accent/10 border border-accent/40 text-sm">
           <AlertTriangle className="h-4 w-4 text-accent shrink-0" />
           <span className="flex-1">
-            Workspace <strong>{w.handle}</strong> renews in {w.renewsInDays} day{w.renewsInDays! > 1 ? "s" : ""} — ${w.renewAmount}
+            Workspace <strong>{workspace.handle ?? "Unlinked workspace"}</strong> renews in {daysUntilRenewal} day{daysUntilRenewal > 1 ? "s" : ""}
           </span>
           <button className="text-accent font-medium hover:underline whitespace-nowrap">Update billing →</button>
         </div>
       ))}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat icon={Zap} label="DMs Sent This Month" value="14,283" trend={12.4} sub="vs last month" highlight />
-        <Stat icon={Zap} label="Active Automations" value="23" sub="workflows running" />
-        <Stat icon={Link2} label="Link Clicks" value="3,891" trend={-3.2} sub="bio link + short links" />
-        <Stat icon={Users} label="Leads Captured" value="612" trend={28.7} sub="this month" />
+        <Stat
+          icon={Zap}
+          label="DMs Sent This Month"
+          value={dashboardQuery.data?.totals.dmsSentThisMonth ?? 0}
+          trend={dashboardQuery.data?.totals.dmsTrendPercent ?? undefined}
+          sub={`Last month: ${(dashboardQuery.data?.totals.dmsSentLastMonth ?? 0).toLocaleString()}`}
+          highlight
+        />
+        <Stat
+          icon={Zap}
+          label="Automations"
+          value={dashboardQuery.data?.totals.activeAutomations ?? 0}
+          sub={`${dashboardQuery.data?.totals.totalAutomations ?? 0} total · ${(dashboardQuery.data?.totals.pausedAutomations ?? 0)} paused · ${(dashboardQuery.data?.totals.draftAutomations ?? 0)} draft`}
+        />
+        <Stat
+          icon={Link2}
+          label="Link Clicks"
+          value={dashboardQuery.data?.totals.linkClicksThisMonth ?? 0}
+          trend={dashboardQuery.data?.totals.clickTrendPercent ?? undefined}
+          sub={`Last month: ${(dashboardQuery.data?.totals.linkClicksLastMonth ?? 0).toLocaleString()}`}
+        />
+        <Stat icon={Users} label="Leads Captured" value={dashboardQuery.data?.totals.leadsCapturedThisMonth ?? 0} sub="this month" />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -92,22 +131,34 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {recent.map((r, i) => (
-                <tr key={i} className="stripe-row hover:bg-primary/5 transition-colors">
+              {(dashboardQuery.data?.recentActivities ?? []).map((activity) => (
+                <tr key={activity.id} className="stripe-row hover:bg-primary/5 transition-colors">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
                       <div className="h-9 w-9 rounded-md bg-gradient-to-br from-primary/20 to-accent/20 shrink-0" />
-                      <span className="font-medium">{r.post}</span>
+                      <span className="font-medium">{activity.title}</span>
                     </div>
                   </td>
                   <td className="px-5 py-3">
-                    <span className="px-2 py-0.5 rounded-full bg-muted text-xs font-mono">{r.keyword}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-muted text-xs font-mono">{activity.keyword ?? "—"}</span>
                   </td>
-                  <td className="px-5 py-3 font-mono">{r.dms.toLocaleString()}</td>
-                  <td className="px-5 py-3"><StatusBadge status={r.status} withDot /></td>
-                  <td className="px-5 py-3 text-muted-foreground">{r.date}</td>
+                  <td className="px-5 py-3 font-mono">{activity.dmsSentThisMonth.toLocaleString()}</td>
+                  <td className="px-5 py-3">
+                    <StatusBadge
+                      status={
+                        activity.status === "PAUSED" ? "paused" : activity.status === "DRAFT" ? "draft" : "active"
+                      }
+                      withDot
+                    />
+                  </td>
+                  <td className="px-5 py-3 text-muted-foreground">{new Date(activity.createdAt).toLocaleDateString()}</td>
                 </tr>
               ))}
+              {!dashboardQuery.isLoading && (dashboardQuery.data?.recentActivities.length ?? 0) === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-8 text-center text-muted-foreground">No recent activity found for this workspace.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -116,23 +167,72 @@ export default function Dashboard() {
       <section>
         <h2 className="font-semibold mb-3">My Workspaces</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {workspaces.map((w) => (
-            <div key={w.id} className="p-5 rounded-xl bg-card border border-border hover:border-primary/40 transition-colors">
+          {workspaceSummaries.map((workspace) => (
+            <div key={workspace.id} className="p-5 rounded-xl bg-card border border-border hover:border-primary/40 transition-colors">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
-                  <StatusDot status={w.status === "failed" ? "failed" : w.status === "paused" ? "paused" : w.status === "disconnected" ? "disconnected" : "active"} />
-                  <span className="font-semibold truncate">{w.handle}</span>
+                  <StatusDot
+                    status={
+                      workspace.status === "PAYMENT_FAILED"
+                        ? "failed"
+                        : workspace.status === "PAUSED"
+                          ? "paused"
+                          : workspace.status === "INSTAGRAM_DISCONNECTED"
+                            ? "disconnected"
+                            : "active"
+                    }
+                  />
+                  <span className="font-semibold truncate">{workspace.handle ?? "Unlinked workspace"}</span>
                 </div>
-                <PlanBadge plan={w.plan} />
+                <PlanBadge
+                  plan={
+                    workspace.plan === "STARTER"
+                      ? "Starter"
+                      : workspace.plan === "PRO"
+                        ? "Pro"
+                        : workspace.plan === "BUSINESS"
+                          ? "Business"
+                          : workspace.plan === "AGENCY"
+                            ? "Agency"
+                            : "Free"
+                  }
+                />
               </div>
               <div className="space-y-1.5 text-xs text-muted-foreground mb-4">
-                <div className="flex justify-between"><span>Next billing</span><span className="text-foreground">{w.nextBilling}</span></div>
-                <div className="flex justify-between"><span>DMs this month</span><span className="text-foreground font-mono">{w.dmsThisMonth.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span>Status</span><span className="capitalize text-foreground">{w.status}</span></div>
+                <div className="flex justify-between"><span>Next billing</span><span className="text-foreground">{workspace.billingCycleEnd ? new Date(workspace.billingCycleEnd).toLocaleDateString() : "—"}</span></div>
+                <div className="flex justify-between"><span>DMs this month</span><span className="text-foreground font-mono">{workspace.dmsThisMonth.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span>Leads this month</span><span className="text-foreground font-mono">{workspace.leadsThisMonth.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span>Link clicks</span><span className="text-foreground font-mono">{workspace.clicksThisMonth.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span>Active automations</span><span className="text-foreground font-mono">{workspace.activeAutomations.toLocaleString()}</span></div>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1">Manage</Button>
-                <Button size="sm" className="flex-1">Open <ArrowUpRight className="h-3 w-3" /></Button>
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => navigate("/settings")}>Manage</Button>
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => {
+                    setCurrentId(workspace.id);
+                    void refreshAuth();
+                  }}
+                >
+                  Open <ArrowUpRight className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="mt-2">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="w-full"
+                  disabled={workspaceSummaries.length <= 1}
+                  onClick={() =>
+                    setWorkspaceToDelete({
+                      id: workspace.id,
+                      handle: workspace.handle ?? "Unlinked workspace"
+                    })
+                  }
+                >
+                  Delete Workspace
+                </Button>
               </div>
             </div>
           ))}
@@ -199,11 +299,49 @@ export default function Dashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog open={Boolean(workspaceToDelete)} onOpenChange={(open) => !open && setWorkspaceToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{workspaceToDelete?.handle}</strong> and all its data, including automations, DMs, leads, links, and team mappings. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteWorkspaceMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!workspaceToDelete || deleteWorkspaceMutation.isPending || workspaceSummaries.length <= 1}
+              onClick={() => {
+                if (!workspaceToDelete) return;
+                deleteWorkspaceMutation.mutate(workspaceToDelete.id, {
+                  onError: (error) => toast.error((error as Error).message)
+                });
+              }}
+            >
+              {deleteWorkspaceMutation.isPending ? "Deleting..." : "Delete workspace"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
 
-function Stat({ icon: Icon, label, value, trend, sub, highlight }: { icon: any; label: string; value: string; trend?: number; sub?: string; highlight?: boolean }) {
+function Stat({
+  icon: Icon,
+  label,
+  value,
+  trend,
+  sub,
+  highlight
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  trend?: number;
+  sub?: string;
+  highlight?: boolean;
+}) {
   const up = (trend ?? 0) >= 0;
   return (
     <div className="p-5 rounded-xl bg-card border border-border">
@@ -211,7 +349,7 @@ function Stat({ icon: Icon, label, value, trend, sub, highlight }: { icon: any; 
         <div className="text-xs text-muted-foreground">{label}</div>
         <Icon className="h-4 w-4 text-muted-foreground" />
       </div>
-      <div className={`text-3xl font-bold ${highlight ? "text-primary" : ""}`}>{value}</div>
+      <div className={`text-3xl font-bold ${highlight ? "text-primary" : ""}`}>{value.toLocaleString()}</div>
       <div className="flex items-center gap-1.5 mt-1.5 text-xs">
         {trend !== undefined && (
           <span className={`inline-flex items-center gap-0.5 font-medium ${up ? "text-success" : "text-destructive"}`}>

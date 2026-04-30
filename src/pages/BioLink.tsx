@@ -14,11 +14,17 @@ import {
   useBioLinkAnalyticsQuery,
   useBioLinkQuery,
   useCreateBioLinkItemMutation,
+  useCreateBioLinkSocialMutation,
   useDeleteBioLinkItemMutation,
+  useDeleteBioLinkSocialMutation,
+  useResetBioLinkMutation,
   useReorderBioLinkItemsMutation,
+  useReorderBioLinkSocialsMutation,
   useUpdateBioLinkItemMutation,
+  useUpdateBioLinkSocialMutation,
   useUpdateBioLinkMutation,
-  type BioLinkItem
+  type BioLinkItem,
+  type BioLinkSocialItem
 } from "@/hooks/useBioLink";
 
 const swatches = ["#7C6AF7", "#F97316", "#22C55E", "#EAB308", "#EF4444", "#34B7F1", "#0EA5E9", "#14B8A6"];
@@ -31,6 +37,7 @@ const buttonStyles = [
 const domainPrefix = "https://bio.reactova.com/";
 
 type DraftLink = BioLinkItem & { bioLinkId?: string };
+type DraftSocial = BioLinkSocialItem & { bioLinkId?: string };
 type TemplateStyle = {
   accentColor: string;
   buttonStyle: "filled" | "outlined" | "soft";
@@ -50,93 +57,120 @@ type TemplateStyle = {
 
 const bioTemplates: Array<{ id: string; name: string; style: TemplateStyle }> = [
   {
-    id: "midnight",
-    name: "Midnight",
+    id: "aurora-splash",
+    name: "Aurora Splash",
     style: {
-      accentColor: "#7C6AF7", buttonStyle: "filled", backgroundType: "gradient", backgroundColor: "#090D1A", backgroundColorTo: "#151A2F",
-      textColor: "#FFFFFF", cardStyle: "glass", cardColor: "#1F2937", cardOpacity: 72, fontFamily: "inter", buttonTextColor: "#FFFFFF",
-      buttonRadius: 12, buttonBorderWidth: 0, buttonShadow: true
-    }
-  },
-  {
-    id: "sunset",
-    name: "Sunset",
-    style: {
-      accentColor: "#F97316", buttonStyle: "filled", backgroundType: "gradient", backgroundColor: "#7C2D12", backgroundColorTo: "#FDBA74",
-      textColor: "#FFF7ED", cardStyle: "solid", cardColor: "#9A3412", cardOpacity: 70, fontFamily: "poppins", buttonTextColor: "#FFFFFF",
-      buttonRadius: 14, buttonBorderWidth: 0, buttonShadow: true
-    }
-  },
-  {
-    id: "neon",
-    name: "Neon",
-    style: {
-      accentColor: "#00E5FF", buttonStyle: "soft", backgroundType: "gradient", backgroundColor: "#0B0F1A", backgroundColorTo: "#1D1333",
-      textColor: "#E0F7FF", cardStyle: "glass", cardColor: "#111827", cardOpacity: 65, fontFamily: "space-grotesk", buttonTextColor: "#00E5FF",
+      accentColor: "#22D3EE", buttonStyle: "soft", backgroundType: "gradient", backgroundColor: "#14532D", backgroundColorTo: "#0EA5E9",
+      textColor: "#E0F2FE", cardStyle: "glass", cardColor: "#0F172A", cardOpacity: 52, fontFamily: "space-grotesk", buttonTextColor: "#ECFEFF",
       buttonRadius: 16, buttonBorderWidth: 1, buttonShadow: true
     }
   },
   {
-    id: "minimal",
-    name: "Minimal",
+    id: "starfield-dark",
+    name: "Starfield Dark",
     style: {
-      accentColor: "#111827", buttonStyle: "outlined", backgroundType: "solid", backgroundColor: "#F8FAFC", backgroundColorTo: "#F8FAFC",
-      textColor: "#0F172A", cardStyle: "solid", cardColor: "#FFFFFF", cardOpacity: 100, fontFamily: "inter", buttonTextColor: "#111827",
+      accentColor: "#FFFFFF", buttonStyle: "outlined", backgroundType: "gradient", backgroundColor: "#020617", backgroundColorTo: "#111827",
+      textColor: "#FFFFFF", cardStyle: "glass", cardColor: "#0B1120", cardOpacity: 40, fontFamily: "inter", buttonTextColor: "#FFFFFF",
+      buttonRadius: 20, buttonBorderWidth: 2, buttonShadow: true
+    }
+  },
+  {
+    id: "berry-burst",
+    name: "Berry Burst",
+    style: {
+      accentColor: "#F43F5E", buttonStyle: "filled", backgroundType: "gradient", backgroundColor: "#7E22CE", backgroundColorTo: "#2563EB",
+      textColor: "#FFFFFF", cardStyle: "solid", cardColor: "#9333EA", cardOpacity: 55, fontFamily: "poppins", buttonTextColor: "#FFFFFF",
+      buttonRadius: 18, buttonBorderWidth: 0, buttonShadow: true
+    }
+  },
+  {
+    id: "sage-grid",
+    name: "Sage Grid",
+    style: {
+      accentColor: "#0F172A", buttonStyle: "outlined", backgroundType: "solid", backgroundColor: "#C4D39A", backgroundColorTo: "#C4D39A",
+      textColor: "#111827", cardStyle: "outline", cardColor: "#A3B18A", cardOpacity: 100, fontFamily: "playfair", buttonTextColor: "#111827",
+      buttonRadius: 16, buttonBorderWidth: 2, buttonShadow: false
+    }
+  },
+  {
+    id: "mono-ink",
+    name: "Mono Ink",
+    style: {
+      accentColor: "#FFFFFF", buttonStyle: "outlined", backgroundType: "gradient", backgroundColor: "#030712", backgroundColorTo: "#020617",
+      textColor: "#FFFFFF", cardStyle: "outline", cardColor: "#374151", cardOpacity: 60, fontFamily: "inter", buttonTextColor: "#FFFFFF",
       buttonRadius: 10, buttonBorderWidth: 1, buttonShadow: false
     }
   },
   {
-    id: "ocean",
-    name: "Ocean",
+    id: "sand-studio",
+    name: "Sand Studio",
     style: {
-      accentColor: "#06B6D4", buttonStyle: "filled", backgroundType: "gradient", backgroundColor: "#082F49", backgroundColorTo: "#0EA5E9",
-      textColor: "#ECFEFF", cardStyle: "glass", cardColor: "#0C4A6E", cardOpacity: 68, fontFamily: "poppins", buttonTextColor: "#FFFFFF",
-      buttonRadius: 12, buttonBorderWidth: 0, buttonShadow: true
+      accentColor: "#111827", buttonStyle: "outlined", backgroundType: "solid", backgroundColor: "#FFF7ED", backgroundColorTo: "#FFF7ED",
+      textColor: "#1F2937", cardStyle: "solid", cardColor: "#FFFBEB", cardOpacity: 100, fontFamily: "poppins", buttonTextColor: "#111827",
+      buttonRadius: 14, buttonBorderWidth: 1, buttonShadow: false
     }
   },
   {
-    id: "forest",
-    name: "Forest",
+    id: "frost-light",
+    name: "Frost Light",
     style: {
-      accentColor: "#22C55E", buttonStyle: "soft", backgroundType: "gradient", backgroundColor: "#052E16", backgroundColorTo: "#166534",
-      textColor: "#ECFDF5", cardStyle: "solid", cardColor: "#14532D", cardOpacity: 80, fontFamily: "space-grotesk", buttonTextColor: "#BBF7D0",
-      buttonRadius: 14, buttonBorderWidth: 0, buttonShadow: false
+      accentColor: "#0EA5E9", buttonStyle: "soft", backgroundType: "solid", backgroundColor: "#E0F2FE", backgroundColorTo: "#E0F2FE",
+      textColor: "#0F172A", cardStyle: "glass", cardColor: "#FFFFFF", cardOpacity: 75, fontFamily: "inter", buttonTextColor: "#0F172A",
+      buttonRadius: 12, buttonBorderWidth: 0, buttonShadow: false
     }
   },
   {
-    id: "royal",
-    name: "Royal",
+    id: "royal-indigo",
+    name: "Royal Indigo",
     style: {
-      accentColor: "#A855F7", buttonStyle: "outlined", backgroundType: "gradient", backgroundColor: "#2E1065", backgroundColorTo: "#4C1D95",
-      textColor: "#F3E8FF", cardStyle: "outline", cardColor: "#C084FC", cardOpacity: 40, fontFamily: "playfair", buttonTextColor: "#E9D5FF",
+      accentColor: "#8B5CF6", buttonStyle: "outlined", backgroundType: "gradient", backgroundColor: "#1E1B4B", backgroundColorTo: "#4C1D95",
+      textColor: "#EDE9FE", cardStyle: "glass", cardColor: "#312E81", cardOpacity: 58, fontFamily: "playfair", buttonTextColor: "#DDD6FE",
       buttonRadius: 18, buttonBorderWidth: 1, buttonShadow: true
     }
   },
   {
-    id: "blush",
-    name: "Blush",
+    id: "crimson-neon",
+    name: "Crimson Neon",
     style: {
-      accentColor: "#EC4899", buttonStyle: "filled", backgroundType: "gradient", backgroundColor: "#831843", backgroundColorTo: "#F472B6",
-      textColor: "#FFF1F2", cardStyle: "glass", cardColor: "#9D174D", cardOpacity: 60, fontFamily: "poppins", buttonTextColor: "#FFFFFF",
+      accentColor: "#F43F5E", buttonStyle: "soft", backgroundType: "gradient", backgroundColor: "#0F172A", backgroundColorTo: "#7F1D1D",
+      textColor: "#FEE2E2", cardStyle: "outline", cardColor: "#F43F5E", cardOpacity: 35, fontFamily: "space-grotesk", buttonTextColor: "#FECACA",
+      buttonRadius: 16, buttonBorderWidth: 1, buttonShadow: true
+    }
+  },
+  {
+    id: "pearl-minimal",
+    name: "Pearl Minimal",
+    style: {
+      accentColor: "#111827", buttonStyle: "filled", backgroundType: "solid", backgroundColor: "#FFFFFF", backgroundColorTo: "#FFFFFF",
+      textColor: "#111827", cardStyle: "solid", cardColor: "#F8FAFC", cardOpacity: 100, fontFamily: "inter", buttonTextColor: "#FFFFFF",
+      buttonRadius: 999, buttonBorderWidth: 0, buttonShadow: false
+    }
+  },
+  {
+    id: "ocean-electric",
+    name: "Ocean Electric",
+    style: {
+      accentColor: "#06B6D4", buttonStyle: "filled", backgroundType: "gradient", backgroundColor: "#082F49", backgroundColorTo: "#0EA5E9",
+      textColor: "#ECFEFF", cardStyle: "glass", cardColor: "#0C4A6E", cardOpacity: 66, fontFamily: "poppins", buttonTextColor: "#FFFFFF",
+      buttonRadius: 12, buttonBorderWidth: 0, buttonShadow: true
+    }
+  },
+  {
+    id: "forest-night",
+    name: "Forest Night",
+    style: {
+      accentColor: "#22C55E", buttonStyle: "soft", backgroundType: "gradient", backgroundColor: "#052E16", backgroundColorTo: "#166534",
+      textColor: "#ECFDF5", cardStyle: "solid", cardColor: "#14532D", cardOpacity: 78, fontFamily: "space-grotesk", buttonTextColor: "#BBF7D0",
+      buttonRadius: 14, buttonBorderWidth: 0, buttonShadow: false
+    }
+  },
+  {
+    id: "sunset-haze",
+    name: "Sunset Haze",
+    style: {
+      accentColor: "#F97316", buttonStyle: "filled", backgroundType: "gradient", backgroundColor: "#7C2D12", backgroundColorTo: "#FDBA74",
+      textColor: "#FFF7ED", cardStyle: "glass", cardColor: "#9A3412", cardOpacity: 62, fontFamily: "poppins", buttonTextColor: "#FFFFFF",
       buttonRadius: 16, buttonBorderWidth: 0, buttonShadow: true
-    }
-  },
-  {
-    id: "amber",
-    name: "Amber",
-    style: {
-      accentColor: "#F59E0B", buttonStyle: "outlined", backgroundType: "solid", backgroundColor: "#1F2937", backgroundColorTo: "#1F2937",
-      textColor: "#FEF3C7", cardStyle: "solid", cardColor: "#111827", cardOpacity: 88, fontFamily: "inter", buttonTextColor: "#FCD34D",
-      buttonRadius: 10, buttonBorderWidth: 1, buttonShadow: false
-    }
-  },
-  {
-    id: "electric",
-    name: "Electric",
-    style: {
-      accentColor: "#3B82F6", buttonStyle: "soft", backgroundType: "gradient", backgroundColor: "#0F172A", backgroundColorTo: "#1E3A8A",
-      textColor: "#DBEAFE", cardStyle: "outline", cardColor: "#60A5FA", cardOpacity: 45, fontFamily: "space-grotesk", buttonTextColor: "#BFDBFE",
-      buttonRadius: 20, buttonBorderWidth: 1, buttonShadow: true
     }
   }
 ];
@@ -145,8 +179,10 @@ export default function BioLink() {
   const { current, user } = useApp();
   const canUpdate = useCan("biolink", "update");
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [draggingSection, setDraggingSection] = useState<"links" | "socials" | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [deletedLinkIds, setDeletedLinkIds] = useState<string[]>([]);
+  const [deletedSocialIds, setDeletedSocialIds] = useState<string[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     displayName: "",
@@ -166,9 +202,12 @@ export default function BioLink() {
     buttonTextColor: "#FFFFFF",
     buttonRadius: 12,
     buttonBorderWidth: 0,
-    buttonShadow: false
+    buttonShadow: false,
+    socialLayout: "horizontal" as "horizontal" | "vertical",
+    sectionOrder: ["links", "socials"] as Array<"links" | "socials">
   });
   const [links, setLinks] = useState<DraftLink[]>([]);
+  const [socials, setSocials] = useState<DraftSocial[]>([]);
   const profileQuery = useBioLinkQuery(current.id);
   const analyticsQuery = useBioLinkAnalyticsQuery(current.id, showAnalytics);
   const updateProfileMutation = useUpdateBioLinkMutation(current.id);
@@ -176,6 +215,11 @@ export default function BioLink() {
   const updateLinkMutation = useUpdateBioLinkItemMutation(current.id);
   const deleteLinkMutation = useDeleteBioLinkItemMutation(current.id);
   const reorderMutation = useReorderBioLinkItemsMutation(current.id);
+  const createSocialMutation = useCreateBioLinkSocialMutation(current.id);
+  const updateSocialMutation = useUpdateBioLinkSocialMutation(current.id);
+  const deleteSocialMutation = useDeleteBioLinkSocialMutation(current.id);
+  const reorderSocialsMutation = useReorderBioLinkSocialsMutation(current.id);
+  const resetBioLinkMutation = useResetBioLinkMutation(current.id);
 
   useEffect(() => {
     if (!profileQuery.data) {
@@ -199,10 +243,14 @@ export default function BioLink() {
       buttonTextColor: profileQuery.data.buttonTextColor,
       buttonRadius: profileQuery.data.buttonRadius,
       buttonBorderWidth: profileQuery.data.buttonBorderWidth,
-      buttonShadow: profileQuery.data.buttonShadow
+      buttonShadow: profileQuery.data.buttonShadow,
+      socialLayout: profileQuery.data.socialLayout,
+      sectionOrder: profileQuery.data.sectionOrder?.length ? profileQuery.data.sectionOrder : ["links", "socials"]
     });
     setLinks(profileQuery.data.links);
+    setSocials(profileQuery.data.socials ?? []);
     setDeletedLinkIds([]);
+    setDeletedSocialIds([]);
   }, [current.id, profileQuery.data, user?.name]);
 
   const fullPublicUrl = useMemo(() => `${domainPrefix}${draft.slug || "your-slug"}`, [draft.slug]);
@@ -211,6 +259,11 @@ export default function BioLink() {
     const invalidLink = links.find((link) => !isValidUrl(link.url));
     if (invalidLink) {
       toast.error("Please enter valid URLs for all links before saving");
+      return;
+    }
+    const invalidSocial = socials.find((item) => !isValidUrl(item.url));
+    if (invalidSocial) {
+      toast.error("Please enter valid URLs for all socials before saving");
       return;
     }
 
@@ -232,11 +285,16 @@ export default function BioLink() {
       buttonTextColor: draft.buttonTextColor,
       buttonRadius: draft.buttonRadius,
       buttonBorderWidth: draft.buttonBorderWidth,
-      buttonShadow: draft.buttonShadow
+      buttonShadow: draft.buttonShadow,
+      socialLayout: draft.socialLayout,
+      sectionOrder: draft.sectionOrder
     });
 
     for (const id of deletedLinkIds) {
       await deleteLinkMutation.mutateAsync(id);
+    }
+    for (const id of deletedSocialIds) {
+      await deleteSocialMutation.mutateAsync(id);
     }
 
     const finalOrderIds: string[] = [];
@@ -261,8 +319,37 @@ export default function BioLink() {
     if (finalOrderIds.length > 0) {
       await reorderMutation.mutateAsync(finalOrderIds);
     }
+    const finalSocialOrderIds: string[] = [];
+    for (const item of socials) {
+      if (item.id.startsWith("local-social-")) {
+        const created = await createSocialMutation.mutateAsync({
+          label: item.label.trim() || "Social",
+          url: item.url,
+          icon: item.icon ?? undefined,
+          emoji: item.emoji ?? undefined,
+          platform: item.platform ?? "custom",
+          mode: item.mode ?? "link"
+        });
+        finalSocialOrderIds.push(created.id);
+        continue;
+      }
+      await updateSocialMutation.mutateAsync({
+        id: item.id,
+        label: item.label.trim() || "Social",
+        url: item.url,
+        icon: item.icon ?? undefined,
+        emoji: item.emoji ?? undefined,
+        platform: item.platform ?? "custom",
+        mode: item.mode ?? "link"
+      });
+      finalSocialOrderIds.push(item.id);
+    }
+    if (finalSocialOrderIds.length > 0) {
+      await reorderSocialsMutation.mutateAsync(finalSocialOrderIds);
+    }
 
     setDeletedLinkIds([]);
+    setDeletedSocialIds([]);
     await profileQuery.refetch();
     toast.success("Bio link changes saved");
   };
@@ -287,6 +374,23 @@ export default function BioLink() {
     };
     setLinks((prev) => [...prev, created]);
   };
+  const onAddSocial = () => {
+    const localId = `local-social-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+    setSocials((prev) => [
+      ...prev,
+      {
+        id: localId,
+        label: "Instagram",
+        url: "https://instagram.com",
+        icon: "instagram",
+        emoji: "📸",
+        platform: "instagram",
+        mode: "profile",
+        order: prev.length,
+        bioLinkId: ""
+      }
+    ]);
+  };
 
   const onDragStart = (id: string) => setDraggingId(id);
   const onDragOver = (event: React.DragEvent, overId: string) => {
@@ -309,6 +413,32 @@ export default function BioLink() {
 
   const onDrop = () => {
     setDraggingId(null);
+  };
+  const onSocialDragOver = (event: React.DragEvent, overId: string) => {
+    event.preventDefault();
+    if (!draggingId || draggingId === overId) return;
+    setSocials((prev) => {
+      const fromIndex = prev.findIndex((item) => item.id === draggingId);
+      const toIndex = prev.findIndex((item) => item.id === overId);
+      if (fromIndex < 0 || toIndex < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next.map((item, index) => ({ ...item, order: index }));
+    });
+  };
+  const onSectionDrop = (target: "links" | "socials") => {
+    if (!draggingSection || draggingSection === target) return;
+    setDraft((prev) => {
+      const next = [...prev.sectionOrder];
+      const fromIndex = next.indexOf(draggingSection);
+      const toIndex = next.indexOf(target);
+      if (fromIndex < 0 || toIndex < 0) return prev;
+      next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, draggingSection);
+      return { ...prev, sectionOrder: next as Array<"links" | "socials"> };
+    });
+    setDraggingSection(null);
   };
 
   return (
@@ -395,65 +525,192 @@ export default function BioLink() {
             </div>
           </Card>
 
-          <Card title="Links">
-            <div className="space-y-2">
-              {links.map((l) => (
-                <div
-                  key={l.id}
-                  draggable={canUpdate}
-                  onDragStart={() => onDragStart(l.id)}
-                  onDragOver={(event) => onDragOver(event, l.id)}
-                  onDrop={onDrop}
-                  className={cn(
-                    "flex items-center gap-2 p-2 rounded-lg bg-background border border-border",
-                    draggingId === l.id && "opacity-60"
-                  )}
-                >
-                  <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab shrink-0" />
-                  <div className="flex-1 grid grid-cols-2 gap-2">
-                    <Input
-                      value={l.title}
-                      onChange={(e) =>
-                        setLinks((prev) =>
-                          prev.map((item) => (item.id === l.id ? { ...item, title: e.target.value } : item))
-                        )
-                      }
-                      className="bg-input border-border h-8 text-sm"
-                    />
-                    <Input
-                      value={l.url}
-                      onChange={(e) =>
-                        setLinks((prev) =>
-                          prev.map((item) => (item.id === l.id ? { ...item, url: e.target.value } : item))
-                        )
-                      }
-                      className="bg-input border-border h-8 text-sm"
-                    />
-                  </div>
-                  <button
-                    className="p-1.5 text-muted-foreground hover:text-destructive disabled:opacity-40"
-                    onClick={() => {
-                      if (!l.id.startsWith("local-")) {
-                        setDeletedLinkIds((prev) => (prev.includes(l.id) ? prev : [...prev, l.id]));
-                      }
-                      setLinks((prev) => prev.filter((item) => item.id !== l.id));
-                    }}
-                    disabled={!canUpdate}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-              <Button
-                variant="outline"
-                className="w-full"
-                  onClick={onAddLink}
-                disabled={!canUpdate}
+          {draft.sectionOrder.map((section) =>
+            section === "links" ? (
+              <div
+                key="section-links"
+                draggable
+                onDragStart={() => setDraggingSection("links")}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => onSectionDrop("links")}
               >
-                <Plus className="h-4 w-4" /> Add Link
-              </Button>
-            </div>
-          </Card>
+                <Card title="Links">
+                  <div className="space-y-2">
+                    {links.map((l) => (
+                      <div
+                        key={l.id}
+                        draggable={canUpdate}
+                        onDragStart={() => onDragStart(l.id)}
+                        onDragOver={(event) => onDragOver(event, l.id)}
+                        onDrop={onDrop}
+                        className={cn(
+                          "flex items-center gap-2 p-2 rounded-lg bg-background border border-border",
+                          draggingId === l.id && "opacity-60"
+                        )}
+                      >
+                        <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab shrink-0" />
+                        <div className="flex-1 grid grid-cols-2 gap-2">
+                          <Input
+                            value={l.title}
+                            onChange={(e) =>
+                              setLinks((prev) =>
+                                prev.map((item) => (item.id === l.id ? { ...item, title: e.target.value } : item))
+                              )
+                            }
+                            className="bg-input border-border h-8 text-sm"
+                          />
+                          <Input
+                            value={l.url}
+                            onChange={(e) =>
+                              setLinks((prev) =>
+                                prev.map((item) => (item.id === l.id ? { ...item, url: e.target.value } : item))
+                              )
+                            }
+                            className="bg-input border-border h-8 text-sm"
+                          />
+                        </div>
+                        <button
+                          className="p-1.5 text-muted-foreground hover:text-destructive disabled:opacity-40"
+                          onClick={() => {
+                            if (!l.id.startsWith("local-")) {
+                              setDeletedLinkIds((prev) => (prev.includes(l.id) ? prev : [...prev, l.id]));
+                            }
+                            setLinks((prev) => prev.filter((item) => item.id !== l.id));
+                          }}
+                          disabled={!canUpdate}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <Button variant="outline" className="w-full" onClick={onAddLink} disabled={!canUpdate}>
+                      <Plus className="h-4 w-4" /> Add Link
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+            ) : (
+              <div
+                key="section-socials"
+                draggable
+                onDragStart={() => setDraggingSection("socials")}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => onSectionDrop("socials")}
+              >
+                <Card title="Socials">
+                  <div className="space-y-2">
+                    {socials.map((item) => (
+                      <div
+                        key={item.id}
+                        draggable={canUpdate}
+                        onDragStart={() => onDragStart(item.id)}
+                        onDragOver={(event) => onSocialDragOver(event, item.id)}
+                        onDrop={onDrop}
+                        className={cn(
+                          "grid grid-cols-[auto,1fr,1fr,auto] gap-2 items-center p-2 rounded-lg bg-background border border-border",
+                          draggingId === item.id && "opacity-60"
+                        )}
+                      >
+                        <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
+                        <Input
+                          value={item.emoji ?? ""}
+                          onChange={(e) =>
+                            setSocials((prev) => prev.map((s) => (s.id === item.id ? { ...s, emoji: e.target.value } : s)))
+                          }
+                          placeholder="😀 or icon key"
+                          className="bg-input border-border h-8 text-sm"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            value={item.label}
+                            onChange={(e) =>
+                              setSocials((prev) => prev.map((s) => (s.id === item.id ? { ...s, label: e.target.value } : s)))
+                            }
+                            className="bg-input border-border h-8 text-sm"
+                          />
+                          <Input
+                            value={item.url}
+                            onChange={(e) =>
+                              setSocials((prev) => prev.map((s) => (s.id === item.id ? { ...s, url: e.target.value } : s)))
+                            }
+                            disabled={item.platform === "instagram" && (item.mode === "posts" || item.mode === "reels")}
+                            className="bg-input border-border h-8 text-sm"
+                          />
+                          <select
+                            value={item.platform ?? "custom"}
+                            onChange={(e) =>
+                              setSocials((prev) =>
+                                prev.map((s) =>
+                                  s.id === item.id
+                                    ? {
+                                        ...s,
+                                        platform: e.target.value as "custom" | "instagram",
+                                        mode: e.target.value === "instagram" ? "profile" : "link",
+                                        emoji: e.target.value === "instagram" ? "📸" : s.emoji
+                                      }
+                                    : s
+                                )
+                              )
+                            }
+                            className="h-8 rounded-md border border-border bg-input px-2 text-xs"
+                          >
+                            <option value="instagram">Instagram</option>
+                            <option value="custom">Custom</option>
+                          </select>
+                          <select
+                            value={item.mode ?? "link"}
+                            onChange={(e) =>
+                              setSocials((prev) =>
+                                prev.map((s) =>
+                                  s.id === item.id
+                                    ? {
+                                        ...s,
+                                        mode: e.target.value as "link" | "profile" | "posts" | "reels",
+                                        url:
+                                          s.platform === "instagram" &&
+                                          (e.target.value === "posts" || e.target.value === "reels" || e.target.value === "profile")
+                                            ? "https://instagram.com"
+                                            : s.url
+                                      }
+                                    : s
+                                )
+                              )
+                            }
+                            className="h-8 rounded-md border border-border bg-input px-2 text-xs"
+                          >
+                            <option value="link">Link</option>
+                            {item.platform === "instagram" && <option value="profile">IG Profile</option>}
+                            {item.platform === "instagram" && <option value="posts">IG Posts Grid</option>}
+                            {item.platform === "instagram" && <option value="reels">IG Reels Grid</option>}
+                          </select>
+                        </div>
+                        <button
+                          className="p-1.5 text-muted-foreground hover:text-destructive disabled:opacity-40"
+                          onClick={() => {
+                            if (!item.id.startsWith("local-social-")) {
+                              setDeletedSocialIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
+                            }
+                            setSocials((prev) => prev.filter((s) => s.id !== item.id));
+                          }}
+                          disabled={!canUpdate}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                        {item.platform === "instagram" && (item.mode === "posts" || item.mode === "reels") && (
+                          <div className="col-span-4 text-[11px] text-muted-foreground">
+                            Uses connected Instagram account content ({item.mode}).
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    <Button variant="outline" className="w-full" onClick={onAddSocial} disabled={!canUpdate}>
+                      <Plus className="h-4 w-4" /> Add Social
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+            )
+          )}
 
           <Card title="Appearance">
             <div className="space-y-4">
@@ -623,6 +880,23 @@ export default function BioLink() {
                   ))}
                 </div>
               </div>
+              <div>
+                <Label>Social layout</Label>
+                <div className="inline-flex p-1 rounded-lg bg-background border border-border mt-2">
+                  {(["horizontal", "vertical"] as const).map((layout) => (
+                    <button
+                      key={layout}
+                      className={cn(
+                        "px-3 py-1.5 rounded-md text-xs capitalize",
+                        draft.socialLayout === layout ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"
+                      )}
+                      onClick={() => setDraft((prev) => ({ ...prev, socialLayout: layout }))}
+                    >
+                      {layout}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
                 <input
                   type="checkbox"
@@ -639,6 +913,16 @@ export default function BioLink() {
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => setShowAnalytics((prev) => !prev)}>
                 <BarChart3 className="h-4 w-4" /> View Analytics
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  await resetBioLinkMutation.mutateAsync();
+                  await profileQuery.refetch();
+                }}
+                disabled={resetBioLinkMutation.isPending}
+              >
+                Reset to Defaults
               </Button>
               <Button onClick={onSave} disabled={!canUpdate || updateProfileMutation.isPending}>
                 Save Changes
@@ -668,9 +952,9 @@ export default function BioLink() {
         <div className="lg:col-span-2">
           <div className="sticky top-24">
             <div className="text-xs text-muted-foreground mb-3 text-center">Live Preview</div>
-            <div className="mx-auto w-[280px] rounded-[2.5rem] border-8 border-card bg-background shadow-2xl p-6 min-h-[480px]">
-              <div className="rounded-2xl p-5" style={getCardWrapperStyle(draft)}>
-                <div className="flex flex-col items-center text-center" style={{ color: draft.textColor, fontFamily: getFontFamily(draft.fontFamily) }}>
+            <div className="mx-auto w-[280px] rounded-[2.5rem] border-8 border-card shadow-2xl p-4 min-h-[480px] overflow-hidden" style={getPhoneBackgroundStyle(draft)}>
+              <div className="rounded-2xl p-5 h-full min-h-[440px]" style={getCardWrapperStyle(draft)}>
+                <div className="flex flex-col items-center text-center h-full" style={{ color: draft.textColor, fontFamily: getFontFamily(draft.fontFamily) }}>
                   {draft.avatarUrl ? (
                     <img src={resolveAvatarUrl(draft.avatarUrl)} alt="Avatar" className="h-20 w-20 rounded-full mb-3 object-cover border border-white/20" />
                   ) : (
@@ -678,18 +962,46 @@ export default function BioLink() {
                   )}
                   <div className="font-bold">{draft.displayName || "Your name"}</div>
                   <p className="text-xs mt-1 opacity-90">{draft.bio || "Tell people what you do."}</p>
-                <div className="w-full mt-6 space-y-2">
-                  {links.map((l) => (
-                    <div
-                      key={l.id}
-                      className={cn("w-full text-xs font-medium py-2.5 px-3", getButtonClasses(draft.buttonStyle))}
-                      style={getButtonStyle(draft)}
-                    >
-                      {l.title}
-                    </div>
-                  ))}
-                </div>
-                  <div className="text-[10px] mt-6 opacity-80">Powered by Reactova</div>
+                  <div className="w-full mt-6 space-y-3">
+                    {draft.sectionOrder.map((section) =>
+                      section === "links" ? (
+                        <div key="preview-links" className="space-y-2">
+                          {links.map((l) => (
+                            <div
+                              key={l.id}
+                              className={cn("w-full text-xs font-medium py-2.5 px-3", getButtonClasses(draft.buttonStyle))}
+                              style={getButtonStyle(draft)}
+                            >
+                              {l.title}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div
+                          key="preview-socials"
+                          className={cn(
+                            draft.socialLayout === "horizontal" ? "flex flex-wrap justify-center gap-2" : "flex flex-col gap-2"
+                          )}
+                        >
+                          {socials.map((item) => (
+                            <div
+                              key={item.id}
+                              className={cn(
+                                "text-xs font-medium px-3 py-2 inline-flex items-center justify-center gap-1",
+                                getButtonClasses(draft.buttonStyle),
+                                draft.socialLayout === "horizontal" ? "min-w-[72px]" : "w-full"
+                              )}
+                              style={getButtonStyle(draft)}
+                            >
+                              <span>{item.emoji || "🔗"}</span>
+                              <span>{item.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    )}
+                  </div>
+                  <div className="text-[10px] mt-auto pt-6 opacity-80">Powered by Reactova</div>
                 </div>
               </div>
             </div>
@@ -761,26 +1073,37 @@ function getCardWrapperStyle(draft: {
   cardColor: string;
   cardOpacity: number;
 }): CSSProperties {
-  const background =
-    draft.backgroundType === "gradient"
-      ? `linear-gradient(145deg, ${draft.backgroundColor}, ${draft.backgroundColorTo})`
-      : draft.backgroundColor;
   if (draft.cardStyle === "glass") {
     return {
-      background,
+      background: "rgba(15, 23, 42, 0.32)",
       border: "1px solid rgba(255,255,255,0.2)",
       backdropFilter: "blur(10px)"
     };
   }
   if (draft.cardStyle === "outline") {
     return {
-      background,
+      background: "transparent",
       border: `1px solid ${draft.cardColor}`
     };
   }
   return {
-    background: `linear-gradient(0deg, ${draft.cardColor}${toAlphaHex(draft.cardOpacity)}, ${draft.cardColor}${toAlphaHex(draft.cardOpacity)}), ${background}`,
+    background: `${draft.cardColor}${toAlphaHex(draft.cardOpacity)}`,
     border: "1px solid rgba(255,255,255,0.08)"
+  };
+}
+
+function getPhoneBackgroundStyle(draft: {
+  backgroundType: "solid" | "gradient";
+  backgroundColor: string;
+  backgroundColorTo: string;
+}): CSSProperties {
+  return {
+    background:
+      draft.backgroundType === "gradient"
+        ? `linear-gradient(145deg, ${draft.backgroundColor}, ${draft.backgroundColorTo})`
+        : draft.backgroundColor,
+    backgroundSize: "cover",
+    backgroundPosition: "center"
   };
 }
 

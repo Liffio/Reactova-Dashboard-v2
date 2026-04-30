@@ -8,6 +8,16 @@ export type BioLinkItem = {
   url: string;
   order: number;
 };
+export type BioLinkSocialItem = {
+  id: string;
+  label: string;
+  url: string;
+  icon: string | null;
+  emoji: string | null;
+  platform?: "custom" | "instagram";
+  mode?: "link" | "profile" | "posts" | "reels";
+  order: number;
+};
 
 export type BioLinkProfile = {
   id: string;
@@ -31,7 +41,10 @@ export type BioLinkProfile = {
   buttonRadius: number;
   buttonBorderWidth: number;
   buttonShadow: boolean;
+  sectionOrder: Array<"links" | "socials">;
+  socialLayout: "horizontal" | "vertical";
   links: BioLinkItem[];
+  socials: BioLinkSocialItem[];
   publicUrl: string;
   totalClicks: number;
 };
@@ -67,9 +80,21 @@ type PublicBioLinkPayload = {
   buttonRadius: number;
   buttonBorderWidth: number;
   buttonShadow: boolean;
+  sectionOrder: Array<"links" | "socials">;
+  socialLayout: "horizontal" | "vertical";
   links: Array<{
     id: string;
     title: string;
+    clickUrl: string;
+  }>;
+  socials: Array<{
+    id: string;
+    label: string;
+    icon: string | null;
+    emoji: string | null;
+    platform?: "custom" | "instagram";
+    mode?: "link" | "profile" | "posts" | "reels";
+    mediaItems?: Array<{ id: string; mediaUrl?: string; permalink?: string }>;
     clickUrl: string;
   }>;
 };
@@ -113,6 +138,8 @@ export function useUpdateBioLinkMutation(workspaceId: string) {
       buttonRadius?: number;
       buttonBorderWidth?: number;
       buttonShadow?: boolean;
+      sectionOrder?: Array<"links" | "socials">;
+      socialLayout?: "horizontal" | "vertical";
     }) =>
       apiRequest<BioLinkProfile>("/api/v1/biolink", {
         method: "PUT",
@@ -185,6 +212,65 @@ export function useReorderBioLinkItemsMutation(workspaceId: string) {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["biolink", workspaceId] });
+    },
+    onError: (error) => toast.error((error as Error).message)
+  });
+}
+
+export function useCreateBioLinkSocialMutation(workspaceId: string) {
+  return useMutation({
+    mutationFn: (payload: { label: string; url: string; icon?: string; emoji?: string; platform?: "custom" | "instagram"; mode?: "link" | "profile" | "posts" | "reels" }) =>
+      apiRequest<BioLinkSocialItem>("/api/v1/biolink/socials", {
+        method: "POST",
+        workspaceId,
+        body: payload
+      })
+  });
+}
+
+export function useUpdateBioLinkSocialMutation(workspaceId: string) {
+  return useMutation({
+    mutationFn: (payload: { id: string; label: string; url: string; icon?: string; emoji?: string; platform?: "custom" | "instagram"; mode?: "link" | "profile" | "posts" | "reels" }) =>
+      apiRequest<BioLinkSocialItem>(`/api/v1/biolink/socials/item/${payload.id}`, {
+        method: "PUT",
+        workspaceId,
+        body: payload
+      })
+  });
+}
+
+export function useDeleteBioLinkSocialMutation(workspaceId: string) {
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiRequest<void>(`/api/v1/biolink/socials/item/${id}`, {
+        method: "DELETE",
+        workspaceId
+      })
+  });
+}
+
+export function useReorderBioLinkSocialsMutation(workspaceId: string) {
+  return useMutation({
+    mutationFn: (linkIds: string[]) =>
+      apiRequest<BioLinkSocialItem[]>("/api/v1/biolink/socials/reorder", {
+        method: "PUT",
+        workspaceId,
+        body: { linkIds }
+      })
+  });
+}
+
+export function useResetBioLinkMutation(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiRequest<void>("/api/v1/biolink/reset", {
+        method: "POST",
+        workspaceId
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["biolink", workspaceId] });
+      toast.success("Bio link reset to defaults");
     },
     onError: (error) => toast.error((error as Error).message)
   });

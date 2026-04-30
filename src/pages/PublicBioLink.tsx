@@ -69,18 +69,56 @@ export default function PublicBioLink() {
       <div className="font-bold text-xl text-center">{query.data.displayName}</div>
       <p className="text-sm text-center mt-1 opacity-90">{query.data.bio}</p>
       <div className="w-full mt-8 space-y-3">
-        {query.data.links.map((link) => (
-          <a
-            key={link.id}
-            href={`${API_BASE}${link.clickUrl}`}
-            target="_blank"
-            rel="noreferrer"
-            className={cn("block w-full text-center px-4 py-3 font-medium transition-opacity hover:opacity-90", styles.className)}
-            style={styles.style}
-          >
-            {link.title}
-          </a>
-        ))}
+        {(query.data.sectionOrder ?? ["links", "socials"]).map((section) =>
+          section === "links" ? (
+            <div key="pub-links" className="space-y-3">
+              {query.data.links.map((link) => (
+                <a
+                  key={link.id}
+                  href={`${API_BASE}${link.clickUrl}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={cn("block w-full text-center px-4 py-3 font-medium transition-opacity hover:opacity-90", styles.className)}
+                  style={styles.style}
+                >
+                  {link.title}
+                </a>
+              ))}
+            </div>
+          ) : (
+            <div
+              key="pub-socials"
+              className={cn(query.data.socialLayout === "horizontal" ? "flex flex-wrap justify-center gap-2" : "flex flex-col gap-3")}
+            >
+              {query.data.socials.map((item) => (
+                <div key={item.id} className={cn(query.data.socialLayout === "horizontal" ? "min-w-[80px]" : "w-full")}>
+                  <a
+                    href={`${API_BASE}${item.clickUrl}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={cn(
+                      "text-center px-4 py-2 font-medium transition-opacity hover:opacity-90 inline-flex items-center justify-center gap-1 w-full",
+                      styles.className
+                    )}
+                    style={styles.style}
+                  >
+                    <span>{item.emoji || (item.platform === "instagram" ? "📸" : "🔗")}</span>
+                    <span>{item.label}</span>
+                  </a>
+                  {item.platform === "instagram" && (item.mode === "posts" || item.mode === "reels") && (item.mediaItems?.length ?? 0) > 0 && (
+                    <div className="grid grid-cols-3 gap-1 mt-2">
+                      {item.mediaItems?.map((media) => (
+                        <a key={media.id} href={media.permalink || "#"} target="_blank" rel="noreferrer">
+                          <img src={media.mediaUrl} alt="Instagram media" className="w-full aspect-square object-cover rounded-md" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+        )}
       </div>
       <div className="text-xs mt-10 text-center opacity-75">Powered by Reactova</div>
     </BioFrame>
@@ -129,8 +167,17 @@ function BioFrame({
   const fontFamily = getFontFamily(data?.fontFamily ?? "inter");
 
   return (
-    <div className="min-h-screen px-4 py-10" style={{ background: rootBg, color: data?.textColor ?? "#fff", fontFamily }}>
-      <div className="mx-auto max-w-md rounded-2xl p-6" style={cardStyle}>
+    <div
+      className="min-h-screen px-4 py-10"
+      style={{
+        background: rootBg,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        color: data?.textColor ?? "#fff",
+        fontFamily
+      }}
+    >
+      <div className="mx-auto max-w-md rounded-2xl p-6 min-h-[70vh]" style={cardStyle}>
         {children}
       </div>
     </div>

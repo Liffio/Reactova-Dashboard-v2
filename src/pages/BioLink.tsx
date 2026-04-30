@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { BarChart3, GripVertical, Plus, Trash2 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import {
   type BioLinkItem
 } from "@/hooks/useBioLink";
 
-const swatches = ["#7C6AF7", "#F97316", "#22C55E", "#EAB308", "#EF4444", "#34B7F1"];
+const swatches = ["#7C6AF7", "#F97316", "#22C55E", "#EAB308", "#EF4444", "#34B7F1", "#0EA5E9", "#14B8A6"];
 const buttonStyles = [
   { key: "filled", label: "Filled" },
   { key: "outlined", label: "Outlined" },
@@ -30,7 +30,116 @@ const buttonStyles = [
 
 const domainPrefix = "https://bio.reactova.com/";
 
-type DraftLink = BioLinkItem;
+type DraftLink = BioLinkItem & { bioLinkId?: string };
+type TemplateStyle = {
+  accentColor: string;
+  buttonStyle: "filled" | "outlined" | "soft";
+  backgroundType: "solid" | "gradient";
+  backgroundColor: string;
+  backgroundColorTo: string;
+  textColor: string;
+  cardStyle: "solid" | "glass" | "outline";
+  cardColor: string;
+  cardOpacity: number;
+  fontFamily: "inter" | "poppins" | "space-grotesk" | "playfair";
+  buttonTextColor: string;
+  buttonRadius: number;
+  buttonBorderWidth: number;
+  buttonShadow: boolean;
+};
+
+const bioTemplates: Array<{ id: string; name: string; style: TemplateStyle }> = [
+  {
+    id: "midnight",
+    name: "Midnight",
+    style: {
+      accentColor: "#7C6AF7", buttonStyle: "filled", backgroundType: "gradient", backgroundColor: "#090D1A", backgroundColorTo: "#151A2F",
+      textColor: "#FFFFFF", cardStyle: "glass", cardColor: "#1F2937", cardOpacity: 72, fontFamily: "inter", buttonTextColor: "#FFFFFF",
+      buttonRadius: 12, buttonBorderWidth: 0, buttonShadow: true
+    }
+  },
+  {
+    id: "sunset",
+    name: "Sunset",
+    style: {
+      accentColor: "#F97316", buttonStyle: "filled", backgroundType: "gradient", backgroundColor: "#7C2D12", backgroundColorTo: "#FDBA74",
+      textColor: "#FFF7ED", cardStyle: "solid", cardColor: "#9A3412", cardOpacity: 70, fontFamily: "poppins", buttonTextColor: "#FFFFFF",
+      buttonRadius: 14, buttonBorderWidth: 0, buttonShadow: true
+    }
+  },
+  {
+    id: "neon",
+    name: "Neon",
+    style: {
+      accentColor: "#00E5FF", buttonStyle: "soft", backgroundType: "gradient", backgroundColor: "#0B0F1A", backgroundColorTo: "#1D1333",
+      textColor: "#E0F7FF", cardStyle: "glass", cardColor: "#111827", cardOpacity: 65, fontFamily: "space-grotesk", buttonTextColor: "#00E5FF",
+      buttonRadius: 16, buttonBorderWidth: 1, buttonShadow: true
+    }
+  },
+  {
+    id: "minimal",
+    name: "Minimal",
+    style: {
+      accentColor: "#111827", buttonStyle: "outlined", backgroundType: "solid", backgroundColor: "#F8FAFC", backgroundColorTo: "#F8FAFC",
+      textColor: "#0F172A", cardStyle: "solid", cardColor: "#FFFFFF", cardOpacity: 100, fontFamily: "inter", buttonTextColor: "#111827",
+      buttonRadius: 10, buttonBorderWidth: 1, buttonShadow: false
+    }
+  },
+  {
+    id: "ocean",
+    name: "Ocean",
+    style: {
+      accentColor: "#06B6D4", buttonStyle: "filled", backgroundType: "gradient", backgroundColor: "#082F49", backgroundColorTo: "#0EA5E9",
+      textColor: "#ECFEFF", cardStyle: "glass", cardColor: "#0C4A6E", cardOpacity: 68, fontFamily: "poppins", buttonTextColor: "#FFFFFF",
+      buttonRadius: 12, buttonBorderWidth: 0, buttonShadow: true
+    }
+  },
+  {
+    id: "forest",
+    name: "Forest",
+    style: {
+      accentColor: "#22C55E", buttonStyle: "soft", backgroundType: "gradient", backgroundColor: "#052E16", backgroundColorTo: "#166534",
+      textColor: "#ECFDF5", cardStyle: "solid", cardColor: "#14532D", cardOpacity: 80, fontFamily: "space-grotesk", buttonTextColor: "#BBF7D0",
+      buttonRadius: 14, buttonBorderWidth: 0, buttonShadow: false
+    }
+  },
+  {
+    id: "royal",
+    name: "Royal",
+    style: {
+      accentColor: "#A855F7", buttonStyle: "outlined", backgroundType: "gradient", backgroundColor: "#2E1065", backgroundColorTo: "#4C1D95",
+      textColor: "#F3E8FF", cardStyle: "outline", cardColor: "#C084FC", cardOpacity: 40, fontFamily: "playfair", buttonTextColor: "#E9D5FF",
+      buttonRadius: 18, buttonBorderWidth: 1, buttonShadow: true
+    }
+  },
+  {
+    id: "blush",
+    name: "Blush",
+    style: {
+      accentColor: "#EC4899", buttonStyle: "filled", backgroundType: "gradient", backgroundColor: "#831843", backgroundColorTo: "#F472B6",
+      textColor: "#FFF1F2", cardStyle: "glass", cardColor: "#9D174D", cardOpacity: 60, fontFamily: "poppins", buttonTextColor: "#FFFFFF",
+      buttonRadius: 16, buttonBorderWidth: 0, buttonShadow: true
+    }
+  },
+  {
+    id: "amber",
+    name: "Amber",
+    style: {
+      accentColor: "#F59E0B", buttonStyle: "outlined", backgroundType: "solid", backgroundColor: "#1F2937", backgroundColorTo: "#1F2937",
+      textColor: "#FEF3C7", cardStyle: "solid", cardColor: "#111827", cardOpacity: 88, fontFamily: "inter", buttonTextColor: "#FCD34D",
+      buttonRadius: 10, buttonBorderWidth: 1, buttonShadow: false
+    }
+  },
+  {
+    id: "electric",
+    name: "Electric",
+    style: {
+      accentColor: "#3B82F6", buttonStyle: "soft", backgroundType: "gradient", backgroundColor: "#0F172A", backgroundColorTo: "#1E3A8A",
+      textColor: "#DBEAFE", cardStyle: "outline", cardColor: "#60A5FA", cardOpacity: 45, fontFamily: "space-grotesk", buttonTextColor: "#BFDBFE",
+      buttonRadius: 20, buttonBorderWidth: 1, buttonShadow: true
+    }
+  }
+];
 
 export default function BioLink() {
   const { current, user } = useApp();
@@ -38,12 +147,26 @@ export default function BioLink() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [deletedLinkIds, setDeletedLinkIds] = useState<string[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     displayName: "",
     bio: "",
     accentColor: "#7C6AF7",
     slug: "",
-    buttonStyle: "filled" as "filled" | "outlined" | "soft"
+    buttonStyle: "filled" as "filled" | "outlined" | "soft",
+    backgroundType: "solid" as "solid" | "gradient",
+    backgroundColor: "#0B1020",
+    backgroundColorTo: "#1E293B",
+    textColor: "#FFFFFF",
+    cardStyle: "solid" as "solid" | "glass" | "outline",
+    cardColor: "#111827",
+    cardOpacity: 85,
+    fontFamily: "inter" as "inter" | "poppins" | "space-grotesk" | "playfair",
+    avatarUrl: "",
+    buttonTextColor: "#FFFFFF",
+    buttonRadius: 12,
+    buttonBorderWidth: 0,
+    buttonShadow: false
   });
   const [links, setLinks] = useState<DraftLink[]>([]);
   const profileQuery = useBioLinkQuery(current.id);
@@ -63,7 +186,20 @@ export default function BioLink() {
       bio: profileQuery.data.bio ?? "",
       accentColor: profileQuery.data.accentColor,
       slug: profileQuery.data.slug || current.id,
-      buttonStyle: profileQuery.data.buttonStyle
+      buttonStyle: profileQuery.data.buttonStyle,
+      backgroundType: profileQuery.data.backgroundType,
+      backgroundColor: profileQuery.data.backgroundColor,
+      backgroundColorTo: profileQuery.data.backgroundColorTo,
+      textColor: profileQuery.data.textColor,
+      cardStyle: profileQuery.data.cardStyle,
+      cardColor: profileQuery.data.cardColor,
+      cardOpacity: profileQuery.data.cardOpacity,
+      fontFamily: profileQuery.data.fontFamily,
+      avatarUrl: profileQuery.data.avatarUrl ?? "",
+      buttonTextColor: profileQuery.data.buttonTextColor,
+      buttonRadius: profileQuery.data.buttonRadius,
+      buttonBorderWidth: profileQuery.data.buttonBorderWidth,
+      buttonShadow: profileQuery.data.buttonShadow
     });
     setLinks(profileQuery.data.links);
     setDeletedLinkIds([]);
@@ -83,7 +219,20 @@ export default function BioLink() {
       bio: draft.bio.trim(),
       accentColor: draft.accentColor,
       buttonStyle: draft.buttonStyle,
-      slug: draft.slug || current.id
+      slug: draft.slug || current.id,
+      backgroundType: draft.backgroundType,
+      backgroundColor: draft.backgroundColor,
+      backgroundColorTo: draft.backgroundColorTo,
+      textColor: draft.textColor,
+      cardStyle: draft.cardStyle,
+      cardColor: draft.cardColor,
+      cardOpacity: draft.cardOpacity,
+      fontFamily: draft.fontFamily,
+      avatarUrl: draft.avatarUrl,
+      buttonTextColor: draft.buttonTextColor,
+      buttonRadius: draft.buttonRadius,
+      buttonBorderWidth: draft.buttonBorderWidth,
+      buttonShadow: draft.buttonShadow
     });
 
     for (const id of deletedLinkIds) {
@@ -116,6 +265,15 @@ export default function BioLink() {
     setDeletedLinkIds([]);
     await profileQuery.refetch();
     toast.success("Bio link changes saved");
+  };
+
+  const applyTemplate = (templateId: string) => {
+    const template = bioTemplates.find((item) => item.id === templateId);
+    if (!template) {
+      return;
+    }
+    setSelectedTemplateId(templateId);
+    setDraft((prev) => ({ ...prev, ...template.style }));
   };
 
   const onAddLink = () => {
@@ -205,6 +363,38 @@ export default function BioLink() {
             </div>
           </Card>
 
+          <Card title="Templates">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {bioTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  onClick={() => applyTemplate(template.id)}
+                  className={cn(
+                    "rounded-xl border p-2 text-left transition-all",
+                    selectedTemplateId === template.id ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-primary/50"
+                  )}
+                >
+                  <div
+                    className="rounded-lg p-2 h-24"
+                    style={{
+                      background:
+                        template.style.backgroundType === "gradient"
+                          ? `linear-gradient(135deg, ${template.style.backgroundColor}, ${template.style.backgroundColorTo})`
+                          : template.style.backgroundColor
+                    }}
+                  >
+                    <div className="h-3 w-10 rounded-full mb-2" style={{ background: template.style.accentColor }} />
+                    <div className="space-y-1">
+                      <div className="h-2 w-full rounded-full bg-white/50" />
+                      <div className="h-2 w-4/5 rounded-full bg-white/35" />
+                    </div>
+                  </div>
+                  <div className="text-xs font-medium mt-2">{template.name}</div>
+                </button>
+              ))}
+            </div>
+          </Card>
+
           <Card title="Links">
             <div className="space-y-2">
               {links.map((l) => (
@@ -266,9 +456,9 @@ export default function BioLink() {
           </Card>
 
           <Card title="Appearance">
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div>
-                <Label>Theme colour</Label>
+                <Label>Accent color</Label>
                 <div className="flex gap-2 mt-2">
                   {swatches.map((c) => (
                     <button
@@ -285,6 +475,134 @@ export default function BioLink() {
                     value={draft.accentColor}
                     onChange={(e) => setDraft((prev) => ({ ...prev, accentColor: e.target.value }))}
                     className="bg-input border-border h-8 w-28 text-xs font-mono"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Text color</Label>
+                  <Input
+                    value={draft.textColor}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, textColor: e.target.value }))}
+                    className="bg-input border-border h-8 text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Button text color</Label>
+                  <Input
+                    value={draft.buttonTextColor}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, buttonTextColor: e.target.value }))}
+                    className="bg-input border-border h-8 text-xs font-mono"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Background type</Label>
+                  <select
+                    value={draft.backgroundType}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, backgroundType: e.target.value as "solid" | "gradient" }))}
+                    className="h-9 rounded-md border border-border bg-input px-2 text-sm w-full"
+                  >
+                    <option value="solid">Solid</option>
+                    <option value="gradient">Gradient</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Font</Label>
+                  <select
+                    value={draft.fontFamily}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, fontFamily: e.target.value as typeof draft.fontFamily }))}
+                    className="h-9 rounded-md border border-border bg-input px-2 text-sm w-full"
+                  >
+                    <option value="inter">Inter</option>
+                    <option value="poppins">Poppins</option>
+                    <option value="space-grotesk">Space Grotesk</option>
+                    <option value="playfair">Playfair</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Background color</Label>
+                  <Input
+                    value={draft.backgroundColor}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, backgroundColor: e.target.value }))}
+                    className="bg-input border-border h-8 text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Gradient end color</Label>
+                  <Input
+                    value={draft.backgroundColorTo}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, backgroundColorTo: e.target.value }))}
+                    className="bg-input border-border h-8 text-xs font-mono"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Avatar image URL (optional)</Label>
+                <Input
+                  value={draft.avatarUrl}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, avatarUrl: e.target.value }))}
+                  placeholder="https://..."
+                  className="bg-input border-border"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Card style</Label>
+                  <select
+                    value={draft.cardStyle}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, cardStyle: e.target.value as "solid" | "glass" | "outline" }))}
+                    className="h-9 rounded-md border border-border bg-input px-2 text-sm w-full"
+                  >
+                    <option value="solid">Solid</option>
+                    <option value="glass">Glass</option>
+                    <option value="outline">Outline</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Card color</Label>
+                  <Input
+                    value={draft.cardColor}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, cardColor: e.target.value }))}
+                    className="bg-input border-border h-8 text-xs font-mono"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Card opacity</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={draft.cardOpacity}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, cardOpacity: Number(e.target.value) || 0 }))}
+                    className="bg-input border-border h-8"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Button radius</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={999}
+                    value={draft.buttonRadius}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, buttonRadius: Number(e.target.value) || 0 }))}
+                    className="bg-input border-border h-8"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Border width</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={10}
+                    value={draft.buttonBorderWidth}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, buttonBorderWidth: Number(e.target.value) || 0 }))}
+                    className="bg-input border-border h-8"
                   />
                 </div>
               </div>
@@ -305,6 +623,14 @@ export default function BioLink() {
                   ))}
                 </div>
               </div>
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={draft.buttonShadow}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, buttonShadow: e.target.checked }))}
+                />
+                Enable button shadow
+              </label>
             </div>
           </Card>
 
@@ -343,22 +669,28 @@ export default function BioLink() {
           <div className="sticky top-24">
             <div className="text-xs text-muted-foreground mb-3 text-center">Live Preview</div>
             <div className="mx-auto w-[280px] rounded-[2.5rem] border-8 border-card bg-background shadow-2xl p-6 min-h-[480px]">
-              <div className="flex flex-col items-center text-center">
-                <div className="h-20 w-20 rounded-full mb-3" style={{ background: `linear-gradient(135deg, ${draft.accentColor}, hsl(var(--accent)))` }} />
-                <div className="font-bold text-foreground">{draft.displayName || "Your name"}</div>
-                <p className="text-xs text-muted-foreground mt-1">{draft.bio || "Tell people what you do."}</p>
+              <div className="rounded-2xl p-5" style={getCardWrapperStyle(draft)}>
+                <div className="flex flex-col items-center text-center" style={{ color: draft.textColor, fontFamily: getFontFamily(draft.fontFamily) }}>
+                  {draft.avatarUrl ? (
+                    <img src={resolveAvatarUrl(draft.avatarUrl)} alt="Avatar" className="h-20 w-20 rounded-full mb-3 object-cover border border-white/20" />
+                  ) : (
+                    <div className="h-20 w-20 rounded-full mb-3" style={{ background: `linear-gradient(135deg, ${draft.accentColor}, hsl(var(--accent)))` }} />
+                  )}
+                  <div className="font-bold">{draft.displayName || "Your name"}</div>
+                  <p className="text-xs mt-1 opacity-90">{draft.bio || "Tell people what you do."}</p>
                 <div className="w-full mt-6 space-y-2">
                   {links.map((l) => (
                     <div
                       key={l.id}
                       className={cn("w-full text-xs font-medium py-2.5 px-3", getButtonClasses(draft.buttonStyle))}
-                      style={getButtonStyle(draft.buttonStyle, draft.accentColor)}
+                      style={getButtonStyle(draft)}
                     >
                       {l.title}
                     </div>
                   ))}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-6">Powered by Reactova</div>
+                  <div className="text-[10px] mt-6 opacity-80">Powered by Reactova</div>
+                </div>
               </div>
             </div>
           </div>
@@ -397,14 +729,93 @@ function getButtonClasses(style: "filled" | "outlined" | "soft") {
   return "rounded-lg text-white";
 }
 
-function getButtonStyle(style: "filled" | "outlined" | "soft", color: string) {
-  if (style === "outlined") {
-    return { borderColor: color, color };
+function getButtonStyle(draft: {
+  buttonStyle: "filled" | "outlined" | "soft";
+  accentColor: string;
+  buttonTextColor: string;
+  buttonRadius: number;
+  buttonBorderWidth: number;
+  buttonShadow: boolean;
+}): CSSProperties {
+  const base: CSSProperties = {
+    borderRadius: `${draft.buttonRadius}px`,
+    borderWidth: `${draft.buttonBorderWidth}px`,
+    borderStyle: "solid",
+    boxShadow: draft.buttonShadow ? "0 8px 20px rgba(0,0,0,0.25)" : "none"
+  };
+
+  if (draft.buttonStyle === "outlined") {
+    return { ...base, borderColor: draft.accentColor, color: draft.accentColor, background: "transparent" };
   }
-  if (style === "soft") {
-    return { background: `${color}26`, color };
+  if (draft.buttonStyle === "soft") {
+    return { ...base, background: `${draft.accentColor}26`, color: draft.buttonTextColor || draft.accentColor, borderColor: "transparent" };
   }
-  return { background: color, color: "#fff" };
+  return { ...base, background: draft.accentColor, color: draft.buttonTextColor, borderColor: "transparent" };
+}
+
+function getCardWrapperStyle(draft: {
+  backgroundType: "solid" | "gradient";
+  backgroundColor: string;
+  backgroundColorTo: string;
+  cardStyle: "solid" | "glass" | "outline";
+  cardColor: string;
+  cardOpacity: number;
+}): CSSProperties {
+  const background =
+    draft.backgroundType === "gradient"
+      ? `linear-gradient(145deg, ${draft.backgroundColor}, ${draft.backgroundColorTo})`
+      : draft.backgroundColor;
+  if (draft.cardStyle === "glass") {
+    return {
+      background,
+      border: "1px solid rgba(255,255,255,0.2)",
+      backdropFilter: "blur(10px)"
+    };
+  }
+  if (draft.cardStyle === "outline") {
+    return {
+      background,
+      border: `1px solid ${draft.cardColor}`
+    };
+  }
+  return {
+    background: `linear-gradient(0deg, ${draft.cardColor}${toAlphaHex(draft.cardOpacity)}, ${draft.cardColor}${toAlphaHex(draft.cardOpacity)}), ${background}`,
+    border: "1px solid rgba(255,255,255,0.08)"
+  };
+}
+
+function getFontFamily(font: "inter" | "poppins" | "space-grotesk" | "playfair") {
+  if (font === "poppins") return "Poppins, Inter, sans-serif";
+  if (font === "space-grotesk") return '"Space Grotesk", Inter, sans-serif';
+  if (font === "playfair") return '"Playfair Display", Georgia, serif';
+  return "Inter, sans-serif";
+}
+
+function toAlphaHex(value: number) {
+  const clamped = Math.max(0, Math.min(100, value));
+  const channel = Math.round((clamped / 100) * 255);
+  return channel.toString(16).padStart(2, "0");
+}
+
+function resolveAvatarUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const url = new URL(trimmed);
+    if (url.hostname === "unsplash.com" && url.pathname.startsWith("/photos/")) {
+      const slug = url.pathname.split("/").pop() ?? "";
+      const photoId = slug.split("-").pop();
+      if (photoId) {
+        return `https://images.unsplash.com/photo-${photoId}?auto=format&fit=crop&w=400&h=400&q=80`;
+      }
+    }
+    return trimmed;
+  } catch {
+    return trimmed;
+  }
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {

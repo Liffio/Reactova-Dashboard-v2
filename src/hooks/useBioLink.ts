@@ -18,6 +18,19 @@ export type BioLinkProfile = {
   theme: string;
   accentColor: string;
   buttonStyle: "filled" | "outlined" | "soft";
+  backgroundType: "solid" | "gradient";
+  backgroundColor: string;
+  backgroundColorTo: string;
+  textColor: string;
+  cardStyle: "solid" | "glass" | "outline";
+  cardColor: string;
+  cardOpacity: number;
+  fontFamily: "inter" | "poppins" | "space-grotesk" | "playfair";
+  avatarUrl: string | null;
+  buttonTextColor: string;
+  buttonRadius: number;
+  buttonBorderWidth: number;
+  buttonShadow: boolean;
   links: BioLinkItem[];
   publicUrl: string;
   totalClicks: number;
@@ -41,6 +54,19 @@ type PublicBioLinkPayload = {
   bio: string | null;
   accentColor: string;
   buttonStyle: "filled" | "outlined" | "soft";
+  backgroundType: "solid" | "gradient";
+  backgroundColor: string;
+  backgroundColorTo: string;
+  textColor: string;
+  cardStyle: "solid" | "glass" | "outline";
+  cardColor: string;
+  cardOpacity: number;
+  fontFamily: "inter" | "poppins" | "space-grotesk" | "playfair";
+  avatarUrl: string | null;
+  buttonTextColor: string;
+  buttonRadius: number;
+  buttonBorderWidth: number;
+  buttonShadow: boolean;
   links: Array<{
     id: string;
     title: string;
@@ -74,6 +100,19 @@ export function useUpdateBioLinkMutation(workspaceId: string) {
       theme?: string;
       buttonStyle?: "filled" | "outlined" | "soft";
       slug?: string;
+      backgroundType?: "solid" | "gradient";
+      backgroundColor?: string;
+      backgroundColorTo?: string;
+      textColor?: string;
+      cardStyle?: "solid" | "glass" | "outline";
+      cardColor?: string;
+      cardOpacity?: number;
+      fontFamily?: "inter" | "poppins" | "space-grotesk" | "playfair";
+      avatarUrl?: string;
+      buttonTextColor?: string;
+      buttonRadius?: number;
+      buttonBorderWidth?: number;
+      buttonShadow?: boolean;
     }) =>
       apiRequest<BioLinkProfile>("/api/v1/biolink", {
         method: "PUT",

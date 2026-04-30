@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { API_BASE } from "@/lib/api";
@@ -18,25 +18,36 @@ export default function PublicBioLink() {
   });
 
   const styles = useMemo(() => {
-    const color = query.data?.accentColor ?? "#7C6AF7";
-    const buttonStyle = query.data?.buttonStyle ?? "filled";
+    const data = query.data;
+    const color = data?.accentColor ?? "#7C6AF7";
+    const buttonStyle = data?.buttonStyle ?? "filled";
+    const radius = data?.buttonRadius ?? 12;
+    const borderWidth = data?.buttonBorderWidth ?? 0;
+    const buttonTextColor = data?.buttonTextColor ?? "#fff";
+    const shadow = data?.buttonShadow ? "0 8px 20px rgba(0,0,0,0.25)" : "none";
+    const baseStyle: CSSProperties = {
+      borderRadius: `${radius}px`,
+      borderWidth: `${borderWidth}px`,
+      borderStyle: "solid",
+      boxShadow: shadow
+    };
     if (buttonStyle === "outlined") {
       return {
         className: "rounded-lg border bg-transparent",
-        style: { borderColor: color, color }
+        style: { ...baseStyle, borderColor: color, color, background: "transparent" }
       };
     }
     if (buttonStyle === "soft") {
       return {
         className: "rounded-2xl",
-        style: { background: `${color}24`, color }
+        style: { ...baseStyle, background: `${color}24`, color: buttonTextColor, borderColor: "transparent" }
       };
     }
     return {
       className: "rounded-lg text-white",
-      style: { background: color, color: "#fff" }
+      style: { ...baseStyle, background: color, color: buttonTextColor, borderColor: "transparent" }
     };
-  }, [query.data?.accentColor, query.data?.buttonStyle]);
+  }, [query.data]);
 
   if (!slug) {
     return <BioFrame><p className="text-sm text-muted-foreground">Missing bio slug.</p></BioFrame>;
@@ -49,10 +60,14 @@ export default function PublicBioLink() {
   }
 
   return (
-    <BioFrame>
-      <div className="h-20 w-20 rounded-full mb-3 mx-auto" style={{ background: `linear-gradient(135deg, ${query.data.accentColor}, #1f2937)` }} />
+    <BioFrame data={query.data}>
+      {query.data.avatarUrl ? (
+        <img src={resolveAvatarUrl(query.data.avatarUrl)} alt="Avatar" className="h-20 w-20 rounded-full mb-3 mx-auto object-cover border border-white/20" />
+      ) : (
+        <div className="h-20 w-20 rounded-full mb-3 mx-auto" style={{ background: `linear-gradient(135deg, ${query.data.accentColor}, #1f2937)` }} />
+      )}
       <div className="font-bold text-xl text-center">{query.data.displayName}</div>
-      <p className="text-sm text-muted-foreground text-center mt-1">{query.data.bio}</p>
+      <p className="text-sm text-center mt-1 opacity-90">{query.data.bio}</p>
       <div className="w-full mt-8 space-y-3">
         {query.data.links.map((link) => (
           <a
@@ -67,17 +82,91 @@ export default function PublicBioLink() {
           </a>
         ))}
       </div>
-      <div className="text-xs text-muted-foreground mt-10 text-center">Powered by Reactova</div>
+      <div className="text-xs mt-10 text-center opacity-75">Powered by Reactova</div>
     </BioFrame>
   );
 }
 
-function BioFrame({ children }: { children: React.ReactNode }) {
+function BioFrame({
+  children,
+  data
+}: {
+  children: React.ReactNode;
+  data?: {
+    backgroundType: "solid" | "gradient";
+    backgroundColor: string;
+    backgroundColorTo: string;
+    textColor: string;
+    cardStyle: "solid" | "glass" | "outline";
+    cardColor: string;
+    cardOpacity: number;
+    fontFamily: "inter" | "poppins" | "space-grotesk" | "playfair";
+  };
+}) {
+  const rootBg =
+    data?.backgroundType === "gradient"
+      ? `linear-gradient(145deg, ${data.backgroundColor}, ${data.backgroundColorTo})`
+      : data?.backgroundColor ?? "#0B1020";
+
+  const cardStyle: CSSProperties = data
+    ? data.cardStyle === "glass"
+      ? {
+          background: "rgba(15, 23, 42, 0.35)",
+          border: "1px solid rgba(255,255,255,0.2)",
+          backdropFilter: "blur(10px)"
+        }
+      : data.cardStyle === "outline"
+        ? {
+            background: "transparent",
+            border: `1px solid ${data.cardColor}`
+          }
+        : {
+            background: `${data.cardColor}${toAlphaHex(data.cardOpacity)}`,
+            border: "1px solid rgba(255,255,255,0.08)"
+          }
+    : {};
+
+  const fontFamily = getFontFamily(data?.fontFamily ?? "inter");
+
   return (
-    <div className="min-h-screen bg-background px-4 py-10">
-      <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6">
+    <div className="min-h-screen px-4 py-10" style={{ background: rootBg, color: data?.textColor ?? "#fff", fontFamily }}>
+      <div className="mx-auto max-w-md rounded-2xl p-6" style={cardStyle}>
         {children}
       </div>
     </div>
   );
+}
+
+function getFontFamily(font: "inter" | "poppins" | "space-grotesk" | "playfair") {
+  if (font === "poppins") return "Poppins, Inter, sans-serif";
+  if (font === "space-grotesk") return '"Space Grotesk", Inter, sans-serif';
+  if (font === "playfair") return '"Playfair Display", Georgia, serif';
+  return "Inter, sans-serif";
+}
+
+function toAlphaHex(value: number) {
+  const clamped = Math.max(0, Math.min(100, value));
+  const channel = Math.round((clamped / 100) * 255);
+  return channel.toString(16).padStart(2, "0");
+}
+
+function resolveAvatarUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const url = new URL(trimmed);
+    if (url.hostname === "unsplash.com" && url.pathname.startsWith("/photos/")) {
+      const slug = url.pathname.split("/").pop() ?? "";
+      const photoId = slug.split("-").pop();
+      if (photoId) {
+        return `https://images.unsplash.com/photo-${photoId}?auto=format&fit=crop&w=400&h=400&q=80`;
+      }
+    }
+    return trimmed;
+  } catch {
+    return trimmed;
+  }
 }

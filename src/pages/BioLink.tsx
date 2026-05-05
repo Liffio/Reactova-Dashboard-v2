@@ -571,7 +571,7 @@ export default function BioLink() {
                         </div>
                         <button
                           className="p-1.5 text-muted-foreground hover:text-destructive disabled:opacity-40"
-                          onClick={() => {
+                          onClick={() => { 
                             if (!l.id.startsWith("local-")) {
                               setDeletedLinkIds((prev) => (prev.includes(l.id) ? prev : [...prev, l.id]));
                             }

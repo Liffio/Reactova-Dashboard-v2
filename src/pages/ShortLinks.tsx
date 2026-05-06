@@ -13,20 +13,51 @@ import { Label } from "@/components/ui/label";
 import { CopyButton } from "@/components/CopyButton";
 import { EmptyState } from "@/components/EmptyState";
 import { useCan } from "@/hooks/useCan";
+import { toast } from "@/components/ui/sonner";
+import { useApp } from "@/state/AppContext";
+import {
+  type ShortLinkItem,
+  useCreateShortLinkMutation,
+  useDeleteShortLinkMutation,
+  useShortLinksQuery
+} from "@/hooks/useShortLinks";
 
-const seed = [
-  { id: 1, name: "Spring Launch", slug: "spring", url: "https://reactova.com/launch?utm=ig", clicks: 1284, date: "Apr 18, 2026" },
-  { id: 2, name: "Free Guide PDF", slug: "guide", url: "https://reactova.com/free-guide", clicks: 942, date: "Apr 10, 2026" },
-  { id: 3, name: "Webinar Signup", slug: "webinar", url: "https://reactova.com/webinar/may", clicks: 401, date: "Apr 5, 2026" },
-];
-type LinkItem = (typeof seed)[number];
+const getShortLinkPreviewBase = () => {
+  const apiBase = import.meta.env.VITE_API_URL as string | undefined;
+  if (apiBase) {
+    try {
+      return new URL(apiBase).host;
+    } catch {
+      return window.location.host;
+    }
+  }
+  return window.location.host;
+};
+
 const columnHelper = createColumnHelper<LinkItem>();
+type LinkItem = ShortLinkItem & { date: string };
 
 export default function ShortLinks() {
-  const [items, setItems] = useState(seed);
+  const { current } = useApp();
   const [open, setOpen] = useState(false);
   const canCreate = useCan("shortlink", "create");
   const canDelete = useCan("shortlink", "delete");
+  const shortLinksQuery = useShortLinksQuery(current.id);
+  const createShortLinkMutation = useCreateShortLinkMutation();
+  const deleteShortLinkMutation = useDeleteShortLinkMutation(current.id);
+  const items = useMemo<LinkItem[]>(
+    () =>
+      (shortLinksQuery.data ?? []).map((item) => ({
+        ...item,
+        date: new Date(item.createdAt).toLocaleDateString()
+      })),
+    [shortLinksQuery.data]
+  );
+  const topPerformingLink = useMemo(
+    () => items.reduce<LinkItem | null>((best, item) => (best === null || item.clickCount > best.clickCount ? item : best), null),
+    [items]
+  );
+
   const columns = useMemo(
     () => [
       columnHelper.accessor("name", {
@@ -37,12 +68,12 @@ export default function ShortLinks() {
         header: "Short URL",
         cell: (info) => (
           <div className="flex items-center gap-1">
-            <span className="font-mono text-xs text-primary">go.reactova.com/{info.getValue()}</span>
-            <CopyButton value={`go.reactova.com/${info.getValue()}`} />
+            <span className="font-mono text-xs text-primary">{info.row.original.shortUrl}</span>
+            <CopyButton value={info.row.original.shortUrl} />
           </div>
         )
       }),
-      columnHelper.accessor("url", {
+      columnHelper.accessor("destination", {
         header: "Destination",
         cell: (info) => (
           <span className="text-muted-foreground truncate max-w-[260px] inline-block">
@@ -50,7 +81,7 @@ export default function ShortLinks() {
           </span>
         )
       }),
-      columnHelper.accessor("clicks", {
+      columnHelper.accessor("clickCount", {
         header: "Clicks",
         cell: (info) => <span className="font-mono">{info.getValue().toLocaleString()}</span>
       }),
@@ -63,13 +94,23 @@ export default function ShortLinks() {
         header: "Actions",
         cell: ({ row }) => (
           <div className="inline-flex gap-1">
-            <a className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground">
+            <a
+              className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
+              href={row.original.shortUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
               <ExternalLink className="h-4 w-4" />
             </a>
             <button
-              onClick={() => setItems((prev) => prev.filter((item) => item.id !== row.original.id))}
+              onClick={() => {
+                deleteShortLinkMutation.mutate(row.original.id, {
+                  onError: (error) => toast.error((error as Error).message),
+                  onSuccess: () => toast.success("Short link deleted")
+                });
+              }}
               className="p-1.5 rounded-md hover:bg-destructive/15 text-muted-foreground hover:text-destructive disabled:opacity-40"
-              disabled={!canDelete}
+              disabled={!canDelete || deleteShortLinkMutation.isPending}
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -77,7 +118,7 @@ export default function ShortLinks() {
         )
       })
     ],
-    [canDelete]
+    [canDelete, deleteShortLinkMutation]
   );
 
   const table = useReactTable({
@@ -96,11 +137,26 @@ export default function ShortLinks() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Stat label="Total Links Created" value={items.length.toString()} />
-        <Stat label="Total Clicks" value={items.reduce((a, b) => a + b.clicks, 0).toLocaleString()} />
-        <Stat label="Top Performing Link" value="Spring Launch" sub="1,284 clicks" />
+        <Stat label="Total Clicks" value={items.reduce((a, b) => a + b.clickCount, 0).toLocaleString()} />
+        <Stat
+          label="Top Performing Link"
+          value={topPerformingLink?.name ?? "—"}
+          sub={topPerformingLink ? `${topPerformingLink.clickCount.toLocaleString()} clicks` : "No clicks yet"}
+        />
       </div>
 
-      {items.length === 0 ? (
+      {shortLinksQuery.error && (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {(shortLinksQuery.error as Error).message}
+        </div>
+      )}
+      {shortLinksQuery.isLoading && (
+        <div className="rounded-xl border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+          Loading short links...
+        </div>
+      )}
+
+      {!shortLinksQuery.isLoading && items.length === 0 ? (
         <EmptyState
           icon={Link2}
           title="No short links yet"
@@ -143,7 +199,29 @@ export default function ShortLinks() {
         </section>
       )}
 
-      {open && canCreate && <CreateModal onClose={() => setOpen(false)} />}
+      {open && canCreate && (
+        <CreateModal
+          creating={createShortLinkMutation.isPending}
+          onClose={() => setOpen(false)}
+          onCreate={(payload) => {
+            createShortLinkMutation.mutate(
+              {
+                workspaceId: current.id,
+                name: payload.name,
+                destination: payload.destination,
+                slug: payload.slug
+              },
+              {
+                onSuccess: () => {
+                  toast.success("Short link created");
+                  setOpen(false);
+                },
+                onError: (error) => toast.error((error as Error).message)
+              }
+            );
+          }}
+        />
+      )}
     </DashboardLayout>
   );
 }
@@ -158,8 +236,50 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
-function CreateModal({ onClose }: { onClose: () => void }) {
+function CreateModal({
+  creating,
+  onClose,
+  onCreate
+}: {
+  creating: boolean;
+  onClose: () => void;
+  onCreate: (payload: { name: string; destination: string; slug?: string }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [destination, setDestination] = useState("");
   const [slug, setSlug] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = () => {
+    const trimmedName = name.trim();
+    const trimmedDestination = destination.trim();
+    const trimmedSlug = slug.trim().toLowerCase();
+    if (!trimmedName) {
+      setError("Link name is required");
+      return;
+    }
+    try {
+      const parsedUrl = new URL(trimmedDestination);
+      if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+        setError("Destination URL must start with http:// or https://");
+        return;
+      }
+    } catch {
+      setError("Destination URL is invalid");
+      return;
+    }
+    if (trimmedSlug && !/^[a-z0-9-]{3,64}$/.test(trimmedSlug)) {
+      setError("Slug can contain lowercase letters, numbers, and dashes only");
+      return;
+    }
+    setError(null);
+    onCreate({
+      name: trimmedName,
+      destination: trimmedDestination,
+      slug: trimmedSlug || undefined
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="w-full max-w-md bg-card border border-border rounded-2xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
@@ -167,14 +287,33 @@ function CreateModal({ onClose }: { onClose: () => void }) {
           <h3 className="font-semibold text-lg">Create Short Link</h3>
           <button onClick={onClose}><X className="h-4 w-4" /></button>
         </div>
-        <div className="space-y-2"><Label>Link Name</Label><Input className="bg-input border-border" placeholder="Spring Launch" /></div>
-        <div className="space-y-2"><Label>Destination URL</Label><Input className="bg-input border-border" placeholder="https://..." /></div>
+        <div className="space-y-2">
+          <Label>Link Name</Label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="bg-input border-border"
+            placeholder="Spring Launch"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Destination URL</Label>
+          <Input
+            value={destination}
+            onChange={(e) => setDestination(e.target.value)}
+            className="bg-input border-border"
+            placeholder="https://..."
+          />
+        </div>
         <div className="space-y-2">
           <Label>Custom slug (optional)</Label>
           <Input value={slug} onChange={(e) => setSlug(e.target.value)} className="bg-input border-border" placeholder="my-link" />
-          <div className="text-xs font-mono text-muted-foreground">go.reactova.com/{slug || "auto"}</div>
+          <div className="text-xs font-mono text-muted-foreground">{getShortLinkPreviewBase()}/{slug || "auto"}</div>
         </div>
-        <Button className="w-full" onClick={onClose}>Create Link</Button>
+        {error && <div className="text-sm text-destructive">{error}</div>}
+        <Button className="w-full" onClick={handleSubmit} disabled={creating}>
+          {creating ? "Creating..." : "Create Link"}
+        </Button>
       </div>
     </div>
   );

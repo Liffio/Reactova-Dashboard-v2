@@ -285,7 +285,7 @@ function AutomationDrawer({
         dmMessage: msg.trim(),
         autoReply,
         replyMessages: autoReply ? replies.map((item) => item.trim()).filter(Boolean) : [],
-        dmButtonLabel: buttonLabel.trim() || undefined,
+        dmButtonLabel: buttonUrl.trim() ? buttonLabel.trim() || undefined : undefined,
         dmButtonUrl: buttonUrl.trim() || undefined,
         followBeforeDm,
         status: targetStatus
@@ -438,14 +438,27 @@ function AutomationDrawer({
             <Textarea value={msg} onChange={(e) => setMsg(e.target.value.slice(0, 900))} rows={4} className="bg-input border-border resize-none" />
             <div className="text-[11px] text-muted-foreground text-right">{msg.length}/900</div>
             <div className="grid gap-2">
-              <Input value={buttonLabel} onChange={(e) => setButtonLabel(e.target.value)} placeholder="Button label (optional)" className="bg-input border-border" />
-              <Input value={buttonUrl} onChange={(e) => setButtonUrl(e.target.value)} placeholder="Button URL (optional)" className="bg-input border-border" />
+              <Input
+                value={buttonLabel}
+                onChange={(e) => setButtonLabel(e.target.value.slice(0, 20))}
+                placeholder="Button label (optional, max 20 chars for Instagram)"
+                className="bg-input border-border"
+              />
+              <div className="text-[11px] text-muted-foreground text-right">{buttonLabel.length}/20</div>
+              <Input value={buttonUrl} onChange={(e) => setButtonUrl(e.target.value)} placeholder="Button URL (https://…)" className="bg-input border-border" />
             </div>
 
             <div className="mt-3 p-3 rounded-xl bg-background border border-border">
               <div className="text-xs text-muted-foreground mb-2">Preview</div>
-              <div className="rounded-2xl rounded-tl-sm bg-muted p-3 max-w-[85%]">
-                <p className="text-sm">{msg}</p>
+              <div className="rounded-2xl rounded-tl-sm bg-muted p-3 max-w-[85%] space-y-2">
+                <p className="text-sm whitespace-pre-wrap">{msg}</p>
+                {buttonUrl.trim() ? (
+                  <div className="pt-1">
+                    <span className="inline-flex items-center rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-primary">
+                      {buttonLabel.trim() || "Open link"}
+                    </span>
+                  </div>
+                ) : null}
               </div>
             </div>
           </Section>

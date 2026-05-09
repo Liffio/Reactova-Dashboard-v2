@@ -470,7 +470,7 @@ function Api() {
         <Button variant="outline"><RefreshCw className="h-4 w-4" /> Regenerate</Button>
       </Card>
       <Card title="Webhook URL">
-        <CopyField value="https://app.reactova.com/api/webhooks/w1-x8q3" />
+        <CopyField value="https://app.reactova.com/api/v1/webhooks/meta" />
       </Card>
       <a className="text-sm text-primary hover:underline">View API Documentation →</a>
     </div>

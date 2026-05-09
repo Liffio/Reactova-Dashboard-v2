@@ -446,6 +446,13 @@ function AutomationDrawer({
               />
               <div className="text-[11px] text-muted-foreground text-right">{buttonLabel.length}/20</div>
               <Input value={buttonUrl} onChange={(e) => setButtonUrl(e.target.value)} placeholder="Button URL (https://…)" className="bg-input border-border" />
+              {buttonUrl.trim() ? (
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Instagram will open your Reactova tracking link first (same host as{" "}
+                  <span className="font-mono text-[10px]">DM_BUTTON_TRACK_BASE_URL</span> / app URL), record the click,
+                  then redirect to this destination.
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-3 p-3 rounded-xl bg-background border border-border">
@@ -471,6 +478,14 @@ function AutomationDrawer({
                 </div>
                 <Switch checked={followBeforeDm} onCheckedChange={setFollowBeforeDm} />
               </div>
+              {followBeforeDm ? (
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Non-followers get a DM with a <span className="font-medium text-foreground">Send me the access</span>{" "}
+                  button, then—if needed—a follow prompt with <span className="font-medium text-foreground">Visit profile</span>{" "}
+                  and <span className="font-medium text-foreground">Following ✅</span>. Your automation message (and link
+                  button, if set) sends once Meta confirms they follow.
+                </p>
+              ) : null}
               <LockedRow text="DM Follow-up Sequences" />
             </div>
           </Section>

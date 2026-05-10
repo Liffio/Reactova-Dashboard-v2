@@ -12,6 +12,10 @@ export type AuthMePayload = {
   permissions: string[];
   isPlatformSuperAdmin: boolean;
   isOnboarded: boolean;
+  mfaEnabled: boolean;
+  mfaEmailOtpEnabled: boolean;
+  mfaSmsOtpEnabled: boolean;
+  mfaOnboardingConsentAt: string | null;
 };
 
 export type AuthorizationPayload = Omit<AuthMePayload, "user">;

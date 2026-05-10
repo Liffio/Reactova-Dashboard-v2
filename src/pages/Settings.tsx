@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Instagram, Trash2, Plus, RefreshCw } from "lucide-react";
+import { Instagram, Trash2, Plus, RefreshCw, ChevronRight, Shield } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { CopyField } from "@/components/CopyButton";
+import { useAppSelector } from "@/store/hooks";
+import { CopyButton, CopyField } from "@/components/CopyButton";
 import { PlanGate } from "@/components/PlanGate";
 import { useApp } from "@/state/AppContext";
 import { cn } from "@/lib/utils";
@@ -27,26 +29,83 @@ import {
   useUpdateNotificationPreferenceMutation
 } from "@/hooks/useNotifications";
 
-const tabs = ["General", "Billing", "Notifications", "Team", "API"] as const;
-type Tab = typeof tabs[number];
+const tabs = ["General", "Billing", "Notifications", "Team", "API", "Security"] as const;
+type Tab = (typeof tabs)[number];
+
+const settingsSearch = (tab: Tab, page?: string) => {
+  const params = new URLSearchParams({ tab });
+  if (tab === "Security" && page) {
+    params.set("page", page);
+  }
+  return `/settings?${params.toString()}`;
+};
 
 export default function Settings() {
-  const [tab, setTab] = useState<Tab>("General");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = (searchParams.get("tab") as Tab | null) ?? "General";
+  const securityPage = searchParams.get("page") ?? "index";
   const { current } = useApp();
+
+  const selectTab = (next: Tab) => {
+    if (next === "Security") {
+      setSearchParams({ tab: "Security", page: "index" });
+    } else {
+      setSearchParams({ tab: next });
+    }
+  };
 
   return (
     <DashboardLayout title="Settings" subtitle={`Workspace: ${current.handle}`}>
       <div className="border-b border-border flex gap-1 -mt-2 overflow-x-auto scrollbar-thin">
         {tabs.map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={cn("px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap", tab === t ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>{t}</button>
+          <button
+            key={t}
+            type="button"
+            onClick={() => selectTab(t)}
+            className={cn(
+              "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+              tab === t
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {t}
+          </button>
         ))}
       </div>
 
       {tab === "General" && <General />}
       {tab === "Billing" && <Billing />}
       {tab === "Notifications" && <Notifications />}
-      {tab === "Team" && (current.plan === "Business" || current.plan === "Agency" ? <Team /> : <PlanGate requiredPlan="Business" message="Team members are available on Business and Agency plans." className="min-h-[280px]" />)}
-      {tab === "API" && (current.plan === "Business" || current.plan === "Agency" ? <Api /> : <PlanGate requiredPlan="Business" message="API access is available on Business and Agency plans." className="min-h-[280px]" />)}
+      {tab === "Team" &&
+        (current.plan === "Business" || current.plan === "Agency" ? (
+          <Team />
+        ) : (
+          <PlanGate
+            requiredPlan="Business"
+            message="Team members are available on Business and Agency plans."
+            className="min-h-[280px]"
+          />
+        ))}
+      {tab === "API" &&
+        (current.plan === "Business" || current.plan === "Agency" ? (
+          <Api />
+        ) : (
+          <PlanGate
+            requiredPlan="Business"
+            message="API access is available on Business and Agency plans."
+            className="min-h-[280px]"
+          />
+        ))}
+      {tab === "Security" && (
+        <SecuritySection
+          page={
+            ["index", "2fa", "mfa", "consent", "delete"].includes(securityPage)
+              ? securityPage
+              : "index"
+          }
+        />
+      )}
     </DashboardLayout>
   );
 }
@@ -56,6 +115,491 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
     <div className="p-5 rounded-xl bg-card border border-border space-y-4">
       <h3 className="font-semibold">{title}</h3>
       {children}
+    </div>
+  );
+}
+
+function SecuritySection({ page }: { page: string }) {
+  switch (page) {
+    case "2fa":
+      return <AuthenticatorPanel variant="2fa" />;
+    case "mfa":
+      return <AuthenticatorPanel variant="mfa" />;
+    case "consent":
+      return <SecurityConsent />;
+    case "delete":
+      return <DeleteAuthenticator />;
+    default:
+      return <SecurityHome />;
+  }
+}
+
+function SecurityHome() {
+  const links: Array<{ href: string; title: string; body: string }> = [
+    {
+      href: settingsSearch("Security", "2fa"),
+      title: "Two-factor authentication (2FA)",
+      body: "Second step is a one-time passcode (OTP)—here, a 6-digit code from your authenticator app after your password."
+    },
+    {
+      href: settingsSearch("Security", "mfa"),
+      title: "Multi-factor authentication (MFA)",
+      body: "Broader login protection: password plus other factors (SMS, email OTP, authenticator, etc.). Reactova currently uses authenticator OTP; more channels may follow."
+    },
+    {
+      href: settingsSearch("Security", "consent"),
+      title: "Security disclosure & consent",
+      body: "Review the disclosure you acknowledged. Security emails are sent from noreply with reply-to support@reactova.com."
+    },
+    {
+      href: settingsSearch("Security", "delete"),
+      title: "Remove authenticator",
+      body: "Delete your linked authenticator (turn off 2FA/MFA) using your password and a final 6-digit code."
+    }
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start gap-3 p-4 rounded-xl border border-border bg-background">
+        <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+          <Shield className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="font-semibold text-lg">Account security</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            <strong className="text-foreground">2FA</strong> here means a second factor using <strong className="text-foreground">OTP</strong> (one-time codes).
+            <strong className="text-foreground"> MFA</strong> is the wider idea—combining password with SMS, email OTP,
+            authenticator apps, and similar. Reactova currently delivers login OTP via an authenticator app; security
+            notices are emailed from noreply@reactova.com (reply to support@reactova.com).
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        {links.map((item) => (
+          <Link
+            key={item.href}
+            to={item.href}
+            className="flex items-center justify-between gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-card/80 transition-colors group"
+          >
+            <div>
+              <div className="font-medium">{item.title}</div>
+              <p className="text-sm text-muted-foreground mt-0.5">{item.body}</p>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary shrink-0" />
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AuthenticatorPanel({ variant }: { variant: "2fa" | "mfa" }) {
+  const mfaEnabled = useAppSelector((s) => s.auth.mfaEnabled);
+  const mfaEmailOtpEnabled = useAppSelector((s) => s.auth.mfaEmailOtpEnabled);
+  const mfaSmsOtpEnabled = useAppSelector((s) => s.auth.mfaSmsOtpEnabled);
+  const accessToken = useAppSelector((s) => s.auth.accessToken);
+  const { refreshAuth } = useApp();
+  const [setup, setSetup] = useState<{ qrDataUrl: string; secretKey: string } | null>(null);
+  const [otpSetup, setOtpSetup] = useState("");
+  const [disablePassword, setDisablePassword] = useState("");
+  const [disableOtp, setDisableOtp] = useState("");
+
+  const title =
+    variant === "2fa"
+      ? "Two-factor authentication (2FA)"
+      : "Multi-factor authentication (MFA)";
+  const lead =
+    variant === "2fa"
+      ? "2FA adds a second factor after your password: a one-time passcode (OTP). Here that OTP is a rotating 6-digit code from an authenticator app you control."
+      : "MFA combines something you know (password) with additional factors—mobile SMS, email OTP, authenticator apps, and more. Reactova currently supports authenticator-based OTP for sign-in; SMS and email OTP may be added later.";
+
+  const startMutation = useMutation({
+    mutationFn: () =>
+      apiRequest<{ qrDataUrl: string; secretKey: string }>("/api/v1/auth/mfa/setup/start", {
+        method: "POST"
+      }),
+    onSuccess: (data) => {
+      setSetup({ qrDataUrl: data.qrDataUrl, secretKey: data.secretKey });
+      setOtpSetup("");
+    },
+    onError: (error) => toast.error((error as Error).message)
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: (code: string) =>
+      apiRequest<void>("/api/v1/auth/mfa/setup/verify", {
+        method: "POST",
+        body: { code }
+      }),
+    onSuccess: async () => {
+      toast.success("Authenticator enabled");
+      setSetup(null);
+      await refreshAuth();
+    },
+    onError: (error) => toast.error((error as Error).message)
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => apiRequest<void>("/api/v1/auth/mfa/setup/cancel", { method: "POST" }),
+    onSuccess: () => {
+      setSetup(null);
+      toast.info("Setup cancelled");
+    }
+  });
+
+  const disableMutation = useMutation({
+    mutationFn: () =>
+      apiRequest<void>("/api/v1/auth/mfa/disable", {
+        method: "POST",
+        body: { password: disablePassword, code: disableOtp }
+      }),
+    onSuccess: async () => {
+      toast.success("Authenticator removed — 2FA/MFA is off");
+      setDisablePassword("");
+      setDisableOtp("");
+      await refreshAuth();
+    },
+    onError: (error) => toast.error((error as Error).message)
+  });
+
+  const channelMutation = useMutation({
+    mutationFn: (body: { emailOtpEnabled?: boolean; smsOtpEnabled?: boolean }) =>
+      apiRequest("/api/v1/auth/mfa/channels", { method: "POST", body }),
+    onSuccess: async () => {
+      await refreshAuth();
+      toast.success("MFA channels updated");
+    },
+    onError: (error) => toast.error((error as Error).message)
+  });
+
+  if (!accessToken) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-4">
+      <Link
+        to={settingsSearch("Security", "index")}
+        className="text-sm text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+      >
+        <ChevronRight className="h-4 w-4 rotate-180" /> Security overview
+      </Link>
+      <Card title={title}>
+        <p className="text-sm text-muted-foreground">{lead}</p>
+        {variant === "mfa" && (
+          <div className="rounded-lg border border-border p-3 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Choose active MFA OTP channels. SMS is visible but not supported yet.
+            </p>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">Email OTP</p>
+                <p className="text-xs text-muted-foreground">Receive a 6-digit code by email during login.</p>
+              </div>
+              <Switch
+                checked={mfaEmailOtpEnabled}
+                onCheckedChange={(checked) => {
+                  void channelMutation.mutateAsync({ emailOtpEnabled: checked });
+                }}
+                disabled={channelMutation.isPending}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">SMS OTP</p>
+                <p className="text-xs text-muted-foreground">Coming soon (toggle kept for roadmap visibility).</p>
+              </div>
+              <Switch
+                checked={mfaSmsOtpEnabled}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    toast.info("SMS OTP is not available yet.");
+                    return;
+                  }
+                  void channelMutation.mutateAsync({ smsOtpEnabled: false });
+                }}
+                disabled
+              />
+            </div>
+          </div>
+        )}
+        <p className="text-sm text-muted-foreground">
+          When you turn protection on or off, Reactova sends a security email from <span className="font-mono text-xs">noreply@reactova.com</span> with reply-to{" "}
+          <span className="font-mono text-xs">support@reactova.com</span>. Other product emails still follow your workspace notification preferences.
+        </p>
+        {mfaEnabled ? (
+          <div className="space-y-3 max-w-md">
+            <p className="text-sm text-success">An authenticator is linked to your account.</p>
+            <p className="text-xs text-muted-foreground">
+              To remove it, use{" "}
+              <Link className="text-primary hover:underline" to={settingsSearch("Security", "delete")}>
+                Remove authenticator
+              </Link>{" "}
+              for a dedicated flow, or enter your password and code below.
+            </p>
+            <div className="space-y-1.5">
+              <Label>Account password</Label>
+              <Input
+                type="password"
+                className="bg-input border-border"
+                value={disablePassword}
+                onChange={(e) => setDisablePassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>6-digit authenticator code</Label>
+              <InputOTP
+                maxLength={6}
+                value={disableOtp}
+                onChange={(v) => setDisableOtp(v.replace(/\D/g, ""))}
+              >
+                <InputOTPGroup>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <InputOTPSlot key={i} index={i} />
+                  ))}
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+            <Button
+              variant="outline"
+              className="text-destructive border-destructive/40"
+              disabled={disableMutation.isPending || disablePassword.length < 8 || disableOtp.length < 6}
+              onClick={() => disableMutation.mutate()}
+            >
+              {disableMutation.isPending ? "Removing…" : "Turn off & remove authenticator"}
+            </Button>
+          </div>
+        ) : !setup ? (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={() => startMutation.mutate()} disabled={startMutation.isPending}>
+              {startMutation.isPending ? "Starting…" : "Set up authenticator app"}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4 max-w-md">
+            <p className="text-sm text-muted-foreground">
+              Scan the QR code or enter the setup key manually in your authenticator app, then enter the 6-digit code to
+              confirm.
+            </p>
+            <img src={setup.qrDataUrl} alt="Authenticator QR" className="rounded-lg border border-border w-44 h-44 p-2 object-contain" />
+            <div className="space-y-1.5">
+              <Label>Setup key (copy if you cannot scan)</Label>
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-input border border-border">
+                <span className="flex-1 text-sm font-mono text-foreground break-all select-all">{setup.secretKey}</span>
+                <CopyButton value={setup.secretKey} className="shrink-0 mt-0.5" label="Copy" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>6-digit code</Label>
+              <InputOTP
+                maxLength={6}
+                value={otpSetup}
+                onChange={(v) => setOtpSetup(v.replace(/\D/g, ""))}
+              >
+                <InputOTPGroup>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <InputOTPSlot key={i} index={i} />
+                  ))}
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                disabled={verifyMutation.isPending || otpSetup.length !== 6}
+                onClick={() => verifyMutation.mutate(otpSetup)}
+              >
+                {verifyMutation.isPending ? "Confirming…" : "Confirm and enable"}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function SecurityConsent() {
+  const consentAt = useAppSelector((s) => s.auth.mfaOnboardingConsentAt);
+  const { refreshAuth } = useApp();
+  const [revokePassword, setRevokePassword] = useState("");
+  const [revokeConfirm, setRevokeConfirm] = useState(false);
+
+  const revokeMutation = useMutation({
+    mutationFn: () =>
+      apiRequest<void>("/api/v1/auth/mfa/onboarding-consent/revoke", {
+        method: "POST",
+        body: { password: revokePassword }
+      }),
+    onSuccess: async () => {
+      toast.success("Consent record cleared");
+      setRevokePassword("");
+      setRevokeConfirm(false);
+      await refreshAuth();
+    },
+    onError: (error) => toast.error((error as Error).message)
+  });
+
+  const formatted = consentAt
+    ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(consentAt))
+    : null;
+
+  return (
+    <div className="space-y-4">
+      <Link
+        to={settingsSearch("Security", "index")}
+        className="text-sm text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+      >
+        <ChevronRight className="h-4 w-4 rotate-180" /> Security overview
+      </Link>
+      <Card title="Security disclosure & consent">
+        <div className="text-sm text-muted-foreground space-y-3 leading-relaxed">
+          <p>
+            You acknowledged that extra login protection (2FA uses OTP; MFA can include OTP via app, SMS, email, and similar)
+            is optional but recommended, that you are responsible for backup access to your factors, and that Reactova may
+            email you from <span className="font-mono text-xs">noreply@reactova.com</span> when you change security settings—replies go to{" "}
+            <span className="font-mono text-xs">support@reactova.com</span>.
+          </p>
+          <p>
+            Workspace notification preferences still control routine product emails; they do not turn off these security
+            notices.
+          </p>
+        </div>
+        <div className="rounded-lg border border-border bg-background p-3 text-sm">
+          <span className="text-muted-foreground">On file: </span>
+          {formatted ? (
+            <span className="font-medium text-foreground">Acknowledged {formatted}</span>
+          ) : (
+            <span className="text-muted-foreground">No onboarding acknowledgment timestamp stored yet.</span>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 space-y-3">
+          <h4 className="text-sm font-semibold text-destructive">Delete consent record</h4>
+          <p className="text-xs text-muted-foreground">
+            Clears the stored onboarding disclosure timestamp only. It does not turn off an active authenticator or change
+            workspaces. You may need to acknowledge again if you complete onboarding on a new workspace.
+          </p>
+          <div className="space-y-1.5 max-w-md">
+            <Label>Account password</Label>
+            <Input
+              type="password"
+              className="bg-input border-border"
+              value={revokePassword}
+              onChange={(e) => setRevokePassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input type="checkbox" checked={revokeConfirm} onChange={(e) => setRevokeConfirm(e.target.checked)} />I want to
+            delete this consent record.
+          </label>
+          <Button
+            variant="outline"
+            className="text-destructive border-destructive/40"
+            disabled={revokeMutation.isPending || revokePassword.length < 8 || !revokeConfirm}
+            onClick={() => revokeMutation.mutate()}
+          >
+            {revokeMutation.isPending ? "Deleting…" : "Delete consent record"}
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function DeleteAuthenticator() {
+  const mfaEnabled = useAppSelector((s) => s.auth.mfaEnabled);
+  const accessToken = useAppSelector((s) => s.auth.accessToken);
+  const { refreshAuth } = useApp();
+  const [disablePassword, setDisablePassword] = useState("");
+  const [disableOtp, setDisableOtp] = useState("");
+
+  const disableMutation = useMutation({
+    mutationFn: () =>
+      apiRequest<void>("/api/v1/auth/mfa/disable", {
+        method: "POST",
+        body: { password: disablePassword, code: disableOtp }
+      }),
+    onSuccess: async () => {
+      toast.success("Authenticator removed — 2FA/MFA is off");
+      setDisablePassword("");
+      setDisableOtp("");
+      await refreshAuth();
+    },
+    onError: (error) => toast.error((error as Error).message)
+  });
+
+  if (!accessToken) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-4">
+      <Link
+        to={settingsSearch("Security", "index")}
+        className="text-sm text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+      >
+        <ChevronRight className="h-4 w-4 rotate-180" /> Security overview
+      </Link>
+      <Card title="Remove authenticator (delete 2FA / MFA)">
+        <p className="text-sm text-muted-foreground">
+          Permanently unlinks your authenticator app from this account. You will only need your password to sign in until
+          you set up a new authenticator.
+        </p>
+        {!mfaEnabled ? (
+          <p className="text-sm text-muted-foreground">
+            No authenticator is active.{" "}
+            <Link className="text-primary hover:underline" to={settingsSearch("Security", "2fa")}>
+              Set up 2FA
+            </Link>{" "}
+            or{" "}
+            <Link className="text-primary hover:underline" to={settingsSearch("Security", "mfa")}>
+              MFA
+            </Link>
+            .
+          </p>
+        ) : (
+          <div className="space-y-3 max-w-md">
+            <div className="space-y-1.5">
+              <Label>Account password</Label>
+              <Input
+                type="password"
+                className="bg-input border-border"
+                value={disablePassword}
+                onChange={(e) => setDisablePassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>6-digit code from authenticator</Label>
+              <InputOTP
+                maxLength={6}
+                value={disableOtp}
+                onChange={(v) => setDisableOtp(v.replace(/\D/g, ""))}
+              >
+                <InputOTPGroup>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <InputOTPSlot key={i} index={i} />
+                  ))}
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+            <Button
+              variant="destructive"
+              disabled={disableMutation.isPending || disablePassword.length < 8 || disableOtp.length !== 6}
+              onClick={() => disableMutation.mutate()}
+            >
+              {disableMutation.isPending ? "Removing…" : "Delete authenticator & turn off 2FA"}
+            </Button>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
@@ -103,6 +647,53 @@ function General() {
       <Card title="Workspace">
         <div className="space-y-2"><Label>Workspace name</Label><Input defaultValue={current.name} className="bg-input border-border max-w-md" /></div>
         <Button>Save Changes</Button>
+      </Card>
+      <Card title="Account security">
+        <p className="text-sm text-muted-foreground">
+          2FA (OTP second step), MFA overview (app and future SMS or email OTP), consent, and removing your authenticator.
+        </p>
+        <ul className="space-y-2 text-sm pt-1">
+          <li>
+            <Link
+              className="text-primary hover:underline inline-flex items-center gap-1"
+              to={settingsSearch("Security", "2fa")}
+            >
+              Two-factor authentication (2FA) <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </li>
+          <li>
+            <Link
+              className="text-primary hover:underline inline-flex items-center gap-1"
+              to={settingsSearch("Security", "mfa")}
+            >
+              Multi-factor authentication (MFA) <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </li>
+          <li>
+            <Link
+              className="text-primary hover:underline inline-flex items-center gap-1"
+              to={settingsSearch("Security", "consent")}
+            >
+              Security disclosure & consent <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </li>
+          <li>
+            <Link
+              className="text-primary hover:underline inline-flex items-center gap-1"
+              to={settingsSearch("Security", "delete")}
+            >
+              Remove authenticator <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </li>
+          <li>
+            <Link
+              className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs"
+              to={settingsSearch("Security", "index")}
+            >
+              All security settings <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </li>
+        </ul>
       </Card>
       <Card title="Instagram Connection">
         <div className="flex items-center justify-between flex-wrap gap-3">

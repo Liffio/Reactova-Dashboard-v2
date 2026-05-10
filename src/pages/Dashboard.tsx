@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import {
   TrendingUp, TrendingDown, Zap, Link2, Users,
-  Plus, ArrowUpRight, AlertTriangle,
+  Plus, ArrowUpRight, AlertTriangle, CalendarDays,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -82,7 +82,7 @@ export default function Dashboard() {
         </div>
       ))}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <Stat
           icon={Zap}
           label="DMs Sent This Month"
@@ -105,6 +105,12 @@ export default function Dashboard() {
           sub={`Last month: ${(dashboardQuery.data?.totals.linkClicksLastMonth ?? 0).toLocaleString()}`}
         />
         <Stat icon={Users} label="Leads Captured" value={dashboardQuery.data?.totals.leadsCapturedThisMonth ?? 0} sub="this month" />
+        <Stat
+          icon={CalendarDays}
+          label="Scheduled posts"
+          value={dashboardQuery.data?.totals.schedulerScheduled ?? 0}
+          sub={`${dashboardQuery.data?.totals.schedulerDrafts ?? 0} drafts · ${dashboardQuery.data?.totals.postInsightsTracked ?? 0} with insights`}
+        />
       </div>
 
       <div className="flex flex-wrap gap-2">

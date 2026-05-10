@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   TrendingUp, ShoppingBag, Instagram, Check, X, Lock, Info, Plus,
   Zap, Infinity as InfinityIcon, MessageSquare, UserCheck, ChevronLeft,
-  Calendar, ArrowRight,
+  Calendar, ArrowRight, Shield,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -22,6 +24,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setAuthMe } from "@/store/authSlice";
 import type { AuthMePayload } from "@/types/auth";
 import { toast } from "@/components/ui/sonner";
+import { CopyButton } from "@/components/CopyButton";
 
 const NICHES = [
   "Business & Marketing", "Fitness & Nutrition", "Education & Coaching",
@@ -45,12 +48,15 @@ type MetaOAuthDiagnostic = {
   }>;
 };
 
+const ONBOARDING_STEP_COUNT = 5;
+
 export default function Onboarding() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const dispatch = useAppDispatch();
   const workspaceIdFromStore = useAppSelector((state) => state.auth.workspaceId);
   const isOnboarded = useAppSelector((state) => state.auth.isOnboarded);
+  const mfaEnabled = useAppSelector((state) => state.auth.mfaEnabled);
   const [step, setStep] = useState(1);
   const [niches, setNiches] = useState<string[]>([]);
   const [handle, setHandle] = useState("");
@@ -60,6 +66,10 @@ export default function Onboarding() {
   const [showCompletion, setShowCompletion] = useState(false);
   const [metaFixReason, setMetaFixReason] = useState<string | null>(null);
   const [metaDiagnostic, setMetaDiagnostic] = useState<MetaOAuthDiagnostic | null>(null);
+  const [mfaConsent, setMfaConsent] = useState(false);
+  const [mfaSetup, setMfaSetup] = useState<{ qrDataUrl: string; secretKey: string } | null>(null);
+  const [mfaOtp, setMfaOtp] = useState("");
+  const pendingCelebrationRef = useRef(false);
 
   const resolveWorkspaceId = async () => {
     if (workspaceIdFromStore) {
@@ -96,18 +106,59 @@ export default function Onboarding() {
     }
   });
 
-  const completeOnboarding = useMutation({
+  const finishOnboardingSecure = useMutation({
     mutationFn: async () => {
       const workspaceId = await resolveWorkspaceId();
+      await apiRequest<void>("/api/v1/auth/mfa/onboarding-consent", {
+        method: "POST",
+        body: { consented: true }
+      });
       await apiRequest(`/api/v1/workspaces/${workspaceId}`, {
         method: "PATCH",
         workspaceId,
-        body: {
-          isOnboarded: true
-        }
+        body: { isOnboarded: true }
       });
       const authMe = await apiRequest<AuthMePayload>("/api/v1/auth/me", { workspaceId });
       dispatch(setAuthMe(authMe));
+    },
+    onSuccess: () => {
+      if (pendingCelebrationRef.current) {
+        setShowCompletion(true);
+        pendingCelebrationRef.current = false;
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
+    },
+    onError: (error) => toast.error((error as Error).message)
+  });
+
+  const startMfaSetup = useMutation({
+    mutationFn: () =>
+      apiRequest<{ qrDataUrl: string; secretKey: string }>("/api/v1/auth/mfa/setup/start", { method: "POST" }),
+    onSuccess: (data) => {
+      setMfaSetup({ qrDataUrl: data.qrDataUrl, secretKey: data.secretKey });
+      setMfaOtp("");
+    },
+    onError: (error) => toast.error((error as Error).message)
+  });
+
+  const verifyMfaSetup = useMutation({
+    mutationFn: (code: string) =>
+      apiRequest<void>("/api/v1/auth/mfa/setup/verify", { method: "POST", body: { code } }),
+    onSuccess: () => {
+      toast.success("Authenticator linked.");
+      setMfaSetup(null);
+      setMfaOtp("");
+      void finishOnboardingSecure.mutateAsync();
+    },
+    onError: (error) => toast.error((error as Error).message)
+  });
+
+  const cancelMfaSetup = useMutation({
+    mutationFn: () => apiRequest<void>("/api/v1/auth/mfa/setup/cancel", { method: "POST" }),
+    onSuccess: () => {
+      setMfaSetup(null);
+      setMfaOtp("");
     }
   });
 
@@ -129,7 +180,9 @@ export default function Onboarding() {
     const connected = searchParams.get("meta");
     const stepParam = searchParams.get("step");
     const parsedStep = Number(stepParam);
-    const requestedStep = Number.isFinite(parsedStep) ? Math.max(1, Math.min(4, parsedStep)) : null;
+    const requestedStep = Number.isFinite(parsedStep)
+      ? Math.max(1, Math.min(ONBOARDING_STEP_COUNT, parsedStep))
+      : null;
     if (connected === "connected=1" || connected === "connected") {
       setIgConnected(true);
       setMetaFixReason(null);
@@ -150,7 +203,21 @@ export default function Onboarding() {
           setMetaDiagnostic(null);
         });
       }
-      toast.error(decodedReason ? `Meta connect failed: ${decodedReason}` : "Meta connect failed");
+      const metaErrorToasts: Record<string, string> = {
+        invalid_platform_app:
+          "Meta rejected this app for Instagram login (invalid platform app). Use an app configured for Instagram Business Login — see the checklist on this step.",
+        redirect_uri_mismatch:
+          "OAuth redirect URI does not match Meta. Enter the exact callback URL from your server env into the Meta developer app, then reconnect.",
+        token_exchange_failed:
+          "Instagram token exchange failed. Confirm META_APP_ID / META_APP_SECRET / redirect URI, then check server logs and reconnect."
+      };
+      const toastCopy =
+        decodedReason && metaErrorToasts[decodedReason]
+          ? metaErrorToasts[decodedReason]
+          : decodedReason
+            ? `Meta connect failed: ${decodedReason}`
+            : "Meta connect failed";
+      toast.error(toastCopy);
       searchParams.delete("meta");
       searchParams.delete("reason");
       searchParams.delete("step");
@@ -165,8 +232,7 @@ export default function Onboarding() {
   const canNext =
     (step === 1 && niches.length > 0 && handle.trim().length > 0) ||
     (step === 2 && goal !== null) ||
-    (step === 3 && igConnected) ||
-    step === 4;
+    (step === 3 && igConnected);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
@@ -409,6 +475,100 @@ export default function Onboarding() {
                 </p>
               </div>
             )}
+            {(metaFixReason === "invalid_platform_app" || metaFixReason === "redirect_uri_mismatch") && (
+              <div className="p-4 rounded-xl border border-warning/40 bg-warning/5 space-y-3">
+                <div className="text-sm font-semibold">Fix Meta developer app settings (Instagram Business Login)</div>
+                <p className="text-xs text-muted-foreground">
+                  Instagram validates <code className="text-foreground">client_id</code> and your redirect URI against{" "}
+                  <strong>Instagram → Business login settings</strong>, not only &quot;Facebook Login for Business&quot;.
+                  If those do not line up, you get &quot;Invalid platform app&quot; on{" "}
+                  <code className="text-xs">instagram.com/oauth/authorize</code>.
+                </p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 mt-0.5 text-warning shrink-0" />
+                    <span>
+                      In Meta: <strong>Instagram</strong> → <strong>API setup with Instagram login</strong> →{" "}
+                      <strong>Set up Instagram business login</strong> → <strong>Business login settings</strong>. Add
+                      your callback URL to <strong>OAuth redirect URIs</strong> there (same value as{" "}
+                      <code className="text-xs">META_OAUTH_REDIRECT_URI</code>). A URI listed only under{" "}
+                      <em>Facebook Login for Business</em> is often <strong>not</strong> used for Instagram&apos;s
+                      authorize screen.
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 mt-0.5 text-warning shrink-0" />
+                    <span>
+                      On that same Business login page, copy <strong>Instagram App ID</strong> and{" "}
+                      <strong>Instagram App Secret</strong> into server env as{" "}
+                      <code className="text-xs">META_INSTAGRAM_BUSINESS_LOGIN_APP_ID</code> and{" "}
+                      <code className="text-xs">META_INSTAGRAM_BUSINESS_LOGIN_APP_SECRET</code> (or confirm they match{" "}
+                      <code className="text-xs">META_APP_ID</code> / <code className="text-xs">META_APP_SECRET</code> from
+                      App settings → Basic). See{" "}
+                      <a
+                        className="text-primary underline"
+                        href="https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/business-login"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Business Login for Instagram
+                      </a>
+                      .
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 mt-0.5 text-warning shrink-0" />
+                    <span>
+                      In{" "}
+                      <a
+                        className="text-primary underline"
+                        href="https://developers.facebook.com/apps/"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Meta for Developers
+                      </a>
+                      , use one app with the <strong>Instagram</strong> product and Instagram login / Business login
+                      completed — not an unrelated app.
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 mt-0.5 text-warning shrink-0" />
+                    <span>
+                      Register the <strong>exact</strong> OAuth redirect URI (scheme, host, path, trailing slash) as{" "}
+                      <code className="text-xs">META_OAUTH_REDIRECT_URI</code> in <code className="text-foreground">server/.env</code>.
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 mt-0.5 text-warning shrink-0" />
+                    <span>
+                      If the app is still in <strong>Development</strong>, add your Instagram user under{" "}
+                      <strong>Roles → Instagram Testers</strong> (and accept the tester invite in the Instagram app).
+                    </span>
+                  </div>
+                </div>
+                {metaFixReason === "redirect_uri_mismatch" && (
+                  <p className="text-xs font-medium text-warning">
+                    Your failure was classified as a redirect URI problem — double-check the value in Meta vs{" "}
+                    <code className="text-foreground">META_OAUTH_REDIRECT_URI</code> in <code className="text-foreground">server/.env</code>.
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  className="w-full sm:w-auto"
+                  disabled={startMetaOAuth.isPending}
+                  onClick={async () => {
+                    try {
+                      await startMetaOAuth.mutateAsync();
+                    } catch (error) {
+                      toast.error((error as Error).message);
+                    }
+                  }}
+                >
+                  {startMetaOAuth.isPending ? "Opening…" : "Retry Instagram connect"}
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -427,38 +587,161 @@ export default function Onboarding() {
               <Button onClick={() => setShowWizard(true)} variant="accent" size="lg">
                 Start Building <ArrowRight className="h-4 w-4" />
               </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                disabled={completeOnboarding.isPending}
-                onClick={async () => {
-                  try {
-                    await completeOnboarding.mutateAsync();
-                    navigate("/dashboard", { replace: true });
-                  } catch (error) {
-                    toast.error((error as Error).message);
-                  }
-                }}
-              >
-                {completeOnboarding.isPending ? "Completing..." : "Finish onboarding"}
+              <Button variant="outline" size="lg" onClick={() => setStep(5)}>
+                Continue to security
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+              One more step: optional MFA setup (authenticator OTP today; 2FA is the OTP second factor). Skip if you prefer—enable later in Settings → Security.
+            </p>
+          </div>
+        )}
+
+        {step === 5 && (
+          <div className="space-y-6">
+            <div className="flex items-start gap-3">
+              <div className="h-12 w-12 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
+                <Shield className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold">Secure your account</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  <strong className="text-foreground">2FA</strong> adds an OTP second step (here: a 6-digit code from an authenticator app).
+                  <strong className="text-foreground"> MFA</strong> is the bigger picture—password plus SMS, email OTP, app codes, and more; Reactova uses app OTP today. Security emails come from noreply@reactova.com; reply to support@reactova.com.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="mfa-consent"
+                  checked={mfaConsent}
+                  onCheckedChange={(v) => setMfaConsent(v === true)}
+                  className="mt-1"
+                />
+                <label htmlFor="mfa-consent" className="text-sm leading-snug cursor-pointer">
+                  I understand that extra login protection (2FA / OTP and broader MFA) is optional but recommended, that I am
+                  responsible for my factors and backups, and that Reactova may email me from noreply@reactova.com (reply-to
+                  <a href="mailto:support@reactova.com" className="text-primary underline">support@reactova.com</a>) when I change security settings.
+                </label>
+              </div>
+            </div>
+
+            {mfaEnabled ? (
+              <div className="space-y-4">
+                <p className="text-sm text-success">Two-step verification is already on for your account.</p>
+                <Button
+                  type="button"
+                  className="w-full sm:w-auto"
+                  disabled={!mfaConsent || finishOnboardingSecure.isPending}
+                  onClick={() => void finishOnboardingSecure.mutateAsync()}
+                >
+                  {finishOnboardingSecure.isPending ? "Finishing…" : "Finish onboarding"}
+                </Button>
+              </div>
+            ) : !mfaSetup ? (
+              <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+                <Button
+                  type="button"
+                  variant="accent"
+                  disabled={!mfaConsent || startMfaSetup.isPending}
+                  onClick={() => startMfaSetup.mutate()}
+                >
+                  {startMfaSetup.isPending ? "Starting…" : "Set up authenticator app"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!mfaConsent || finishOnboardingSecure.isPending}
+                  onClick={() => void finishOnboardingSecure.mutateAsync()}
+                >
+                  {finishOnboardingSecure.isPending ? "Finishing…" : "Finish without authenticator"}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4 max-w-md">
+                <p className="text-sm text-muted-foreground">
+                  Scan the QR code or paste the setup key into your authenticator app, then enter the 6-digit code to
+                  confirm.
+                </p>
+                <img
+                  src={mfaSetup.qrDataUrl}
+                  alt="Authenticator QR"
+                  className="rounded-lg border border-border w-44 h-44 object-contain"
+                />
+                <div className="space-y-1.5">
+                  <Label>Setup key (copy if you cannot scan)</Label>
+                  <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-input border border-border">
+                    <span className="flex-1 text-sm font-mono text-foreground break-all select-all">
+                      {mfaSetup.secretKey}
+                    </span>
+                    <CopyButton value={mfaSetup.secretKey} className="shrink-0 mt-0.5" label="Copy" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>6-digit code</Label>
+                  <InputOTP maxLength={6} value={mfaOtp} onChange={(v) => setMfaOtp(v.replace(/\D/g, ""))}>
+                    <InputOTPGroup>
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <InputOTPSlot key={i} index={i} />
+                      ))}
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    disabled={verifyMfaSetup.isPending || mfaOtp.length !== 6}
+                    onClick={() => verifyMfaSetup.mutate(mfaOtp)}
+                  >
+                    {verifyMfaSetup.isPending ? "Confirming…" : "Confirm and finish onboarding"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={cancelMfaSetup.isPending}
+                    onClick={() => cancelMfaSetup.mutate()}
+                  >
+                    Cancel setup
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Footer */}
         <div className="mt-8 flex items-center justify-between gap-4">
           <div className="flex-1 max-w-xs">
-            <div className="text-xs text-muted-foreground mb-1.5">Step {step} of 4</div>
+            <div className="text-xs text-muted-foreground mb-1.5">
+              Step {step} of {ONBOARDING_STEP_COUNT}
+            </div>
             <div className="h-1 bg-border rounded-full overflow-hidden">
-              <div className="h-full bg-primary transition-all" style={{ width: `${(step / 4) * 100}%` }} />
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${(step / ONBOARDING_STEP_COUNT) * 100}%` }}
+              />
             </div>
           </div>
           <div className="flex gap-2">
             {step > 1 && (
-              <Button variant="outline" onClick={() => setStep((s) => s - 1)}>Back</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (step === 5 && mfaSetup) {
+                    cancelMfaSetup.mutate(undefined, {
+                      onSettled: () => setStep((s) => s - 1)
+                    });
+                    return;
+                  }
+                  setStep((s) => s - 1);
+                }}
+              >
+                Back
+              </Button>
             )}
-            {step < 4 && (
+            {step < ONBOARDING_STEP_COUNT && step < 4 && (
               <Button variant="ghost" onClick={() => setStep((s) => s + 1)}>
                 Skip
               </Button>
@@ -494,14 +777,11 @@ export default function Onboarding() {
         <AutomationWizard
           onClose={() => setShowWizard(false)}
           resolveWorkspaceId={resolveWorkspaceId}
-          onLaunch={async () => {
-            try {
-              await completeOnboarding.mutateAsync();
-              setShowWizard(false);
-              setShowCompletion(true);
-            } catch (error) {
-              toast.error((error as Error).message);
-            }
+          onLaunch={() => {
+            pendingCelebrationRef.current = true;
+            setShowWizard(false);
+            setStep(5);
+            toast.success("Automation saved. Complete the security step to open your dashboard.");
           }}
         />
       )}

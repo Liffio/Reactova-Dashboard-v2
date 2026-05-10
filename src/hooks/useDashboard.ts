@@ -21,6 +21,10 @@ export type DashboardResponse = {
     linkClicksThisMonth: number;
     linkClicksLastMonth: number;
     clickTrendPercent: number | null;
+    schedulerScheduled?: number;
+    schedulerDrafts?: number;
+    schedulerFailed?: number;
+    postInsightsTracked?: number;
   };
   recentActivities: Array<{
     id: string;

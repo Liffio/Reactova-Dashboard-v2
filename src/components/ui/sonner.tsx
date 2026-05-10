@@ -1,94 +1,85 @@
-import type { CSSProperties } from "react";
+import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import { useTheme } from "next-themes";
+import { cva } from "class-variance-authority";
 import { Toaster as Sonner, toast as sonnerToast } from "sonner";
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-type ToasterProps = React.ComponentProps<typeof Sonner>;
+type SonnerToasterProps = ComponentProps<typeof Sonner>;
+
 export type AppToastType = "success" | "error" | "info" | "warning";
+
 export type AppToastOptions = {
   title?: string;
   message?: string;
   description?: string;
   duration?: number;
-  position?: "top-right" | "top-left" | "bottom-right" | "bottom-left" | "top-center" | "bottom-center" | undefined;
+  position?:
+    | "top-right"
+    | "top-left"
+    | "bottom-right"
+    | "bottom-left"
+    | "top-center"
+    | "bottom-center"
+    | undefined;
+  /** Extra classes on the outer toast card */
+  className?: string;
+  /** Classes applied to the inner content row (icon + text + close) */
+  contentClassName?: string;
+  /** Visually mute the type accent (icon + border) for a neutral notice */
+  neutral?: boolean;
+  /** Default true; set false to hide the countdown bar */
+  showProgress?: boolean;
+  /** Replace the default type icon */
+  icon?: ReactNode;
 };
 
 const DEFAULT_DURATION = 5000;
 
-const styleByType: Record<
-  AppToastType,
-  {
-    container: string;
-    backgroundOverlay: string;
-    blobPrimary: string;
-    blobSecondary: string;
-    svgTint: string;
-    iconWrap: string;
-    iconColor: string;
-    progressTrack: string;
-    progress: string;
-    closeHover: string;
-    titleText: string;
-    messageText: string;
-  }
-> = {
-  success: {
-    container: "bg-emerald-100 border-emerald-300 dark:bg-emerald-950 dark:border-emerald-700",
-    backgroundOverlay: "from-emerald-500/10 to-teal-500/10 dark:from-emerald-400/15 dark:to-teal-400/10",
-    blobPrimary: "bg-emerald-500/20 dark:bg-emerald-400/20",
-    blobSecondary: "bg-teal-500/15 dark:bg-teal-400/15",
-    svgTint: "text-emerald-500/20 dark:text-emerald-300/20",
-    iconWrap: "bg-emerald-600/20 dark:bg-emerald-400/20",
-    iconColor: "text-emerald-700 dark:text-emerald-300",
-    progressTrack: "bg-emerald-100 dark:bg-emerald-900/80",
-    progress: "bg-emerald-500/65 dark:bg-emerald-400/65",
-    closeHover: "hover:bg-emerald-100/80 dark:hover:bg-emerald-900/80",
-    titleText: "text-emerald-950 dark:text-emerald-100",
-    messageText: "text-emerald-800 dark:text-emerald-200"
-  },
-  error: {
-    container: "bg-rose-100 border-rose-300 dark:bg-rose-950 dark:border-rose-700",
-    backgroundOverlay: "from-rose-500/10 to-pink-500/10 dark:from-rose-400/15 dark:to-pink-400/10",
-    blobPrimary: "bg-rose-500/20 dark:bg-rose-400/20",
-    blobSecondary: "bg-pink-500/15 dark:bg-pink-400/15",
-    svgTint: "text-rose-500/20 dark:text-rose-300/20",
-    iconWrap: "bg-rose-600/20 dark:bg-rose-400/20",
-    iconColor: "text-rose-700 dark:text-rose-300",
-    progressTrack: "bg-rose-100 dark:bg-rose-900/80",
-    progress: "bg-rose-500/65 dark:bg-rose-400/65",
-    closeHover: "hover:bg-rose-100/80 dark:hover:bg-rose-900/80",
-    titleText: "text-rose-950 dark:text-rose-100",
-    messageText: "text-rose-800 dark:text-rose-200"
-  },
-  info: {
-    container: "bg-sky-100 border-sky-300 dark:bg-sky-950 dark:border-sky-700",
-    backgroundOverlay: "from-sky-500/10 to-blue-500/10 dark:from-sky-400/15 dark:to-blue-400/10",
-    blobPrimary: "bg-sky-500/20 dark:bg-sky-400/20",
-    blobSecondary: "bg-blue-500/15 dark:bg-blue-400/15",
-    svgTint: "text-sky-500/20 dark:text-sky-300/20",
-    iconWrap: "bg-sky-600/20 dark:bg-sky-400/20",
-    iconColor: "text-sky-700 dark:text-sky-300",
-    progressTrack: "bg-sky-100 dark:bg-sky-900/80",
-    progress: "bg-sky-500/65 dark:bg-sky-400/65",
-    closeHover: "hover:bg-sky-100/80 dark:hover:bg-sky-900/80",
-    titleText: "text-sky-950 dark:text-sky-100",
-    messageText: "text-sky-800 dark:text-sky-200"
-  },
-  warning: {
-    container: "bg-amber-100 border-amber-300 dark:bg-amber-950 dark:border-amber-700",
-    backgroundOverlay: "from-amber-500/10 to-orange-500/10 dark:from-amber-400/15 dark:to-orange-400/10",
-    blobPrimary: "bg-amber-500/20 dark:bg-amber-400/20",
-    blobSecondary: "bg-orange-500/15 dark:bg-orange-400/15",
-    svgTint: "text-amber-500/20 dark:text-amber-300/20",
-    iconWrap: "bg-amber-600/20 dark:bg-amber-400/20",
-    iconColor: "text-amber-700 dark:text-amber-300",
-    progressTrack: "bg-amber-100 dark:bg-amber-900/80",
-    progress: "bg-amber-500/65 dark:bg-amber-400/65",
-    closeHover: "hover:bg-amber-100/80 dark:hover:bg-amber-900/80",
-    titleText: "text-amber-950 dark:text-amber-100",
-    messageText: "text-amber-800 dark:text-amber-200"
-  }
+const toastCardVariants = cva(
+  [
+    "app-toast group relative w-full max-w-[min(calc(100vw-1.25rem),22rem)] sm:max-w-md",
+    "overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-md",
+    "ring-1 ring-black/5 dark:ring-white/10",
+    "border-l-[3px]",
+    "transition-[transform,box-shadow] duration-200",
+    "data-[swipe=move]:transition-none"
+  ]
+);
+
+const toastAccentBorder: Record<AppToastType, string> = {
+  success: "border-l-emerald-600 dark:border-l-emerald-500",
+  error: "border-l-red-600 dark:border-l-red-500",
+  info: "border-l-sky-600 dark:border-l-sky-500",
+  warning: "border-l-amber-600 dark:border-l-amber-500"
 };
+
+const iconShellVariants = cva(
+  "flex size-8 shrink-0 items-center justify-center rounded-md border bg-background/80 backdrop-blur-sm",
+  {
+    variants: {
+      type: {
+        success: "border-emerald-200 text-emerald-700 dark:border-emerald-900/60 dark:text-emerald-400",
+        error: "border-red-200 text-red-700 dark:border-red-900/60 dark:text-red-400",
+        info: "border-sky-200 text-sky-700 dark:border-sky-900/60 dark:text-sky-400",
+        warning: "border-amber-200 text-amber-800 dark:border-amber-900/60 dark:text-amber-400"
+      }
+    },
+    defaultVariants: { type: "info" }
+  }
+);
+
+const progressBarVariants = cva("app-toast-progress h-full rounded-full", {
+  variants: {
+    type: {
+      success: "bg-emerald-600/70 dark:bg-emerald-500/70",
+      error: "bg-red-600/70 dark:bg-red-500/70",
+      info: "bg-sky-600/70 dark:bg-sky-500/70",
+      warning: "bg-amber-600/70 dark:bg-amber-500/70"
+    }
+  },
+  defaultVariants: { type: "info" }
+});
 
 const iconByType: Record<AppToastType, typeof CheckCircle2> = {
   success: CheckCircle2,
@@ -106,74 +97,93 @@ const wrapperClassByPosition: Record<NonNullable<AppToastOptions["position"]>, s
   "bottom-center": "mx-auto"
 };
 
+export type ToastCardProps = {
+  id: string | number;
+  type: AppToastType;
+  title: ReactNode;
+  message?: ReactNode;
+  duration: number;
+  position?: AppToastOptions["position"];
+  className?: string;
+  contentClassName?: string;
+  neutral?: boolean;
+  showProgress?: boolean;
+  icon?: ReactNode;
+};
+
 function ToastCard({
   id,
   type,
   title,
   message,
   duration,
-  position
-}: {
-  id: string | number;
-  type: AppToastType;
-  title: string;
-  message?: string;
-  duration: number;
-  position?: AppToastOptions["position"];
-}) {
-  const style = styleByType[type];
-  const Icon = iconByType[type];
+  position,
+  className,
+  contentClassName,
+  neutral = false,
+  showProgress = true,
+  icon
+}: ToastCardProps) {
+  const DefaultIcon = iconByType[type];
 
   return (
     <div
-      className={`app-toast group relative w-[min(92vw,360px)] md:w-[420px] overflow-hidden rounded-xl md:rounded-2xl border shadow-sm md:shadow-lg ${position ? wrapperClassByPosition[position] : ""} ${style.container}`}
+      className={cn(
+        toastCardVariants(),
+        neutral ? "border-l-border" : toastAccentBorder[type],
+        position ? wrapperClassByPosition[position] : undefined,
+        className
+      )}
       style={{ "--app-toast-duration": `${duration}ms` } as CSSProperties}
+      role="status"
+      aria-live="polite"
     >
-      <div className={`absolute inset-0 bg-gradient-to-br ${style.backgroundOverlay}`} />
-      <div className={`pointer-events-none hidden md:block absolute -top-8 -left-4 h-20 w-20 rounded-full blur-sm ${style.blobPrimary}`} />
-      <div className={`pointer-events-none hidden md:block absolute -bottom-10 right-10 h-24 w-24 rounded-full blur-sm ${style.blobSecondary}`} />
-      <div className={`pointer-events-none hidden md:block absolute inset-0 ${style.svgTint}`}>
-        <svg className="h-full w-full" viewBox="0 0 420 140" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="355" cy="24" r="12" fill="currentColor" />
-          <circle cx="320" cy="48" r="7" fill="currentColor" />
-          <circle cx="384" cy="52" r="6" fill="currentColor" />
-          <path
-            d="M278 100C302 80 332 73 356 78C383 84 398 104 420 112V140H278V100Z"
-            fill="currentColor"
-          />
-        </svg>
-      </div>
-      <div className="flex items-center w-full px-4">
-        <div className={`z-10 rounded-full p-1.5 md:p-2 shadow-md ring-2 ring-background dark:ring-card ${style.iconWrap}`}>
-          <Icon className={`h-3.5 w-3.5 md:h-4 md:w-4 ${style.iconColor}`} />
+      <div className={cn("flex gap-3 px-3 py-3 sm:gap-3.5 sm:px-4 sm:py-3.5", contentClassName)}>
+        <div className={cn(iconShellVariants({ type }), neutral && "border-border text-muted-foreground")}>
+          {icon ?? <DefaultIcon className="size-4" strokeWidth={2} aria-hidden />}
         </div>
-        <div className="relative pl-7 md:pl-8 pr-3 py-2.5 md:pr-4 md:py-3.5 w-full">
-          <div className="flex items-start gap-2 md:gap-3">
-            <div className="min-w-0 flex-1">
-            <div className={`text-[13px] md:text-[18px] font-semibold leading-5 md:leading-6 ${style.titleText}`}>{title}</div>
-              {message ? (
-              <div className={`mt-0.5 text-[12px] md:text-[13px] leading-[1.25rem] md:leading-[1.35rem] ${style.messageText}`}>
-                  {message}
-                </div>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              onClick={() => sonnerToast.dismiss(id)}
-              className={`shrink-0 rounded p-1 md:p-1.5 text-muted-foreground transition-colors hover:text-foreground ${style.closeHover}`}
-            >
-              <X className="h-3.5 w-3.5 md:h-4 md:w-4" />
-            </button>
+        <div className="min-w-0 flex-1 pt-0.5">
+          <div className="text-sm font-medium leading-snug text-foreground">{title}</div>
+          {message != null && message !== "" ? (
+            <div className="mt-1 text-sm leading-relaxed text-muted-foreground">{message}</div>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={() => sonnerToast.dismiss(id)}
+          className={cn(
+            "shrink-0 rounded-md p-1.5 text-muted-foreground outline-none transition-colors",
+            "hover:bg-muted hover:text-foreground",
+            "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          )}
+          aria-label="Dismiss notification"
+        >
+          <X className="size-4" aria-hidden />
+        </button>
+      </div>
+      {showProgress ? (
+        <div className="px-3 pb-2 sm:px-4 sm:pb-2.5">
+          <div className="h-0.5 w-full overflow-hidden rounded-full bg-muted/80">
+            <div className={cn(progressBarVariants({ type }), neutral && "bg-muted-foreground/40")} />
           </div>
         </div>
-      </div>
-      <div className="relative px-3 pb-2 md:px-4 md:pb-3">
-        <div className={`h-1 w-full overflow-hidden rounded-full ${style.progressTrack}`}>
-          <div className={`app-toast-progress h-full ${style.progress}`} />
-        </div>
-      </div>
+      ) : null}
     </div>
   );
+}
+
+function mergeToastInput(
+  titleOrOptions: string | AppToastOptions,
+  options?: AppToastOptions
+): Required<Pick<AppToastOptions, "title">> & AppToastOptions {
+  if (typeof titleOrOptions === "string") {
+    return { title: titleOrOptions, ...options };
+  }
+  return {
+    title: titleOrOptions.title ?? "Notification",
+    ...options,
+    ...titleOrOptions
+  };
 }
 
 const showToast = (
@@ -181,37 +191,60 @@ const showToast = (
   titleOrOptions: string | AppToastOptions,
   options?: AppToastOptions
 ) => {
-  const merged = typeof titleOrOptions === "string" ? { ...options, title: titleOrOptions } : titleOrOptions;
-  const title = merged.title ?? "Notification";
+  const merged = mergeToastInput(titleOrOptions, options);
+  const title = merged.title;
   const message = merged.message ?? merged.description;
   const duration = merged.duration ?? DEFAULT_DURATION;
   const position = merged.position;
   const wrapperPosition: NonNullable<AppToastOptions["position"]> = position ?? "top-right";
 
   return sonnerToast.custom(
-    (id) => (
-      <ToastCard id={id} type={type} title={title} message={message} duration={duration} position={wrapperPosition} />
+    (toastId) => (
+      <ToastCard
+        id={toastId}
+        type={type}
+        title={title}
+        message={message}
+        duration={duration}
+        position={wrapperPosition}
+        className={merged.className}
+        contentClassName={merged.contentClassName}
+        neutral={merged.neutral}
+        showProgress={merged.showProgress ?? true}
+        icon={merged.icon}
+      />
     ),
     { duration, position }
   );
 };
 
-const Toaster = ({ ...props }: ToasterProps) => {
+export type AppToasterProps = SonnerToasterProps & {
+  /** Applied to each Sonner toast shell (transparent wrapper around custom content) */
+  toastListClassName?: string;
+};
+
+const Toaster = ({ className, toastListClassName, position = "top-right", ...props }: AppToasterProps) => {
   const { theme = "system" } = useTheme();
+  const resolvedPosition = position as NonNullable<AppToastOptions["position"]>;
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
-      className="toaster group"
-      position={props.position ?? "top-right"}
-      offset={10}
-      mobileOffset={10}
+      theme={theme as SonnerToasterProps["theme"]}
+      className={cn("toaster group", className)}
+      position={position}
+      offset={{ top: "1rem", right: "1rem", bottom: "1rem", left: "1rem" }}
+      mobileOffset={{ top: "0.75rem", right: "0.75rem", bottom: "0.75rem", left: "0.75rem" }}
       expand={false}
       richColors={false}
+      closeButton={false}
       visibleToasts={5}
       toastOptions={{
         classNames: {
-          toast: `group toast !bg-transparent !border-0 !shadow-none !p-0 ${props.position ? wrapperClassByPosition[props.position as NonNullable<AppToastOptions["position"]>] : "" }`,
+          toast: cn(
+            "group toast !w-full !max-w-none !bg-transparent !border-0 !p-0 !shadow-none",
+            wrapperClassByPosition[resolvedPosition],
+            toastListClassName
+          ),
           description: "hidden",
           actionButton: "hidden",
           cancelButton: "hidden"
@@ -222,20 +255,32 @@ const Toaster = ({ ...props }: ToasterProps) => {
   );
 };
 
-type ToastFn = ((title: string, options?: AppToastOptions) => string | number) & {
-  success: (title: string, options?: AppToastOptions) => string | number;
-  error: (title: string, options?: AppToastOptions) => string | number;
-  info: (title: string, options?: AppToastOptions) => string | number;
-  warning: (title: string, options?: AppToastOptions) => string | number;
+type ToastMethod = {
+  (message: string, options?: AppToastOptions): string | number;
+  (options: AppToastOptions): string | number;
+};
+
+type ToastFn = ToastMethod & {
+  success: ToastMethod;
+  error: ToastMethod;
+  info: ToastMethod;
+  warning: ToastMethod;
   dismiss: (id?: string | number) => void;
 };
 
-const toastBase = ((title: string, options?: AppToastOptions) =>
-  showToast("info", title, options)) as ToastFn;
-toastBase.success = (title, options) => showToast("success", title, options);
-toastBase.error = (title, options) => showToast("error", title, options);
-toastBase.info = (title, options) => showToast("info", title, options);
-toastBase.warning = (title, options) => showToast("warning", title, options);
+const toastBase = ((titleOrOptions: string | AppToastOptions, options?: AppToastOptions) =>
+  showToast("info", titleOrOptions, options)) as ToastFn;
+
+function makeToastMethod(type: AppToastType): ToastMethod {
+  const fn = (titleOrOptions: string | AppToastOptions, options?: AppToastOptions) =>
+    showToast(type, titleOrOptions, options);
+  return fn as ToastMethod;
+}
+
+toastBase.success = makeToastMethod("success");
+toastBase.error = makeToastMethod("error");
+toastBase.info = makeToastMethod("info");
+toastBase.warning = makeToastMethod("warning");
 toastBase.dismiss = (id) => sonnerToast.dismiss(id);
 
 export { Toaster, toastBase as toast };

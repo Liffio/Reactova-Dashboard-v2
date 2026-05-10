@@ -1,6 +1,17 @@
 import { cn } from "@/lib/utils";
 
-type Variant = "active" | "paused" | "draft" | "failed" | "scheduled" | "pending" | "completed" | "published" | "disconnected";
+export type StatusBadgeVariant =
+  | "active"
+  | "paused"
+  | "draft"
+  | "failed"
+  | "scheduled"
+  | "pending"
+  | "completed"
+  | "published"
+  | "disconnected";
+
+type Variant = StatusBadgeVariant;
 
 const map: Record<Variant, { label: string; cls: string; dot: string }> = {
   active: { label: "Active", cls: "bg-success/15 text-success border-success/30", dot: "bg-success" },

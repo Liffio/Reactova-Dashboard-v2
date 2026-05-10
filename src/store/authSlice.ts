@@ -10,6 +10,10 @@ type AuthState = {
   modules: AuthorizationPayload["modules"];
   isPlatformSuperAdmin: boolean;
   isOnboarded: boolean;
+  mfaEnabled: boolean;
+  mfaEmailOtpEnabled: boolean;
+  mfaSmsOtpEnabled: boolean;
+  mfaOnboardingConsentAt: string | null;
 };
 
 const initialState: AuthState = {
@@ -20,7 +24,11 @@ const initialState: AuthState = {
   permissions: [],
   modules: [],
   isPlatformSuperAdmin: false,
-  isOnboarded: false
+  isOnboarded: false,
+  mfaEnabled: false,
+  mfaEmailOtpEnabled: true,
+  mfaSmsOtpEnabled: false,
+  mfaOnboardingConsentAt: null
 };
 
 const authSlice = createSlice({
@@ -44,6 +52,10 @@ const authSlice = createSlice({
       state.modules = action.payload.modules;
       state.isPlatformSuperAdmin = action.payload.isPlatformSuperAdmin;
       state.isOnboarded = action.payload.isOnboarded;
+      state.mfaEnabled = action.payload.mfaEnabled;
+      state.mfaEmailOtpEnabled = action.payload.mfaEmailOtpEnabled;
+      state.mfaSmsOtpEnabled = action.payload.mfaSmsOtpEnabled;
+      state.mfaOnboardingConsentAt = action.payload.mfaOnboardingConsentAt;
     },
     setAuthorization: (state, action: PayloadAction<AuthorizationPayload | null>) => {
       state.workspaceId = action.payload?.workspaceId ?? null;
@@ -52,6 +64,11 @@ const authSlice = createSlice({
       state.modules = action.payload?.modules ?? [];
       state.isPlatformSuperAdmin = action.payload?.isPlatformSuperAdmin ?? false;
       state.isOnboarded = action.payload?.isOnboarded ?? false;
+      state.mfaEnabled = action.payload?.mfaEnabled ?? state.mfaEnabled;
+      state.mfaEmailOtpEnabled = action.payload?.mfaEmailOtpEnabled ?? state.mfaEmailOtpEnabled;
+      state.mfaSmsOtpEnabled = action.payload?.mfaSmsOtpEnabled ?? state.mfaSmsOtpEnabled;
+      state.mfaOnboardingConsentAt =
+        action.payload?.mfaOnboardingConsentAt ?? state.mfaOnboardingConsentAt;
     },
     clearAuthSession: (state) => {
       state.accessToken = null;
@@ -62,6 +79,10 @@ const authSlice = createSlice({
       state.modules = [];
       state.isPlatformSuperAdmin = false;
       state.isOnboarded = false;
+      state.mfaEnabled = false;
+      state.mfaEmailOtpEnabled = true;
+      state.mfaSmsOtpEnabled = false;
+      state.mfaOnboardingConsentAt = null;
       localStorage.removeItem("reactova_access_token");
     }
   }

@@ -53,7 +53,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.FRONTEND_DROPLET_IP }}
-          username: reactova
+          username: root
           password: ${{ secrets.FRONTEND_DROPLET_PASSWORD }}
           port: ${{ secrets.FRONTEND_DROPLET_PORT || 22 }}
           command_timeout: 10m

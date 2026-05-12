@@ -12,7 +12,7 @@ Workflows live in `.github/workflows/` inside this `client` repo:
 Add these repository secrets in the GitHub repo for the client:
 
 - `FRONTEND_DROPLET_IP`: frontend droplet IP address
-- `FRONTEND_DROPLET_PASSWORD`: SSH password for the `reactova` user
+- `FRONTEND_DROPLET_PASSWORD`: SSH password for the `root` user
 - `FRONTEND_DROPLET_PORT`: optional SSH port, usually `22`
 - `SLACK_WEBHOOK_URL`: optional deploy notification webhook
 

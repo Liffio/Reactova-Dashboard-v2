@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   addMonths,
   eachDayOfInterval,
@@ -19,8 +19,10 @@ import {
   Loader2,
   MessageCircle,
   MoreHorizontal,
+  Images,
   RefreshCw,
   Send,
+  X,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -66,6 +68,7 @@ import {
   useCancelScheduledPostMutation,
   useCreateScheduledPostMutation,
   usePublishNowMutation,
+  useSchedulerAutomationTemplatesQuery,
   useSchedulerAnalyticsOverviewQuery,
   useSchedulerAnalyticsPostsQuery,
   useSchedulerCalendarQuery,
@@ -75,12 +78,14 @@ import {
   useSchedulerPostsQuery,
   useSchedulerSyncMutation,
 } from "@/hooks/useScheduler";
+import { Switch } from "@/components/ui/switch";
 import type { StatusBadgeVariant } from "@/components/StatusBadge";
 import type { CalendarPost, ScheduledPost } from "@/hooks/useScheduler";
 
 const WEEK_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 const TIMEZONES = ["UTC", "America/New_York", "America/Los_Angeles", "Europe/London", "Asia/Kolkata", "Asia/Tokyo"];
+const CAROUSEL_MEDIA_MAX = 10;
 
 function mapSchedulerStatus(status: string): StatusBadgeVariant {
   switch (status) {
@@ -129,57 +134,265 @@ function isSchedulerHostedVideoUrl(url: string): boolean {
   }
 }
 
-function IgStylePostPreview({
+type IgPreviewPostType = ScheduledPost["type"];
+
+function InstagramPreviewAvatar({
   username,
+  profilePictureUrl,
+  className,
+}: {
+  username: string;
+  profilePictureUrl?: string | null;
+  className?: string;
+}) {
+  const initial = username.replace(/^@/, "").trim().slice(0, 1).toUpperCase() || "I";
+  return (
+    <div className={cn("rounded-full bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] p-[2px]", className)}>
+      <div className="h-full w-full overflow-hidden rounded-full bg-background">
+        {profilePictureUrl ? (
+          <img src={profilePictureUrl} alt={`${username} Instagram profile`} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-muted to-background text-xs font-bold text-foreground">
+            {initial}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InstagramPreviewMedia({
+  media,
+  hasMedia,
+  placeholder,
+  className,
+}: {
+  media: string;
+  hasMedia: boolean;
+  placeholder: string;
+  className?: string;
+}) {
+  if (hasMedia) {
+    return isSchedulerHostedVideoUrl(media) ? (
+      <video
+        src={media}
+        className={cn("absolute inset-0 h-full w-full object-cover", className)}
+        muted
+        playsInline
+        controls
+        preload="metadata"
+      />
+    ) : (
+      <img src={media} alt="" className={cn("absolute inset-0 h-full w-full object-cover", className)} />
+    );
+  }
+
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-muted-foreground text-sm">
+      <div className="rounded-full border-2 border-dashed border-muted-foreground/40 p-6">
+        <CalendarDays className="h-8 w-8 opacity-50 mx-auto" aria-hidden />
+      </div>
+      <span>{placeholder}</span>
+    </div>
+  );
+}
+
+function IgStylePostPreview({
+  type,
+  username,
+  profilePictureUrl,
   mediaUrl,
+  mediaUrls,
   caption,
   hashtagsRaw,
 }: {
+  type: IgPreviewPostType;
   username: string;
+  profilePictureUrl?: string | null;
   mediaUrl: string;
+  mediaUrls?: string[];
   caption: string;
   hashtagsRaw: string;
 }) {
   const hashtagTokens = useMemo(() => parseHashtagTokens(hashtagsRaw), [hashtagsRaw]);
   const handle = username.replace(/^@/, "").trim() || "yourbrand";
-  const media = mediaUrl.trim();
+  const carouselMedia = useMemo(
+    () => (mediaUrls ?? []).map((url) => url.trim()).filter(Boolean),
+    [mediaUrls]
+  );
+  const carouselSlides = useMemo(
+    () => type === "CAROUSEL"
+      ? carouselMedia.length > 0
+        ? carouselMedia
+        : mediaUrl.trim()
+          ? [mediaUrl.trim()]
+          : []
+      : [],
+    [carouselMedia, mediaUrl, type]
+  );
+  const [activeCarouselIndex, setActiveCarouselIndex] = useState(0);
+  const media = type === "CAROUSEL" ? carouselSlides[activeCarouselIndex] ?? "" : mediaUrl.trim();
   const hasMedia = media.length > 0;
+  const carouselCount = carouselSlides.length;
   const hasCaption = caption.trim().length > 0;
   const hasTags = hashtagTokens.length > 0;
+  const captionText = caption.trim();
+  const previewLabel =
+    type === "REEL" ? "Reel" : type === "STORY" ? "Story" : type === "CAROUSEL" ? "Carousel" : "Feed post";
+
+  useEffect(() => {
+    if (activeCarouselIndex >= carouselSlides.length) {
+      setActiveCarouselIndex(Math.max(0, carouselSlides.length - 1));
+    }
+  }, [activeCarouselIndex, carouselSlides.length]);
+
+  const goToCarouselSlide = (nextIndex: number) => {
+    if (carouselSlides.length === 0) {
+      setActiveCarouselIndex(0);
+      return;
+    }
+    const wrapped = (nextIndex + carouselSlides.length) % carouselSlides.length;
+    setActiveCarouselIndex(wrapped);
+  };
+
+  if (type === "STORY") {
+    return (
+      <div className="mx-auto w-full max-w-[min(100%,300px)] overflow-hidden rounded-[2rem] border border-border bg-black text-white shadow-xl ring-1 ring-black/10">
+        <div className="relative aspect-[9/16] w-full bg-black">
+          <InstagramPreviewMedia media={media} hasMedia={hasMedia} placeholder="Add media to see your story preview" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/65" aria-hidden />
+          <div className="absolute left-3 right-3 top-3 space-y-2">
+            <div className="flex gap-1">
+              <div className="h-0.5 flex-1 rounded-full bg-white" />
+              <div className="h-0.5 flex-1 rounded-full bg-white/35" />
+              <div className="h-0.5 flex-1 rounded-full bg-white/35" />
+            </div>
+            <div className="flex items-center gap-2">
+              <InstagramPreviewAvatar username={handle} profilePictureUrl={profilePictureUrl} className="h-8 w-8 shrink-0" />
+              <span className="text-xs font-semibold">{handle}</span>
+              <span className="text-xs text-white/70">now</span>
+              <MoreHorizontal className="ml-auto h-4 w-4 text-white/90" aria-hidden />
+            </div>
+          </div>
+          <div className="absolute bottom-5 left-4 right-4 space-y-2">
+            <div className="rounded-2xl bg-black/30 p-3 backdrop-blur-sm">
+              {hasCaption ? <p className="text-sm font-medium leading-relaxed">{captionText}</p> : null}
+              {hasTags ? <p className="text-sm font-medium text-white/90">{hashtagTokens.join(" ")}</p> : null}
+              {!hasCaption && !hasTags ? <p className="text-sm text-white/80">Story text preview</p> : null}
+            </div>
+            <div className="rounded-full border border-white/35 px-4 py-2 text-xs text-white/85">Send message</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "REEL") {
+    return (
+      <div className="mx-auto w-full max-w-[min(100%,320px)] overflow-hidden rounded-[2rem] border border-border bg-black text-white shadow-xl ring-1 ring-black/10">
+        <div className="relative aspect-[9/16] w-full bg-black">
+          <InstagramPreviewMedia media={media} hasMedia={hasMedia} placeholder="Add video or image to see your reel preview" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/75" aria-hidden />
+          <div className="absolute left-4 right-4 top-4 flex items-center justify-between">
+            <span className="text-lg font-bold tracking-tight">Reels</span>
+            <span className="rounded-full bg-white/15 px-2 py-1 text-[11px] font-medium backdrop-blur-sm">Preview</span>
+          </div>
+          <div className="absolute bottom-5 left-4 right-16 space-y-2">
+            <div className="flex items-center gap-2">
+              <InstagramPreviewAvatar username={handle} profilePictureUrl={profilePictureUrl} className="h-8 w-8 shrink-0" />
+              <span className="text-sm font-semibold">{handle}</span>
+              <span className="rounded-md border border-white/45 px-2 py-0.5 text-[11px] font-semibold">Follow</span>
+            </div>
+            {hasCaption || hasTags ? (
+              <p className="line-clamp-3 text-sm leading-relaxed">
+                {captionText}
+                {hasCaption && hasTags ? " " : ""}
+                {hasTags ? hashtagTokens.join(" ") : ""}
+              </p>
+            ) : (
+              <p className="text-sm text-white/75">Write a reel caption...</p>
+            )}
+          </div>
+          <div className="absolute bottom-5 right-3 flex flex-col items-center gap-4 text-white">
+            <Heart className="h-7 w-7 stroke-[1.7]" aria-hidden />
+            <MessageCircle className="h-7 w-7 stroke-[1.7]" aria-hidden />
+            <Send className="h-6 w-6 -rotate-12 stroke-[1.7]" aria-hidden />
+            <Bookmark className="h-7 w-7 stroke-[1.7]" aria-hidden />
+            <InstagramPreviewAvatar username={handle} profilePictureUrl={profilePictureUrl} className="h-8 w-8" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden shadow-lg max-w-[min(100%,400px)] w-full mx-auto ring-1 ring-black/5 dark:ring-white/10">
       <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border">
-        <div
-          className="h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] ring-2 ring-background"
-          aria-hidden
-        />
+        <InstagramPreviewAvatar username={handle} profilePictureUrl={profilePictureUrl} className="h-9 w-9 shrink-0" />
         <span className="text-sm font-semibold tracking-tight">{handle}</span>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {previewLabel}
+        </span>
         <MoreHorizontal className="h-5 w-5 ml-auto text-foreground shrink-0 opacity-80" aria-hidden />
       </div>
 
       <div className="relative aspect-square w-full bg-muted">
-        {hasMedia ? (
-          isSchedulerHostedVideoUrl(media) ? (
-            <video
-              src={media}
-              className="absolute inset-0 h-full w-full object-cover"
-              muted
-              playsInline
-              controls
-              preload="metadata"
-            />
-          ) : (
-            <img src={media} alt="" className="absolute inset-0 h-full w-full object-cover" />
-          )
-        ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-muted-foreground text-sm">
-            <div className="rounded-full border-2 border-dashed border-muted-foreground/40 p-6">
-              <CalendarDays className="h-8 w-8 opacity-50 mx-auto" aria-hidden />
+        <InstagramPreviewMedia
+          media={media}
+          hasMedia={hasMedia}
+          placeholder={
+            type === "CAROUSEL"
+              ? "Add media to see your carousel preview"
+              : "Add media to see your square feed preview"
+          }
+        />
+        {type === "CAROUSEL" ? (
+          <>
+            <div className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-black/65 px-2 py-1 text-[11px] font-semibold text-white">
+              <Images className="h-3.5 w-3.5" aria-hidden />
+              {Math.min(activeCarouselIndex + 1, Math.max(carouselCount, 1))}/{Math.max(carouselCount, 2)}
             </div>
-            <span>Add media to see your square feed preview</span>
-          </div>
-        )}
+            {carouselCount > 1 ? (
+              <>
+                <button
+                  type="button"
+                  className="absolute left-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white shadow-md backdrop-blur-sm transition-colors hover:bg-black/65"
+                  onClick={() => goToCarouselSlide(activeCarouselIndex - 1)}
+                  aria-label="Previous carousel image"
+                >
+                  <ChevronLeft className="h-5 w-5" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white shadow-md backdrop-blur-sm transition-colors hover:bg-black/65"
+                  onClick={() => goToCarouselSlide(activeCarouselIndex + 1)}
+                  aria-label="Next carousel image"
+                >
+                  <ChevronRight className="h-5 w-5" aria-hidden />
+                </button>
+              </>
+            ) : null}
+            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1">
+              {Array.from({ length: Math.min(Math.max(carouselCount, 2), 5) }).map((_, index) => (
+                <button
+                  type="button"
+                  key={index}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all",
+                    index === activeCarouselIndex ? "w-4 bg-primary" : "w-1.5 bg-white/80",
+                    index >= carouselCount ? "cursor-default opacity-60" : "hover:bg-white"
+                  )}
+                  onClick={() => {
+                    if (index < carouselCount) {
+                      goToCarouselSlide(index);
+                    }
+                  }}
+                  aria-label={`Show carousel image ${index + 1}`}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
       </div>
 
       <div className="flex items-center gap-4 px-2.5 py-2.5">
@@ -273,6 +486,27 @@ function SchedulerPostDetailFields({ post: dp }: { post: ScheduledPost }) {
           </a>
         </div>
       )}
+      {dp.type === "CAROUSEL" && dp.carouselMediaUrls.length > 0 && (
+        <div>
+          <span className="text-xs text-muted-foreground block mb-1">Carousel images</span>
+          <div className="grid grid-cols-3 gap-2">
+            {dp.carouselMediaUrls.map((url, index) => (
+              <a
+                key={`${url}-${index}`}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="relative aspect-square overflow-hidden rounded-md border border-border bg-muted"
+              >
+                <img src={url} alt={`Carousel image ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
+                <span className="absolute left-1.5 top-1.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  {index + 1}
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
       {dp.igPermalink && (
         <div>
           <a
@@ -341,6 +575,7 @@ export default function Scheduler() {
   const toIso = monthEnd.toISOString();
 
   const accountsQuery = useSchedulerPlatformAccountsQuery(workspaceId);
+  const automationTemplatesQuery = useSchedulerAutomationTemplatesQuery(workspaceId);
   const calendarQuery = useSchedulerCalendarQuery(workspaceId, fromIso, toIso);
   const listQuery = useSchedulerPostsQuery(workspaceId, { fromIso, toIso, page: 1 });
   const overviewQuery = useSchedulerAnalyticsOverviewQuery(workspaceId);
@@ -363,9 +598,22 @@ export default function Scheduler() {
     caption: "",
     hashtags: "",
     primaryMediaUrl: "",
+    carouselMediaUrls: [] as string[],
     scheduleLocal: "",
     timezone: "UTC",
+    automationEnabled: false,
+    automationTemplateId: "custom",
+    automationName: "",
+    automationKeywords: [] as string[],
+    automationKeywordDraft: "",
+    automationAnyComment: false,
+    automationDmMessage: "Hi there! Here's your link 👇",
+    automationButtonLabel: "",
+    automationButtonUrl: "",
+    automationAutoReply: false,
+    automationReplyMessages: ["Sent! Check your DMs 💌"] as string[],
   });
+  const [carouselUrlDraft, setCarouselUrlDraft] = useState("");
 
   const calendarDays = useMemo(() => {
     const start = monthStart;
@@ -383,14 +631,54 @@ export default function Scheduler() {
       .split(/[\s,]+/)
       .map((t) => t.trim())
       .filter(Boolean);
+    const carouselMediaUrls =
+      form.type === "CAROUSEL"
+        ? form.carouselMediaUrls.map((url) => url.trim()).filter(Boolean)
+        : [];
+    const primaryMediaUrl =
+      form.type === "CAROUSEL"
+        ? carouselMediaUrls[0] ?? ""
+        : form.primaryMediaUrl.trim();
     const body: Record<string, unknown> = {
       type: form.type,
       caption: form.caption.trim() || undefined,
       hashtags,
       timezone: form.timezone,
-      primaryMediaUrl: form.primaryMediaUrl.trim() || undefined,
-      thumbnailUrl: form.primaryMediaUrl.trim() || undefined,
+      primaryMediaUrl: primaryMediaUrl || undefined,
+      thumbnailUrl: primaryMediaUrl || undefined,
+      carouselMediaUrls: carouselMediaUrls.length > 0 ? carouselMediaUrls : undefined,
     };
+    if (form.automationEnabled) {
+      const keywords = form.automationKeywords.map((item) => item.trim()).filter(Boolean);
+      const replyMessages = form.automationReplyMessages.map((item) => item.trim()).filter(Boolean);
+      if (!form.automationAnyComment && keywords.length === 0) {
+        toast.error("Add at least one trigger word, or enable any-comment trigger.");
+        return;
+      }
+      if (!form.automationDmMessage.trim()) {
+        toast.error("Auto DM message is required.");
+        return;
+      }
+      if (form.automationAutoReply && replyMessages.length === 0) {
+        toast.error("Add at least one auto-reply response, or disable auto reply.");
+        return;
+      }
+      body.automation = {
+        enabled: true,
+        templateAutomationId:
+          form.automationTemplateId === "custom" ? undefined : form.automationTemplateId,
+        name: form.automationName.trim() || `Automation for ${form.type.toLowerCase()} post`,
+        keywords,
+        anyComment: form.automationAnyComment,
+        dmMessage: form.automationDmMessage.trim(),
+        autoReply: form.automationAutoReply,
+        replyMessages,
+        dmButtonLabel: form.automationButtonUrl.trim()
+          ? form.automationButtonLabel.trim() || undefined
+          : undefined,
+        dmButtonUrl: form.automationButtonUrl.trim() || undefined
+      };
+    }
     if (form.scheduleLocal.trim()) {
       let local = form.scheduleLocal.trim();
       if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(local)) {
@@ -407,9 +695,22 @@ export default function Scheduler() {
         caption: "",
         hashtags: "",
         primaryMediaUrl: "",
+        carouselMediaUrls: [],
         scheduleLocal: "",
         timezone: "UTC",
+        automationEnabled: false,
+        automationTemplateId: "custom",
+        automationName: "",
+        automationKeywords: [],
+        automationKeywordDraft: "",
+        automationAnyComment: false,
+        automationDmMessage: "Hi there! Here's your link 👇",
+        automationButtonLabel: "",
+        automationButtonUrl: "",
+        automationAutoReply: false,
+        automationReplyMessages: ["Sent! Check your DMs 💌"],
       });
+      setCarouselUrlDraft("");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save post");
     }
@@ -417,79 +718,256 @@ export default function Scheduler() {
 
   const onPickPostMediaFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
-    const file = input.files?.[0];
+    const files = Array.from(input.files ?? []);
     input.value = "";
-    if (!file) {
+    if (files.length === 0) {
       return;
     }
     const postType = form.type;
-    const isImage = SCHEDULER_POST_MEDIA_MIME_TYPES.includes(
-      file.type as (typeof SCHEDULER_POST_MEDIA_MIME_TYPES)[number]
-    );
-    const isVideo = SCHEDULER_REEL_VIDEO_MIME_TYPES.includes(
-      file.type as (typeof SCHEDULER_REEL_VIDEO_MIME_TYPES)[number]
-    );
+    if (postType !== "CAROUSEL" && files.length > 1) {
+      toast.error("Select one file for this post type. Carousel supports multiple images.");
+      return;
+    }
+    if (postType === "CAROUSEL" && form.carouselMediaUrls.length + files.length > CAROUSEL_MEDIA_MAX) {
+      toast.error(`Carousel supports up to ${CAROUSEL_MEDIA_MAX} images.`);
+      return;
+    }
 
-    if (postType === "REEL") {
-      if (!isImage && !isVideo) {
-        toast.error("Reels: use MP4 or MOV video, or JPEG / PNG / WebP / GIF.");
-        return;
+    for (const file of files) {
+      const isImage = SCHEDULER_POST_MEDIA_MIME_TYPES.includes(
+        file.type as (typeof SCHEDULER_POST_MEDIA_MIME_TYPES)[number]
+      );
+      const isVideo = SCHEDULER_REEL_VIDEO_MIME_TYPES.includes(
+        file.type as (typeof SCHEDULER_REEL_VIDEO_MIME_TYPES)[number]
+      );
+
+      if (postType === "CAROUSEL") {
+        if (!isImage) {
+          toast.error("Carousel posts only support images (JPEG, PNG, WebP, GIF).");
+          return;
+        }
+        if (file.size > SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES) {
+          toast.error(`Images must be at most ${Math.round(SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`);
+          return;
+        }
+        continue;
       }
-      if (isImage && file.size > SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES) {
-        toast.error(`Images must be at most ${Math.round(SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`);
-        return;
-      }
-      if (isVideo && file.size > SCHEDULER_REEL_VIDEO_CLIENT_MAX_BYTES) {
-        toast.error(
-          `Video must be at most ${Math.round(SCHEDULER_REEL_VIDEO_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`
-        );
-        return;
-      }
-    } else {
-      if (!isImage) {
-        toast.error("This post type only supports images (JPEG, PNG, WebP, GIF). Select Reel for MP4/MOV.");
-        return;
-      }
-      if (file.size > SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES) {
-        toast.error(`Image must be at most ${Math.round(SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`);
-        return;
+
+      if (postType === "REEL") {
+        if (!isImage && !isVideo) {
+          toast.error("Reels: use MP4 or MOV video, or JPEG / PNG / WebP / GIF.");
+          return;
+        }
+        if (isImage && file.size > SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES) {
+          toast.error(`Images must be at most ${Math.round(SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`);
+          return;
+        }
+        if (isVideo && file.size > SCHEDULER_REEL_VIDEO_CLIENT_MAX_BYTES) {
+          toast.error(
+            `Video must be at most ${Math.round(SCHEDULER_REEL_VIDEO_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`
+          );
+          return;
+        }
+      } else {
+        if (!isImage) {
+          toast.error("This post type only supports images (JPEG, PNG, WebP, GIF). Select Reel for MP4/MOV.");
+          return;
+        }
+        if (file.size > SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES) {
+          toast.error(`Image must be at most ${Math.round(SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`);
+          return;
+        }
       }
     }
     try {
-      const uploaded = await postMediaUploadMutation.mutateAsync({ file, postType });
-      setForm((f) => ({
-        ...f,
-        primaryMediaUrl: uploaded.primaryMediaUrl,
-      }));
-      toast.success(isVideo ? "Video uploaded" : "Image uploaded");
+      const uploaded = [];
+      for (const file of files) {
+        uploaded.push(await postMediaUploadMutation.mutateAsync({ file, postType }));
+      }
+      setForm((f) => {
+        if (postType === "CAROUSEL") {
+          const nextUrls = [
+            ...f.carouselMediaUrls,
+            ...uploaded.map((item) => item.primaryMediaUrl)
+          ].slice(0, CAROUSEL_MEDIA_MAX);
+          return {
+            ...f,
+            carouselMediaUrls: nextUrls,
+            primaryMediaUrl: nextUrls[0] ?? ""
+          };
+        }
+        return {
+          ...f,
+          primaryMediaUrl: uploaded[0]?.primaryMediaUrl ?? f.primaryMediaUrl
+        };
+      });
+      toast.success(
+        postType === "CAROUSEL"
+          ? `${uploaded.length} image${uploaded.length === 1 ? "" : "s"} added`
+          : files.some((file) => SCHEDULER_REEL_VIDEO_MIME_TYPES.includes(file.type as (typeof SCHEDULER_REEL_VIDEO_MIME_TYPES)[number]))
+            ? "Video uploaded"
+            : "Image uploaded"
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
     }
   };
 
-  const previewIgHandle = useMemo(() => {
+  const onChangePostType = (nextType: ScheduledPost["type"]) => {
+    setForm((f) => {
+      if (nextType === "CAROUSEL") {
+        const seedUrls = f.carouselMediaUrls.length > 0
+          ? f.carouselMediaUrls
+          : f.primaryMediaUrl.trim()
+            ? [f.primaryMediaUrl.trim()]
+            : [];
+        return {
+          ...f,
+          type: nextType,
+          carouselMediaUrls: seedUrls.slice(0, CAROUSEL_MEDIA_MAX),
+          primaryMediaUrl: seedUrls[0] ?? ""
+        };
+      }
+      return {
+        ...f,
+        type: nextType,
+        primaryMediaUrl: f.primaryMediaUrl || f.carouselMediaUrls[0] || ""
+      };
+    });
+  };
+
+  const addCarouselUrl = () => {
+    const url = carouselUrlDraft.trim();
+    if (!url) {
+      return;
+    }
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "https:") {
+        toast.error("Carousel image URLs must use HTTPS.");
+        return;
+      }
+    } catch {
+      toast.error("Enter a valid image URL.");
+      return;
+    }
+    setForm((f) => {
+      if (f.carouselMediaUrls.includes(url)) {
+        return f;
+      }
+      const nextUrls = [...f.carouselMediaUrls, url].slice(0, CAROUSEL_MEDIA_MAX);
+      return {
+        ...f,
+        carouselMediaUrls: nextUrls,
+        primaryMediaUrl: nextUrls[0] ?? ""
+      };
+    });
+    setCarouselUrlDraft("");
+  };
+
+  const removeCarouselUrl = (index: number) => {
+    setForm((f) => {
+      const nextUrls = f.carouselMediaUrls.filter((_, i) => i !== index);
+      return {
+        ...f,
+        carouselMediaUrls: nextUrls,
+        primaryMediaUrl: nextUrls[0] ?? ""
+      };
+    });
+  };
+
+  const addAutomationKeyword = () => {
+    const keyword = form.automationKeywordDraft.trim();
+    if (!keyword) {
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      automationKeywords: [...new Set([...f.automationKeywords, keyword.toUpperCase()])],
+      automationKeywordDraft: ""
+    }));
+  };
+
+  const removeAutomationKeyword = (keyword: string) => {
+    setForm((f) => ({
+      ...f,
+      automationKeywords: f.automationKeywords.filter((item) => item !== keyword)
+    }));
+  };
+
+  const setAutomationReplyMessage = (index: number, value: string) => {
+    setForm((f) => {
+      const next = [...f.automationReplyMessages];
+      next[index] = value.slice(0, 140);
+      return { ...f, automationReplyMessages: next };
+    });
+  };
+
+  const addAutomationReplyMessage = () => {
+    setForm((f) => ({
+      ...f,
+      automationReplyMessages: [...f.automationReplyMessages, ""]
+    }));
+  };
+
+  const removeAutomationReplyMessage = (index: number) => {
+    setForm((f) => ({
+      ...f,
+      automationReplyMessages: f.automationReplyMessages.filter((_, i) => i !== index)
+    }));
+  };
+
+  const applyAutomationTemplate = (templateId: string) => {
+    if (templateId === "custom") {
+      setForm((f) => ({ ...f, automationTemplateId: "custom" }));
+      return;
+    }
+    const template = automationTemplatesQuery.data?.find((item) => item.id === templateId);
+    if (!template) {
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      automationEnabled: true,
+      automationTemplateId: template.id,
+      automationName: `${template.name} (scheduled post)`,
+      automationKeywords: template.keywords,
+      automationAnyComment: template.anyComment,
+      automationDmMessage: template.dmMessage,
+      automationButtonLabel: template.dmButtonLabel ?? "",
+      automationButtonUrl: template.dmButtonUrl ?? "",
+      automationAutoReply: template.autoReply,
+      automationReplyMessages: template.replyMessages.length > 0
+        ? template.replyMessages
+        : ["Sent! Check your DMs 💌"]
+    }));
+  };
+
+  const previewIgAccount = useMemo(() => {
     const acc =
       accountsQuery.data?.accounts?.find((a) => a.platformKey.toLowerCase() === "instagram") ??
       accountsQuery.data?.accounts?.[0];
     const u = acc?.platformUsername?.trim();
-    if (u) {
-      return u.replace(/^@/, "");
-    }
-    return (current.handle || "yourbrand").replace(/^@/, "");
+    return {
+      handle: u ? u.replace(/^@/, "") : (current.handle || "yourbrand").replace(/^@/, ""),
+      profilePictureUrl: acc?.profilePictureUrl ?? null
+    };
   }, [accountsQuery.data?.accounts, current.handle]);
 
-  const detailPreviewIgHandle = useMemo(() => {
+  const previewIgHandle = previewIgAccount.handle;
+
+  const detailPreviewIgAccount = useMemo(() => {
     const post = detailPostQuery.data?.post;
     if (!post) {
-      return previewIgHandle;
+      return previewIgAccount;
     }
     const acc = accountsQuery.data?.accounts?.find((a) => a.id === post.platformAccountId);
     const u = acc?.platformUsername?.trim();
-    if (u) {
-      return u.replace(/^@/, "");
-    }
-    return previewIgHandle;
-  }, [detailPostQuery.data?.post, accountsQuery.data?.accounts, previewIgHandle]);
+    return {
+      handle: u ? u.replace(/^@/, "") : previewIgAccount.handle,
+      profilePictureUrl: acc?.profilePictureUrl ?? previewIgAccount.profilePictureUrl
+    };
+  }, [detailPostQuery.data?.post, accountsQuery.data?.accounts, previewIgAccount]);
 
   const heatMax = useMemo(() => {
     const v = overviewQuery.data?.bestTimeToPost ?? [];
@@ -778,7 +1256,7 @@ export default function Scheduler() {
                 try {
                   const r = await syncMutation.mutateAsync();
                   if ("skippedRateLimit" in r && r.skippedRateLimit) {
-                    toast.message("Sync rate limited", { description: "Try again in a few minutes." });
+                    toast.info("Sync rate limited", { description: "Try again in a few minutes." });
                   } else {
                     toast.success(`Synced ${r.upserted} posts`);
                   }
@@ -959,11 +1437,11 @@ export default function Scheduler() {
             <DialogTitle>New scheduled post</DialogTitle>
           </DialogHeader>
           <div className="grid gap-6 py-2 lg:grid-cols-[minmax(0,1fr)_min(100%,400px)] lg:items-start">
-            <div className="space-y-3 order-2 min-w-0 lg:order-1">
+            <div className="space-y-3 order-1 min-w-0 lg:order-2">
               <div className="space-y-1">
                 <Label>Type</Label>
-                <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v as ScheduledPost["type"] }))}>
-                  <SelectTrigger>
+                <Select value={form.type} onValueChange={(v) => onChangePostType(v as ScheduledPost["type"])}>
+                  <SelectTrigger className="bg-background border border-border">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -986,20 +1464,21 @@ export default function Scheduler() {
                   <Input
                     type="file"
                     accept={form.type === "REEL" ? SCHEDULER_MEDIA_ACCEPT_REEL : SCHEDULER_MEDIA_ACCEPT_FEED}
-                    className="cursor-pointer max-w-xs min-w-[12rem]"
+                    multiple={form.type === "CAROUSEL"}
+                    className="cursor-pointer bg-background border border-border"
                     disabled={postMediaUploadMutation.isPending}
                     onChange={(e) => void onPickPostMediaFile(e)}
                   />
                   {postMediaUploadMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
                   ) : null}
-                  {form.primaryMediaUrl ? (
+                  {(form.primaryMediaUrl || form.carouselMediaUrls.length > 0) ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="text-muted-foreground"
-                      onClick={() => setForm((f) => ({ ...f, primaryMediaUrl: "" }))}
+                      className="text-muted-foreground bg-background border border-border"
+                      onClick={() => setForm((f) => ({ ...f, primaryMediaUrl: "", carouselMediaUrls: [] }))}
                     >
                       Clear media
                     </Button>
@@ -1008,17 +1487,77 @@ export default function Scheduler() {
                 <p className="text-xs text-muted-foreground">
                   {form.type === "REEL"
                     ? "Reel: MP4 or MOV (up to 100 MB), or JPEG / PNG / WebP / GIF (up to 15 MB)."
-                    : "Images only: JPEG, PNG, WebP, or GIF, up to 15 MB. Pick Reel for video."}
+                    : form.type === "CAROUSEL"
+                      ? `Carousel: add 2-${CAROUSEL_MEDIA_MAX} images. You can select multiple files at once.`
+                      : "Images only: JPEG, PNG, WebP, or GIF, up to 15 MB. Pick Reel for video."}
                 </p>
+                {form.type === "CAROUSEL" ? (
+                  <div className="space-y-3 rounded-lg border border-border bg-background p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-xs">Carousel images</Label>
+                      <span className="text-[11px] text-muted-foreground">
+                        {form.carouselMediaUrls.length}/{CAROUSEL_MEDIA_MAX}
+                      </span>
+                    </div>
+                    {form.carouselMediaUrls.length > 0 ? (
+                      <div className="grid grid-cols-3 gap-2">
+                        {form.carouselMediaUrls.map((url, index) => (
+                          <div key={`${url}-${index}`} className="group relative aspect-square overflow-hidden rounded-md border border-border bg-muted">
+                            <img src={url} alt={`Carousel image ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
+                            <span className="absolute left-1.5 top-1.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                              {index + 1}
+                            </span>
+                            <button
+                              type="button"
+                              className="absolute right-1.5 top-1.5 rounded-full bg-black/70 p-1 text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+                              onClick={() => removeCarouselUrl(index)}
+                              aria-label={`Remove carousel image ${index + 1}`}
+                            >
+                              <X className="h-3 w-3" aria-hidden />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Upload or add at least 2 images for a carousel draft.</p>
+                    )}
+                    <div className="flex gap-2">
+                      <Input
+                        value={carouselUrlDraft}
+                        onChange={(e) => setCarouselUrlDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addCarouselUrl();
+                          }
+                        }}
+                        placeholder="Add HTTPS image URL"
+                        className="bg-input border-border"
+                        disabled={form.carouselMediaUrls.length >= CAROUSEL_MEDIA_MAX}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={form.carouselMediaUrls.length >= CAROUSEL_MEDIA_MAX}
+                        onClick={addCarouselUrl}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
-              <div className="space-y-1">
-                <Label>Primary media URL (HTTPS, optional if you uploaded)</Label>
-                <Input
-                  value={form.primaryMediaUrl}
-                  onChange={(e) => setForm((f) => ({ ...f, primaryMediaUrl: e.target.value }))}
-                  placeholder="https://… or use upload above"
-                />
-              </div>
+              {form.type !== "CAROUSEL" ? (
+                <div className="space-y-1">
+                  <Label>Primary media URL (HTTPS, optional if you uploaded)</Label>
+                  <Input
+                    value={form.primaryMediaUrl}
+                    onChange={(e) => setForm((f) => ({ ...f, primaryMediaUrl: e.target.value }))}
+                    placeholder="https://… or use upload above"
+                    className="bg-background border border-border"
+                  />
+                </div>
+              ) : null}
               <div className="space-y-1">
                 <Label>Caption</Label>
                 <textarea
@@ -1032,7 +1571,178 @@ export default function Scheduler() {
                 <Input
                   value={form.hashtags}
                   onChange={(e) => setForm((f) => ({ ...f, hashtags: e.target.value }))}
+                  placeholder="#test #test2"
+                  className="bg-background border border-border"
                 />
+              </div>
+              <div className="space-y-3 rounded-xl border border-border bg-background p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <Label>Auto DM</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Create or reuse an automation for this post after it publishes.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={form.automationEnabled}
+                    onCheckedChange={(checked) => setForm((f) => ({ ...f, automationEnabled: checked }))}
+                  />
+                </div>
+                {form.automationEnabled ? (
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <Label>Reuse premade automation</Label>
+                      <Select value={form.automationTemplateId} onValueChange={applyAutomationTemplate}>
+                        <SelectTrigger className="bg-input border-border">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="custom">Custom automation</SelectItem>
+                          {(automationTemplatesQuery.data ?? []).map((automation) => (
+                            <SelectItem key={automation.id} value={automation.id}>
+                              {automation.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">
+                        Reused automations are copied without their existing reel/post binding.
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label>Automation name</Label>
+                      <Input
+                        value={form.automationName}
+                        onChange={(e) => setForm((f) => ({ ...f, automationName: e.target.value }))}
+                        placeholder="Automation for this scheduled post"
+                        className="bg-input border-border"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label>Any comment / reply trigger</Label>
+                        <p className="text-xs text-muted-foreground">Skip trigger words and reply to any matching engagement.</p>
+                      </div>
+                      <Switch
+                        checked={form.automationAnyComment}
+                        onCheckedChange={(checked) => setForm((f) => ({ ...f, automationAnyComment: checked }))}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Trigger words</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={form.automationKeywordDraft}
+                          disabled={form.automationAnyComment}
+                          onChange={(e) => setForm((f) => ({ ...f, automationKeywordDraft: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addAutomationKeyword();
+                            }
+                          }}
+                          placeholder="GUIDE"
+                          className="bg-input border-border"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={form.automationAnyComment}
+                          onClick={addAutomationKeyword}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {form.automationKeywords.map((keyword) => (
+                          <span key={keyword} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs">
+                            {keyword}
+                            <button type="button" onClick={() => removeAutomationKeyword(keyword)}>
+                              <X className="h-3 w-3 text-muted-foreground hover:text-destructive" aria-hidden />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label>Auto DM message</Label>
+                      <textarea
+                        className="w-full min-h-20 max-h-44 resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm"
+                        value={form.automationDmMessage}
+                        onChange={(e) => setForm((f) => ({ ...f, automationDmMessage: e.target.value.slice(0, 900) }))}
+                        placeholder="Hi there! Here's your link..."
+                      />
+                      <div className="text-[11px] text-muted-foreground text-right">{form.automationDmMessage.length}/900</div>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label>DM button label</Label>
+                        <Input
+                          value={form.automationButtonLabel}
+                          onChange={(e) => setForm((f) => ({ ...f, automationButtonLabel: e.target.value.slice(0, 20) }))}
+                          placeholder="Open Link"
+                          className="bg-input border-border"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>DM button URL</Label>
+                        <Input
+                          value={form.automationButtonUrl}
+                          onChange={(e) => setForm((f) => ({ ...f, automationButtonUrl: e.target.value }))}
+                          placeholder="https://..."
+                          className="bg-input border-border"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <Label>Auto reply</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Public comment replies rotate through these responses.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={form.automationAutoReply}
+                          onCheckedChange={(checked) => setForm((f) => ({ ...f, automationAutoReply: checked }))}
+                        />
+                      </div>
+                      {form.automationAutoReply ? (
+                        <div className="space-y-2">
+                          {form.automationReplyMessages.map((message, index) => (
+                            <div key={index} className="flex gap-2">
+                              <textarea
+                                className="min-h-16 flex-1 resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm"
+                                value={message}
+                                maxLength={140}
+                                onChange={(e) => setAutomationReplyMessage(index, e.target.value)}
+                                placeholder={`Response ${index + 1}`}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="mt-1 text-muted-foreground"
+                                onClick={() => removeAutomationReplyMessage(index)}
+                              >
+                                <X className="h-4 w-4" aria-hidden />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button type="button" variant="outline" size="sm" onClick={addAutomationReplyMessage}>
+                            Add response
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
               </div>
               <div className="space-y-1">
                 <Label>Schedule (optional — leave empty for draft)</Label>
@@ -1048,7 +1758,7 @@ export default function Scheduler() {
               <div className="space-y-1">
                 <Label>Timezone</Label>
                 <Select value={form.timezone} onValueChange={(tz) => setForm((f) => ({ ...f, timezone: tz }))}>
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-background border border-border">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1061,13 +1771,16 @@ export default function Scheduler() {
                 </Select>
               </div>
             </div>
-            <div className="order-1 space-y-2 lg:order-2 lg:sticky lg:top-2 self-start w-full flex flex-col items-center lg:items-stretch">
+            <div className="order-1 space-y-1 lg:order-2 lg:sticky lg:top-2 self-start w-full flex flex-col items-center lg:items-stretch">
               <p className="text-xs font-medium text-muted-foreground w-full max-w-[400px] text-center lg:text-left">
                 Instagram preview
               </p>
               <IgStylePostPreview
+                type={form.type}
                 username={previewIgHandle}
+                profilePictureUrl={previewIgAccount.profilePictureUrl}
                 mediaUrl={form.primaryMediaUrl}
+                mediaUrls={form.carouselMediaUrls}
                 caption={form.caption}
                 hashtagsRaw={form.hashtags}
               />
@@ -1119,10 +1832,13 @@ export default function Scheduler() {
                   Instagram preview
                 </p>
                 <IgStylePostPreview
-                  username={detailPreviewIgHandle}
+                  type={detailPostQuery.data.post.type}
+                  username={detailPreviewIgAccount.handle}
+                  profilePictureUrl={detailPreviewIgAccount.profilePictureUrl}
                   mediaUrl={
                     detailPostQuery.data.post.primaryMediaUrl ?? detailPostQuery.data.post.thumbnailUrl ?? ""
                   }
+                  mediaUrls={detailPostQuery.data.post.carouselMediaUrls}
                   caption={detailPostQuery.data.post.caption ?? ""}
                   hashtagsRaw={detailPostQuery.data.post.hashtags.join(" ")}
                 />

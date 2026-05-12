@@ -48,9 +48,10 @@ export type DashboardResponse = {
 };
 
 export function useDashboardQuery(workspaceId: string) {
+  const hasRealWorkspace = Boolean(workspaceId) && workspaceId !== "default";
   return useQuery({
     queryKey: ["dashboard", workspaceId],
     queryFn: () => apiRequest<DashboardResponse>("/api/v1/analytics/dashboard", { workspaceId }),
-    enabled: Boolean(workspaceId)
+    enabled: hasRealWorkspace
   });
 }

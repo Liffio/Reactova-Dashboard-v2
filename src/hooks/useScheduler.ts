@@ -56,6 +56,7 @@ export type ScheduledPost = {
   publishedAt: string | null;
   thumbnailUrl: string | null;
   primaryMediaUrl: string | null;
+  carouselMediaUrls: string[];
   igMediaId: string | null;
   igPermalink: string | null;
   publishError: string | null;
@@ -82,7 +83,23 @@ export type PlatformAccountDto = {
   platformName: string;
   platformUsername: string;
   platformUserId: string;
+  profilePictureUrl: string | null;
   isActive: boolean;
+};
+
+export type SchedulerAutomationTemplate = {
+  id: string;
+  name: string;
+  keywords: string[];
+  anyComment: boolean;
+  dmMessage: string;
+  dmButtonLabel: string | null;
+  dmButtonUrl: string | null;
+  autoReply: boolean;
+  replyMessages: string[];
+  followBeforeDm: boolean;
+  status: string;
+  postId: string | null;
 };
 
 export type SchedulerOverview = {
@@ -108,6 +125,17 @@ export function useSchedulerPlatformAccountsQuery(workspaceId: string) {
     queryKey: ["scheduler", "platform-accounts", workspaceId],
     queryFn: () =>
       apiRequest<{ accounts: PlatformAccountDto[] }>("/api/v1/scheduler/platform-accounts", {
+        workspaceId
+      }),
+    enabled: Boolean(workspaceId)
+  });
+}
+
+export function useSchedulerAutomationTemplatesQuery(workspaceId: string) {
+  return useQuery({
+    queryKey: ["scheduler", "automation-templates", workspaceId],
+    queryFn: () =>
+      apiRequest<SchedulerAutomationTemplate[]>("/api/v1/automations", {
         workspaceId
       }),
     enabled: Boolean(workspaceId)

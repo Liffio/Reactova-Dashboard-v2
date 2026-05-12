@@ -1,6 +1,6 @@
 # Frontend Deployment
 
-This repo deploys the React dashboard to the frontend droplet.
+This repo deploys the React dashboard for `app.reactova.com` to the frontend droplet.
 
 ## GitHub Actions
 
@@ -28,9 +28,5 @@ VITE_API_URL=https://api.reactova.com
 
 ## Nginx
 
-- `deploy/nginx/reactova-frontend.conf` serves `app.reactova.com` from `/var/www/reactova-dashboard/dist` and proxies `reactova.com` / `www.reactova.com` to the optional Next.js marketing process on port `3002`.
+- `deploy/nginx/reactova-frontend.conf` serves `app.reactova.com` from `/var/www/reactova-dashboard/dist`.
 - `deploy/nginx/cloudflare-ips.conf` contains the Cloudflare allowlist used by the Nginx config.
-
-## Optional Marketing App
-
-If `/var/www/reactova-marketing` exists on the frontend droplet, the workflow also pulls, builds, and reloads the `reactova-marketing` PM2 process. The PM2 template is in `deploy/pm2/reactova-marketing.ecosystem.config.cjs`.

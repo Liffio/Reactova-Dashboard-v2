@@ -49,7 +49,7 @@ jobs:
     needs: validate
     environment: production
     steps:
-      - name: Deploy marketing and dashboard
+      - name: Deploy React dashboard
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.FRONTEND_DROPLET_IP }}
@@ -57,7 +57,7 @@ jobs:
           password: ${{ secrets.FRONTEND_DROPLET_PASSWORD }}
           port: ${{ secrets.FRONTEND_DROPLET_PORT || 22 }}
           command_timeout: 10m
-          script_stop: true
+          script_stop: false
           debug: true
           script: |
             set -euxo pipefail
@@ -68,8 +68,9 @@ jobs:
               nvm use 20 >/dev/null 2>&1 || nvm use --lts >/dev/null 2>&1 || true
             fi
 
-            if ! command -v npm >/dev/null 2>&1; then
-              echo "npm was not found. Installing Node.js 20 and npm."
+            NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0)"
+            if [ "$NODE_MAJOR" != "20" ]; then
+              echo "Installing Node.js 20 and npm."
               curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
               apt-get install -y nodejs
             fi
@@ -77,31 +78,7 @@ jobs:
             node --version
             npm --version
 
-            if ! command -v pm2 >/dev/null 2>&1; then
-              npm install --global pm2
-            fi
-
-            pm2 --version
-
-            if [ -d /var/www/reactova-marketing ]; then
-              echo "Deploying Next.js marketing site"
-              cd /var/www/reactova-marketing
-              git fetch origin "${{ github.ref_name }}"
-              git checkout "${{ github.ref_name }}"
-              git pull --ff-only origin "${{ github.ref_name }}"
-              npm ci
-              npm run build
-
-              if pm2 describe reactova-marketing >/dev/null 2>&1; then
-                pm2 reload reactova-marketing --update-env
-              else
-                pm2 start ecosystem.config.js --env production --only reactova-marketing
-              fi
-            else
-              echo "Skipping marketing deploy: /var/www/reactova-marketing does not exist"
-            fi
-
-            echo "Deploying React dashboard"
+            echo "Deploying app.reactova.com React dashboard"
             cd /var/www/reactova-dashboard
             git fetch origin "${{ github.ref_name }}"
             git checkout "${{ github.ref_name }}"
@@ -110,7 +87,6 @@ jobs:
             VITE_API_URL=https://api.reactova.com npm run build
 
             echo "Dashboard is static; Nginx serves dist/ directly"
-            pm2 save || true
             systemctl is-active nginx
 
       - name: Notify success

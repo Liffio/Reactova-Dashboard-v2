@@ -1,6 +1,8 @@
 import { store } from "@/store";
 
-export const API_BASE = import.meta.env.VITE_API_URL || "https://2mcr6kvm-3001.inc1.devtunnels.ms";
+export const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? "https://api.reactova.com" : "http://127.0.0.1:3001");
 
 type ApiRequestConfig = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";

@@ -78,16 +78,50 @@ jobs:
             node --version
             npm --version
 
-            echo "Deploying app.reactova.com React dashboard"
-            cd /var/www/reactova-dashboard
-            git fetch origin "${{ github.ref_name }}"
-            git checkout "${{ github.ref_name }}"
-            git pull --ff-only origin "${{ github.ref_name }}"
+            if ! command -v pm2 >/dev/null 2>&1; then
+              npm install --global pm2
+            fi
+            pm2 --version
+
+            DEPLOY_PATH="${{ secrets.FRONTEND_DEPLOY_PATH }}"
+            if [ -z "${DEPLOY_PATH}" ]; then
+              DEPLOY_PATH="/var/www/reactova-dashboard"
+            fi
+
+            echo "Deploying app.reactova.com React dashboard to ${DEPLOY_PATH}"
+            if [ ! -d "${DEPLOY_PATH}" ]; then
+              echo "Deploy path is not a directory: ${DEPLOY_PATH}. Create it and clone this repo, or set FRONTEND_DEPLOY_PATH."
+              exit 1
+            fi
+            cd "${DEPLOY_PATH}"
+
+            if [ ! -d .git ]; then
+              echo "${DEPLOY_PATH} is not a git repository. Clone the frontend repo there before deploying."
+              exit 128
+            fi
+
+            BRANCH="${{ github.ref_name }}"
+            git fetch --prune origin "${BRANCH}"
+            if ! git rev-parse --verify "origin/${BRANCH}" >/dev/null 2>&1; then
+              echo "origin/${BRANCH} not found after fetch."
+              git remote -v
+              git branch -r || true
+              exit 1
+            fi
+            git reset --hard "origin/${BRANCH}"
+            git clean -fd
+
             npm ci
             VITE_API_URL=https://api.reactova.com npm run build
 
-            echo "Dashboard is static; Nginx serves dist/ directly"
-            systemctl is-active nginx
+            pm2 startOrReload ecosystem.config.cjs --env production --update-env
+            pm2 save
+            pm2 status
+
+            if command -v nginx >/dev/null 2>&1; then
+              nginx -t && systemctl reload nginx || true
+            fi
+            systemctl is-active nginx || true
 
       - name: Notify success
         if: success()

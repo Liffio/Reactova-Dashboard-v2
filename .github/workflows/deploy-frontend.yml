@@ -50,14 +50,14 @@ jobs:
     environment: production
     steps:
       - name: Deploy React dashboard
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.FRONTEND_DROPLET_IP }}
           username: root
           password: ${{ secrets.FRONTEND_DROPLET_PASSWORD }}
-          port: ${{ secrets.FRONTEND_DROPLET_PORT || 22 }}
-          command_timeout: 10m
-          script_stop: false
+          port: ${{ secrets.FRONTEND_DROPLET_PORT || '22' }}
+          timeout: 3m
+          command_timeout: 15m
           debug: true
           script: |
             set -euxo pipefail

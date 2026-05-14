@@ -275,7 +275,7 @@ export default function Login() {
             </Button>
 
             <div className="text-right">
-              <Link to="#" className="text-xs text-muted-foreground hover:text-primary">
+              <Link to="/forgot-password" className="text-xs text-muted-foreground hover:text-primary">
                 Forgot password?
               </Link>
             </div>

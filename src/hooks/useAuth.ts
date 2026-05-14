@@ -155,3 +155,55 @@ export function useLogoutMutation() {
     }
   });
 }
+
+export function usePasswordForgotMutation() {
+  return useMutation({
+    mutationFn: async (input: { email: string }) => {
+      const res = await fetch(`${API_BASE}/api/v1/auth/password/forgot`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input)
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        retryAfterSec?: number;
+        expiresInSec?: number;
+        error?: unknown;
+      };
+      if (!res.ok) {
+        const raw = data.error;
+        const msg =
+          typeof raw === "string"
+            ? raw
+            : res.status === 429 && typeof data.retryAfterSec === "number"
+              ? `Please wait ${data.retryAfterSec}s before requesting another code`
+              : "Request failed";
+        throw new Error(msg);
+      }
+      return {
+        retryAfterSec: data.retryAfterSec ?? 60,
+        expiresInSec: data.expiresInSec ?? 300
+      };
+    }
+  });
+}
+
+export function usePasswordResetMutation() {
+  return useMutation({
+    mutationFn: async (input: { email: string; code: string; newPassword: string }) => {
+      const res = await fetch(`${API_BASE}/api/v1/auth/password/reset`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input)
+      });
+      if (res.status === 204) {
+        return;
+      }
+      const data = (await res.json().catch(() => ({}))) as { error?: unknown };
+      const raw = data.error;
+      throw new Error(typeof raw === "string" ? raw : "Request failed");
+    }
+  });
+}

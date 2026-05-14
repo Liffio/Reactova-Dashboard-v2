@@ -52,36 +52,52 @@ export default function ForgotPassword() {
     if (!/\S+@\S+\.\S+/.test(trimmed)) {
       return;
     }
-    const result = await forgotMutation.mutateAsync({ email: trimmed });
-    setResendIn(result.retryAfterSec);
-    setExpiresIn(result.expiresInSec);
-    setStep("reset");
-    setOtp("");
-    toast.success("Check your email", {
-      message: "If an account exists for that address, we sent a 6-digit code. It expires in 5 minutes."
-    });
+    try {
+      const result = await forgotMutation.mutateAsync({ email: trimmed });
+      setResendIn(result.retryAfterSec);
+      setExpiresIn(result.expiresInSec);
+      setStep("reset");
+      setOtp("");
+      toast.success("Check your email", {
+        message: "If an account exists for that address, we sent a 6-digit code. It expires in 5 minutes."
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not send reset code";
+      toast.error("Request failed", { message: msg });
+    }
   };
 
   const onResend = async () => {
     const trimmed = email.trim();
-    const result = await forgotMutation.mutateAsync({ email: trimmed });
-    setResendIn(result.retryAfterSec);
-    setExpiresIn(result.expiresInSec);
+    try {
+      const result = await forgotMutation.mutateAsync({ email: trimmed });
+      setResendIn(result.retryAfterSec);
+      setExpiresIn(result.expiresInSec);
+      toast.success("Code sent", { message: "Check your inbox for a new code." });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not resend code";
+      toast.error("Resend failed", { message: msg });
+    }
   };
 
   const onReset = async () => {
     if (password.length < 8 || password !== confirm) {
       return;
     }
-    await resetMutation.mutateAsync({
-      email: email.trim(),
-      code: otp.trim(),
-      newPassword: password
-    });
-    toast.success("Password updated", {
-      message: "You can sign in with your new password. Other sessions were signed out."
-    });
-    navigate("/login");
+    try {
+      await resetMutation.mutateAsync({
+        email: email.trim(),
+        code: otp.trim(),
+        newPassword: password
+      });
+      toast.success("Password updated", {
+        message: "You can sign in with your new password. Other sessions were signed out."
+      });
+      navigate("/login");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not update password";
+      toast.error("Reset failed", { message: msg });
+    }
   };
 
   return (

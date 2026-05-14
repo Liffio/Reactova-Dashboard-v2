@@ -4,6 +4,37 @@ export const API_BASE =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD ? "https://api.reactova.com" : "http://127.0.0.1:3001");
 
+/** Human-readable message from `{ error: ... }` JSON (string, Zod flatten, etc.). */
+export function formatApiErrorBody(payload: unknown): string {
+  if (!payload || typeof payload !== "object") {
+    return "Request failed";
+  }
+  const raw = (payload as { error?: unknown }).error;
+  if (typeof raw === "string") {
+    return raw;
+  }
+  if (raw && typeof raw === "object") {
+    const f = raw as { formErrors?: string[]; fieldErrors?: Record<string, string[] | string> };
+    const parts: string[] = [];
+    for (const msg of f.formErrors ?? []) {
+      if (typeof msg === "string") {
+        parts.push(msg);
+      }
+    }
+    for (const [key, val] of Object.entries(f.fieldErrors ?? {})) {
+      if (Array.isArray(val)) {
+        parts.push(`${key}: ${val.join(", ")}`);
+      } else if (typeof val === "string") {
+        parts.push(`${key}: ${val}`);
+      }
+    }
+    if (parts.length > 0) {
+      return parts.join("; ");
+    }
+  }
+  return "Request failed";
+}
+
 type ApiRequestConfig = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
@@ -33,10 +64,7 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
 
   if (!res.ok) {
     const payload = await res.json().catch(() => ({}));
-    const raw = payload.error;
-    const message =
-      typeof raw === "string" ? raw : raw != null ? JSON.stringify(raw) : "Request failed";
-    throw new Error(message);
+    throw new Error(formatApiErrorBody(payload));
   }
 
   if (res.status === 204) {
@@ -62,10 +90,7 @@ export async function apiUploadRequest<T>(path: string, formData: FormData, conf
 
   if (!res.ok) {
     const payload = await res.json().catch(() => ({}));
-    const raw = payload.error;
-    const message =
-      typeof raw === "string" ? raw : raw != null ? JSON.stringify(raw) : "Upload failed";
-    throw new Error(message);
+    throw new Error(formatApiErrorBody(payload));
   }
   return (await res.json()) as T;
 }

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { API_BASE, apiRequest } from "@/lib/api";
+import { API_BASE, apiRequest, formatApiErrorBody } from "@/lib/api";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearAuthSession, setAuthMe, setAuthSession, setAuthorization } from "@/store/authSlice";
 import type { AuthMePayload, AuthorizationPayload } from "@/types/auth";
@@ -161,7 +161,7 @@ export function usePasswordForgotMutation() {
     mutationFn: async (input: { email: string }) => {
       const res = await fetch(`${API_BASE}/api/v1/auth/password/forgot`, {
         method: "POST",
-        credentials: "include",
+        credentials: "omit",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input)
       });
@@ -172,14 +172,10 @@ export function usePasswordForgotMutation() {
         error?: unknown;
       };
       if (!res.ok) {
-        const raw = data.error;
-        const msg =
-          typeof raw === "string"
-            ? raw
-            : res.status === 429 && typeof data.retryAfterSec === "number"
-              ? `Please wait ${data.retryAfterSec}s before requesting another code`
-              : "Request failed";
-        throw new Error(msg);
+        if (res.status === 429 && typeof data.retryAfterSec === "number") {
+          throw new Error(`Please wait ${data.retryAfterSec}s before requesting another code`);
+        }
+        throw new Error(formatApiErrorBody(data));
       }
       return {
         retryAfterSec: data.retryAfterSec ?? 60,
@@ -194,7 +190,7 @@ export function usePasswordResetMutation() {
     mutationFn: async (input: { email: string; code: string; newPassword: string }) => {
       const res = await fetch(`${API_BASE}/api/v1/auth/password/reset`, {
         method: "POST",
-        credentials: "include",
+        credentials: "omit",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input)
       });
@@ -202,8 +198,7 @@ export function usePasswordResetMutation() {
         return;
       }
       const data = (await res.json().catch(() => ({}))) as { error?: unknown };
-      const raw = data.error;
-      throw new Error(typeof raw === "string" ? raw : "Request failed");
+      throw new Error(formatApiErrorBody(data));
     }
   });
 }

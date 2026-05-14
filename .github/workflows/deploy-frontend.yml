@@ -114,6 +114,7 @@ jobs:
             git clean -fd
 
             npm ci
+            # Must match API CORS allowlist (see server APP_PUBLIC_URL / CORS_ORIGINS). Rebuild if API host changes.
             VITE_API_URL=https://api.reactova.com npm run build
 
             pm2 startOrReload ecosystem.config.cjs --env production --update-env

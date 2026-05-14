@@ -84,13 +84,15 @@ jobs:
             pm2 --version
 
             DEPLOY_PATH="${{ secrets.FRONTEND_DEPLOY_PATH }}"
+            DEPLOY_PATH="${DEPLOY_PATH#"${DEPLOY_PATH%%[![:space:]]*}"}"
+            DEPLOY_PATH="${DEPLOY_PATH%"${DEPLOY_PATH##*[![:space:]]}"}"
             if [ -z "${DEPLOY_PATH}" ]; then
               DEPLOY_PATH="/var/www/reactova-dashboard"
             fi
 
             echo "Deploying app.reactova.com React dashboard to ${DEPLOY_PATH}"
             if [ ! -d "${DEPLOY_PATH}" ]; then
-              echo "Deploy path is not a directory: ${DEPLOY_PATH}. Create it and clone this repo, or set FRONTEND_DEPLOY_PATH."
+              echo "Deploy path is not a directory: ${DEPLOY_PATH}. Create it and clone this repo, or set FRONTEND_DEPLOY_PATH (no trailing newline)."
               exit 1
             fi
             cd "${DEPLOY_PATH}"

@@ -125,7 +125,20 @@ jobs:
               nginx -t && systemctl reload nginx || true
             fi
             systemctl is-active nginx || true
-
+            echo "Purging Cloudflare Cache..."
+      - name: Purge Cloudflare Cache
+        if: success()
+        env:
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: |
+          RESPONSE=$(curl -s -X POST \
+            "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/purge_cache" \
+            -H "Authorization: Bearer $CF_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"purge_everything":true}')
+          echo "$RESPONSE"
+          echo "$RESPONSE" | grep -q '"success":true' || (echo "Cache purge failed" && exit 1)
       - name: Notify success
         if: success()
         env:

@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAppSelector } from "@/store/hooks";
 import { CopyButton, CopyField } from "@/components/CopyButton";
+import { ApiCredentialsSettings } from "@/components/settings/ApiCredentialsSettings";
+import { BillingContent } from "@/pages/Billing";
 import { PlanGate } from "@/components/PlanGate";
 import { useApp } from "@/state/AppContext";
 import { cn } from "@/lib/utils";
@@ -75,7 +77,7 @@ export default function Settings() {
       </div>
 
       {tab === "General" && <General />}
-      {tab === "Billing" && <Billing />}
+      {tab === "Billing" && <BillingSettingsTab />}
       {tab === "Notifications" && <Notifications />}
       {tab === "Team" &&
         (current.plan === "Business" || current.plan === "Agency" ? (
@@ -87,16 +89,7 @@ export default function Settings() {
             className="min-h-[280px]"
           />
         ))}
-      {tab === "API" &&
-        (current.plan === "Business" || current.plan === "Agency" ? (
-          <Api />
-        ) : (
-          <PlanGate
-            requiredPlan="Business"
-            message="API access is available on Business and Agency plans."
-            className="min-h-[280px]"
-          />
-        ))}
+      {tab === "API" && <ApiCredentialsSettings />}
       {tab === "Security" && (
         <SecuritySection
           page={
@@ -768,56 +761,10 @@ function General() {
   );
 }
 
-function Billing() {
-  const { current } = useApp();
-  const plans = [
-    { name: "Free", monthly: "$0", quarterly: "—", yearly: "—" },
-    { name: "Starter", monthly: "$9", quarterly: "$23", yearly: "$89" },
-    { name: "Pro", monthly: "$29", quarterly: "$79", yearly: "$279" },
-    { name: "Business", monthly: "$79", quarterly: "$199", yearly: "$759" },
-    { name: "Agency", monthly: "$299", quarterly: "—", yearly: "$2,799" },
-  ];
-  return (
-    <div className="space-y-5">
-      <Card title="Current Plan">
-        <div className="flex flex-wrap items-center gap-3 justify-between">
-          <div>
-            <div className="text-2xl font-bold">{current.plan}</div>
-            <div className="text-xs text-muted-foreground">Renews on {current.nextBilling}</div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline">Cancel</Button>
-            <Button>Upgrade</Button>
-          </div>
-        </div>
-      </Card>
-      <Card title="Pricing">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="text-left text-xs text-muted-foreground border-b border-border">
-              <th className="px-3 py-2">Plan</th><th className="px-3 py-2">Monthly</th><th className="px-3 py-2">Quarterly</th><th className="px-3 py-2">Yearly</th>
-            </tr></thead>
-            <tbody>{plans.map((p) => (
-              <tr key={p.name} className="stripe-row">
-                <td className="px-3 py-2 font-medium">{p.name}</td>
-                <td className="px-3 py-2 font-mono">{p.monthly}</td>
-                <td className="px-3 py-2 font-mono">{p.quarterly}</td>
-                <td className="px-3 py-2 font-mono">{p.yearly}</td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </div>
-      </Card>
-      <Card title="Payment Method">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="font-mono text-sm">•••• •••• •••• 4242</div>
-          <Button variant="outline">Update Payment Method</Button>
-        </div>
-        <p className="text-xs text-muted-foreground">Indian users: UPI and Netbanking available via Razorpay at checkout</p>
-      </Card>
-    </div>
-  );
+function BillingSettingsTab() {
+  return <BillingContent />;
 }
+
 
 function Notifications() {
   const { current } = useApp();
@@ -1053,17 +1000,3 @@ function Team() {
   );
 }
 
-function Api() {
-  return (
-    <div className="space-y-5">
-      <Card title="API Key">
-        <CopyField value="sk_live_••••••••••••••••XYZ8" />
-        <Button variant="outline"><RefreshCw className="h-4 w-4" /> Regenerate</Button>
-      </Card>
-      <Card title="Webhook URL">
-        <CopyField value="https://api.reactova.com/api/v1/webhooks/meta" />
-      </Card>
-      <a className="text-sm text-primary hover:underline">View API Documentation →</a>
-    </div>
-  );
-}

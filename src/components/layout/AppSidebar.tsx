@@ -2,7 +2,7 @@ import { useMemo, useState, type ComponentType } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Home, Zap, Link2, CalendarDays, LayoutTemplate, BarChart2, Users,
-  Gift, Settings, LogOut, ChevronDown, Plus, Building2, Check, Shield,
+  Gift, Settings, LogOut, ChevronDown, Plus, Building2, Check, Shield, CreditCard,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { PlanBadge } from "@/components/PlanBadge";
@@ -41,6 +41,7 @@ const navigationByModule: Record<
 > = {
   workspace: [
     { to: "/dashboard", icon: Home, label: "Dashboard", section: "main", order: 1, action: "read" },
+    { to: "/billing", icon: CreditCard, label: "Billing", section: "general", order: 0, action: "read" },
     { to: "/settings", icon: Settings, label: "Settings", section: "general", order: 1, action: "read" }
   ],
   automation: [

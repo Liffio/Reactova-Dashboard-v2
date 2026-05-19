@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Provider } from "react-redux";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -24,9 +24,12 @@ import Analytics from "./pages/Analytics";
 import Leads from "./pages/Leads";
 import Affiliate from "./pages/Affiliate";
 import Settings from "./pages/Settings";
+import Billing from "./pages/Billing";
 import Agency from "./pages/Agency";
 import RbacMaster from "./pages/RbacMaster";
 import PublicBioLink from "./pages/PublicBioLink";
+import ApiDocs from "./pages/ApiDocs";
+import { DocsLayout } from "@/components/layout/DocsLayout";
 
 const queryClient = new QueryClient();
 const isBioDomain = () => {
@@ -49,6 +52,10 @@ const App = () => (
               ) : (
                 <Routes>
                   <Route path="/" element={<Index />} />
+                  <Route path="/docs" element={<DocsLayout />}>
+                    <Route index element={<Navigate to="/docs/api" replace />} />
+                    <Route path="api" element={<ApiDocs />} />
+                  </Route>
                   <Route path="/login" element={<Login />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/register" element={<Register />} />
@@ -62,6 +69,7 @@ const App = () => (
                   <Route path="/leads" element={<ProtectedRoute module="lead"><Leads /></ProtectedRoute>} />
                   <Route path="/affiliate" element={<ProtectedRoute module="affiliate"><Affiliate /></ProtectedRoute>} />
                   <Route path="/settings" element={<ProtectedRoute module="workspace"><Settings /></ProtectedRoute>} />
+                  <Route path="/billing" element={<ProtectedRoute module="workspace"><Billing /></ProtectedRoute>} />
                   <Route path="/agency" element={<ProtectedRoute module="agency"><Agency /></ProtectedRoute>} />
                   <Route path="/rbac-master" element={<PlatformAdminRoute><RbacMaster /></PlatformAdminRoute>} />
                   <Route path="*" element={<NotFound />} />

@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import {
   TrendingUp, TrendingDown, Zap, Link2, Users,
@@ -29,6 +29,19 @@ import {
 export default function Dashboard() {
   const { current, setCurrentId, refreshAuth } = useApp();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("billing") === "success") {
+      toast.success("Payment received. Your plan will update shortly.");
+      void refreshAuth();
+      setSearchParams({}, { replace: true });
+    }
+    if (searchParams.get("billing") === "cancelled") {
+      toast.message("Checkout cancelled");
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams, refreshAuth]);
   const [createOpen, setCreateOpen] = useState(false);
   const [workspaceHandle, setWorkspaceHandle] = useState("");
   const [workspacePlan, setWorkspacePlan] = useState<"FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY">("FREE");

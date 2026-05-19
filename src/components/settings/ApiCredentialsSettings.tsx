@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
-import { CopyButton } from "@/components/CopyButton";
+import { CopyButton, CopyField } from "@/components/CopyButton";
 import { PlanGate } from "@/components/PlanGate";
 import { StatusBadge } from "@/components/StatusBadge";
 import { toast } from "@/components/ui/sonner";
@@ -138,6 +138,13 @@ export function ApiCredentialsSettings() {
           Keys are tied to your account and only work for scheduling posts and creating automations.
           Default expiry is 30 days — you can set a key to never expire after creation.
         </p>
+        <div className="space-y-2">
+          <Label>Workspace ID</Label>
+          <p className="text-xs text-muted-foreground">
+            Send this as the <span className="font-mono">x-workspace-id</span> header with every API request.
+          </p>
+          <CopyField value={current.id} />
+        </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => setCreateOpen(true)} disabled={createMutation.isPending}>
             <Plus className="h-4 w-4" />
@@ -174,11 +181,8 @@ export function ApiCredentialsSettings() {
                 data?.credentials.map((cred) => (
                   <tr key={cred.id} className="stripe-row">
                     <td className="px-3 py-2 font-medium">{cred.name}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1 font-mono text-xs">
-                        <span className="truncate max-w-[180px]">{cred.maskedKey}</span>
-                        <CopyButton value={cred.maskedKey} label="Copy prefix" />
-                      </div>
+                    <td className="px-3 py-2 font-mono text-xs">
+                      <span className="truncate max-w-[220px] inline-block">{cred.maskedKey}</span>
                     </td>
                     <td className="px-3 py-2">
                       <StatusBadge

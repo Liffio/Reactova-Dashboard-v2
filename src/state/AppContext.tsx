@@ -23,6 +23,7 @@ export interface Workspace {
   name: string;
   plan: PlanName;
   status: WorkspaceStatus;
+  instagramConnected: boolean;
   nextBilling: string;
   dmsThisMonth: number;
   leadsThisMonth: number;
@@ -52,6 +53,7 @@ const defaultWorkspace: Workspace = {
   name: "Workspace",
   plan: "Free",
   status: "active",
+  instagramConnected: false,
   nextBilling: "—",
   dmsThisMonth: 0,
   leadsThisMonth: 0,
@@ -100,6 +102,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             : workspace.status === "INSTAGRAM_DISCONNECTED"
               ? "disconnected"
               : "active",
+      instagramConnected: workspace.instagramConnected,
       nextBilling: workspace.billingCycleEnd
         ? new Date(workspace.billingCycleEnd).toLocaleDateString()
         : "—",

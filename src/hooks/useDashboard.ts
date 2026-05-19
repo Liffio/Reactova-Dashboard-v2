@@ -39,6 +39,7 @@ export type DashboardResponse = {
     handle: string | null;
     plan: "FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY";
     status: "ACTIVE" | "PAUSED" | "PAYMENT_FAILED" | "INSTAGRAM_DISCONNECTED";
+    instagramConnected: boolean;
     billingCycleEnd: string | null;
     dmsThisMonth: number;
     leadsThisMonth: number;

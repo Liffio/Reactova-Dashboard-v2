@@ -7,6 +7,7 @@ import {
 import { Logo } from "@/components/Logo";
 import { PlanBadge } from "@/components/PlanBadge";
 import { StatusDot } from "@/components/StatusBadge";
+import { getWorkspaceIndicatorStatus } from "@/lib/workspaceIndicator";
 import { useApp } from "@/state/AppContext";
 import { cn } from "@/lib/utils";
 import { useModules } from "@/hooks/useModules";
@@ -151,7 +152,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
             onClick={() => setWsOpen((v) => !v)}
             className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-card border border-border hover:border-primary/40 transition-colors"
           >
-            <StatusDot status={current.status === "failed" ? "failed" : current.status === "paused" ? "paused" : current.status === "disconnected" ? "disconnected" : "active"} />
+            <StatusDot status={getWorkspaceIndicatorStatus(current)} />
             <div className="flex-1 text-left min-w-0">
               <div className="text-sm font-medium truncate">{current.handle}</div>
             </div>
@@ -167,7 +168,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
                   onClick={() => { setCurrentId(w.id); setWsOpen(false); }}
                   className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background transition-colors text-left"
                 >
-                  <StatusDot status={w.status === "failed" ? "failed" : w.status === "paused" ? "paused" : w.status === "disconnected" ? "disconnected" : "active"} />
+                  <StatusDot status={getWorkspaceIndicatorStatus(w)} />
                   <span className="flex-1 text-sm truncate">{w.handle}</span>
                   <PlanBadge plan={w.plan} />
                   {w.id === current.id && <Check className="h-4 w-4 text-primary" />}

@@ -6,6 +6,7 @@ export type WorkspaceApi = {
   id: string;
   userId: string;
   igHandle?: string | null;
+  instagramConnected: boolean;
   plan: "FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY";
   status: "ACTIVE" | "PAUSED" | "PAYMENT_FAILED" | "INSTAGRAM_DISCONNECTED";
   billingCycleEnd?: string | null;

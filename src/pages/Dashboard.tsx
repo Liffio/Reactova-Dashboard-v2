@@ -9,6 +9,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { PlanBadge } from "@/components/PlanBadge";
 import { StatusBadge, StatusDot } from "@/components/StatusBadge";
+import { getWorkspaceIndicatorStatus } from "@/lib/workspaceIndicator";
 import { useApp } from "@/state/AppContext";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
@@ -191,15 +192,17 @@ export default function Dashboard() {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <StatusDot
-                    status={
-                      workspace.status === "PAYMENT_FAILED"
-                        ? "failed"
-                        : workspace.status === "PAUSED"
-                          ? "paused"
-                          : workspace.status === "INSTAGRAM_DISCONNECTED"
-                            ? "disconnected"
-                            : "active"
-                    }
+                    status={getWorkspaceIndicatorStatus({
+                      status:
+                        workspace.status === "PAYMENT_FAILED"
+                          ? "failed"
+                          : workspace.status === "PAUSED"
+                            ? "paused"
+                            : workspace.status === "INSTAGRAM_DISCONNECTED"
+                              ? "disconnected"
+                              : "active",
+                      instagramConnected: workspace.instagramConnected
+                    })}
                   />
                   <span className="font-semibold truncate">{workspace.handle ?? "Unlinked workspace"}</span>
                 </div>

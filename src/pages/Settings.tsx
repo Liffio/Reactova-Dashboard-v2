@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAppSelector } from "@/store/hooks";
 import { CopyButton, CopyField } from "@/components/CopyButton";
+import { StatusDot } from "@/components/StatusBadge";
+import { getWorkspaceIndicatorStatus } from "@/lib/workspaceIndicator";
 import { ApiCredentialsSettings } from "@/components/settings/ApiCredentialsSettings";
 import { BillingContent } from "@/pages/Billing";
 import { PlanGate } from "@/components/PlanGate";
@@ -691,7 +693,7 @@ function General() {
       <Card title="Instagram Connection">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
-            <span className={cn("h-2 w-2 rounded-full", current.status === "disconnected" ? "bg-warning" : "bg-success")} />
+            <StatusDot status={getWorkspaceIndicatorStatus(current)} />
             <span className="font-mono text-sm">{current.handle}</span>
           </div>
           <div className="flex items-center gap-2">

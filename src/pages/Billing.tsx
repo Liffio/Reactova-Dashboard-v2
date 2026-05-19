@@ -14,7 +14,8 @@ import {
   useBillingConfigQuery,
   useBillingInvoicesQuery,
   useBillingPortalMutation,
-  useBillingSubscriptionQuery
+  useBillingSubscriptionQuery,
+  useBillingSyncMutation
 } from "@/hooks/useBilling";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -50,6 +51,7 @@ export function BillingContent() {
   const checkoutMutation = useBillingCheckoutMutation(current.id);
   const portalMutation = useBillingPortalMutation(current.id);
   const cancelMutation = useBillingCancelMutation(current.id);
+  const syncMutation = useBillingSyncMutation(current.id);
 
   const config = configQuery.data;
   const subscription = subQuery.data;
@@ -57,15 +59,31 @@ export function BillingContent() {
 
   useEffect(() => {
     const status = searchParams.get("status");
+    const sessionId = searchParams.get("session_id");
+
     if (status === "success") {
-      toast.success("Payment received. Updating your workspace plan…");
-      void refreshAuth();
-      void queryClient.invalidateQueries({ queryKey: ["billing-subscription", current.id] });
-      void queryClient.invalidateQueries({ queryKey: ["billing-invoices", current.id] });
-      void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      void (async () => {
+        try {
+          if (sessionId) {
+            await syncMutation.mutateAsync({ sessionId });
+          } else {
+            await syncMutation.mutateAsync({});
+          }
+          toast.success("Plan updated for this workspace.");
+        } catch (err) {
+          toast.error(
+            err instanceof Error ? err.message : "Payment received but plan sync failed. Try again in a moment."
+          );
+        }
+        await refreshAuth();
+        void queryClient.invalidateQueries({ queryKey: ["billing-subscription", current.id] });
+        void queryClient.invalidateQueries({ queryKey: ["billing-invoices", current.id] });
+        void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      })();
     }
     if (status === "cancelled") toast.info("Checkout cancelled");
-  }, [searchParams, refreshAuth, queryClient, current.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per success redirect
+  }, [searchParams.get("status"), searchParams.get("session_id"), current.id]);
 
   useEffect(() => {
     if (config?.providers.stripe.configured) setProvider("stripe");

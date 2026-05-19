@@ -117,6 +117,23 @@ export function useBillingPortalMutation(workspaceId: string) {
   });
 }
 
+export function useBillingSyncMutation(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { sessionId?: string }) =>
+      apiRequest<BillingSubscription>("/api/v1/billing/sync", {
+        method: "POST",
+        body,
+        workspaceId
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["billing-subscription", workspaceId] });
+      void qc.invalidateQueries({ queryKey: ["billing-invoices", workspaceId] });
+      void qc.invalidateQueries({ queryKey: ["workspaces"] });
+    }
+  });
+}
+
 export function useBillingCancelMutation(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({

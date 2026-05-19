@@ -40,7 +40,7 @@ jobs:
                   { name: "Repo", value: $repo, inline: true },
                   { name: "Branch", value: $branch, inline: true },
                   { name: "Triggered by", value: $actor, inline: true },
-                  { name: "Commit", value: ($sha[0:7]), inline: true },
+                  { name: "Commit", value: ($sha | .[0:7]), inline: true },
                   { name: "Run", value: $run }
                 ],
                 timestamp: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
@@ -183,6 +183,9 @@ jobs:
     needs: [validate, deploy]
     if: ${{ always() }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Post result to Discord
         uses: ./.github/actions/discord-notify
         with:

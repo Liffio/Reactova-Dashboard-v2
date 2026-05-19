@@ -12,9 +12,46 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  notify-start:
+    name: Notify Discord — started
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -z "${DISCORD_WEBHOOK}" ]; then
+            echo "DISCORD_WEBHOOK_URL not set — skipping"
+            exit 0
+          fi
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -sf -H "Content-Type: application/json" -d "$(jq -n \
+            --arg title "🚀 Frontend deploy started" \
+            --arg repo "${{ github.repository }}" \
+            --arg branch "${{ github.ref_name }}" \
+            --arg actor "${{ github.actor }}" \
+            --arg sha "${{ github.sha }}" \
+            --arg run "$RUN_URL" \
+            '{
+              embeds: [{
+                title: $title,
+                color: 3447003,
+                fields: [
+                  { name: "Repo", value: $repo, inline: true },
+                  { name: "Branch", value: $branch, inline: true },
+                  { name: "Triggered by", value: $actor, inline: true },
+                  { name: "Commit", value: ($sha[0:7]), inline: true },
+                  { name: "Run", value: $run }
+                ],
+                timestamp: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
+              }]
+            }')" \
+            "$DISCORD_WEBHOOK"
+
   validate:
     name: Validate React Dashboard
     runs-on: ubuntu-latest
+    needs: notify-start
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -125,7 +162,7 @@ jobs:
               nginx -t && systemctl reload nginx || true
             fi
             systemctl is-active nginx || true
-            echo "Purging Cloudflare Cache..."
+
       - name: Purge Cloudflare Cache
         if: success()
         env:
@@ -139,24 +176,63 @@ jobs:
             -d '{"purge_everything":true}')
           echo "$RESPONSE"
           echo "$RESPONSE" | grep -q '"success":true' || (echo "Cache purge failed" && exit 1)
-      - name: Notify success
-        if: success()
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          if [ -n "$SLACK_WEBHOOK_URL" ]; then
-            curl -s -X POST "$SLACK_WEBHOOK_URL" \
-              -H 'Content-type: application/json' \
-              -d '{"text":"Frontend deployed successfully to production"}'
-          fi
 
-      - name: Notify failure
-        if: failure()
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  notify-finish:
+    name: Notify Discord — result
+    runs-on: ubuntu-latest
+    needs: [validate, deploy]
+    if: always()
+    steps:
+      - name: Determine status
+        id: status
         run: |
-          if [ -n "$SLACK_WEBHOOK_URL" ]; then
-            curl -s -X POST "$SLACK_WEBHOOK_URL" \
-              -H 'Content-type: application/json' \
-              -d '{"text":"Frontend deployment failed. Check GitHub Actions."}'
+          if [ "${{ needs.validate.result }}" = "success" ] && [ "${{ needs.deploy.result }}" = "success" ]; then
+            echo "title=✅ Frontend deploy succeeded" >> "$GITHUB_OUTPUT"
+            echo "color=3066993" >> "$GITHUB_OUTPUT"
+          elif [ "${{ needs.validate.result }}" = "cancelled" ] || [ "${{ needs.deploy.result }}" = "cancelled" ]; then
+            echo "title=⚪ Frontend deploy cancelled" >> "$GITHUB_OUTPUT"
+            echo "color=9807270" >> "$GITHUB_OUTPUT"
+          else
+            echo "title=❌ Frontend deploy failed" >> "$GITHUB_OUTPUT"
+            echo "color=15158332" >> "$GITHUB_OUTPUT"
           fi
+          echo "validate=${{ needs.validate.result }}" >> "$GITHUB_OUTPUT"
+          echo "deploy=${{ needs.deploy.result }}" >> "$GITHUB_OUTPUT"
+
+      - name: Post to Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_ROLE_ID: ${{ secrets.DISCORD_ALERT_ROLE_ID }}
+        run: |
+          if [ -z "${DISCORD_WEBHOOK}" ]; then
+            echo "DISCORD_WEBHOOK_URL not set — skipping"
+            exit 0
+          fi
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          MENTION=""
+          if [ "${{ steps.status.outputs.color }}" = "15158332" ] && [ -n "${DISCORD_ROLE_ID}" ]; then
+            MENTION="<@&${DISCORD_ROLE_ID}>"
+          fi
+          curl -sf -H "Content-Type: application/json" -d "$(jq -n \
+            --arg content "$MENTION" \
+            --arg title "${{ steps.status.outputs.title }}" \
+            --argjson color "${{ steps.status.outputs.color }}" \
+            --arg validate "${{ steps.status.outputs.validate }}" \
+            --arg deploy "${{ steps.status.outputs.deploy }}" \
+            --arg branch "${{ github.ref_name }}" \
+            --arg run "$RUN_URL" \
+            '{
+              content: (if $content == "" then null else $content end),
+              embeds: [{
+                title: $title,
+                color: $color,
+                fields: [
+                  { name: "Branch", value: $branch, inline: true },
+                  { name: "Validate", value: $validate, inline: true },
+                  { name: "Deploy", value: $deploy, inline: true },
+                  { name: "Logs", value: $run }
+                ],
+                timestamp: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
+              }]
+            }')" \
+            "$DISCORD_WEBHOOK"

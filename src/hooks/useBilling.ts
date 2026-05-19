@@ -38,10 +38,30 @@ export type BillingSubscription = {
   plan: string;
   displayName: string;
   status: string;
+  billingStatus: string;
   billingCycleEnd: string | null;
+  cancelAtPeriodEnd: boolean;
   limits: Record<string, number>;
   features: Record<string, boolean>;
   hasActiveSubscription: boolean;
+};
+
+export type BillingInvoiceRow = {
+  id: string;
+  workspaceId: string;
+  provider: string;
+  providerInvoiceId: string;
+  amountCents: number;
+  currency: string;
+  status: string;
+  plan: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  paidAt: string | null;
+  hostedInvoiceUrl: string | null;
+  pdfUrl: string | null;
+  createdAt: string;
+  workspace?: { id: string; igHandle: string | null };
 };
 
 export function useBillingConfigQuery() {
@@ -60,13 +80,22 @@ export function useBillingSubscriptionQuery(workspaceId: string) {
   });
 }
 
+export function useBillingInvoicesQuery(workspaceId: string) {
+  return useQuery({
+    queryKey: ["billing-invoices", workspaceId],
+    queryFn: () =>
+      apiRequest<{ invoices: BillingInvoiceRow[] }>("/api/v1/billing/invoices", { workspaceId }),
+    enabled: Boolean(workspaceId)
+  });
+}
+
 export function useBillingCheckoutMutation(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: {
       plan: string;
       interval: "monthly" | "quarterly" | "yearly";
-      provider: "stripe" | "razorpay";
+      provider?: "stripe" | "razorpay";
     }) =>
       apiRequest<{ checkoutUrl: string | null; provider: string }>("/api/v1/billing/checkout", {
         method: "POST",
@@ -75,6 +104,8 @@ export function useBillingCheckoutMutation(workspaceId: string) {
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["billing-subscription", workspaceId] });
+      void qc.invalidateQueries({ queryKey: ["billing-invoices", workspaceId] });
+      void qc.invalidateQueries({ queryKey: ["workspaces"] });
     }
   });
 }
@@ -89,9 +120,10 @@ export function useBillingPortalMutation(workspaceId: string) {
 export function useBillingCancelMutation(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => apiRequest<{ plan: string }>("/api/v1/billing/cancel", { method: "POST", workspaceId }),
+    mutationFn: () => apiRequest<{ plan: string; message?: string }>("/api/v1/billing/cancel", { method: "POST", workspaceId }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["billing-subscription", workspaceId] });
+      void qc.invalidateQueries({ queryKey: ["workspaces"] });
     }
   });
 }

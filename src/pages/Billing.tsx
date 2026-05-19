@@ -12,9 +12,11 @@ import {
   useBillingCancelMutation,
   useBillingCheckoutMutation,
   useBillingConfigQuery,
+  useBillingInvoicesQuery,
   useBillingPortalMutation,
   useBillingSubscriptionQuery
 } from "@/hooks/useBilling";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Interval = "monthly" | "quarterly" | "yearly";
 
@@ -37,12 +39,14 @@ const formatUsd = (amount: number | null) => {
 
 export function BillingContent() {
   const { current, refreshAuth } = useApp();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [interval, setInterval] = useState<Interval>("monthly");
   const [provider, setProvider] = useState<"stripe" | "razorpay">("stripe");
 
   const configQuery = useBillingConfigQuery();
   const subQuery = useBillingSubscriptionQuery(current.id);
+  const invoicesQuery = useBillingInvoicesQuery(current.id);
   const checkoutMutation = useBillingCheckoutMutation(current.id);
   const portalMutation = useBillingPortalMutation(current.id);
   const cancelMutation = useBillingCancelMutation(current.id);
@@ -54,11 +58,14 @@ export function BillingContent() {
   useEffect(() => {
     const status = searchParams.get("status");
     if (status === "success") {
-      toast.success("Payment received. Your plan will update shortly.");
+      toast.success("Payment received. Updating your workspace plan…");
       void refreshAuth();
+      void queryClient.invalidateQueries({ queryKey: ["billing-subscription", current.id] });
+      void queryClient.invalidateQueries({ queryKey: ["billing-invoices", current.id] });
+      void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
     }
     if (status === "cancelled") toast.info("Checkout cancelled");
-  }, [searchParams, refreshAuth]);
+  }, [searchParams, refreshAuth, queryClient, current.id]);
 
   useEffect(() => {
     if (config?.providers.stripe.configured) setProvider("stripe");
@@ -144,8 +151,12 @@ export function BillingContent() {
               </div>
               {subscription?.billingCycleEnd && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  Renews {new Date(subscription.billingCycleEnd).toLocaleDateString()}
+                  {subscription.cancelAtPeriodEnd ? "Access until" : "Renews"}{" "}
+                  {new Date(subscription.billingCycleEnd).toLocaleDateString()}
                 </p>
+              )}
+              {subscription?.cancelAtPeriodEnd && (
+                <p className="text-xs text-warning mt-1">Cancellation scheduled at period end</p>
               )}
             </div>
             <div className="flex flex-wrap gap-2">
@@ -160,10 +171,12 @@ export function BillingContent() {
                 className="text-destructive"
                 disabled={cancelMutation.isPending || currentPlanKey === "FREE"}
                 onClick={() => {
-                  void cancelMutation.mutateAsync().then(() => toast.success("Downgraded to Free"));
+                  void cancelMutation.mutateAsync().then((r) =>
+                    toast.success(r.message ?? "Cancellation scheduled")
+                  );
                 }}
               >
-                {cancelMutation.isPending ? "Cancelling…" : "Cancel plan"}
+                {cancelMutation.isPending ? "Cancelling…" : "Cancel at period end"}
               </Button>
             </div>
           </div>
@@ -284,8 +297,44 @@ export function BillingContent() {
           })}
         </div>
 
+        <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+          <h3 className="font-semibold text-sm">Invoice history</h3>
+          {invoicesQuery.isLoading && (
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </p>
+          )}
+          {!invoicesQuery.isLoading && (invoicesQuery.data?.invoices.length ?? 0) === 0 && (
+            <p className="text-sm text-muted-foreground">No invoices for this workspace yet.</p>
+          )}
+          <ul className="divide-y divide-border text-sm">
+            {(invoicesQuery.data?.invoices ?? []).map((inv) => (
+              <li key={inv.id} className="py-2 flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  {(inv.amountCents / 100).toFixed(2)} {inv.currency} · {inv.status}
+                  {inv.paidAt && (
+                    <span className="text-muted-foreground ml-2">
+                      {new Date(inv.paidAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </span>
+                {inv.hostedInvoiceUrl && (
+                  <a
+                    href={inv.hostedInvoiceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary underline text-xs"
+                  >
+                    View receipt
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+
         <p className="text-xs text-muted-foreground text-center">
-          Indian customers can use Razorpay (UPI, cards, netbanking). International cards via Stripe. All limits are enforced server-side from billing config.
+          Each workspace has its own plan. Indian accounts default to Razorpay; others to Stripe. You can switch provider below.
         </p>
     </div>
   );

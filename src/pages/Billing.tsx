@@ -57,7 +57,7 @@ export function BillingContent() {
       toast.success("Payment received. Your plan will update shortly.");
       void refreshAuth();
     }
-    if (status === "cancelled") toast.message("Checkout cancelled");
+    if (status === "cancelled") toast.info("Checkout cancelled");
   }, [searchParams, refreshAuth]);
 
   useEffect(() => {

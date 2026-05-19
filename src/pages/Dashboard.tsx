@@ -38,7 +38,7 @@ export default function Dashboard() {
       setSearchParams({}, { replace: true });
     }
     if (searchParams.get("billing") === "cancelled") {
-      toast.message("Checkout cancelled");
+      toast.info("Checkout cancelled");
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams, refreshAuth]);

@@ -22,6 +22,7 @@ import Scheduler from "./pages/Scheduler";
 import BioLink from "./pages/BioLink";
 import Analytics from "./pages/Analytics";
 import Leads from "./pages/Leads";
+import LeadsCapturedRedirect from "./pages/LeadsCapturedRedirect";
 import Affiliate from "./pages/Affiliate";
 import Settings from "./pages/Settings";
 import Billing from "./pages/Billing";
@@ -66,7 +67,9 @@ const App = () => (
                   <Route path="/scheduler" element={<ProtectedRoute module="automation"><Scheduler /></ProtectedRoute>} />
                   <Route path="/bio-link" element={<ProtectedRoute module="biolink"><BioLink /></ProtectedRoute>} />
                   <Route path="/analytics" element={<ProtectedRoute module="analytics"><Analytics /></ProtectedRoute>} />
-                  <Route path="/leads" element={<ProtectedRoute module="lead"><Leads /></ProtectedRoute>} />
+                  <Route path="/leads-captured/:slug" element={<LeadsCapturedRedirect />} />
+                  <Route path="/leads-captured" element={<ProtectedRoute module="lead"><Leads /></ProtectedRoute>} />
+                  <Route path="/leads" element={<Navigate to="/leads-captured" replace />} />
                   <Route path="/affiliate" element={<ProtectedRoute module="affiliate"><Affiliate /></ProtectedRoute>} />
                   <Route path="/settings" element={<ProtectedRoute module="workspace"><Settings /></ProtectedRoute>} />
                   <Route path="/billing" element={<ProtectedRoute module="workspace"><Billing /></ProtectedRoute>} />

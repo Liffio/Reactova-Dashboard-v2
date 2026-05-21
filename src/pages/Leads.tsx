@@ -9,6 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
+type LeadMetadata = {
+  linkClickedAt?: string;
+  lastCommentText?: string;
+  lastSourceMediaId?: string;
+  lastSourceMediaType?: string;
+  platform?: string;
+};
+
 type LeadRow = {
   id: string;
   igUsername: string;
@@ -23,6 +31,7 @@ type LeadRow = {
   lastInteractionAt: string;
   linkClicked: boolean;
   profilePicUrl: string | null;
+  metadata: LeadMetadata | null;
 };
 
 type LeadsResponse = {
@@ -40,6 +49,17 @@ const formatDate = (iso: string) =>
     day: "numeric",
     year: "numeric"
   });
+
+const formatDateTime = (iso: string) =>
+  new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+
+const leadMetadata = (raw: LeadRow["metadata"]): LeadMetadata =>
+  raw && typeof raw === "object" ? (raw as LeadMetadata) : {};
 
 const triggerLabel = (trigger: string) => {
   const labels: Record<string, string> = {
@@ -111,7 +131,7 @@ export default function Leads() {
   return (
     <DashboardLayout
       title="Leads"
-      subtitle="Instagram users captured from keyword comments, live comments, and reel/post shares with auto-DM automations."
+      subtitle="Users captured when they trigger an automation. DM button clicks are tracked via an instant redirect and shown below."
     >
       <div className="flex flex-wrap items-center gap-2 -mt-2">
         <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -143,8 +163,8 @@ export default function Leads() {
                 <th className="px-5 py-3 font-medium">Trigger</th>
                 <th className="px-5 py-3 font-medium">Automation</th>
                 <th className="px-5 py-3 font-medium">Following</th>
-                <th className="px-5 py-3 font-medium">Captured</th>
-                <th className="px-5 py-3 font-medium">Link Clicked</th>
+                <th className="px-5 py-3 font-medium">Last activity</th>
+                <th className="px-5 py-3 font-medium">DM link</th>
               </tr>
             </thead>
             <tbody>
@@ -162,48 +182,92 @@ export default function Leads() {
                   </td>
                 </tr>
               )}
-              {leads.map((l) => (
-                <tr key={l.id} className="stripe-row hover:bg-primary/5">
-                  <td className="px-5 py-3 font-mono">{l.igUsername}</td>
-                  <td className="px-5 py-3">
-                    <div className="flex flex-col gap-0.5">
-                      {l.displayName && <span>{l.displayName}</span>}
-                      {l.email ? (
-                        <span className="text-xs text-muted-foreground">{l.email}</span>
+              {leads.map((l) => {
+                const meta = leadMetadata(l.metadata);
+                const linkClickedAt = meta.linkClickedAt;
+                return (
+                  <tr key={l.id} className="stripe-row hover:bg-primary/5">
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2.5 min-w-[140px]">
+                        {l.profilePicUrl ? (
+                          <img
+                            src={l.profilePicUrl}
+                            alt=""
+                            className="h-8 w-8 rounded-full object-cover shrink-0"
+                          />
+                        ) : (
+                          <div className="h-8 w-8 rounded-full bg-muted shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-mono truncate">{l.igUsername}</p>
+                          <p className="text-[10px] text-muted-foreground truncate" title={l.igUserId}>
+                            {l.igUserId}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex flex-col gap-0.5 max-w-[220px]">
+                        {l.displayName && <span>{l.displayName}</span>}
+                        {l.email ? (
+                          <span className="text-xs text-muted-foreground">{l.email}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                        {meta.lastCommentText && (
+                          <span
+                            className="text-xs text-muted-foreground line-clamp-2"
+                            title={meta.lastCommentText}
+                          >
+                            “{meta.lastCommentText}”
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className="px-2 py-0.5 rounded-full bg-muted text-xs font-mono">{l.keyword}</span>
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">{triggerLabel(l.triggerType)}</td>
+                    <td className="px-5 py-3">{l.automationName}</td>
+                    <td className="px-5 py-3">
+                      {l.isFollowing === true ? (
+                        <span className="text-success text-xs">Yes</span>
+                      ) : l.isFollowing === false ? (
+                        <span className="text-muted-foreground text-xs">No</span>
                       ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
+                        <span className="text-muted-foreground text-xs">—</span>
                       )}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className="px-2 py-0.5 rounded-full bg-muted text-xs font-mono">{l.keyword}</span>
-                  </td>
-                  <td className="px-5 py-3 text-muted-foreground">{triggerLabel(l.triggerType)}</td>
-                  <td className="px-5 py-3">{l.automationName}</td>
-                  <td className="px-5 py-3">
-                    {l.isFollowing === true ? (
-                      <span className="text-success text-xs">Yes</span>
-                    ) : l.isFollowing === false ? (
-                      <span className="text-muted-foreground text-xs">No</span>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3 text-muted-foreground">{formatDate(l.capturedAt)}</td>
-                  <td className="px-5 py-3">
-                    <span
-                      className={cn(
-                        "px-2 py-0.5 rounded-full text-[11px] font-medium border",
-                        l.linkClicked
-                          ? "bg-success/15 text-success border-success/30"
-                          : "bg-muted-foreground/15 text-muted-foreground border-muted-foreground/30"
-                      )}
-                    >
-                      {l.linkClicked ? "Yes" : "No"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-5 py-3 text-muted-foreground">
+                      <div className="flex flex-col gap-0.5 text-xs">
+                        <span title="Captured">{formatDate(l.capturedAt)}</span>
+                        <span className="text-[10px]" title="Last interaction">
+                          {formatDateTime(l.lastInteractionAt)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex flex-col gap-0.5">
+                        <span
+                          className={cn(
+                            "px-2 py-0.5 rounded-full text-[11px] font-medium border w-fit",
+                            l.linkClicked
+                              ? "bg-success/15 text-success border-success/30"
+                              : "bg-muted-foreground/15 text-muted-foreground border-muted-foreground/30"
+                          )}
+                        >
+                          {l.linkClicked ? "Clicked" : "Not yet"}
+                        </span>
+                        {linkClickedAt && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {formatDateTime(linkClickedAt)}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -53,7 +53,7 @@ const navigationByModule: Record<
   shortlink: [{ to: "/short-links", icon: Link2, label: "Short Links", section: "main", order: 4, action: "read" }],
   biolink: [{ to: "/bio-link", icon: LayoutTemplate, label: "Bio Link", section: "main", order: 5, action: "read" }],
   analytics: [{ to: "/analytics", icon: BarChart2, label: "Analytics", section: "main", order: 6, action: "read" }],
-  lead: [{ to: "/leads", icon: Users, label: "Leads", section: "main", order: 7, action: "read" }],
+  lead: [{ to: "/leads-captured", icon: Users, label: "Leads", section: "main", order: 7, action: "read" }],
   affiliate: [{ to: "/affiliate", icon: Gift, label: "Affiliate Program", section: "general", order: 2, action: "read" }],
   agency: [{ to: "/agency", icon: Building2, label: "Agency Panel", section: "main", order: 8, action: "read" }]
 };

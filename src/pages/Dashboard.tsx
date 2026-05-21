@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { PlanBadge } from "@/components/PlanBadge";
 import { StatusBadge, StatusDot } from "@/components/StatusBadge";
 import { getWorkspaceIndicatorStatus } from "@/lib/workspaceIndicator";
+import { resolveInstagramConnected } from "@/lib/workspaceInstagram";
 import { useApp } from "@/state/AppContext";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
@@ -198,10 +199,10 @@ export default function Dashboard() {
                           ? "failed"
                           : workspace.status === "PAUSED"
                             ? "paused"
-                            : workspace.status === "INSTAGRAM_DISCONNECTED"
-                              ? "disconnected"
-                              : "active",
-                      instagramConnected: workspace.instagramConnected
+                            : resolveInstagramConnected(workspace)
+                              ? "active"
+                              : "disconnected",
+                      instagramConnected: resolveInstagramConnected(workspace)
                     })}
                   />
                   <span className="font-semibold truncate">{workspace.handle ?? "Unlinked workspace"}</span>

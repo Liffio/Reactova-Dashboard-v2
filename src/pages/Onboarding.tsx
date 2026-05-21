@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   TrendingUp, ShoppingBag, Instagram, Check, X, Lock, Info, Plus,
   Zap, Infinity as InfinityIcon, MessageSquare, UserCheck, ChevronLeft,
@@ -53,6 +53,7 @@ const ONBOARDING_STEP_COUNT = 5;
 export default function Onboarding() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const dispatch = useAppDispatch();
   const workspaceIdFromStore = useAppSelector((state) => state.auth.workspaceId);
   const isOnboarded = useAppSelector((state) => state.auth.isOnboarded);
@@ -188,6 +189,8 @@ export default function Onboarding() {
       setMetaFixReason(null);
       setMetaDiagnostic(null);
       setStep((prev) => Math.max(prev, requestedStep ?? 4));
+      void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success("Instagram connected via Meta");
       searchParams.delete("meta");
       searchParams.delete("step");

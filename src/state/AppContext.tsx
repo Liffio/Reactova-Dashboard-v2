@@ -14,6 +14,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearAuthSession, setAuthMe } from "@/store/authSlice";
 import type { AuthMePayload } from "@/types/auth";
 import { useWorkspacesQuery } from "@/hooks/useWorkspaces";
+import { resolveInstagramConnected } from "@/lib/workspaceInstagram";
 
 export type WorkspaceStatus = "active" | "paused" | "failed" | "disconnected";
 
@@ -89,7 +90,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!workspacesQuery.data) {
       return [];
     }
-    return workspacesQuery.data.map((workspace) => ({
+    return workspacesQuery.data.map((workspace) => {
+      const instagramConnected = resolveInstagramConnected(workspace);
+      return {
       id: workspace.id,
       handle: workspace.igHandle ?? "Unlinked workspace",
       name: workspace.igHandle ?? "Unlinked workspace",
@@ -99,10 +102,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ? "paused"
           : workspace.status === "PAYMENT_FAILED"
             ? "failed"
-            : workspace.status === "INSTAGRAM_DISCONNECTED"
+            : !instagramConnected
               ? "disconnected"
               : "active",
-      instagramConnected: workspace.instagramConnected,
+      instagramConnected,
       nextBilling: workspace.billingCycleEnd
         ? new Date(workspace.billingCycleEnd).toLocaleDateString()
         : "—",
@@ -110,7 +113,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       leadsThisMonth: workspace.leadsThisMonth,
       clicksThisMonth: workspace.clicksThisMonth,
       activeAutomations: workspace.activeAutomations
-    }));
+    };
+    });
   }, [workspacesQuery.data]);
 
   const selectedWorkspaceId = currentId || authWorkspaceId || workspaces[0]?.id;

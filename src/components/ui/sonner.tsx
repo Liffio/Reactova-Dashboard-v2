@@ -2,7 +2,7 @@ import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import { useTheme } from "next-themes";
 import { cva } from "class-variance-authority";
 import { Toaster as Sonner, toast as sonnerToast } from "sonner";
-import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
+import { AlertTriangle, Check, Info, X, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type SonnerToasterProps = ComponentProps<typeof Sonner>;
@@ -26,7 +26,7 @@ export type AppToastOptions = {
   className?: string;
   /** Classes applied to the inner content row (icon + text + close) */
   contentClassName?: string;
-  /** Visually mute the type accent (icon + border) for a neutral notice */
+  /** Visually mute the type accent for a neutral notice */
   neutral?: boolean;
   /** Default true; set false to hide the countdown bar */
   showProgress?: boolean;
@@ -38,51 +38,55 @@ const DEFAULT_DURATION = 5000;
 
 const toastCardVariants = cva(
   [
-    "app-toast group relative w-full max-w-[min(calc(100vw-1.25rem),22rem)] sm:max-w-md",
-    "overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-md",
-    "ring-1 ring-black/5 dark:ring-white/10",
-    "border-l-[3px]",
-    "transition-[transform,box-shadow] duration-200",
+    "app-toast group relative w-full max-w-[min(calc(100vw-1.5rem),20rem)] sm:max-w-[22rem]",
+    "overflow-hidden rounded-xl border bg-background/95 text-foreground backdrop-blur-md",
+    "shadow-[0_1px_2px_hsl(var(--foreground)/0.04),0_8px_24px_-4px_hsl(var(--foreground)/0.08)]",
+    "dark:shadow-[0_1px_2px_hsl(0_0%_0%/0.2),0_8px_24px_-4px_hsl(0_0%_0%/0.45)]",
+    "transition-[transform,box-shadow,opacity] duration-200 ease-out",
     "data-[swipe=move]:transition-none"
   ]
 );
 
 const toastAccentBorder: Record<AppToastType, string> = {
-  success: "border-l-emerald-600 dark:border-l-emerald-500",
-  error: "border-l-red-600 dark:border-l-red-500",
-  info: "border-l-sky-600 dark:border-l-sky-500",
-  warning: "border-l-amber-600 dark:border-l-amber-500"
+  success: "border-l-[hsl(var(--success))]",
+  error: "border-l-[hsl(var(--destructive))]",
+  info: "border-l-[hsl(var(--info))]",
+  warning: "border-l-[hsl(var(--warning))]"
 };
 
-const iconShellVariants = cva(
-  "flex size-8 shrink-0 items-center justify-center rounded-md border bg-background/80 backdrop-blur-sm",
-  {
-    variants: {
-      type: {
-        success: "border-emerald-200 text-emerald-700 dark:border-emerald-900/60 dark:text-emerald-400",
-        error: "border-red-200 text-red-700 dark:border-red-900/60 dark:text-red-400",
-        info: "border-sky-200 text-sky-700 dark:border-sky-900/60 dark:text-sky-400",
-        warning: "border-amber-200 text-amber-800 dark:border-amber-900/60 dark:text-amber-400"
-      }
-    },
-    defaultVariants: { type: "info" }
-  }
-);
+const toastSurfaceBorder: Record<AppToastType, string> = {
+  success: "border-success/20",
+  error: "border-destructive/20",
+  info: "border-[hsl(var(--info)/0.25)]",
+  warning: "border-[hsl(var(--warning)/0.25)]"
+};
 
-const progressBarVariants = cva("app-toast-progress h-full rounded-full", {
+const iconVariants = cva("size-[15px] shrink-0", {
   variants: {
     type: {
-      success: "bg-emerald-600/70 dark:bg-emerald-500/70",
-      error: "bg-red-600/70 dark:bg-red-500/70",
-      info: "bg-sky-600/70 dark:bg-sky-500/70",
-      warning: "bg-amber-600/70 dark:bg-amber-500/70"
+      success: "text-[hsl(var(--success))]",
+      error: "text-[hsl(var(--destructive))]",
+      info: "text-[hsl(var(--info))]",
+      warning: "text-[hsl(var(--warning))]"
     }
   },
   defaultVariants: { type: "info" }
 });
 
-const iconByType: Record<AppToastType, typeof CheckCircle2> = {
-  success: CheckCircle2,
+const progressBarVariants = cva("app-toast-progress h-full origin-left", {
+  variants: {
+    type: {
+      success: "bg-[hsl(var(--success))]",
+      error: "bg-[hsl(var(--destructive))]",
+      info: "bg-[hsl(var(--info))]",
+      warning: "bg-[hsl(var(--warning))]"
+    }
+  },
+  defaultVariants: { type: "info" }
+});
+
+const iconByType: Record<AppToastType, typeof Check> = {
+  success: Check,
   error: XCircle,
   info: Info,
   warning: AlertTriangle
@@ -125,12 +129,16 @@ function ToastCard({
   icon
 }: ToastCardProps) {
   const DefaultIcon = iconByType[type];
+  const accent = neutral ? "border-l-border" : toastAccentBorder[type];
+  const surface = neutral ? "border-border" : toastSurfaceBorder[type];
 
   return (
     <div
       className={cn(
         toastCardVariants(),
-        neutral ? "border-l-border" : toastAccentBorder[type],
+        "border-l-[3px]",
+        accent,
+        surface,
         position ? wrapperClassByPosition[position] : undefined,
         className
       )}
@@ -138,34 +146,45 @@ function ToastCard({
       role="status"
       aria-live="polite"
     >
-      <div className={cn("flex gap-3 px-3 py-3 sm:gap-3.5 sm:px-4 sm:py-3.5", contentClassName)}>
-        <div className={cn(iconShellVariants({ type }), neutral && "border-border text-muted-foreground")}>
-          {icon ?? <DefaultIcon className="size-4" strokeWidth={2} aria-hidden />}
-        </div>
-        <div className="min-w-0 flex-1 pt-0.5">
-          <div className="text-sm font-medium leading-snug text-foreground">{title}</div>
+      <div
+        className={cn(
+          "flex items-start gap-2.5 px-3.5 py-3",
+          showProgress && "pb-2.5",
+          contentClassName
+        )}
+      >
+        <span
+          className={cn(
+            "mt-0.5 flex size-5 shrink-0 items-center justify-center",
+            neutral && "text-muted-foreground"
+          )}
+          aria-hidden
+        >
+          {icon ?? <DefaultIcon className={cn(iconVariants({ type }), neutral && "text-muted-foreground")} strokeWidth={2.25} />}
+        </span>
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <p className="text-[13px] font-medium leading-snug tracking-[-0.01em] text-foreground">{title}</p>
           {message != null && message !== "" ? (
-            <div className="mt-1 text-sm leading-relaxed text-muted-foreground">{message}</div>
+            <p className="text-[12px] leading-relaxed text-muted-foreground">{message}</p>
           ) : null}
         </div>
         <button
           type="button"
           onClick={() => sonnerToast.dismiss(id)}
           className={cn(
-            "shrink-0 rounded-md p-1.5 text-muted-foreground outline-none transition-colors",
-            "hover:bg-muted hover:text-foreground",
-            "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            "-mr-0.5 -mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground/70 outline-none transition-colors",
+            "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+            "hover:bg-muted/80 hover:text-foreground",
+            "focus-visible:ring-1 focus-visible:ring-ring"
           )}
           aria-label="Dismiss notification"
         >
-          <X className="size-4" aria-hidden />
+          <X className="size-3.5" strokeWidth={2} aria-hidden />
         </button>
       </div>
       {showProgress ? (
-        <div className="px-3 pb-2 sm:px-4 sm:pb-2.5">
-          <div className="h-0.5 w-full overflow-hidden rounded-full bg-muted/80">
-            <div className={cn(progressBarVariants({ type }), neutral && "bg-muted-foreground/40")} />
-          </div>
+        <div className="absolute inset-x-0 bottom-0 h-px overflow-hidden bg-border/60">
+          <div className={cn(progressBarVariants({ type }), neutral && "bg-muted-foreground/35")} />
         </div>
       ) : null}
     </div>
@@ -237,7 +256,8 @@ const Toaster = ({ className, toastListClassName, position = "top-right", ...pro
       expand={false}
       richColors={false}
       closeButton={false}
-      visibleToasts={5}
+      visibleToasts={4}
+      gap={10}
       toastOptions={{
         classNames: {
           toast: cn(

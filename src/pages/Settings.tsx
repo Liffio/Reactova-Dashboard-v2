@@ -12,6 +12,7 @@ import { useAppSelector } from "@/store/hooks";
 import { CopyButton, CopyField } from "@/components/CopyButton";
 import { StatusDot } from "@/components/StatusBadge";
 import { getWorkspaceIndicatorStatus } from "@/lib/workspaceIndicator";
+import { resolveInstagramConnected } from "@/lib/workspaceInstagram";
 import { ApiCredentialsSettings } from "@/components/settings/ApiCredentialsSettings";
 import { BillingContent } from "@/pages/Billing";
 import { PlanGate } from "@/components/PlanGate";
@@ -693,7 +694,12 @@ function General() {
       <Card title="Instagram Connection">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
-            <StatusDot status={getWorkspaceIndicatorStatus(current)} />
+            <StatusDot
+              status={getWorkspaceIndicatorStatus({
+                status: current.status,
+                instagramConnected: resolveInstagramConnected(current)
+              })}
+            />
             <span className="font-mono text-sm">{current.handle}</span>
           </div>
           <div className="flex items-center gap-2">

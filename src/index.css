@@ -192,6 +192,7 @@
 
 .app-toast-progress {
   width: 100%;
+  height: 100%;
   transform-origin: left center;
   animation: app-toast-shrink linear forwards;
   animation-duration: var(--app-toast-duration, 5000ms);
@@ -210,8 +211,17 @@
   }
 }
 
+[data-sonner-toaster] [data-sonner-toast] {
+  --y: translateY(0);
+  transition: transform 200ms ease, opacity 200ms ease;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-removed="true"] {
+  opacity: 0;
+}
+
 @media (max-width: 639px) {
   .app-toast {
-    max-width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 1.5rem) !important;
   }
 }

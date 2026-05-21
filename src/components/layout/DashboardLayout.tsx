@@ -11,7 +11,7 @@ import {
   useNotificationsQuery
 } from "@/hooks/useNotifications";
 
-export function DashboardLayout({ title, subtitle, actions, children }: { title: string; subtitle?: string; actions?: ReactNode; children: ReactNode }) {
+export function DashboardLayout({ title, subtitle, actions, headerActions, children }: { title: string; subtitle?: string; actions?: ReactNode; headerActions?: ReactNode; children: ReactNode }) {
   const { current, user } = useApp();
   const [open, setOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -107,6 +107,7 @@ export function DashboardLayout({ title, subtitle, actions, children }: { title:
               </PopoverContent>
             </Popover>
             <ThemeToggle />
+            {headerActions}
             <div className="h-9 w-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold text-sm">
               {(user?.name ?? "NA").split(" ").map(n => n[0]).join("")}
             </div>

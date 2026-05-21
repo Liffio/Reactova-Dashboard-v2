@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowRight, ChevronDown, ChevronUp, GripVertical, ImagePlus, Lock, MessageCircle, MousePointer, Plus, Edit, Trash2, X, Zap } from "lucide-react";
+import { ArrowLeft, ChevronDown, Eye, Heart, ImagePlus, Lock, MessageCircle, MoreHorizontal, Plus, Edit, Send, Trash2, Zap } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -89,11 +89,29 @@ const shortId = (value: string) => `${value.slice(0, 8)}...`;
 const newBlockId = () => `block-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const normalizeClientButtonUrl = (value: string): string => {
   const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
+  if (!trimmed) return "";
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 };
+const keywordBlocksStorageKey = (workspaceId: string | null, automationId: string | null) =>
+  `reactova_automation_keyword_blocks_${workspaceId ?? "none"}_${automationId ?? "create"}`;
+
+const readKeywordBlocksBackup = (key: string): TriggerBlock[] | null => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as TriggerBlock[];
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const blockDisplayTitle = (block: TriggerBlock, anyComment: boolean) => {
+  if (anyComment) return "Any comment";
+  const keyword = block.keyword.trim();
+  return keyword ? keyword.toUpperCase() : "New trigger";
+};
+
 const createTriggerBlock = (overrides: Partial<TriggerBlock> = {}): TriggerBlock => ({
   id: overrides.id ?? newBlockId(),
   keyword: overrides.keyword ?? "GUIDE",
@@ -131,11 +149,13 @@ export default function Automations() {
   });
 
   const items = useMemo(() => automationsQuery.data ?? [], [automationsQuery.data]);
+
   const wizardDataQuery = useQuery({
     queryKey: ["automation-wizard-data", workspaceId],
     enabled: Boolean(workspaceId),
     queryFn: async () => apiRequest<WizardData>("/api/v1/automations/wizard-data", { workspaceId: workspaceId ?? undefined })
   });
+
   const mediaById = useMemo(
     () => new Map((wizardDataQuery.data?.media ?? []).map((item) => [item.id, item])),
     [wizardDataQuery.data?.media]
@@ -143,26 +163,21 @@ export default function Automations() {
 
   if (open) {
     return (
-      <DashboardLayout
-        title={editing ? "Edit Automation" : "Create Automation"}
-        subtitle="Build the trigger, auto reply, and DM flow with live previews."
-      >
-        <AutomationBuilder
-          workspaceId={workspaceId}
-          mode={editing ? "edit" : "create"}
-          initial={editing}
-          wizardData={wizardDataQuery.data}
-          onClose={() => {
-            setOpen(false);
-            setEditing(null);
-          }}
-          onSaved={async () => {
-            await queryClient.invalidateQueries({ queryKey: ["automations", workspaceId] });
-            setOpen(false);
-            setEditing(null);
-          }}
-        />
-      </DashboardLayout>
+      <AutomationBuilder
+        workspaceId={workspaceId}
+        mode={editing ? "edit" : "create"}
+        initial={editing}
+        wizardData={wizardDataQuery.data}
+        onClose={() => {
+          setOpen(false);
+          setEditing(null);
+        }}
+        onSaved={async () => {
+          await queryClient.invalidateQueries({ queryKey: ["automations", workspaceId] });
+          setOpen(false);
+          setEditing(null);
+        }}
+      />
     );
   }
 
@@ -228,7 +243,9 @@ export default function Automations() {
                         {(a.anyComment ? ["ANY COMMENT"] : a.keywords).slice(0, 3).map((k) => (
                           <span key={k} className="px-2 py-0.5 rounded-full bg-muted text-xs font-mono">{k}</span>
                         ))}
-                        {!a.anyComment && a.keywords.length > 3 && <span className="text-xs text-muted-foreground">+{a.keywords.length - 3} more</span>}
+                        {!a.anyComment && a.keywords.length > 3 && (
+                          <span className="text-xs text-muted-foreground">+{a.keywords.length - 3} more</span>
+                        )}
                       </div>
                       <div className="mt-1 text-[11px] text-muted-foreground">
                         Includes story replies and shared reel/post DMs
@@ -260,10 +277,7 @@ export default function Automations() {
                       <div className="inline-flex gap-1">
                         <button
                           className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-40"
-                          onClick={() => {
-                            setEditing(a);
-                            setOpen(true);
-                          }}
+                          onClick={() => { setEditing(a); setOpen(true); }}
                           disabled={!canUpdate}
                         >
                           <Edit className="h-4 w-4" />
@@ -311,18 +325,12 @@ function AutomationBuilder({
   const [step, setStep] = useState(0);
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
   const [triggerBlocks, setTriggerBlocks] = useState<TriggerBlock[]>(() => {
-    if (!initial) {
-      return [createTriggerBlock()];
-    }
+    if (!initial) return [createTriggerBlock()];
     if (initial.triggerBlocks?.length) {
       return initial.triggerBlocks.map((block, index) =>
-        createTriggerBlock({
-          ...block,
-          id: block.id || `initial-${index}`
-        })
+        createTriggerBlock({ ...block, id: block.id || `initial-${index}` })
       );
     }
-
     const keywords = initial.anyComment ? [""] : initial.keywords.length ? initial.keywords : defaultForm.keywords;
     return keywords.map((keyword, index) =>
       createTriggerBlock({
@@ -339,9 +347,19 @@ function AutomationBuilder({
   });
   const [activeBlockId, setActiveBlockId] = useState(() => triggerBlocks[0]?.id ?? "initial-0");
   const queryClient = useQueryClient();
+
   const steps = ["Name & triggers", "Select reel/post", "Review"];
   const selectedMedia = wizardData?.media.find((item) => item.id === selectedPostId) ?? null;
   const activeBlock = triggerBlocks.find((block) => block.id === activeBlockId) ?? triggerBlocks[0];
+  const requiresPostSelection = postMode === "specific" && !selectedPostId;
+
+  const goToNextStep = () => {
+    if (step === 1 && requiresPostSelection) {
+      toast.error("Choose a reel/post or switch the target to any post/reel.");
+      return;
+    }
+    setStep((s) => Math.min(steps.length - 1, s + 1));
+  };
 
   const updateBlock = (blockId: string, patch: Partial<TriggerBlock>) => {
     setTriggerBlocks((blocks) => blocks.map((block) => (block.id === blockId ? { ...block, ...patch } : block)));
@@ -359,51 +377,34 @@ function AutomationBuilder({
 
   const removeBlock = (blockId: string) => {
     setTriggerBlocks((blocks) => {
-      if (blocks.length === 1) {
-        return blocks;
-      }
+      if (blocks.length === 1) return blocks;
       const next = blocks.filter((block) => block.id !== blockId);
-      if (activeBlockId === blockId) {
-        setActiveBlockId(next[0].id);
-      }
+      if (activeBlockId === blockId) setActiveBlockId(next[0].id);
       return next;
     });
   };
 
-  const moveBlock = (blockId: string, direction: -1 | 1) => {
-    setTriggerBlocks((blocks) => {
-      const index = blocks.findIndex((block) => block.id === blockId);
-      const nextIndex = index + direction;
-      if (index < 0 || nextIndex < 0 || nextIndex >= blocks.length) {
-        return blocks;
-      }
-      const next = [...blocks];
-      const [item] = next.splice(index, 1);
-      next.splice(nextIndex, 0, item);
-      return next;
-    });
-  };
-
-  const reorderBlock = (draggedBlockId: string, targetBlockId: string) => {
-    setTriggerBlocks((blocks) => {
-      const fromIndex = blocks.findIndex((block) => block.id === draggedBlockId);
-      const toIndex = blocks.findIndex((block) => block.id === targetBlockId);
-      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
-        return blocks;
-      }
-      const next = [...blocks];
-      const [item] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, item);
-      return next;
-    });
-  };
+  const blocksBackupKey = keywordBlocksStorageKey(workspaceId, initial?.id ?? null);
 
   const setAnyCommentMode = (checked: boolean) => {
-    setAnyComment(checked);
     if (checked) {
-      setTriggerBlocks((blocks) => [{ ...blocks[0], keyword: "" }]);
-      setActiveBlockId((current) => triggerBlocks[0]?.id ?? current);
+      setTriggerBlocks((blocks) => {
+        localStorage.setItem(blocksBackupKey, JSON.stringify(blocks));
+        const primary = blocks[0] ?? createTriggerBlock();
+        setActiveBlockId(primary.id);
+        return [{ ...primary, keyword: "" }];
+      });
+      setAnyComment(true);
+      return;
     }
+
+    const restored = readKeywordBlocksBackup(blocksBackupKey);
+    if (restored) {
+      setTriggerBlocks(restored);
+      setActiveBlockId(restored[0].id);
+      localStorage.removeItem(blocksBackupKey);
+    }
+    setAnyComment(false);
   };
 
   const buildPayload = (targetStatus: AutomationStatus) => {
@@ -414,7 +415,6 @@ function AutomationBuilder({
       dmButtonUrl: normalizeClientButtonUrl(block.dmButtonUrl)
     }));
     const primaryBlock = normalizedBlocks[0];
-
     return {
       name: baseName,
       keywords: anyComment ? [] : normalizedBlocks.map((block) => block.keyword).filter(Boolean),
@@ -444,39 +444,20 @@ function AutomationBuilder({
   const mutation = useMutation({
     mutationFn: async (targetStatus: AutomationStatus) => {
       const baseName = name.trim();
-      if (baseName.length < 2) {
-        throw new Error("Automation name must be at least 2 characters.");
-      }
-      if (postMode === "specific" && !selectedPostId) {
-        throw new Error("Choose a reel/post or switch the target to any post/reel.");
-      }
-      if (!anyComment && triggerBlocks.some((block) => !block.keyword.trim())) {
-        throw new Error("Every trigger block needs a trigger word.");
-      }
+      if (baseName.length < 2) throw new Error("Automation name must be at least 2 characters.");
+      if (postMode === "specific" && !selectedPostId) throw new Error("Choose a reel/post or switch the target to any post/reel.");
+      if (!anyComment && triggerBlocks.some((block) => !block.keyword.trim())) throw new Error("Every trigger block needs a trigger word.");
       const normalizedKeywords = triggerBlocks.map((block) => block.keyword.trim().toUpperCase()).filter(Boolean);
-      if (!anyComment && new Set(normalizedKeywords).size !== normalizedKeywords.length) {
-        throw new Error("Trigger words must be unique inside one workflow.");
-      }
-      if (triggerBlocks.some((block) => !block.dmMessage.trim())) {
-        throw new Error("Every trigger block needs an Auto DM message.");
-      }
+      if (!anyComment && new Set(normalizedKeywords).size !== normalizedKeywords.length) throw new Error("Trigger words must be unique inside one workflow.");
+      if (triggerBlocks.some((block) => !block.dmMessage.trim())) throw new Error("Every trigger block needs an Auto DM message.");
       const payload = buildPayload(targetStatus);
-
       if (mode === "edit" && initial) {
-        return apiRequest(`/api/v1/automations/${initial.id}`, {
-          method: "PATCH",
-          workspaceId: workspaceId ?? undefined,
-          body: payload
-        });
+        return apiRequest(`/api/v1/automations/${initial.id}`, { method: "PATCH", workspaceId: workspaceId ?? undefined, body: payload });
       }
-
-      return apiRequest("/api/v1/automations", {
-        method: "POST",
-        workspaceId: workspaceId ?? undefined,
-        body: payload
-      });
+      return apiRequest("/api/v1/automations", { method: "POST", workspaceId: workspaceId ?? undefined, body: payload });
     },
     onSuccess: async () => {
+      localStorage.removeItem(blocksBackupKey);
       await queryClient.invalidateQueries({ queryKey: ["automations", workspaceId] });
       toast.success(mode === "edit" ? "Automation updated" : "Automation created");
       await onSaved();
@@ -485,171 +466,295 @@ function AutomationBuilder({
   });
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
-      <section className="rounded-xl border border-border bg-card">
-        <div className="border-b border-border p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">{mode === "edit" ? "Edit automation" : "Create automation"}</h2>
-              <p className="text-sm text-muted-foreground">One workflow. Multiple trigger replies.</p>
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={onClose}>
-              Back to automations
-            </Button>
-          </div>
-          <ShadcnStepper steps={steps} currentStep={step} onStepChange={setStep} />
-        </div>
+    <DashboardLayout
+      title={mode === "edit" ? "Edit Automation" : "Create Automation"}
+      headerActions={
+        <Button
+          variant="accent"
+          size="sm"
+          disabled={mutation.isPending || (postMode === "specific" && step === 2 && !selectedPostId)}
+          onClick={() => mutation.mutate(status)}
+        >
+          {mutation.isPending ? "Saving..." : "Save Changes"}
+        </Button>
+      }
+    >
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
+        {/* ── LEFT COLUMN ── */}
+        <div className="space-y-5">
+          {/* Stepper */}
+          <BuilderStepper steps={steps} currentStep={step} maxReachableStep={step} onStepChange={setStep} />
 
-        <div className="p-4">
+          {/* ── STEP 0: Name & Triggers ── */}
           {step === 0 && (
-            <div className="space-y-6">
-              <Section title="Name">
-                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px]">
-                  <div className="space-y-2">
-                    <Label>Workflow name</Label>
-                    <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-input border-border" />
+            <div className="space-y-4">
+              {/* Workflow Name card */}
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Workflow Name
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Status:</span>
+                    <span className={cn("text-xs font-medium", status === "ACTIVE" ? "text-green-500" : "text-muted-foreground")}>
+                      {status === "ACTIVE" ? "Active" : status === "PAUSED" ? "Paused" : "Draft"}
+                    </span>
+                    <Switch
+                      checked={status === "ACTIVE"}
+                      onCheckedChange={(v) => setStatus(v ? "ACTIVE" : "PAUSED")}
+                    />
                   </div>
-                  <div className="flex items-center justify-between rounded-xl border border-border bg-background p-3">
-                    <Label>Status</Label>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className={status === "ACTIVE" ? "text-success" : "text-muted-foreground"}>
-                        {status === "ACTIVE" ? "Active" : status === "PAUSED" ? "Paused" : "Draft"}
-                      </span>
-                      <Switch
-                        checked={status === "ACTIVE"}
-                        onCheckedChange={(checked) => setStatus(checked ? "ACTIVE" : "PAUSED")}
-                      />
+                </div>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="bg-background border-border"
+                />
+              </div>
+
+              {/* Triggers section */}
+              <div>
+                {/* Section header */}
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                    <Zap className="h-3.5 w-3.5 text-primary" />
+                  </span>
+                  <span className="text-sm font-semibold text-primary">Step 1: Name &amp; triggers</span>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4 ml-8">
+                  Configure your keyword triggers{" "}
+                  <span className="text-primary cursor-default">and</span>{" "}
+                  automated responses.
+                </p>
+
+                {/* Any comment toggle */}
+                {anyComment !== undefined && (
+                  <div className="ml-8 mb-4 flex items-center gap-2">
+                    <Switch checked={anyComment} onCheckedChange={setAnyCommentMode} />
+                    <span className="text-xs text-muted-foreground">Trigger on any comment</span>
+                  </div>
+                )}
+
+                {/* Trigger timeline */}
+                <div className="relative">
+                  <div
+                    className="absolute left-3 top-4 w-px bg-border"
+                    style={{ height: `calc(100% - 1.5rem)` }}
+                  />
+
+                  <div className="space-y-3">
+                    {triggerBlocks.map((block, index) => (
+                      <div key={block.id} className="relative pl-8">
+                        <div
+                          className={cn(
+                            "absolute left-1.5 top-3.5 h-3 w-3 rounded-full border-2 transition-colors",
+                            activeBlockId === block.id
+                              ? "border-primary bg-primary/20"
+                              : "border-border bg-card"
+                          )}
+                        />
+                        <TriggerAccordionRow
+                          block={block}
+                          index={index}
+                          isActive={activeBlockId === block.id}
+                          anyComment={anyComment}
+                          canRemove={triggerBlocks.length > 1}
+                          onToggle={() => setActiveBlockId(block.id)}
+                          onRemove={() => removeBlock(block.id)}
+                          onUpdate={(patch) => updateBlock(block.id, patch)}
+                        />
+                      </div>
+                    ))}
+
+                    {/* Add new trigger block */}
+                    <div className="relative pl-8">
+                      <div className="absolute left-1.5 top-3.5 h-3 w-3 rounded-full border-2 border-dashed border-primary/30 bg-card" />
+                      <button
+                        type="button"
+                        onClick={addBlock}
+                        disabled={anyComment}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-border py-3 text-sm text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add New Trigger Block
+                      </button>
                     </div>
                   </div>
                 </div>
-              </Section>
-
-              <Section title="Triggers">
-                <div className="flex items-center justify-between rounded-xl border border-border bg-background p-3">
-                  <div>
-                    <div className="text-sm font-medium">Any comment trigger</div>
-                  </div>
-                  <Switch checked={anyComment} onCheckedChange={setAnyCommentMode} />
-                </div>
-                <AutomationFlowCanvas
-                  blocks={triggerBlocks}
-                  activeBlockId={activeBlockId}
-                  anyComment={anyComment}
-                  onSelectBlock={setActiveBlockId}
-                  onAddBlock={addBlock}
-                  onRemoveBlock={removeBlock}
-                  onMoveBlock={moveBlock}
-                  onReorderBlock={reorderBlock}
-                  onUpdateBlock={updateBlock}
-                />
-              </Section>
+              </div>
             </div>
           )}
 
+          {/* ── STEP 1: Select reel/post ── */}
           {step === 1 && (
-            <Section title="Reel or post">
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 rounded-lg border border-border p-1">
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                    <ImagePlus className="h-3.5 w-3.5 text-primary" />
+                  </span>
+                  <span className="text-sm font-semibold text-primary">Step 2: Select reel/post</span>
+                </div>
+                <p className="text-xs text-muted-foreground ml-8">
+                  Choose the Instagram reel or post this automation applies to.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-1">
+                <div className="grid grid-cols-3 gap-1">
                   {(["specific", "any", "next"] as PostMode[]).map((modeOption) => (
                     <button
                       key={modeOption}
                       type="button"
                       onClick={() => setPostMode(modeOption)}
                       className={cn(
-                        "px-2 py-1.5 text-xs rounded-md text-center",
-                        postMode === modeOption ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                        "rounded-lg px-3 py-2 text-xs font-medium transition-colors text-center",
+                        postMode === modeOption
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:text-foreground"
                       )}
                     >
                       {modeOption === "specific" ? "Specific" : modeOption === "any" ? "Any" : "Next"}
                     </button>
                   ))}
                 </div>
-
-                {postMode === "specific" ? (
-                  <div className="rounded-xl border border-border bg-background p-3">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <div className="text-sm font-medium">Selected</div>
-                        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                          {selectedMedia?.caption || "No reel/post selected yet."}
-                        </p>
-                      </div>
-                      <Button type="button" variant="outline" size="sm" onClick={() => setIsMediaPickerOpen(true)}>
-                        <ImagePlus className="h-4 w-4" /> Choose reel/post
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-border bg-background p-3 text-sm text-muted-foreground">
-                    {postMode === "any" ? "Runs on any matching post/reel." : "Prepared for your next post/reel."}
-                  </div>
-                )}
               </div>
-            </Section>
+
+              {postMode === "specific" ? (
+                <div className="rounded-xl border border-border bg-card p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">Selected post</div>
+                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                        {selectedMedia?.caption || "No reel/post selected yet."}
+                      </p>
+                      {requiresPostSelection && (
+                        <p className="mt-2 text-xs text-destructive">
+                          Select a reel or post to continue to review.
+                        </p>
+                      )}
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setIsMediaPickerOpen(true)}>
+                      <ImagePlus className="h-4 w-4" /> Choose reel/post
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+                  {postMode === "any" ? "Runs on any matching post/reel." : "Prepared for your next post/reel."}
+                </div>
+              )}
+            </div>
           )}
 
+          {/* ── STEP 2: Review ── */}
           {step === 2 && (
-            <div className="space-y-6">
-              <Section title="Review">
-                <div className="grid gap-3 text-sm sm:grid-cols-2">
-                  <ReviewItem label="Status" value={status} />
-                  <ReviewItem label="Target" value={postMode === "specific" ? selectedMedia?.caption || selectedPostId || "Select a post" : postMode === "any" ? "Any post/reel" : "Next post/reel"} />
-                  <ReviewItem label="Trigger blocks" value={anyComment ? "Any comment/reply" : `${triggerBlocks.length} keyword flows`} />
-                  <ReviewItem label="Active trigger" value={anyComment ? "Any comment" : activeBlock?.keyword || "No keyword"} />
-                  <ReviewItem label="Auto reply" value={activeBlock?.autoReply ? "Enabled" : "Disabled"} />
-                  <ReviewItem label="DM button" value={activeBlock?.dmButtonUrl.trim() ? activeBlock.dmButtonLabel.trim() || "Open link" : "No button"} />
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                    <Zap className="h-3.5 w-3.5 text-primary" />
+                  </span>
+                  <span className="text-sm font-semibold text-primary">Step 3: Review</span>
                 </div>
-              </Section>
-              <Section title="Advanced">
-            <div className="p-3 rounded-xl border border-border bg-background space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Lock className="h-3.5 w-3.5" /> Follow Before DM
-                </div>
-                <Switch
-                  checked={activeBlock?.followBeforeDm ?? false}
-                  onCheckedChange={(checked) => activeBlock && updateBlock(activeBlock.id, { followBeforeDm: checked })}
+                <p className="text-xs text-muted-foreground ml-8">
+                  Confirm your workflow settings before saving.
+                </p>
+              </div>
+
+              <div className="grid gap-3 text-sm sm:grid-cols-2">
+                <ReviewItem label="Status" value={status} />
+                <ReviewItem
+                  label="Target"
+                  value={
+                    postMode === "specific"
+                      ? selectedMedia?.caption || selectedPostId || "Select a post"
+                      : postMode === "any"
+                        ? "Any post/reel"
+                        : "Next post/reel"
+                  }
+                />
+                <ReviewItem
+                  label="Trigger blocks"
+                  value={anyComment ? "Any comment/reply" : `${triggerBlocks.length} keyword flows`}
+                />
+                <ReviewItem
+                  label="Active trigger"
+                  value={anyComment ? "Any comment" : activeBlock?.keyword || "No keyword"}
+                />
+                <ReviewItem label="Auto reply" value={activeBlock?.autoReply ? "Enabled" : "Disabled"} />
+                <ReviewItem
+                  label="DM button"
+                  value={
+                    activeBlock?.dmButtonUrl.trim()
+                      ? activeBlock.dmButtonLabel.trim() || "Open link"
+                      : "No button"
+                  }
                 />
               </div>
-              <LockedRow text="DM Follow-up Sequences" />
-            </div>
-              </Section>
+
+              <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Lock className="h-3.5 w-3.5" /> Follow Before DM
+                  </div>
+                  <Switch
+                    checked={activeBlock?.followBeforeDm ?? false}
+                    onCheckedChange={(checked) =>
+                      activeBlock && updateBlock(activeBlock.id, { followBeforeDm: checked })
+                    }
+                  />
+                </div>
+                <LockedRow text="DM Follow-up Sequences" />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={mutation.isPending}
+                  onClick={() => mutation.mutate("DRAFT")}
+                >
+                  Save Draft
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={mutation.isPending || (postMode === "specific" && !selectedPostId)}
+                  onClick={() => mutation.mutate(status)}
+                >
+                  {mutation.isPending ? "Saving..." : mode === "edit" ? "Update Automation" : "Save & Activate"}
+                </Button>
+              </div>
             </div>
           )}
 
-        </div>
-
-        <div className="flex flex-col gap-2 border-t border-border p-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" type="button" disabled={step === 0} onClick={() => setStep((s) => Math.max(0, s - 1))}>
+          {/* Footer navigation */}
+          <div className="flex items-center justify-between pt-1">
+            <Button
+              variant="outline"
+              disabled={step === 0}
+              onClick={() => setStep((s) => Math.max(0, s - 1))}
+            >
               Previous
             </Button>
-            <Button size="sm" type="button" disabled={step === steps.length - 1} onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}>
+            <Button
+              disabled={step === steps.length - 1 || (step === 1 && requiresPostSelection)}
+              onClick={goToNextStep}
+            >
               Next
             </Button>
           </div>
-          <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" disabled={mutation.isPending} onClick={() => mutation.mutate("DRAFT")}>
-            Save Draft
-          </Button>
-          <Button
-            size="sm"
-            disabled={mutation.isPending || (postMode === "specific" && !selectedPostId)}
-            onClick={() => mutation.mutate(status)}
-          >
-            {mutation.isPending ? "Saving..." : mode === "edit" ? "Update Automation" : "Save & Activate"}
-          </Button>
-          </div>
         </div>
-      </section>
 
-      <AutomationLivePreview
-        username="yourbrand"
-        selectedMedia={selectedMedia}
-        postMode={postMode}
-        anyComment={anyComment}
-        activeBlock={activeBlock}
-      />
+        {/* ── RIGHT COLUMN: Live Preview ── */}
+        <AutomationLivePreview
+          username="yourbrand"
+          selectedMedia={selectedMedia}
+          postMode={postMode}
+          anyComment={anyComment}
+          activeBlock={activeBlock}
+        />
+      </div>
 
       <ReelPickerDialog
         open={isMediaPickerOpen}
@@ -661,346 +766,226 @@ function AutomationBuilder({
           setIsMediaPickerOpen(false);
         }}
       />
+    </DashboardLayout>
+  );
+}
+
+function BuilderStepper({
+  steps,
+  currentStep,
+  maxReachableStep,
+  onStepChange
+}: {
+  steps: string[];
+  currentStep: number;
+  maxReachableStep: number;
+  onStepChange: (step: number) => void;
+}) {
+  return (
+    <div className="flex items-start gap-1 sm:gap-2">
+      {steps.map((label, index) => {
+        const isActive = currentStep === index;
+        const isDone = index < currentStep;
+        const isLocked = index > maxReachableStep;
+        return (
+          <button
+            key={label}
+            type="button"
+            disabled={isLocked}
+            onClick={() => {
+              if (!isLocked) onStepChange(index);
+            }}
+            className={cn(
+              "flex items-start gap-2 rounded-xl px-3 py-2.5 text-left transition-colors",
+              isActive
+                ? "bg-primary text-primary-foreground"
+                : isLocked
+                  ? "cursor-not-allowed text-muted-foreground/50 opacity-60"
+                  : "text-muted-foreground hover:bg-muted/60"
+            )}
+          >
+            <span
+              className={cn(
+                "mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
+                isActive
+                  ? "bg-white/20 text-primary-foreground"
+                  : isDone
+                    ? "border border-green-500 text-green-500"
+                    : "border border-current"
+              )}
+            >
+              {index + 1}
+            </span>
+            <span className="text-xs font-medium leading-tight">{label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function KeywordPill({ keyword }: { keyword: string }) {
   return (
-    <div className="space-y-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
-      {children}
-    </div>
+    <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary font-mono">
+      {`KEYWORD "${keyword.toUpperCase()}"`}
+    </span>
+  );
+}
+
+function TriggerAccordionRow({
+  block,
+  index,
+  isActive,
+  anyComment,
+  canRemove,
+  onToggle,
+  onRemove,
+  onUpdate
+}: {
+  block: TriggerBlock;
+  index: number;
+  isActive: boolean;
+  anyComment: boolean;
+  canRemove: boolean;
+  onToggle: () => void;
+  onRemove: () => void;
+  onUpdate: (patch: Partial<TriggerBlock>) => void;
+}) {
+  const title = blockDisplayTitle(block, anyComment);
+  const keywordForPill = block.keyword.trim();
+
+  if (isActive) {
+    return (
+      <div className="rounded-xl border-2 border-primary/30 bg-card overflow-hidden">
+        {/* Row header (click to collapse) */}
+        <div
+          className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer select-none"
+          onClick={onToggle}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 text-xs text-muted-foreground">Trigger #{index + 1}</span>
+            <span className="truncate text-sm font-semibold">{title}</span>
+          </div>
+          <div
+            className="flex shrink-0 items-center gap-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {!anyComment && keywordForPill ? <KeywordPill keyword={keywordForPill} /> : null}
+            <span className="text-xs text-muted-foreground">Auto-reply</span>
+            <Switch
+              checked={block.autoReply}
+              onCheckedChange={(v) => onUpdate({ autoReply: v })}
+            />
+            <button
+              type="button"
+              disabled={!canRemove}
+              onClick={onRemove}
+              className="p-1 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30 disabled:pointer-events-none transition-colors"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Expanded body */}
+        <div className="px-3 pb-4 pt-1 space-y-4">
+          {/* Trigger Word */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Trigger Word</Label>
+            <Input
+              value={anyComment ? "ANY COMMENT" : block.keyword}
+              onChange={(e) => onUpdate({ keyword: e.target.value.toUpperCase() })}
+              disabled={anyComment}
+              placeholder="GUIDE"
+              className="bg-background border-border"
+            />
+            <p className="text-xs italic text-orange-500/90">
+              Triggers when someone comments this word on your post.
+            </p>
+          </div>
+
+          {/* Reply Message */}
+          {block.autoReply && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Reply Message</Label>
+                <span className="text-[11px] text-muted-foreground">{block.replyMessage.length}/140</span>
+              </div>
+              <Textarea
+                value={block.replyMessage}
+                onChange={(e) => onUpdate({ replyMessage: e.target.value.slice(0, 140) })}
+                rows={2}
+                className="resize-none bg-background border-border text-sm"
+              />
+            </div>
+          )}
+
+          {/* DM Message */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">DM Message</Label>
+              <span className="text-[11px] text-muted-foreground">{block.dmMessage.length}/900</span>
+            </div>
+            <Textarea
+              value={block.dmMessage}
+              onChange={(e) => onUpdate({ dmMessage: e.target.value.slice(0, 900) })}
+              rows={3}
+              className="resize-none bg-background border-border text-sm"
+            />
+          </div>
+
+          {/* Button Label + URL */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Button Label</Label>
+              <Input
+                value={block.dmButtonLabel}
+                onChange={(e) => onUpdate({ dmButtonLabel: e.target.value.slice(0, 20) })}
+                placeholder="Open Link"
+                className="bg-background border-border"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Button URL</Label>
+              <Input
+                value={block.dmButtonUrl}
+                onChange={(e) => onUpdate({ dmButtonUrl: e.target.value })}
+                placeholder="https://..."
+                className="bg-background border-border"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="w-full flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-left transition-colors hover:border-primary/40"
+    >
+      <span className="shrink-0 text-xs text-muted-foreground">Trigger #{index + 1}</span>
+      <span className="min-w-0 truncate text-sm font-semibold">{title}</span>
+      <span className="ml-auto flex shrink-0 items-center gap-2">
+        {!anyComment && keywordForPill ? <KeywordPill keyword={keywordForPill} /> : null}
+        <span className="text-xs text-muted-foreground">Active</span>
+        <div className="pointer-events-none">
+          <Switch checked={block.autoReply} />
+        </div>
+        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+      </span>
+    </button>
   );
 }
 
 function ReviewItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-background p-3">
+    <div className="rounded-lg border border-border bg-card p-3">
       <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 text-sm text-foreground">{value}</div>
     </div>
-  );
-}
-
-function ShadcnStepper({
-  steps,
-  currentStep,
-  onStepChange
-}: {
-  steps: string[];
-  currentStep: number;
-  onStepChange: (step: number) => void;
-}) {
-  return (
-    <div className="mt-4 grid gap-3 sm:grid-cols-3 sm:gap-4">
-      {steps.map((label, index) => (
-        <button
-          key={label}
-          type="button"
-          onClick={() => onStepChange(index)}
-          className={cn(
-            "relative flex items-center gap-3 rounded-xl border bg-background px-3 py-2.5 text-left transition-colors",
-            index < steps.length - 1 &&
-              "after:absolute after:left-6 after:top-full after:h-3 after:border-l after:border-dotted after:border-border sm:after:left-full sm:after:top-1/2 sm:after:h-0 sm:after:w-4 sm:after:-translate-y-1/2 sm:after:border-l-0 sm:after:border-t",
-            currentStep === index
-              ? "border-primary ring-2 ring-primary/20"
-              : index < currentStep
-                ? "border-success/50"
-                : "border-border hover:border-primary/50"
-          )}
-        >
-          <span
-            className={cn(
-              "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
-              currentStep === index
-                ? "border-primary bg-primary text-primary-foreground"
-                : index < currentStep
-                  ? "border-success bg-success/15 text-success"
-                  : "border-border text-muted-foreground"
-            )}
-          >
-            {index + 1}
-          </span>
-          <span>
-            <span className="block text-[11px] font-medium text-muted-foreground">Step {index + 1}</span>
-            <span className="block text-sm font-semibold">{label}</span>
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function AutomationFlowCanvas({
-  blocks,
-  activeBlockId,
-  anyComment,
-  onSelectBlock,
-  onAddBlock,
-  onRemoveBlock,
-  onMoveBlock,
-  onReorderBlock,
-  onUpdateBlock
-}: {
-  blocks: TriggerBlock[];
-  activeBlockId: string;
-  anyComment: boolean;
-  onSelectBlock: (blockId: string) => void;
-  onAddBlock: () => void;
-  onRemoveBlock: (blockId: string) => void;
-  onMoveBlock: (blockId: string, direction: -1 | 1) => void;
-  onReorderBlock: (draggedBlockId: string, targetBlockId: string) => void;
-  onUpdateBlock: (blockId: string, patch: Partial<TriggerBlock>) => void;
-}) {
-  const activeBlock = blocks.find((block) => block.id === activeBlockId) ?? blocks[0];
-  const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null);
-
-  return (
-    <div className="rounded-2xl border border-border bg-muted/20 p-3">
-      <div className="mb-3 hidden flex-wrap items-center gap-3 md:flex">
-        <FlowNode icon={MousePointer} title="Trigger" subtitle={anyComment ? "Any comment" : "Keyword"} />
-        <ArrowRight className="hidden h-4 w-4 text-muted-foreground sm:block" />
-        <div className="flex flex-wrap gap-2">
-          {blocks.map((block, index) => (
-            <TriggerBlockCard
-              key={block.id}
-              block={block}
-              index={index}
-              anyComment={anyComment}
-              isActive={activeBlockId === block.id}
-              isDragging={draggingBlockId === block.id}
-              onSelectBlock={onSelectBlock}
-              onMoveBlock={onMoveBlock}
-              onReorderBlock={onReorderBlock}
-              draggingBlockId={draggingBlockId}
-              setDraggingBlockId={setDraggingBlockId}
-            />
-          ))}
-        </div>
-        <ArrowRight className="hidden h-4 w-4 text-muted-foreground sm:block" />
-        <FlowNode icon={MessageCircle} title="Response" subtitle="Reply + DM" />
-      </div>
-
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1 md:hidden">
-        {blocks.map((block, index) => (
-          <TriggerBlockCard
-            key={block.id}
-            block={block}
-            index={index}
-            anyComment={anyComment}
-            isActive={activeBlockId === block.id}
-            isDragging={draggingBlockId === block.id}
-            onSelectBlock={onSelectBlock}
-            onMoveBlock={onMoveBlock}
-            onReorderBlock={onReorderBlock}
-            draggingBlockId={draggingBlockId}
-            setDraggingBlockId={setDraggingBlockId}
-            compact
-          />
-        ))}
-      </div>
-
-      {activeBlock ? (
-        <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 className="text-sm font-semibold">Selected trigger</h3>
-            </div>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" disabled={anyComment} onClick={onAddBlock}>
-                <Plus className="h-4 w-4" /> Add
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={blocks.length === 1}
-                onClick={() => onRemoveBlock(activeBlock.id)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Trigger word</Label>
-              <Input
-                value={anyComment ? "ANY COMMENT" : activeBlock.keyword}
-                onChange={(e) => onUpdateBlock(activeBlock.id, { keyword: e.target.value.toUpperCase() })}
-                disabled={anyComment}
-                placeholder="GUIDE"
-                className="bg-input border-border"
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-xl border border-border bg-background p-3">
-              <div>
-                <Label>Auto-reply</Label>
-              </div>
-              <Switch
-                checked={activeBlock.autoReply}
-                onCheckedChange={(checked) => onUpdateBlock(activeBlock.id, { autoReply: checked })}
-              />
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-4">
-            {activeBlock.autoReply ? (
-              <div className="space-y-2">
-                <Label>Reply message</Label>
-                <Textarea
-                  value={activeBlock.replyMessage}
-                  onChange={(e) => onUpdateBlock(activeBlock.id, { replyMessage: e.target.value.slice(0, 140) })}
-                  maxLength={140}
-                  rows={2}
-                  className="bg-input border-border resize-none"
-                />
-                <div className="text-right text-[11px] text-muted-foreground">{activeBlock.replyMessage.length}/140</div>
-              </div>
-            ) : null}
-
-            <div className="space-y-2">
-              <Label>DM message</Label>
-              <Textarea
-                value={activeBlock.dmMessage}
-                onChange={(e) => onUpdateBlock(activeBlock.id, { dmMessage: e.target.value.slice(0, 900) })}
-                rows={4}
-                className="bg-input border-border resize-none"
-              />
-              <div className="text-right text-[11px] text-muted-foreground">{activeBlock.dmMessage.length}/900</div>
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Button label</Label>
-                <Input
-                  value={activeBlock.dmButtonLabel}
-                  onChange={(e) => onUpdateBlock(activeBlock.id, { dmButtonLabel: e.target.value.slice(0, 20) })}
-                  placeholder="Open Link"
-                  className="bg-input border-border"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Button URL</Label>
-                <Input
-                  value={activeBlock.dmButtonUrl}
-                  onChange={(e) => onUpdateBlock(activeBlock.id, { dmButtonUrl: e.target.value })}
-                  placeholder="https://..."
-                  className="bg-input border-border"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function FlowNode({ icon: Icon, title, subtitle }: { icon: typeof MousePointer; title: string; subtitle: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      <div className="flex items-center gap-2">
-        <div className="rounded-lg bg-primary/10 p-2 text-primary">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold">{title}</div>
-          <div className="text-xs text-muted-foreground">{subtitle}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TriggerBlockCard({
-  block,
-  index,
-  anyComment,
-  isActive,
-  isDragging,
-  compact = false,
-  draggingBlockId,
-  setDraggingBlockId,
-  onSelectBlock,
-  onMoveBlock,
-  onReorderBlock
-}: {
-  block: TriggerBlock;
-  index: number;
-  anyComment: boolean;
-  isActive: boolean;
-  isDragging: boolean;
-  compact?: boolean;
-  draggingBlockId: string | null;
-  setDraggingBlockId: (blockId: string | null) => void;
-  onSelectBlock: (blockId: string) => void;
-  onMoveBlock: (blockId: string, direction: -1 | 1) => void;
-  onReorderBlock: (draggedBlockId: string, targetBlockId: string) => void;
-}) {
-  return (
-    <button
-      type="button"
-      draggable={!anyComment}
-      onDragStart={() => setDraggingBlockId(block.id)}
-      onDragEnd={() => setDraggingBlockId(null)}
-      onDragOver={(event) => {
-        if (!anyComment) {
-          event.preventDefault();
-        }
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        if (draggingBlockId && draggingBlockId !== block.id) {
-          onReorderBlock(draggingBlockId, block.id);
-        }
-        setDraggingBlockId(null);
-      }}
-      onClick={() => onSelectBlock(block.id)}
-      className={cn(
-        "group shrink-0 rounded-xl border bg-card text-left transition-all",
-        compact ? "w-36 p-2.5" : "min-w-[160px] p-3",
-        isActive ? "border-primary shadow-md shadow-primary/10" : "border-border hover:border-primary/50",
-        isDragging && "opacity-50"
-      )}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-          <GripVertical className="h-3.5 w-3.5" /> #{index + 1}
-        </div>
-        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(event) => {
-              event.stopPropagation();
-              onMoveBlock(block.id, -1);
-            }}
-            className="rounded p-0.5 hover:bg-muted"
-          >
-            <ChevronUp className="h-3 w-3" />
-          </span>
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(event) => {
-              event.stopPropagation();
-              onMoveBlock(block.id, 1);
-            }}
-            className="rounded p-0.5 hover:bg-muted"
-          >
-            <ChevronDown className="h-3 w-3" />
-          </span>
-        </div>
-      </div>
-      <div className="mt-1.5 truncate text-sm font-semibold">
-        {anyComment ? "Any comment" : block.keyword || "New word"}
-      </div>
-      {!compact ? (
-        <div className="mt-1 line-clamp-1 text-xs text-muted-foreground">{block.dmMessage || "Auto DM message"}</div>
-      ) : null}
-    </button>
   );
 }
 
@@ -1037,7 +1022,11 @@ function ReelPickerDialog({
             >
               <div className="relative aspect-square bg-muted">
                 {item.thumbnailUrl ? (
-                  <img src={item.thumbnailUrl} alt={item.caption || "Instagram media"} className="absolute inset-0 h-full w-full object-cover" />
+                  <img
+                    src={item.thumbnailUrl}
+                    alt={item.caption || "Instagram media"}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
                 ) : null}
                 <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-medium uppercase text-white">
                   {item.mediaType}
@@ -1068,73 +1057,111 @@ function AutomationLivePreview({
   anyComment: boolean;
   activeBlock?: TriggerBlock;
 }) {
-  const triggerLabel = anyComment ? "Any comment/reply" : activeBlock?.keyword || "Trigger word";
-  const reply = activeBlock?.replyMessage.trim() || "Sent! Check your DMs";
-  const dmMessage = activeBlock?.dmMessage ?? "";
-  const dmButtonLabel = activeBlock?.dmButtonLabel ?? "";
+  const triggerLabel = anyComment ? "Any comment/reply" : (activeBlock?.keyword || "GUIDE");
+  const reply = activeBlock?.replyMessage.trim() || "Sent: Check your DMs ❤️";
+  const dmMessage = activeBlock?.dmMessage?.trim() || "Hi there! Here's your link 👇";
+  const dmButtonLabel = activeBlock?.dmButtonLabel || "Open Link";
   const dmButtonUrl = activeBlock?.dmButtonUrl ?? "";
+  const showDmButton = Boolean(dmButtonUrl.trim()) || !activeBlock;
+
+  void postMode;
+
   return (
     <aside className="space-y-3 xl:sticky xl:top-4">
-      <section className="hidden rounded-xl border border-border bg-card p-3 shadow-lg sm:block">
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold">Instagram preview</h3>
-            <p className="text-xs text-muted-foreground">
-              {postMode === "specific" ? "Specific media" : postMode === "next" ? "Next post/reel" : "Any post/reel"}
-            </p>
-          </div>
-          <span className="rounded-full bg-muted px-2 py-1 text-[10px] font-semibold uppercase text-muted-foreground">
-            Live
-          </span>
-        </div>
-        <div className="overflow-hidden rounded-xl border border-border bg-background">
-          <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af]" />
+      {/* Header */}
+      <div className="flex items-center gap-1.5 pb-0.5">
+        <Eye className="h-4 w-4 text-primary" />
+        <span className="text-sm font-semibold text-primary">Live Preview</span>
+      </div>
+
+      {/* Instagram Post Card */}
+      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+        {/* Profile row */}
+        <div className="flex items-center justify-between px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] shrink-0" />
             <span className="text-sm font-semibold">{username}</span>
           </div>
-          <div className="relative aspect-[4/3] bg-muted xl:aspect-square">
-            {selectedMedia?.thumbnailUrl ? (
-              <img src={selectedMedia.thumbnailUrl} alt={selectedMedia.caption || "Instagram media"} className="absolute inset-0 h-full w-full object-cover" />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted-foreground">
-                Select a reel/post to preview the trigger source.
-              </div>
-            )}
-            <div className="absolute left-3 top-3 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold uppercase text-white">
-              {selectedMedia?.mediaType ?? "Preview"}
-            </div>
-          </div>
-          <div className="space-y-2 p-3 text-sm">
-            <div className="font-semibold">0 likes</div>
-            <p>
-              <span className="font-semibold">{username}</span>{" "}
-              <span className="text-muted-foreground">{selectedMedia?.caption || "Your post caption appears here."}</span>
-            </p>
-            <div className="rounded-lg bg-muted p-2 text-xs">
-              Trigger: <span className="font-medium text-foreground">{triggerLabel}</span>
-            </div>
-          </div>
+          <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
         </div>
-      </section>
 
-      <section className="rounded-xl border border-border bg-card p-3 shadow-lg">
-        <h3 className="text-sm font-semibold">DM preview</h3>
-        <div className="mt-3 rounded-2xl border border-border bg-background p-3">
-          {activeBlock?.autoReply ? (
-            <div className="mb-3 max-w-[85%] rounded-2xl rounded-tl-sm bg-muted p-3 text-sm">
-              {reply}
+        {/* Media */}
+        <div className="relative aspect-square bg-muted">
+          {selectedMedia?.thumbnailUrl ? (
+            <img
+              src={selectedMedia.thumbnailUrl}
+              alt={selectedMedia.caption || ""}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-center text-xs text-muted-foreground px-6">
+              Select a reel/post to preview
             </div>
-          ) : null}
-          <div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-sm bg-primary p-3 text-sm text-primary-foreground">
-            <p className="whitespace-pre-wrap">{dmMessage.trim() || "Your DM message preview..."}</p>
-            {dmButtonUrl.trim() ? (
-              <div className="mt-2 rounded-full bg-background px-3 py-1.5 text-center text-xs font-semibold text-primary">
-                {dmButtonLabel.trim() || "Open link"}
-              </div>
-            ) : null}
+          )}
+        </div>
+
+        {/* Action icons */}
+        <div className="flex items-center gap-4 px-3 py-2.5">
+          <Heart className="h-5 w-5" />
+          <MessageCircle className="h-5 w-5" />
+          <Send className="h-5 w-5" />
+        </div>
+
+        {/* Comment preview */}
+        <div className="px-3 pb-3 space-y-0.5 text-sm">
+          <p>
+            <span className="font-semibold">user_name</span>{" "}
+            <span>{triggerLabel}</span>
+          </p>
+          <p>
+            <span className="font-semibold">{username}</span>{" "}
+            <span className="text-muted-foreground">{reply}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* DM Conversation Card */}
+      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+        {/* DM header */}
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+          <ArrowLeft className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] shrink-0" />
+          <div>
+            <p className="text-sm font-semibold leading-none">{username}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Active now</p>
           </div>
         </div>
-      </section>
+
+        {/* Messages */}
+        <div className="space-y-2 p-3">
+          {/* User's trigger word */}
+          <div className="flex justify-end">
+            <div className="max-w-[70%] rounded-2xl rounded-tr-sm bg-muted px-3 py-1.5 text-sm">
+              {triggerLabel}
+            </div>
+          </div>
+
+          {/* Brand's automated DM */}
+          <div className="max-w-[88%]">
+            <div className="rounded-2xl rounded-tl-sm bg-primary p-3 text-primary-foreground">
+              <p className="text-sm whitespace-pre-wrap">{dmMessage}</p>
+              {showDmButton && (
+                <div className="mt-2 rounded-full bg-background px-3 py-1.5 text-center text-xs font-semibold text-primary">
+                  {dmButtonLabel}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Message input */}
+        <div className="border-t border-border p-2.5">
+          <div className="flex items-center gap-2 rounded-full border border-border px-3 py-2">
+            <span className="flex-1 text-sm text-muted-foreground">Message...</span>
+            <Send className="h-3.5 w-3.5 text-muted-foreground" />
+          </div>
+        </div>
+      </div>
     </aside>
   );
 }

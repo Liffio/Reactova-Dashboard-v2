@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { ArrowLeft, ChevronDown, Eye, Heart, ImagePlus, Lock, MessageCircle, MoreHorizontal, Plus, Edit, Send, Trash2, Zap } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, ChevronDown, ChevronUp, Eye, Heart, ImagePlus, Lock, MessageCircle, MoreHorizontal, Plus, Edit, Send, Trash2, Zap } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { useCan } from "@/hooks/useCan";
+import { useBillingConfigQuery } from "@/hooks/useBilling";
 import { useAppSelector } from "@/store/hooks";
 import { apiRequest } from "@/lib/api";
 import { toast } from "@/components/ui/sonner";
@@ -32,12 +34,21 @@ type Automation = {
   replyMessages: string[];
   triggerBlocks?: TriggerBlock[];
   followBeforeDm: boolean;
+  followUps?: FollowUpStep[];
   status: AutomationStatus;
   createdAt: string;
   _count: { dmJobs: number };
 };
 
+type FollowUpStep = {
+  id?: string;
+  delayMinutes: number;
+  message: string;
+  order: number;
+};
+
 type WizardData = {
+  workspace?: { plan: string };
   media: Array<{
     id: string;
     caption: string;
@@ -94,6 +105,80 @@ const normalizeClientButtonUrl = (value: string): string => {
 };
 const keywordBlocksStorageKey = (workspaceId: string | null, automationId: string | null) =>
   `reactova_automation_keyword_blocks_${workspaceId ?? "none"}_${automationId ?? "create"}`;
+
+const builderDraftStorageKey = (workspaceId: string | null, automationId: string | null) =>
+  `reactova_automation_builder_draft_${workspaceId ?? "none"}_${automationId ?? "create"}`;
+
+type AutomationBuilderDraft = {
+  name: string;
+  status: AutomationStatus;
+  anyComment: boolean;
+  postMode: PostMode;
+  selectedPostId: string | null;
+  step: number;
+  maxCompletedStep: number;
+  triggerBlocks: TriggerBlock[];
+  expandedBlockIds: string[];
+  previewBlockId: string;
+  followUps?: FollowUpStep[];
+};
+
+const FREE_TIER_FOLLOW_UP_PREVIEW = `Hey there 👋 Just sharing this in case you want to use the same tools I do.
+
+SuperProfile is my all-in-one platform for Instagram Automations and selling my digital products. Tap on the button below to check it out!`;
+
+const defaultFollowUpStep = (order: number): FollowUpStep => ({
+  delayMinutes: 60,
+  message: "Thanks again for commenting! Here's a quick reminder 👇",
+  order
+});
+
+const readBuilderDraft = (key: string): AutomationBuilderDraft | null => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as AutomationBuilderDraft;
+    if (!parsed || !Array.isArray(parsed.triggerBlocks) || parsed.triggerBlocks.length === 0) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const writeBuilderDraft = (key: string, draft: AutomationBuilderDraft) => {
+  localStorage.setItem(key, JSON.stringify(draft));
+};
+
+const clearBuilderDraft = (key: string) => {
+  localStorage.removeItem(key);
+};
+
+const resolvePostMode = (initial: Automation | null): PostMode => {
+  if (!initial) return "specific";
+  return initial.postId ? "specific" : "any";
+};
+
+const buildInitialTriggerBlocks = (initial: Automation | null): TriggerBlock[] => {
+  if (!initial) return [createTriggerBlock()];
+  if (initial.triggerBlocks?.length) {
+    return initial.triggerBlocks.map((block, index) =>
+      createTriggerBlock({ ...block, id: block.id || `initial-${index}` })
+    );
+  }
+  const keywords = initial.anyComment ? [""] : initial.keywords.length ? initial.keywords : defaultForm.keywords;
+  return keywords.map((keyword, index) =>
+    createTriggerBlock({
+      id: `initial-${index}`,
+      keyword,
+      autoReply: initial.autoReply,
+      replyMessage: initial.replyMessages[index] ?? initial.replyMessages[0] ?? defaultForm.replyMessages[0],
+      dmMessage: initial.dmMessage,
+      dmButtonLabel: initial.dmButtonLabel ?? "",
+      dmButtonUrl: initial.dmButtonUrl ?? "",
+      followBeforeDm: initial.followBeforeDm
+    })
+  );
+};
 
 const readKeywordBlocksBackup = (key: string): TriggerBlock[] | null => {
   try {
@@ -317,40 +402,60 @@ function AutomationBuilder({
   wizardData?: WizardData;
   workspaceId: string | null;
 }) {
-  const [name, setName] = useState(initial?.name ?? defaultForm.name);
-  const [status, setStatus] = useState<AutomationStatus>(initial?.status ?? defaultForm.status);
-  const [anyComment, setAnyComment] = useState(initial?.anyComment ?? defaultForm.anyComment);
-  const [postMode, setPostMode] = useState<PostMode>("specific");
-  const [selectedPostId, setSelectedPostId] = useState<string | null>(initial?.postId ?? null);
-  const [step, setStep] = useState(0);
+  const draftKey = builderDraftStorageKey(workspaceId, initial?.id ?? null);
+  const savedDraft = useMemo(() => readBuilderDraft(draftKey), [draftKey]);
+  const initialTriggerBlocks = useMemo(() => buildInitialTriggerBlocks(initial), [initial]);
+  const defaultBlocks = savedDraft?.triggerBlocks ?? initialTriggerBlocks;
+
+  const [name, setName] = useState(savedDraft?.name ?? initial?.name ?? defaultForm.name);
+  const [status, setStatus] = useState<AutomationStatus>(savedDraft?.status ?? initial?.status ?? defaultForm.status);
+  const [anyComment, setAnyComment] = useState(savedDraft?.anyComment ?? initial?.anyComment ?? defaultForm.anyComment);
+  const [postMode, setPostMode] = useState<PostMode>(savedDraft?.postMode ?? resolvePostMode(initial));
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(
+    savedDraft?.selectedPostId ?? initial?.postId ?? null
+  );
+  const [step, setStep] = useState(savedDraft?.step ?? 0);
+  const [maxCompletedStep, setMaxCompletedStep] = useState(savedDraft?.maxCompletedStep ?? savedDraft?.step ?? 0);
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
-  const [triggerBlocks, setTriggerBlocks] = useState<TriggerBlock[]>(() => {
-    if (!initial) return [createTriggerBlock()];
-    if (initial.triggerBlocks?.length) {
-      return initial.triggerBlocks.map((block, index) =>
-        createTriggerBlock({ ...block, id: block.id || `initial-${index}` })
-      );
-    }
-    const keywords = initial.anyComment ? [""] : initial.keywords.length ? initial.keywords : defaultForm.keywords;
-    return keywords.map((keyword, index) =>
-      createTriggerBlock({
-        id: `initial-${index}`,
-        keyword,
-        autoReply: initial.autoReply,
-        replyMessage: initial.replyMessages[index] ?? initial.replyMessages[0] ?? defaultForm.replyMessages[0],
-        dmMessage: initial.dmMessage,
-        dmButtonLabel: initial.dmButtonLabel ?? "",
-        dmButtonUrl: initial.dmButtonUrl ?? "",
-        followBeforeDm: initial.followBeforeDm
-      })
-    );
-  });
-  const [activeBlockId, setActiveBlockId] = useState(() => triggerBlocks[0]?.id ?? "initial-0");
+  const [triggerBlocks, setTriggerBlocks] = useState<TriggerBlock[]>(defaultBlocks);
+  const [expandedBlockIds, setExpandedBlockIds] = useState<Set<string>>(
+    () => new Set(savedDraft?.expandedBlockIds?.length ? savedDraft.expandedBlockIds : defaultBlocks[0]?.id ? [defaultBlocks[0].id] : [])
+  );
+  const [previewBlockId, setPreviewBlockId] = useState(
+    () => savedDraft?.previewBlockId ?? defaultBlocks[0]?.id ?? "initial-0"
+  );
   const queryClient = useQueryClient();
+  const billingConfigQuery = useBillingConfigQuery();
+  const workspacePlan = wizardData?.workspace?.plan ?? "FREE";
+  const dmFollowUpLimit = useMemo(() => {
+    const planConfig = billingConfigQuery.data?.plans.find((p) => p.plan === workspacePlan);
+    return planConfig?.limits.dmFollowUps ?? 0;
+  }, [billingConfigQuery.data?.plans, workspacePlan]);
+  const canCustomizeFollowUps = dmFollowUpLimit > 0;
+  const initialFollowUps = useMemo(
+    () =>
+      (initial?.followUps?.length ? initial.followUps : savedDraft?.followUps)?.map((step, index) => ({
+        delayMinutes: step.delayMinutes,
+        message: step.message,
+        order: step.order ?? index
+      })) ?? [],
+    [initial?.followUps, savedDraft?.followUps]
+  );
+  const [followUps, setFollowUps] = useState<FollowUpStep[]>(initialFollowUps);
 
   const steps = ["Name & triggers", "Select reel/post", "Review"];
   const selectedMedia = wizardData?.media.find((item) => item.id === selectedPostId) ?? null;
-  const activeBlock = triggerBlocks.find((block) => block.id === activeBlockId) ?? triggerBlocks[0];
+  const previewBlock = triggerBlocks.find((block) => block.id === previewBlockId) ?? triggerBlocks[0];
+
+  const toggleBlockExpanded = (blockId: string) => {
+    setExpandedBlockIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(blockId)) next.delete(blockId);
+      else next.add(blockId);
+      return next;
+    });
+    setPreviewBlockId(blockId);
+  };
   const requiresPostSelection = postMode === "specific" && !selectedPostId;
 
   const goToNextStep = () => {
@@ -358,8 +463,44 @@ function AutomationBuilder({
       toast.error("Choose a reel/post or switch the target to any post/reel.");
       return;
     }
-    setStep((s) => Math.min(steps.length - 1, s + 1));
+    const nextStep = Math.min(steps.length - 1, step + 1);
+    setStep(nextStep);
+    setMaxCompletedStep((prev) => Math.max(prev, nextStep));
   };
+
+  const goToStep = (targetStep: number) => {
+    if (targetStep > maxCompletedStep) return;
+    setStep(targetStep);
+  };
+
+  useEffect(() => {
+    writeBuilderDraft(draftKey, {
+      name,
+      status,
+      anyComment,
+      postMode,
+      selectedPostId,
+      step,
+      maxCompletedStep,
+      triggerBlocks,
+      expandedBlockIds: [...expandedBlockIds],
+      previewBlockId,
+      followUps
+    });
+  }, [
+    draftKey,
+    name,
+    status,
+    anyComment,
+    postMode,
+    selectedPostId,
+    step,
+    maxCompletedStep,
+    triggerBlocks,
+    expandedBlockIds,
+    previewBlockId,
+    followUps
+  ]);
 
   const updateBlock = (blockId: string, patch: Partial<TriggerBlock>) => {
     setTriggerBlocks((blocks) => blocks.map((block) => (block.id === blockId ? { ...block, ...patch } : block)));
@@ -372,14 +513,21 @@ function AutomationBuilder({
     }
     const next = createTriggerBlock({ keyword: "" });
     setTriggerBlocks((blocks) => [...blocks, next]);
-    setActiveBlockId(next.id);
+    setExpandedBlockIds((prev) => new Set([...prev, next.id]));
+    setPreviewBlockId(next.id);
   };
 
   const removeBlock = (blockId: string) => {
     setTriggerBlocks((blocks) => {
       if (blocks.length === 1) return blocks;
       const next = blocks.filter((block) => block.id !== blockId);
-      if (activeBlockId === blockId) setActiveBlockId(next[0].id);
+      setExpandedBlockIds((prev) => {
+        const ids = new Set(prev);
+        ids.delete(blockId);
+        if (ids.size === 0 && next[0]) ids.add(next[0].id);
+        return ids;
+      });
+      if (previewBlockId === blockId) setPreviewBlockId(next[0].id);
       return next;
     });
   };
@@ -391,7 +539,8 @@ function AutomationBuilder({
       setTriggerBlocks((blocks) => {
         localStorage.setItem(blocksBackupKey, JSON.stringify(blocks));
         const primary = blocks[0] ?? createTriggerBlock();
-        setActiveBlockId(primary.id);
+        setExpandedBlockIds(new Set([primary.id]));
+        setPreviewBlockId(primary.id);
         return [{ ...primary, keyword: "" }];
       });
       setAnyComment(true);
@@ -401,7 +550,8 @@ function AutomationBuilder({
     const restored = readKeywordBlocksBackup(blocksBackupKey);
     if (restored) {
       setTriggerBlocks(restored);
-      setActiveBlockId(restored[0].id);
+      setExpandedBlockIds(new Set(restored.map((block) => block.id)));
+      setPreviewBlockId(restored[0].id);
       localStorage.removeItem(blocksBackupKey);
     }
     setAnyComment(false);
@@ -437,6 +587,15 @@ function AutomationBuilder({
         followBeforeDm: block.followBeforeDm
       })),
       followBeforeDm: normalizedBlocks.some((block) => block.followBeforeDm),
+      followUps: canCustomizeFollowUps
+        ? followUps
+            .map((step, index) => ({
+              delayMinutes: Math.max(1, Math.floor(step.delayMinutes)),
+              message: step.message.trim(),
+              order: index
+            }))
+            .filter((step) => step.message.length > 0)
+        : undefined,
       status: targetStatus
     };
   };
@@ -450,6 +609,12 @@ function AutomationBuilder({
       const normalizedKeywords = triggerBlocks.map((block) => block.keyword.trim().toUpperCase()).filter(Boolean);
       if (!anyComment && new Set(normalizedKeywords).size !== normalizedKeywords.length) throw new Error("Trigger words must be unique inside one workflow.");
       if (triggerBlocks.some((block) => !block.dmMessage.trim())) throw new Error("Every trigger block needs an Auto DM message.");
+      if (canCustomizeFollowUps && followUps.some((step) => !step.message.trim())) {
+        throw new Error("Every follow-up message must have text, or remove empty steps.");
+      }
+      if (canCustomizeFollowUps && followUps.length > dmFollowUpLimit) {
+        throw new Error(`Your plan allows up to ${dmFollowUpLimit} follow-up message(s) per automation.`);
+      }
       const payload = buildPayload(targetStatus);
       if (mode === "edit" && initial) {
         return apiRequest(`/api/v1/automations/${initial.id}`, { method: "PATCH", workspaceId: workspaceId ?? undefined, body: payload });
@@ -458,6 +623,7 @@ function AutomationBuilder({
     },
     onSuccess: async () => {
       localStorage.removeItem(blocksBackupKey);
+      clearBuilderDraft(draftKey);
       await queryClient.invalidateQueries({ queryKey: ["automations", workspaceId] });
       toast.success(mode === "edit" ? "Automation updated" : "Automation created");
       await onSaved();
@@ -483,11 +649,10 @@ function AutomationBuilder({
         {/* ── LEFT COLUMN ── */}
         <div className="space-y-5">
           {/* Stepper */}
-          <BuilderStepper steps={steps} currentStep={step} maxReachableStep={step} onStepChange={setStep} />
+          <BuilderStepper steps={steps} currentStep={step} maxReachableStep={maxCompletedStep} onStepChange={goToStep} />
 
           {/* ── STEP 0: Name & Triggers ── */}
-          {step === 0 && (
-            <div className="space-y-4">
+          <div className={cn("space-y-4", step !== 0 && "hidden")}>
               {/* Workflow Name card */}
               <div className="rounded-xl border border-border bg-card p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -548,7 +713,7 @@ function AutomationBuilder({
                         <div
                           className={cn(
                             "absolute left-1.5 top-3.5 h-3 w-3 rounded-full border-2 transition-colors",
-                            activeBlockId === block.id
+                            expandedBlockIds.has(block.id)
                               ? "border-primary bg-primary/20"
                               : "border-border bg-card"
                           )}
@@ -556,10 +721,10 @@ function AutomationBuilder({
                         <TriggerAccordionRow
                           block={block}
                           index={index}
-                          isActive={activeBlockId === block.id}
+                          isExpanded={expandedBlockIds.has(block.id)}
                           anyComment={anyComment}
                           canRemove={triggerBlocks.length > 1}
-                          onToggle={() => setActiveBlockId(block.id)}
+                          onToggleExpand={() => toggleBlockExpanded(block.id)}
                           onRemove={() => removeBlock(block.id)}
                           onUpdate={(patch) => updateBlock(block.id, patch)}
                         />
@@ -582,12 +747,10 @@ function AutomationBuilder({
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+          </div>
 
           {/* ── STEP 1: Select reel/post ── */}
-          {step === 1 && (
-            <div className="space-y-4">
+          <div className={cn("space-y-4", step !== 1 && "hidden")}>
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
@@ -644,12 +807,10 @@ function AutomationBuilder({
                   {postMode === "any" ? "Runs on any matching post/reel." : "Prepared for your next post/reel."}
                 </div>
               )}
-            </div>
-          )}
+          </div>
 
           {/* ── STEP 2: Review ── */}
-          {step === 2 && (
-            <div className="space-y-4">
+          <div className={cn("space-y-4", step !== 2 && "hidden")}>
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
@@ -680,14 +841,14 @@ function AutomationBuilder({
                 />
                 <ReviewItem
                   label="Active trigger"
-                  value={anyComment ? "Any comment" : activeBlock?.keyword || "No keyword"}
+                  value={anyComment ? "Any comment" : previewBlock?.keyword || "No keyword"}
                 />
-                <ReviewItem label="Auto reply" value={activeBlock?.autoReply ? "Enabled" : "Disabled"} />
+                <ReviewItem label="Auto reply" value={previewBlock?.autoReply ? "Enabled" : "Disabled"} />
                 <ReviewItem
                   label="DM button"
                   value={
-                    activeBlock?.dmButtonUrl.trim()
-                      ? activeBlock.dmButtonLabel.trim() || "Open link"
+                    previewBlock?.dmButtonUrl.trim()
+                      ? previewBlock.dmButtonLabel.trim() || "Open link"
                       : "No button"
                   }
                 />
@@ -699,13 +860,18 @@ function AutomationBuilder({
                     <Lock className="h-3.5 w-3.5" /> Follow Before DM
                   </div>
                   <Switch
-                    checked={activeBlock?.followBeforeDm ?? false}
+                    checked={previewBlock?.followBeforeDm ?? false}
                     onCheckedChange={(checked) =>
-                      activeBlock && updateBlock(activeBlock.id, { followBeforeDm: checked })
+                      previewBlock && updateBlock(previewBlock.id, { followBeforeDm: checked })
                     }
                   />
                 </div>
-                <LockedRow text="DM Follow-up Sequences" />
+                <FollowUpSequencesSection
+                  canCustomize={canCustomizeFollowUps}
+                  followUpLimit={dmFollowUpLimit}
+                  followUps={followUps}
+                  onChange={setFollowUps}
+                />
               </div>
 
               <div className="flex gap-2 pt-1">
@@ -725,15 +891,14 @@ function AutomationBuilder({
                   {mutation.isPending ? "Saving..." : mode === "edit" ? "Update Automation" : "Save & Activate"}
                 </Button>
               </div>
-            </div>
-          )}
+          </div>
 
           {/* Footer navigation */}
           <div className="flex items-center justify-between pt-1">
             <Button
               variant="outline"
               disabled={step === 0}
-              onClick={() => setStep((s) => Math.max(0, s - 1))}
+              onClick={() => goToStep(step - 1)}
             >
               Previous
             </Button>
@@ -752,7 +917,7 @@ function AutomationBuilder({
           selectedMedia={selectedMedia}
           postMode={postMode}
           anyComment={anyComment}
-          activeBlock={activeBlock}
+          activeBlock={previewBlock}
         />
       </div>
 
@@ -824,9 +989,14 @@ function BuilderStepper({
   );
 }
 
-function KeywordPill({ keyword }: { keyword: string }) {
+function KeywordPill({ keyword, className }: { keyword: string; className?: string }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary font-mono">
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary font-mono",
+        className
+      )}
+    >
       {`KEYWORD "${keyword.toUpperCase()}"`}
     </span>
   );
@@ -835,61 +1005,66 @@ function KeywordPill({ keyword }: { keyword: string }) {
 function TriggerAccordionRow({
   block,
   index,
-  isActive,
+  isExpanded,
   anyComment,
   canRemove,
-  onToggle,
+  onToggleExpand,
   onRemove,
   onUpdate
 }: {
   block: TriggerBlock;
   index: number;
-  isActive: boolean;
+  isExpanded: boolean;
   anyComment: boolean;
   canRemove: boolean;
-  onToggle: () => void;
+  onToggleExpand: () => void;
   onRemove: () => void;
   onUpdate: (patch: Partial<TriggerBlock>) => void;
 }) {
   const title = blockDisplayTitle(block, anyComment);
   const keywordForPill = block.keyword.trim();
 
-  if (isActive) {
-    return (
-      <div className="rounded-xl border-2 border-primary/30 bg-card overflow-hidden">
-        {/* Row header (click to collapse) */}
-        <div
-          className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer select-none"
-          onClick={onToggle}
-        >
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 text-xs text-muted-foreground">Trigger #{index + 1}</span>
-            <span className="truncate text-sm font-semibold">{title}</span>
-          </div>
-          <div
-            className="flex shrink-0 items-center gap-2"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {!anyComment && keywordForPill ? <KeywordPill keyword={keywordForPill} /> : null}
-            <span className="text-xs text-muted-foreground">Auto-reply</span>
-            <Switch
-              checked={block.autoReply}
-              onCheckedChange={(v) => onUpdate({ autoReply: v })}
-            />
-            <button
-              type="button"
-              disabled={!canRemove}
-              onClick={onRemove}
-              className="p-1 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30 disabled:pointer-events-none transition-colors"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
+  return (
+    <div
+      className={cn(
+        "overflow-hidden rounded-xl border bg-card transition-colors",
+        isExpanded ? "border-2 border-primary/30" : "border-border hover:border-primary/30"
+      )}
+    >
+      <div className="flex flex-col gap-2.5 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="shrink-0 text-xs text-muted-foreground">Trigger #{index + 1}</span>
+          <span className="min-w-0 truncate text-sm font-semibold">{title}</span>
+          {!anyComment && keywordForPill ? <KeywordPill keyword={keywordForPill} className="hidden md:inline-flex" /> : null}
         </div>
 
-        {/* Expanded body */}
-        <div className="px-3 pb-4 pt-1 space-y-4">
-          {/* Trigger Word */}
+        <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
+          {!anyComment && keywordForPill ? <KeywordPill keyword={keywordForPill} className="md:hidden" /> : null}
+          <span className="whitespace-nowrap text-xs text-muted-foreground">Auto-reply</span>
+          <Switch checked={block.autoReply} onCheckedChange={(v) => onUpdate({ autoReply: v })} />
+          <button
+            type="button"
+            disabled={!canRemove}
+            onClick={onRemove}
+            aria-label={`Delete trigger ${index + 1}`}
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-30"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            aria-expanded={isExpanded}
+            aria-label={isExpanded ? "Collapse trigger" : "Expand trigger"}
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+
+      {isExpanded ? (
+        <div className="space-y-4 border-t border-border/60 px-3 pb-4 pt-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Trigger Word</Label>
             <Input
@@ -904,8 +1079,7 @@ function TriggerAccordionRow({
             </p>
           </div>
 
-          {/* Reply Message */}
-          {block.autoReply && (
+          {block.autoReply ? (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Reply Message</Label>
@@ -915,12 +1089,11 @@ function TriggerAccordionRow({
                 value={block.replyMessage}
                 onChange={(e) => onUpdate({ replyMessage: e.target.value.slice(0, 140) })}
                 rows={2}
-                className="resize-none bg-background border-border text-sm"
+                className="resize-none border-border bg-background text-sm"
               />
             </div>
-          )}
+          ) : null}
 
-          {/* DM Message */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label className="text-xs">DM Message</Label>
@@ -930,12 +1103,11 @@ function TriggerAccordionRow({
               value={block.dmMessage}
               onChange={(e) => onUpdate({ dmMessage: e.target.value.slice(0, 900) })}
               rows={3}
-              className="resize-none bg-background border-border text-sm"
+              className="resize-none border-border bg-background text-sm"
             />
           </div>
 
-          {/* Button Label + URL */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Button Label</Label>
               <Input
@@ -956,27 +1128,8 @@ function TriggerAccordionRow({
             </div>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="w-full flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-left transition-colors hover:border-primary/40"
-    >
-      <span className="shrink-0 text-xs text-muted-foreground">Trigger #{index + 1}</span>
-      <span className="min-w-0 truncate text-sm font-semibold">{title}</span>
-      <span className="ml-auto flex shrink-0 items-center gap-2">
-        {!anyComment && keywordForPill ? <KeywordPill keyword={keywordForPill} /> : null}
-        <span className="text-xs text-muted-foreground">Active</span>
-        <div className="pointer-events-none">
-          <Switch checked={block.autoReply} />
-        </div>
-        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-      </span>
-    </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -1166,13 +1319,125 @@ function AutomationLivePreview({
   );
 }
 
-function LockedRow({ text }: { text: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Lock className="h-3.5 w-3.5" /> {text}
+function FollowUpSequencesSection({
+  canCustomize,
+  followUpLimit,
+  followUps,
+  onChange
+}: {
+  canCustomize: boolean;
+  followUpLimit: number;
+  followUps: FollowUpStep[];
+  onChange: (steps: FollowUpStep[]) => void;
+}) {
+  if (!canCustomize) {
+    return (
+      <div className="space-y-2 pt-1 border-t border-border">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Lock className="h-3.5 w-3.5 shrink-0" />
+            DM Follow-up Sequences
+          </div>
+          <Link to="/settings?tab=Billing" className="text-xs text-primary hover:underline shrink-0">
+            Upgrade to Pro
+          </Link>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          On the Free plan, Reactova automatically sends a branded follow-up DM about 5 minutes after your primary DM.
+          Upgrade to customize follow-up messages and timing.
+        </p>
+        <div className="rounded-lg border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground whitespace-pre-line">
+          {FREE_TIER_FOLLOW_UP_PREVIEW}
+          <div className="mt-2 font-semibold text-primary">Get the tool now!</div>
+        </div>
       </div>
-      <button className="text-xs text-primary hover:underline">Upgrade to Pro</button>
+    );
+  }
+
+  const addStep = () => {
+    if (followUps.length >= followUpLimit) return;
+    onChange([...followUps, defaultFollowUpStep(followUps.length)]);
+  };
+
+  const updateStep = (index: number, patch: Partial<FollowUpStep>) => {
+    onChange(followUps.map((step, i) => (i === index ? { ...step, ...patch } : step)));
+  };
+
+  const removeStep = (index: number) => {
+    onChange(
+      followUps
+        .filter((_, i) => i !== index)
+        .map((step, i) => ({ ...step, order: i }))
+    );
+  };
+
+  return (
+    <div className="space-y-3 pt-1 border-t border-border">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium">DM Follow-up Sequences</p>
+          <p className="text-xs text-muted-foreground">
+            Sent after your primary DM when someone uses a trigger word in a comment.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={followUps.length >= followUpLimit}
+          onClick={addStep}
+        >
+          <Plus className="h-3.5 w-3.5 mr-1" />
+          Add
+        </Button>
+      </div>
+
+      {followUps.length === 0 ? (
+        <p className="text-xs text-muted-foreground rounded-lg border border-dashed border-border p-3">
+          No follow-ups yet. Add a message to re-engage commenters after a delay.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {followUps.map((step, index) => (
+            <div key={`follow-up-${index}`} className="rounded-lg border border-border bg-background p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-muted-foreground">Follow-up {index + 1}</span>
+                <button
+                  type="button"
+                  className="text-xs text-destructive hover:underline"
+                  onClick={() => removeStep(index)}
+                >
+                  Remove
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Label className="text-xs shrink-0">Send after</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  className="h-8 w-20 text-sm"
+                  value={step.delayMinutes}
+                  onChange={(e) =>
+                    updateStep(index, { delayMinutes: Math.max(1, Number(e.target.value) || 1) })
+                  }
+                />
+                <span className="text-xs text-muted-foreground">minutes from primary DM</span>
+              </div>
+              <Textarea
+                rows={3}
+                className="text-sm resize-y min-h-[72px]"
+                placeholder="Follow-up message..."
+                value={step.message}
+                onChange={(e) => updateStep(index, { message: e.target.value })}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground">
+        Up to {followUpLimit} follow-up{followUpLimit === 1 ? "" : "s"} on your plan.
+      </p>
     </div>
   );
 }

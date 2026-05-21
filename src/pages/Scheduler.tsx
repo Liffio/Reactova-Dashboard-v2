@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addMonths,
   eachDayOfInterval,
@@ -19,6 +19,8 @@ import {
   Loader2,
   MessageCircle,
   MoreHorizontal,
+  Pause,
+  Play,
   Images,
   RefreshCw,
   Send,
@@ -161,27 +163,114 @@ function InstagramPreviewAvatar({
   );
 }
 
+function SchedulerPreviewVideo({
+  src,
+  className,
+  autoplayWhenVisible = false,
+}: {
+  src: string;
+  className?: string;
+  autoplayWhenVisible?: boolean;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const userPausedRef = useRef(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    userPausedRef.current = false;
+    setIsPlaying(false);
+    videoRef.current?.pause();
+  }, [src]);
+
+  useEffect(() => {
+    if (!autoplayWhenVisible) {
+      return;
+    }
+    const container = containerRef.current;
+    const video = videoRef.current;
+    if (!container || !video) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          if (!userPausedRef.current) {
+            void video.play().catch(() => setIsPlaying(false));
+          }
+          return;
+        }
+        video.pause();
+        setIsPlaying(false);
+      },
+      { threshold: 0.35 }
+    );
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [autoplayWhenVisible, src]);
+
+  const togglePlayPause = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+    if (video.paused) {
+      userPausedRef.current = false;
+      void video.play().catch(() => setIsPlaying(false));
+      return;
+    }
+    userPausedRef.current = true;
+    video.pause();
+    setIsPlaying(false);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="absolute inset-0">
+      <video
+        ref={videoRef}
+        src={src}
+        className={cn("h-full w-full object-cover", className)}
+        muted
+        playsInline
+        loop
+        preload="metadata"
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+      />
+      <button
+        type="button"
+        onClick={togglePlayPause}
+        className="absolute left-1/2 top-1/2 z-10 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition hover:bg-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+        aria-label={isPlaying ? "Pause reel preview" : "Play reel preview"}
+      >
+        {isPlaying ? (
+          <Pause className="h-7 w-7 fill-current" aria-hidden />
+        ) : (
+          <Play className="h-7 w-7 fill-current" aria-hidden />
+        )}
+      </button>
+    </div>
+  );
+}
+
 function InstagramPreviewMedia({
   media,
   hasMedia,
   placeholder,
   className,
+  autoplayWhenVisible = false,
 }: {
   media: string;
   hasMedia: boolean;
   placeholder: string;
   className?: string;
+  autoplayWhenVisible?: boolean;
 }) {
   if (hasMedia) {
     return isSchedulerHostedVideoUrl(media) ? (
-      <video
-        src={media}
-        className={cn("absolute inset-0 h-full w-full object-cover", className)}
-        muted
-        playsInline
-        controls
-        preload="metadata"
-      />
+      <SchedulerPreviewVideo src={media} className={className} autoplayWhenVisible={autoplayWhenVisible} />
     ) : (
       <img src={media} alt="" className={cn("absolute inset-0 h-full w-full object-cover", className)} />
     );
@@ -291,7 +380,12 @@ function IgStylePostPreview({
     return (
       <div className="mx-auto w-full max-w-[min(100%,320px)] overflow-hidden rounded-[2rem] border border-border bg-black text-white shadow-xl ring-1 ring-black/10">
         <div className="relative aspect-[9/16] w-full bg-black">
-          <InstagramPreviewMedia media={media} hasMedia={hasMedia} placeholder="Add video or image to see your reel preview" />
+          <InstagramPreviewMedia
+            media={media}
+            hasMedia={hasMedia}
+            placeholder="Add video or image to see your reel preview"
+            autoplayWhenVisible
+          />
           <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/75" aria-hidden />
           <div className="absolute left-4 right-4 top-4 flex items-center justify-between">
             <span className="text-lg font-bold tracking-tight">Reels</span>

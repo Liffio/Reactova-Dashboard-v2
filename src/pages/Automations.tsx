@@ -15,6 +15,7 @@ import { useCan } from "@/hooks/useCan";
 import { useBillingConfigQuery } from "@/hooks/useBilling";
 import { useAppSelector } from "@/store/hooks";
 import { apiRequest } from "@/lib/api";
+import { followUpDelayFromApi, formatDurationLabel, parseDurationSeconds } from "@/lib/duration";
 import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +43,8 @@ type Automation = {
 
 type FollowUpStep = {
   id?: string;
-  delayMinutes: number;
+  /** User-facing delay, e.g. 20s, 2m, 1h, 1d */
+  delay: string;
   message: string;
   order: number;
 };
@@ -128,7 +130,7 @@ const FREE_TIER_FOLLOW_UP_PREVIEW = `Hey there 👋 Just sharing this in case yo
 SuperProfile is my all-in-one platform for Instagram Automations and selling my digital products. Tap on the button below to check it out!`;
 
 const defaultFollowUpStep = (order: number): FollowUpStep => ({
-  delayMinutes: 60,
+  delay: "1h",
   message: "Thanks again for commenting! Here's a quick reminder 👇",
   order
 });
@@ -435,7 +437,7 @@ function AutomationBuilder({
   const initialFollowUps = useMemo(
     () =>
       (initial?.followUps?.length ? initial.followUps : savedDraft?.followUps)?.map((step, index) => ({
-        delayMinutes: step.delayMinutes,
+        delay: followUpDelayFromApi(step as FollowUpStep & { delaySeconds?: number; delayMinutes?: number }),
         message: step.message,
         order: step.order ?? index
       })) ?? [],
@@ -590,7 +592,7 @@ function AutomationBuilder({
       followUps: canCustomizeFollowUps
         ? followUps
             .map((step, index) => ({
-              delayMinutes: Math.max(1, Math.floor(step.delayMinutes)),
+              delay: step.delay.trim().toLowerCase(),
               message: step.message.trim(),
               order: index
             }))
@@ -614,6 +616,16 @@ function AutomationBuilder({
       }
       if (canCustomizeFollowUps && followUps.length > dmFollowUpLimit) {
         throw new Error(`Your plan allows up to ${dmFollowUpLimit} follow-up message(s) per automation.`);
+      }
+      if (canCustomizeFollowUps) {
+        for (let i = 0; i < followUps.length; i++) {
+          try {
+            parseDurationSeconds(followUps[i].delay);
+          } catch (err) {
+            const hint = err instanceof Error ? err.message : "Invalid delay";
+            throw new Error(`Follow-up ${i + 1}: ${hint}`);
+          }
+        }
       }
       const payload = buildPayload(targetStatus);
       if (mode === "edit" && initial) {
@@ -1413,15 +1425,25 @@ function FollowUpSequencesSection({
               <div className="flex flex-wrap items-center gap-2">
                 <Label className="text-xs shrink-0">Send after</Label>
                 <Input
-                  type="number"
-                  min={1}
-                  className="h-8 w-20 text-sm"
-                  value={step.delayMinutes}
-                  onChange={(e) =>
-                    updateStep(index, { delayMinutes: Math.max(1, Number(e.target.value) || 1) })
-                  }
+                  type="text"
+                  className="h-8 w-24 text-sm font-mono"
+                  placeholder="20s"
+                  value={step.delay}
+                  onChange={(e) => updateStep(index, { delay: e.target.value })}
+                  onBlur={(e) => {
+                    const raw = e.target.value.trim().toLowerCase();
+                    if (!raw) return;
+                    try {
+                      const seconds = parseDurationSeconds(raw);
+                      updateStep(index, { delay: formatDurationLabel(seconds) });
+                    } catch {
+                      /* keep raw while editing */
+                    }
+                  }}
                 />
-                <span className="text-xs text-muted-foreground">minutes from primary DM</span>
+                <span className="text-xs text-muted-foreground">
+                  from primary DM (s, m, h, d — e.g. 20s, 2m, 1h, 1d)
+                </span>
               </div>
               <Textarea
                 rows={3}

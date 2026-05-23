@@ -23,6 +23,17 @@ import {
 } from "@/hooks/useShortLinks";
 
 const getShortLinkPreviewBase = () => {
+  const shortBase = import.meta.env.VITE_SHORTLINK_PUBLIC_URL as string | undefined;
+  if (shortBase?.trim()) {
+    try {
+      return new URL(shortBase.trim()).host;
+    } catch {
+      return shortBase.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+    }
+  }
+  if (import.meta.env.PROD) {
+    return "go.reactova.com";
+  }
   const apiBase = import.meta.env.VITE_API_URL as string | undefined;
   if (apiBase) {
     try {

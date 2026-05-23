@@ -49,13 +49,15 @@ type ApiUploadConfig = {
 
 export async function apiRequest<T>(path: string, config: ApiRequestConfig = {}): Promise<T> {
   const state = store.getState();
-  const token = config.token ?? state.auth.accessToken;
+  const token = config.token === null ? null : (config.token ?? state.auth.accessToken);
+  const method = config.method ?? "GET";
+  const isAnonymousPublicRead = token === null && method === "GET" && path.startsWith("/api/v1/public/");
 
   const res = await fetch(`${API_BASE}${path}`, {
-    method: config.method ?? "GET",
-    credentials: "include",
+    method,
+    credentials: isAnonymousPublicRead ? "omit" : "include",
     headers: {
-      "Content-Type": "application/json",
+      ...(config.body || !isAnonymousPublicRead ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(config.workspaceId ? { "x-workspace-id": config.workspaceId } : {})
     },

@@ -29,6 +29,7 @@ import Billing from "./pages/Billing";
 import Agency from "./pages/Agency";
 import RbacMaster from "./pages/RbacMaster";
 import PublicBioLink from "./pages/PublicBioLink";
+import ShortLinkRedirect from "./pages/ShortLinkRedirect";
 import ApiDocs from "./pages/ApiDocs";
 import { DocsLayout } from "@/components/layout/DocsLayout";
 
@@ -36,6 +37,11 @@ const queryClient = new QueryClient();
 const isBioDomain = () => {
   const host = window.location.hostname.toLowerCase();
   return host === "bio.reactova.com" || host.startsWith("bio.reactova.");
+};
+
+const isShortLinkDomain = () => {
+  const host = window.location.hostname.toLowerCase();
+  return host === "go.reactova.com" || host.startsWith("go.reactova.");
 };
 
 const App = () => (
@@ -49,6 +55,10 @@ const App = () => (
               {isBioDomain() ? (
                 <Routes>
                   <Route path="*" element={<PublicBioLink />} />
+                </Routes>
+              ) : isShortLinkDomain() ? (
+                <Routes>
+                  <Route path="*" element={<ShortLinkRedirect />} />
                 </Routes>
               ) : (
                 <Routes>

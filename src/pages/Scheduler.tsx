@@ -82,7 +82,8 @@ import {
 } from "@/hooks/useScheduler";
 import { Switch } from "@/components/ui/switch";
 import type { StatusBadgeVariant } from "@/components/StatusBadge";
-import type { CalendarPost, ScheduledPost } from "@/hooks/useScheduler";
+import type { CalendarPost, InstagramMusicTrack, ScheduledPost } from "@/hooks/useScheduler";
+import { SchedulerMusicPicker } from "@/components/scheduler/SchedulerMusicPicker";
 
 const WEEK_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
@@ -756,11 +757,11 @@ export default function Scheduler() {
     automationButtonUrl: "",
     automationAutoReply: false,
     automationReplyMessages: ["Sent! Check your DMs 💌"] as string[],
-    musicTitle: "",
-    musicArtist: "",
-    musicUrl: "",
+    musicSoundVolume: 80,
+    originalSoundVolume: 50,
     shareToFeed: false,
   });
+  const [selectedMusic, setSelectedMusic] = useState<InstagramMusicTrack | null>(null);
   const [carouselUrlDraft, setCarouselUrlDraft] = useState("");
 
   const calendarDays = useMemo(() => {
@@ -797,9 +798,15 @@ export default function Scheduler() {
       carouselMediaUrls: carouselMediaUrls.length > 0 ? carouselMediaUrls : undefined,
     };
     if (form.type === "REEL") {
-      body.musicTitle = form.musicTitle.trim() || undefined;
-      body.musicArtist = form.musicArtist.trim() || undefined;
-      body.musicUrl = form.musicUrl.trim() || undefined;
+      if (selectedMusic) {
+        body.igMusicId = selectedMusic.id;
+        body.igMusicClusterId = selectedMusic.clusterId;
+        body.igMusicCanonicalId = selectedMusic.canonicalId ?? undefined;
+        body.musicTitle = selectedMusic.title;
+        body.musicArtist = selectedMusic.artist;
+      }
+      body.musicSoundVolume = form.musicSoundVolume;
+      body.originalSoundVolume = form.originalSoundVolume;
       body.shareToFeed = form.shareToFeed;
     }
     if (form.automationEnabled) {
@@ -863,11 +870,11 @@ export default function Scheduler() {
         automationButtonUrl: "",
         automationAutoReply: false,
         automationReplyMessages: ["Sent! Check your DMs 💌"],
-        musicTitle: "",
-        musicArtist: "",
-        musicUrl: "",
+        musicSoundVolume: 80,
+        originalSoundVolume: 50,
         shareToFeed: false,
       });
+      setSelectedMusic(null);
       setCarouselUrlDraft("");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save post");
@@ -992,6 +999,9 @@ export default function Scheduler() {
         primaryMediaUrl: f.primaryMediaUrl || f.carouselMediaUrls[0] || ""
       };
     });
+    if (nextType !== "REEL") {
+      setSelectedMusic(null);
+    }
   };
 
   const addCarouselUrl = () => {
@@ -1729,55 +1739,22 @@ export default function Scheduler() {
                   className="bg-background border border-border"
                 />
               </div>
-              {form.type === "REEL" ? (
-                <div className="space-y-3 rounded-xl border border-border bg-background p-3">
-                  <div>
-                    <Label>Music / song (optional)</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Reference track for your team. Audio must be in the uploaded video — Instagram does not accept
-                      catalog music via the publishing API.
-                    </p>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Song title</Label>
-                      <Input
-                        value={form.musicTitle}
-                        onChange={(e) => setForm((f) => ({ ...f, musicTitle: e.target.value }))}
-                        placeholder="Track name"
-                        className="bg-input border-border"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Artist</Label>
-                      <Input
-                        value={form.musicArtist}
-                        onChange={(e) => setForm((f) => ({ ...f, musicArtist: e.target.value }))}
-                        placeholder="Artist name"
-                        className="bg-input border-border"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Reference link (HTTPS)</Label>
-                    <Input
-                      value={form.musicUrl}
-                      onChange={(e) => setForm((f) => ({ ...f, musicUrl: e.target.value }))}
-                      placeholder="https://open.spotify.com/..."
-                      className="bg-input border-border"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <Label>Also show on feed</Label>
-                      <p className="text-xs text-muted-foreground">Publish reel to profile grid as well as Reels tab.</p>
-                    </div>
-                    <Switch
-                      checked={form.shareToFeed}
-                      onCheckedChange={(checked) => setForm((f) => ({ ...f, shareToFeed: checked }))}
-                    />
-                  </div>
-                </div>
+              {form.type === "REEL" && workspaceId ? (
+                <SchedulerMusicPicker
+                  workspaceId={workspaceId}
+                  selected={selectedMusic}
+                  onSelect={setSelectedMusic}
+                  musicSoundVolume={form.musicSoundVolume}
+                  originalSoundVolume={form.originalSoundVolume}
+                  onMusicSoundVolumeChange={(value) =>
+                    setForm((f) => ({ ...f, musicSoundVolume: value }))
+                  }
+                  onOriginalSoundVolumeChange={(value) =>
+                    setForm((f) => ({ ...f, originalSoundVolume: value }))
+                  }
+                  shareToFeed={form.shareToFeed}
+                  onShareToFeedChange={(checked) => setForm((f) => ({ ...f, shareToFeed: checked }))}
+                />
               ) : null}
               <div className="space-y-3 rounded-xl border border-border bg-background p-3">
                 <div className="flex items-center justify-between gap-3">

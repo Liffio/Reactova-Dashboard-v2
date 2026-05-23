@@ -92,7 +92,9 @@ Content-Type: application/json`}</Code>
           for wall-clock scheduling, or <code className="text-foreground">scheduledAt</code> (ISO UTC). For reels, optional{" "}
           <code className="text-foreground">musicTitle</code>, <code className="text-foreground">musicArtist</code>,{" "}
           <code className="text-foreground">musicUrl</code>, and <code className="text-foreground">shareToFeed</code>.
-          Inline <code className="text-foreground">automation</code> supports trigger words via{" "}
+          Search music with <code className="text-foreground">GET /api/v1/external/scheduler/music/search?q=summer</code>.
+          Pass <code className="text-foreground">igMusicId</code> (and optionally <code className="text-foreground">igMusicClusterId</code>)
+          when scheduling. Inline <code className="text-foreground">automation</code> supports{" "}
           <code className="text-foreground">keywords</code> or <code className="text-foreground">triggerBlocks</code>.
         </p>
         <Code>{`{
@@ -100,8 +102,10 @@ Content-Type: application/json`}</Code>
   "primaryMediaUrl": "https://example.com/reel.mp4",
   "scheduledLocal": "2026-05-20T14:30",
   "timezone": "America/New_York",
-  "musicTitle": "Summer Vibes",
-  "musicArtist": "Artist Name",
+  "igMusicId": "487118580328718",
+  "igMusicClusterId": "410742646320351",
+  "musicSoundVolume": 80,
+  "originalSoundVolume": 50,
   "shareToFeed": true,
   "automation": {
     "enabled": true,
@@ -116,6 +120,7 @@ Content-Type: application/json`}</Code>
           List, fetch, update, or cancel scheduled posts. Read endpoints do not count toward daily create limits.
         </p>
         <ul className="text-sm space-y-2 font-mono">
+          <li><span className="text-primary">GET</span> /api/v1/external/scheduler/music/search?q=summer</li>
           <li><span className="text-primary">GET</span> /api/v1/external/scheduler/posts</li>
           <li><span className="text-primary">GET</span> /api/v1/external/scheduler/posts/:id</li>
           <li><span className="text-primary">PATCH</span> /api/v1/external/scheduler/posts/:id</li>

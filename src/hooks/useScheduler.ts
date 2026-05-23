@@ -64,9 +64,24 @@ export type ScheduledPost = {
   musicTitle: string | null;
   musicArtist: string | null;
   musicUrl: string | null;
+  igMusicId: string | null;
+  igMusicClusterId: string | null;
+  igMusicCanonicalId: string | null;
+  musicSoundVolume: number;
+  originalSoundVolume: number;
   shareToFeed: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type InstagramMusicTrack = {
+  id: string;
+  clusterId: string;
+  canonicalId: string | null;
+  title: string;
+  artist: string;
+  coverUrl: string | null;
+  durationMs: number | null;
 };
 
 export type CalendarPost = {

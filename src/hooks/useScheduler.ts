@@ -61,6 +61,10 @@ export type ScheduledPost = {
   igPermalink: string | null;
   publishError: string | null;
   automationId: string | null;
+  musicTitle: string | null;
+  musicArtist: string | null;
+  musicUrl: string | null;
+  shareToFeed: boolean;
   createdAt: string;
   updatedAt: string;
 };

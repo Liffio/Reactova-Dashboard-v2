@@ -756,6 +756,10 @@ export default function Scheduler() {
     automationButtonUrl: "",
     automationAutoReply: false,
     automationReplyMessages: ["Sent! Check your DMs 💌"] as string[],
+    musicTitle: "",
+    musicArtist: "",
+    musicUrl: "",
+    shareToFeed: false,
   });
   const [carouselUrlDraft, setCarouselUrlDraft] = useState("");
 
@@ -792,6 +796,12 @@ export default function Scheduler() {
       thumbnailUrl: primaryMediaUrl || undefined,
       carouselMediaUrls: carouselMediaUrls.length > 0 ? carouselMediaUrls : undefined,
     };
+    if (form.type === "REEL") {
+      body.musicTitle = form.musicTitle.trim() || undefined;
+      body.musicArtist = form.musicArtist.trim() || undefined;
+      body.musicUrl = form.musicUrl.trim() || undefined;
+      body.shareToFeed = form.shareToFeed;
+    }
     if (form.automationEnabled) {
       const keywords = form.automationKeywords.map((item) => item.trim()).filter(Boolean);
       const replyMessages = form.automationReplyMessages.map((item) => item.trim()).filter(Boolean);
@@ -853,6 +863,10 @@ export default function Scheduler() {
         automationButtonUrl: "",
         automationAutoReply: false,
         automationReplyMessages: ["Sent! Check your DMs 💌"],
+        musicTitle: "",
+        musicArtist: "",
+        musicUrl: "",
+        shareToFeed: false,
       });
       setCarouselUrlDraft("");
     } catch (e) {
@@ -1715,12 +1729,64 @@ export default function Scheduler() {
                   className="bg-background border border-border"
                 />
               </div>
+              {form.type === "REEL" ? (
+                <div className="space-y-3 rounded-xl border border-border bg-background p-3">
+                  <div>
+                    <Label>Music / song (optional)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Reference track for your team. Audio must be in the uploaded video — Instagram does not accept
+                      catalog music via the publishing API.
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Song title</Label>
+                      <Input
+                        value={form.musicTitle}
+                        onChange={(e) => setForm((f) => ({ ...f, musicTitle: e.target.value }))}
+                        placeholder="Track name"
+                        className="bg-input border-border"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Artist</Label>
+                      <Input
+                        value={form.musicArtist}
+                        onChange={(e) => setForm((f) => ({ ...f, musicArtist: e.target.value }))}
+                        placeholder="Artist name"
+                        className="bg-input border-border"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Reference link (HTTPS)</Label>
+                    <Input
+                      value={form.musicUrl}
+                      onChange={(e) => setForm((f) => ({ ...f, musicUrl: e.target.value }))}
+                      placeholder="https://open.spotify.com/..."
+                      className="bg-input border-border"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <Label>Also show on feed</Label>
+                      <p className="text-xs text-muted-foreground">Publish reel to profile grid as well as Reels tab.</p>
+                    </div>
+                    <Switch
+                      checked={form.shareToFeed}
+                      onCheckedChange={(checked) => setForm((f) => ({ ...f, shareToFeed: checked }))}
+                    />
+                  </div>
+                </div>
+              ) : null}
               <div className="space-y-3 rounded-xl border border-border bg-background p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <Label>Auto DM</Label>
+                    <Label>{form.type === "REEL" ? "Reel trigger words" : "Auto DM"}</Label>
                     <p className="text-xs text-muted-foreground">
-                      Create or reuse an automation for this post after it publishes.
+                      {form.type === "REEL"
+                        ? "When someone comments these words on this reel after publish, send an auto DM."
+                        : "Create or reuse an automation for this post after it publishes."}
                     </p>
                   </div>
                   <Switch
@@ -1730,6 +1796,7 @@ export default function Scheduler() {
                 </div>
                 {form.automationEnabled ? (
                   <div className="space-y-4">
+                    {form.type !== "REEL" ? (
                     <div className="space-y-1">
                       <Label>Reuse premade automation</Label>
                       <Select value={form.automationTemplateId} onValueChange={applyAutomationTemplate}>
@@ -1749,6 +1816,7 @@ export default function Scheduler() {
                         Reused automations are copied without their existing reel/post binding.
                       </p>
                     </div>
+                    ) : null}
 
                     <div className="space-y-1">
                       <Label>Automation name</Label>
@@ -1772,7 +1840,7 @@ export default function Scheduler() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Trigger words</Label>
+                      <Label>{form.type === "REEL" ? "Comment trigger words" : "Trigger words"}</Label>
                       <div className="flex gap-2">
                         <Input
                           value={form.automationKeywordDraft}

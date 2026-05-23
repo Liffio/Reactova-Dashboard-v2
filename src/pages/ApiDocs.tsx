@@ -89,8 +89,38 @@ Content-Type: application/json`}</Code>
         <p className="text-sm text-muted-foreground">
           <code className="text-foreground">type</code>: FEED, REEL, CAROUSEL, or STORY. Use{" "}
           <code className="text-foreground">scheduledLocal</code> + <code className="text-foreground">timezone</code>{" "}
-          for wall-clock scheduling, or <code className="text-foreground">scheduledAt</code> (ISO UTC).
+          for wall-clock scheduling, or <code className="text-foreground">scheduledAt</code> (ISO UTC). For reels, optional{" "}
+          <code className="text-foreground">musicTitle</code>, <code className="text-foreground">musicArtist</code>,{" "}
+          <code className="text-foreground">musicUrl</code>, and <code className="text-foreground">shareToFeed</code>.
+          Inline <code className="text-foreground">automation</code> supports trigger words via{" "}
+          <code className="text-foreground">keywords</code> or <code className="text-foreground">triggerBlocks</code>.
         </p>
+        <Code>{`{
+  "type": "REEL",
+  "primaryMediaUrl": "https://example.com/reel.mp4",
+  "scheduledLocal": "2026-05-20T14:30",
+  "timezone": "America/New_York",
+  "musicTitle": "Summer Vibes",
+  "musicArtist": "Artist Name",
+  "shareToFeed": true,
+  "automation": {
+    "enabled": true,
+    "keywords": ["GUIDE", "LINK"],
+    "dmMessage": "Thanks! Check your DMs."
+  }
+}`}</Code>
+      </Section>
+
+      <Section id="scheduler-crud" title="Scheduled posts (read & update)">
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          List, fetch, update, or cancel scheduled posts. Read endpoints do not count toward daily create limits.
+        </p>
+        <ul className="text-sm space-y-2 font-mono">
+          <li><span className="text-primary">GET</span> /api/v1/external/scheduler/posts</li>
+          <li><span className="text-primary">GET</span> /api/v1/external/scheduler/posts/:id</li>
+          <li><span className="text-primary">PATCH</span> /api/v1/external/scheduler/posts/:id</li>
+          <li><span className="text-primary">DELETE</span> /api/v1/external/scheduler/posts/:id</li>
+        </ul>
       </Section>
 
       <Section id="create-automation" title="Create automation (workflow)">
@@ -109,6 +139,20 @@ Content-Type: application/json`}</Code>
     "anyComment": false,
     "status": "ACTIVE"
   }'`}</Code>
+        <p className="text-sm text-muted-foreground">
+          Use <code className="text-foreground">triggerBlocks</code> for per-keyword DM flows.{" "}
+          <code className="text-foreground">postScope</code>: <code className="text-foreground">specific</code>,{" "}
+          <code className="text-foreground">any</code>, or <code className="text-foreground">next</code>.
+        </p>
+      </Section>
+
+      <Section id="automations-crud" title="Automations (list, update, delete)">
+        <ul className="text-sm space-y-2 font-mono">
+          <li><span className="text-primary">GET</span> /api/v1/external/automations</li>
+          <li><span className="text-primary">GET</span> /api/v1/external/automations/:id</li>
+          <li><span className="text-primary">PATCH</span> /api/v1/external/automations/:id</li>
+          <li><span className="text-primary">DELETE</span> /api/v1/external/automations/:id</li>
+        </ul>
       </Section>
 
       <Section id="errors" title="Errors">

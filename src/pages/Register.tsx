@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -9,6 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useRegisterMutation } from "@/hooks/useAuth";
+import {
+  clearStoredReferralCode,
+  getReferralPayloadForRegister,
+  getStoredReferralCode
+} from "@/lib/referralAttribution";
+import { API_BASE } from "@/lib/api";
 
 function strength(pw: string) {
   let s = 0;
@@ -27,11 +33,38 @@ export default function Register() {
   const [cpw, setCpw] = useState("");
   const [pw, setPw] = useState("");
   const [agreed, setAgreed] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
+  const [refValid, setRefValid] = useState<boolean | null>(null);
   const navigate = useNavigate();
   const registerMutation = useRegisterMutation();
   const s = useMemo(() => strength(pw), [pw]);
   const segs = [0, 1, 2, 3];
   const color = s <= 1 ? "bg-destructive" : s === 2 ? "bg-warning" : s === 3 ? "bg-info" : "bg-success";
+
+  useEffect(() => {
+    const stored = getStoredReferralCode();
+    if (stored) setReferralCode(stored);
+  }, []);
+
+  useEffect(() => {
+    const code = referralCode.trim();
+    if (!code) {
+      setRefValid(null);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/v1/affiliate/validate-code/${encodeURIComponent(code)}`
+        );
+        const data = (await res.json()) as { valid?: boolean };
+        setRefValid(Boolean(data.valid));
+      } catch {
+        setRefValid(null);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [referralCode]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -49,12 +82,18 @@ export default function Register() {
             if (pw !== cpw) {
               return;
             }
+            const refPayload = getReferralPayloadForRegister();
             await registerMutation.mutateAsync({
               name,
               email,
               password: pw,
-              country: country || undefined
+              country: country || undefined,
+              referralCode: referralCode.trim() || refPayload.referralCode,
+              clientRef: refPayload.clientRef,
+              sessionRef: refPayload.sessionRef,
+              localRef: refPayload.localRef
             });
+            clearStoredReferralCode();
             navigate("/onboarding");
           }}
         >
@@ -80,6 +119,22 @@ export default function Register() {
               className="bg-input border-border"
               placeholder="you@brand.com"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="referral">Referral code (optional)</Label>
+            <Input
+              id="referral"
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value)}
+              className="bg-input border-border"
+              placeholder="Friend's code"
+            />
+            {refValid === true && (
+              <p className="text-xs text-success">Valid referral — 10% off your first payment</p>
+            )}
+            {refValid === false && (
+              <p className="text-xs text-destructive">Referral code not found</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pw">Password</Label>

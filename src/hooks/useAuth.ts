@@ -127,11 +127,24 @@ export function useMfaLoginEmailSendMutation() {
 export function useRegisterMutation() {
   const dispatch = useAppDispatch();
   return useMutation({
-    mutationFn: (input: { email: string; name: string; password: string; country?: string }) =>
+    mutationFn: (
+      input: {
+        email: string;
+        name: string;
+        password: string;
+        country?: string;
+        referralCode?: string;
+        clientRef?: string;
+        sessionRef?: string;
+        localRef?: string;
+        deviceFingerprint?: string;
+      }
+    ) =>
       apiRequest<LoginSuccess>("/api/v1/auth/register", {
         method: "POST",
         body: input,
-        token: null
+        token: null,
+        credentials: "include"
       }),
     onSuccess: async (payload) => {
       dispatch(setAuthSession({ accessToken: payload.accessToken }));

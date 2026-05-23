@@ -32,6 +32,7 @@ import PublicBioLink from "./pages/PublicBioLink";
 import ShortLinkRedirect from "./pages/ShortLinkRedirect";
 import ApiDocs from "./pages/ApiDocs";
 import { DocsLayout } from "@/components/layout/DocsLayout";
+import { ReferralCapture } from "@/components/ReferralCapture";
 
 const queryClient = new QueryClient();
 const isBioDomain = () => {
@@ -52,6 +53,7 @@ const App = () => (
         <AppProvider>
           <SocketProvider>
             <BrowserRouter>
+              <ReferralCapture />
               {isBioDomain() ? (
                 <Routes>
                   <Route path="*" element={<PublicBioLink />} />

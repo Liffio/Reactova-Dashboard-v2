@@ -22,7 +22,7 @@ export default function Affiliate() {
   const { data: profile } = useAffiliateProfile();
   const { data: referrals } = useAffiliateReferrals();
   const { data: payouts } = useAffiliatePayouts();
-  const setCustomCode = useSetCustomAffiliateCode();
+  const saveCustomCode = useSetCustomAffiliateCode();
   const requestPayout = useRequestAffiliatePayout();
   const [customCode, setCustomCode] = useState("");
   const balance = dashboard?.availableBalance ?? 0;
@@ -56,8 +56,8 @@ export default function Affiliate() {
           </div>
           <Button
             variant="outline"
-            disabled={setCustomCode.isPending || !customCode.trim()}
-            onClick={() => setCustomCode.mutate(customCode.trim())}
+            disabled={saveCustomCode.isPending || !customCode.trim()}
+            onClick={() => saveCustomCode.mutate(customCode.trim())}
           >
             Save custom code
           </Button>

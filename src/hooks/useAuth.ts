@@ -143,8 +143,7 @@ export function useRegisterMutation() {
       apiRequest<LoginSuccess>("/api/v1/auth/register", {
         method: "POST",
         body: input,
-        token: null,
-        credentials: "include"
+        token: null
       }),
     onSuccess: async (payload) => {
       dispatch(setAuthSession({ accessToken: payload.accessToken }));

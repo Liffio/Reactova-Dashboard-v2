@@ -60,7 +60,7 @@ export default function Settings() {
   };
 
   return (
-    <DashboardLayout title="Settings" subtitle={`Workspace: ${current.handle}`}>
+    <DashboardLayout title="Settings" subtitle={`Workspace: ${current.name}`}>
       <div className="border-b border-border flex gap-1 -mt-2 overflow-x-auto scrollbar-thin">
         {tabs.map((t) => (
           <button
@@ -604,8 +604,27 @@ function General() {
   const { current, workspaces, setCurrentId, refreshAuth } = useApp();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [workspaceName, setWorkspaceName] = useState(current.name);
   const [unlinkConfirm, setUnlinkConfirm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+
+  useEffect(() => {
+    setWorkspaceName(current.name);
+  }, [current.id, current.name]);
+
+  const renameWorkspaceMutation = useMutation({
+    mutationFn: async (displayName: string) =>
+      apiRequest(`/api/v1/workspaces/${current.id}`, {
+        method: "PATCH",
+        workspaceId: current.id,
+        body: { displayName: displayName.trim() }
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      toast.success("Workspace renamed");
+    },
+    onError: (error) => toast.error((error as Error).message)
+  });
   const reconnectMutation = useMutation({
     mutationFn: async () => {
       const { url } = await apiRequest<{ url: string }>("/api/v1/integrations/meta/oauth/start", {
@@ -641,8 +660,32 @@ function General() {
   return (
     <div className="space-y-5">
       <Card title="Workspace">
-        <div className="space-y-2"><Label>Workspace name</Label><Input defaultValue={current.name} className="bg-input border-border max-w-md" /></div>
-        <Button>Save Changes</Button>
+        <div className="space-y-2">
+          <Label htmlFor="workspace-name">Workspace name</Label>
+          <Input
+            id="workspace-name"
+            value={workspaceName}
+            onChange={(event) => setWorkspaceName(event.target.value)}
+            className="bg-input border-border max-w-md"
+            maxLength={80}
+            disabled={renameWorkspaceMutation.isPending}
+          />
+          {current.handle && current.handle !== current.name && (
+            <p className="text-xs text-muted-foreground">
+              Instagram: <span className="font-mono">{current.handle}</span>
+            </p>
+          )}
+        </div>
+        <Button
+          disabled={
+            renameWorkspaceMutation.isPending ||
+            !workspaceName.trim() ||
+            workspaceName.trim() === current.name
+          }
+          onClick={() => renameWorkspaceMutation.mutate(workspaceName)}
+        >
+          {renameWorkspaceMutation.isPending ? "Saving..." : "Save Changes"}
+        </Button>
       </Card>
       <Card title="Account security">
         <p className="text-sm text-muted-foreground">

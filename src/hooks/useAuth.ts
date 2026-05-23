@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { API_BASE, apiRequest, formatApiErrorBody } from "@/lib/api";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { clearStoredActiveWorkspaceId } from "@/lib/workspacePreference";
 import { clearAuthSession, setAuthMe, setAuthSession, setAuthorization } from "@/store/authSlice";
 import type { AuthMePayload, AuthorizationPayload } from "@/types/auth";
 
@@ -145,12 +146,14 @@ export function useRegisterMutation() {
 
 export function useLogoutMutation() {
   const dispatch = useAppDispatch();
+  const userId = useAppSelector((state) => state.auth.user?.id);
   return useMutation({
     mutationFn: () =>
       apiRequest<void>("/api/v1/auth/logout", {
         method: "POST"
       }),
     onSuccess: () => {
+      clearStoredActiveWorkspaceId(userId);
       dispatch(clearAuthSession());
     }
   });

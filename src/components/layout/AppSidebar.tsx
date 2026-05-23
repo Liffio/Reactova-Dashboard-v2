@@ -160,7 +160,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
               })}
             />
             <div className="flex-1 text-left min-w-0">
-              <div className="text-sm font-medium truncate">{current.handle}</div>
+              <div className="text-sm font-medium truncate">{current.name}</div>
             </div>
             <PlanBadge plan={current.plan} />
             <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", wsOpen && "rotate-180")} />
@@ -180,7 +180,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
                       instagramConnected: resolveInstagramConnected(w)
                     })}
                   />
-                  <span className="flex-1 text-sm truncate">{w.handle}</span>
+                  <span className="flex-1 text-sm truncate">{w.name}</span>
                   <PlanBadge plan={w.plan} />
                   {w.id === current.id && <Check className="h-4 w-4 text-primary" />}
                 </button>

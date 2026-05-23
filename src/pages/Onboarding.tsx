@@ -849,7 +849,7 @@ function AutomationWizard({
   resolveWorkspaceId: () => Promise<string>;
 }) {
   const [sub, setSub] = useState<1 | 2 | 3 | 4>(1);
-  const [postMode, setPostMode] = useState<"specific" | "any" | "next">("specific");
+  const [postMode, setPostMode] = useState<"specific" | "any" | "next">("any");
   const [selectedPost, setSelectedPost] = useState<string | null>(null);
   const [keywordMode, setKeywordMode] = useState<"specific" | "any">("specific");
   const [keywords, setKeywords] = useState<string[]>(["GUIDE"]);
@@ -881,7 +881,8 @@ function AutomationWizard({
         keywords: cleanKeywords,
         excludedKeywords: [],
         anyComment: keywordMode === "any",
-        postId: postMode === "specific" ? (selectedPost ?? undefined) : undefined,
+        postScope: postMode,
+        postId: postMode === "specific" ? (selectedPost ?? null) : null,
         dmMessage: dmText.trim(),
         autoReply,
         replyMessages: cleanReplies,
@@ -960,9 +961,9 @@ function AutomationWizard({
                 value={postMode}
                 onChange={(v) => setPostMode(v as "specific" | "any" | "next")}
                 options={[
-                  { v: "specific", l: "Specific Post/Reel" },
-                  { v: "any", l: "Any Post/Reel" },
-                  { v: "next", l: "Next Post/Reel" },
+                  { v: "any", l: "Account template (all posts)" },
+                  { v: "next", l: "New posts only" },
+                  { v: "specific", l: "One post/reel" },
                 ]}
               />
               {postMode === "specific" && (
@@ -995,6 +996,11 @@ function AutomationWizard({
               {postMode === "specific" && (wizardData.data?.media?.length ?? 0) === 0 && (
                 <div className="text-xs text-muted-foreground">
                   No posts/reels found on this Instagram profile yet.
+                </div>
+              )}
+              {postMode === "any" && (
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
+                  One setup covers every reel and post on your account — past and future. No need to create a new automation per post.
                 </div>
               )}
             </>
@@ -1142,7 +1148,7 @@ function AutomationWizard({
                     ? "comments on this specific post"
                     : postMode === "next"
                       ? "comments on your next post/reel"
-                      : "comments on any post/reel"
+                      : "comments on any post or reel (account template)"
                 }
               >
                 <div className="flex gap-2 items-start">

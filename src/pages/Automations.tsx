@@ -21,12 +21,42 @@ import { cn } from "@/lib/utils";
 
 type AutomationStatus = "ACTIVE" | "PAUSED" | "DRAFT";
 type PostMode = "specific" | "any" | "next";
+
+const POST_MODE_OPTIONS: Array<{
+  value: PostMode;
+  label: string;
+  shortLabel: string;
+  description: string;
+  recommended?: boolean;
+}> = [
+  {
+    value: "any",
+    label: "Account template",
+    shortLabel: "All posts",
+    description:
+      "One automation for your whole account — every existing reel/post and every new one you publish.",
+    recommended: true
+  },
+  {
+    value: "next",
+    label: "New posts only",
+    shortLabel: "Next",
+    description: "Only reels/posts published after you save this automation (not older content)."
+  },
+  {
+    value: "specific",
+    label: "Single post",
+    shortLabel: "One post",
+    description: "Runs on one reel or post you pick."
+  }
+];
 type Automation = {
   id: string;
   name: string;
   keywords: string[];
   excludedKeywords: string[];
   anyComment: boolean;
+  postScope?: "SPECIFIC" | "ANY" | "NEXT";
   postId: string | null;
   dmMessage: string;
   dmButtonLabel: string | null;
@@ -156,8 +186,11 @@ const clearBuilderDraft = (key: string) => {
 };
 
 const resolvePostMode = (initial: Automation | null): PostMode => {
-  if (!initial) return "specific";
-  return initial.postId ? "specific" : "any";
+  if (!initial) return "any";
+  if (initial.postScope === "NEXT") return "next";
+  if (initial.postScope === "ANY") return "any";
+  if (initial.postScope === "SPECIFIC" || initial.postId) return "specific";
+  return "any";
 };
 
 const buildInitialTriggerBlocks = (initial: Automation | null): TriggerBlock[] => {
@@ -339,13 +372,20 @@ export default function Automations() {
                       </div>
                     </td>
                     <td className="px-5 py-3 text-xs text-muted-foreground">
-                      {a.postId ? (
+                      {a.postScope === "SPECIFIC" || a.postId ? (
                         <div className="space-y-1">
-                          <div className="font-mono text-[11px]">{shortId(a.postId)}</div>
-                          <div className="line-clamp-2">{mediaById.get(a.postId)?.caption || "Specific reel/post"}</div>
+                          <div className="font-mono text-[11px]">{shortId(a.postId!)}</div>
+                          <div className="line-clamp-2">{mediaById.get(a.postId!)?.caption || "Specific reel/post"}</div>
                         </div>
+                      ) : a.postScope === "NEXT" ? (
+                        <span>New posts only</span>
                       ) : (
-                        <span>Any post/reel</span>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+                            Template
+                          </span>
+                          All posts
+                        </span>
                       )}
                     </td>
                     <td className="px-5 py-3 text-xs">
@@ -572,7 +612,8 @@ function AutomationBuilder({
       keywords: anyComment ? [] : normalizedBlocks.map((block) => block.keyword).filter(Boolean),
       excludedKeywords: [],
       anyComment,
-      postId: postMode === "specific" ? selectedPostId ?? undefined : undefined,
+      postScope: postMode,
+      postId: postMode === "specific" ? selectedPostId ?? null : null,
       dmMessage: primaryBlock.dmMessage.trim(),
       autoReply: primaryBlock.autoReply,
       replyMessages: primaryBlock.autoReply && primaryBlock.replyMessage.trim() ? [primaryBlock.replyMessage.trim()] : [],
@@ -771,28 +812,34 @@ function AutomationBuilder({
                   <span className="text-sm font-semibold text-primary">Step 2: Select reel/post</span>
                 </div>
                 <p className="text-xs text-muted-foreground ml-8">
-                  Choose the Instagram reel or post this automation applies to.
+                  Pick how this automation applies to your Instagram content. Use account template to set up once for all posts.
                 </p>
               </div>
 
-              <div className="rounded-xl border border-border bg-card p-1">
-                <div className="grid grid-cols-3 gap-1">
-                  {(["specific", "any", "next"] as PostMode[]).map((modeOption) => (
-                    <button
-                      key={modeOption}
-                      type="button"
-                      onClick={() => setPostMode(modeOption)}
-                      className={cn(
-                        "rounded-lg px-3 py-2 text-xs font-medium transition-colors text-center",
-                        postMode === modeOption
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:text-foreground"
+              <div className="space-y-2">
+                {POST_MODE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setPostMode(option.value)}
+                    className={cn(
+                      "w-full rounded-xl border p-4 text-left transition-colors",
+                      postMode === option.value
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                        : "border-border bg-card hover:border-muted-foreground/40"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{option.label}</span>
+                      {option.recommended && (
+                        <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+                          Recommended
+                        </span>
                       )}
-                    >
-                      {modeOption === "specific" ? "Specific" : modeOption === "any" ? "Any" : "Next"}
-                    </button>
-                  ))}
-                </div>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
+                  </button>
+                ))}
               </div>
 
               {postMode === "specific" ? (
@@ -814,9 +861,17 @@ function AutomationBuilder({
                     </Button>
                   </div>
                 </div>
+              ) : postMode === "any" ? (
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
+                  <p className="font-medium text-foreground">Account-wide template</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Comments on any reel or post (old or new) can trigger this workflow when keywords match.
+                    You only need one automation — no per-post setup.
+                  </p>
+                </div>
               ) : (
                 <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
-                  {postMode === "any" ? "Runs on any matching post/reel." : "Prepared for your next post/reel."}
+                  Applies to reels and posts published after you save. Older posts are excluded.
                 </div>
               )}
           </div>
@@ -843,8 +898,8 @@ function AutomationBuilder({
                     postMode === "specific"
                       ? selectedMedia?.caption || selectedPostId || "Select a post"
                       : postMode === "any"
-                        ? "Any post/reel"
-                        : "Next post/reel"
+                        ? "Account template (all posts)"
+                        : "New posts only"
                   }
                 />
                 <ReviewItem

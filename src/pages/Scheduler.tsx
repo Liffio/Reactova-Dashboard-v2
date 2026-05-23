@@ -86,6 +86,42 @@ import type { CalendarPost, ScheduledPost } from "@/hooks/useScheduler";
 
 const WEEK_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
+function isLikelyVideoUrl(url: string) {
+  return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url);
+}
+
+function SchedulerMediaThumb({
+  url,
+  className,
+  imgClassName,
+}: {
+  url: string | null | undefined;
+  className?: string;
+  imgClassName?: string;
+}) {
+  if (!url) {
+    return <div className={cn("rounded bg-muted shrink-0", className)} />;
+  }
+  if (isLikelyVideoUrl(url)) {
+    return (
+      <video
+        src={url}
+        className={cn("rounded object-cover shrink-0 bg-black", imgClassName ?? className)}
+        muted
+        playsInline
+        preload="metadata"
+      />
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt=""
+      className={cn("rounded object-cover shrink-0", imgClassName ?? className)}
+    />
+  );
+}
+
 const TIMEZONES = ["UTC", "America/New_York", "America/Los_Angeles", "Europe/London", "Asia/Kolkata", "Asia/Tokyo"];
 const CAROUSEL_MEDIA_MAX = 10;
 
@@ -564,6 +600,20 @@ function SchedulerPostDetailFields({ post: dp }: { post: ScheduledPost }) {
         <div>
           <span className="text-xs text-muted-foreground block mb-1">Hashtags</span>
           <p className="text-xs text-foreground">{dp.hashtags.map((h) => `#${h}`).join(" ")}</p>
+        </div>
+      )}
+      {(dp.thumbnailUrl || dp.primaryMediaUrl) && (
+        <div>
+          <span className="text-xs text-muted-foreground block mb-1">
+            {dp.type === "REEL" ? "Reel preview" : "Media preview"}
+          </span>
+          <div className="rounded-lg border border-border overflow-hidden bg-muted max-w-[200px]">
+            <SchedulerMediaThumb
+              url={dp.thumbnailUrl ?? dp.primaryMediaUrl}
+              className="w-full aspect-[9/16] max-h-56"
+              imgClassName="w-full h-full object-cover"
+            />
+          </div>
         </div>
       )}
       {dp.primaryMediaUrl && (
@@ -1210,15 +1260,11 @@ export default function Scheduler() {
                                   statusBorderClass(p.status),
                                 )}
                               >
-                                {p.thumbnailUrl ? (
-                                  <img
-                                    src={p.thumbnailUrl}
-                                    alt=""
-                                    className="h-6 w-6 rounded object-cover shrink-0"
-                                  />
-                                ) : (
-                                  <div className="h-6 w-6 rounded bg-muted shrink-0" />
-                                )}
+                                <SchedulerMediaThumb
+                                  url={p.thumbnailUrl}
+                                  className="h-6 w-6"
+                                  imgClassName="h-6 w-6"
+                                />
                                 <span className="text-xs text-foreground truncate flex-1 min-w-0">
                                   {p.captionPreview ?? p.type}
                                 </span>
@@ -1262,11 +1308,11 @@ export default function Scheduler() {
                         className="stripe-row border-b border-border last:border-0 cursor-pointer hover:bg-muted/30"
                       >
                         <td className="px-4 py-3">
-                          {p.thumbnailUrl ? (
-                            <img src={p.thumbnailUrl} alt="" className="h-10 w-10 rounded-md object-cover" />
-                          ) : (
-                            <div className="h-10 w-10 rounded-md bg-muted" />
-                          )}
+                          <SchedulerMediaThumb
+                            url={p.thumbnailUrl}
+                            className="h-10 w-10"
+                            imgClassName="h-10 w-10 rounded-md"
+                          />
                         </td>
                         <td className="px-4 py-3 max-w-[200px] sm:max-w-none">
                           <div className="font-medium line-clamp-2">{p.caption ?? "—"}</div>

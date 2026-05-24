@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Music2, X } from "lucide-react";
 import { apiRequest } from "@/lib/api";
@@ -18,6 +19,7 @@ import {
 
 type Props = {
   workspaceId: string;
+  postType: string;
   selected: InstagramMusicTrack | null;
   onSelect: (track: InstagramMusicTrack | null) => void;
   musicSoundVolume: number;
@@ -30,6 +32,7 @@ type Props = {
 
 export function SchedulerMusicPicker({
   workspaceId,
+  postType,
   selected,
   onSelect,
   musicSoundVolume,
@@ -42,11 +45,22 @@ export function SchedulerMusicPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const isReel = postType === "REEL";
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [query]);
+
+  const sessionQuery = useQuery({
+    queryKey: ["instagram-music-session", workspaceId],
+    queryFn: () =>
+      apiRequest<{ configured: boolean; updatedAt: string | null }>(
+        "/api/v1/integrations/meta/instagram-music-session",
+        { workspaceId }
+      ),
+    enabled: Boolean(workspaceId)
+  });
 
   const searchQuery = useQuery({
     queryKey: ["scheduler", "music-search", workspaceId, debouncedQuery],
@@ -60,25 +74,41 @@ export function SchedulerMusicPicker({
         { workspaceId }
       );
     },
-    enabled: Boolean(workspaceId) && open,
+    enabled: Boolean(workspaceId) && open && (sessionQuery.data?.configured ?? false),
     staleTime: 60_000
   });
 
   const tracks = useMemo(() => searchQuery.data?.tracks ?? [], [searchQuery.data?.tracks]);
+  const sessionConfigured = sessionQuery.data?.configured ?? false;
 
   return (
     <div className="space-y-3 rounded-xl border border-border bg-background p-3">
       <div>
         <Label>Instagram music</Label>
         <p className="text-xs text-muted-foreground">
-          Search Instagram&apos;s licensed catalog for this reel. Your connected account must have a valid
-          Instagram token.
+          Search licensed tracks for scheduled posts. Music is attached when publishing reels; for
+          other types it is stored on the schedule for reference and future use.
         </p>
       </div>
 
+      {!sessionConfigured && !sessionQuery.isLoading ? (
+        <p className="text-xs text-warning rounded-lg border border-warning/30 bg-warning/5 p-2">
+          Music search is not configured.{" "}
+          <Link to="/settings?tab=General" className="text-primary underline">
+            Add your Instagram session in Settings
+          </Link>{" "}
+          (sessionid + csrftoken cookies).
+        </p>
+      ) : null}
+
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button type="button" variant="outline" className="w-full justify-start gap-2 bg-input border-border">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-start gap-2 bg-input border-border"
+            disabled={!sessionConfigured}
+          >
             <Music2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
             {selected ? (
               <span className="truncate text-left">
@@ -106,9 +136,15 @@ export function SchedulerMusicPicker({
               ) : null}
               {searchQuery.isError ? (
                 <CommandEmpty>
-                  {searchQuery.error instanceof Error
-                    ? searchQuery.error.message
-                    : "Could not search music"}
+                  <span className="block text-left px-2">
+                    {searchQuery.error instanceof Error
+                      ? searchQuery.error.message
+                      : "Could not search music"}
+                    {" "}
+                    <Link to="/settings?tab=General" className="text-primary underline">
+                      Configure session
+                    </Link>
+                  </span>
                 </CommandEmpty>
               ) : null}
               {!searchQuery.isLoading && !searchQuery.isError && tracks.length === 0 ? (
@@ -189,15 +225,17 @@ export function SchedulerMusicPicker({
         </div>
       </div>
 
-      <label className="flex items-center justify-between gap-3 text-sm">
-        <span>Also show on feed</span>
-        <input
-          type="checkbox"
-          checked={shareToFeed}
-          onChange={(e) => onShareToFeedChange(e.target.checked)}
-          className="h-4 w-4 rounded border-border"
-        />
-      </label>
+      {isReel ? (
+        <label className="flex items-center justify-between gap-3 text-sm">
+          <span>Also show on feed</span>
+          <input
+            type="checkbox"
+            checked={shareToFeed}
+            onChange={(e) => onShareToFeedChange(e.target.checked)}
+            className="h-4 w-4 rounded border-border"
+          />
+        </label>
+      ) : null}
     </div>
   );
 }

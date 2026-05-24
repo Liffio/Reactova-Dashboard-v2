@@ -92,7 +92,9 @@ Content-Type: application/json`}</Code>
           for wall-clock scheduling, or <code className="text-foreground">scheduledAt</code> (ISO UTC). For reels, optional{" "}
           <code className="text-foreground">musicTitle</code>, <code className="text-foreground">musicArtist</code>,{" "}
           <code className="text-foreground">musicUrl</code>, and <code className="text-foreground">shareToFeed</code>.
-          Search music with <code className="text-foreground">GET /api/v1/external/scheduler/music/search?q=summer</code>.
+          Search music with <code className="text-foreground">GET /api/v1/external/scheduler/music/search?q=summer</code>{" "}
+          (requires an Instagram web session configured in workspace Settings). Music fields work on all post types;
+          licensed audio is applied when publishing reels.
           Pass <code className="text-foreground">igMusicId</code> (and optionally <code className="text-foreground">igMusicClusterId</code>)
           when scheduling. Inline <code className="text-foreground">automation</code> supports{" "}
           <code className="text-foreground">keywords</code> or <code className="text-foreground">triggerBlocks</code>.

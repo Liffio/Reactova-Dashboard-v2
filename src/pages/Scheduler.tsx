@@ -797,16 +797,16 @@ export default function Scheduler() {
       thumbnailUrl: primaryMediaUrl || undefined,
       carouselMediaUrls: carouselMediaUrls.length > 0 ? carouselMediaUrls : undefined,
     };
+    if (selectedMusic) {
+      body.igMusicId = selectedMusic.id;
+      body.igMusicClusterId = selectedMusic.clusterId;
+      body.igMusicCanonicalId = selectedMusic.canonicalId ?? undefined;
+      body.musicTitle = selectedMusic.title;
+      body.musicArtist = selectedMusic.artist;
+    }
+    body.musicSoundVolume = form.musicSoundVolume;
+    body.originalSoundVolume = form.originalSoundVolume;
     if (form.type === "REEL") {
-      if (selectedMusic) {
-        body.igMusicId = selectedMusic.id;
-        body.igMusicClusterId = selectedMusic.clusterId;
-        body.igMusicCanonicalId = selectedMusic.canonicalId ?? undefined;
-        body.musicTitle = selectedMusic.title;
-        body.musicArtist = selectedMusic.artist;
-      }
-      body.musicSoundVolume = form.musicSoundVolume;
-      body.originalSoundVolume = form.originalSoundVolume;
       body.shareToFeed = form.shareToFeed;
     }
     if (form.automationEnabled) {
@@ -999,9 +999,6 @@ export default function Scheduler() {
         primaryMediaUrl: f.primaryMediaUrl || f.carouselMediaUrls[0] || ""
       };
     });
-    if (nextType !== "REEL") {
-      setSelectedMusic(null);
-    }
   };
 
   const addCarouselUrl = () => {
@@ -1739,9 +1736,10 @@ export default function Scheduler() {
                   className="bg-background border border-border"
                 />
               </div>
-              {form.type === "REEL" && workspaceId ? (
+              {workspaceId ? (
                 <SchedulerMusicPicker
                   workspaceId={workspaceId}
+                  postType={form.type}
                   selected={selectedMusic}
                   onSelect={setSelectedMusic}
                   musicSoundVolume={form.musicSoundVolume}

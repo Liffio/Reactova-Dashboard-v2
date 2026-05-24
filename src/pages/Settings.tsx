@@ -14,6 +14,7 @@ import { StatusDot } from "@/components/StatusBadge";
 import { getWorkspaceIndicatorStatus } from "@/lib/workspaceIndicator";
 import { resolveInstagramConnected } from "@/lib/workspaceInstagram";
 import { ApiCredentialsSettings } from "@/components/settings/ApiCredentialsSettings";
+import { InstagramMusicSessionSettings } from "@/components/settings/InstagramMusicSessionSettings";
 import { BillingContent } from "@/pages/Billing";
 import { PlanGate } from "@/components/PlanGate";
 import { useApp } from "@/state/AppContext";
@@ -781,6 +782,10 @@ function General() {
             I understand this workspace data will be permanently lost when switching accounts.
           </label>
         </div>
+        <InstagramMusicSessionSettings
+          workspaceId={current.id}
+          instagramConnected={resolveInstagramConnected(current)}
+        />
       </Card>
       <div className="p-5 rounded-xl bg-destructive/5 border border-destructive/30 space-y-3">
         <h3 className="font-semibold text-destructive">Danger Zone</h3>

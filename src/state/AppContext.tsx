@@ -131,10 +131,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         nextBilling: workspace.billingCycleEnd
           ? new Date(workspace.billingCycleEnd).toLocaleDateString()
           : "—",
-        dmsThisMonth: workspace.dmsThisMonth,
-        leadsThisMonth: workspace.leadsThisMonth,
-        clicksThisMonth: workspace.clicksThisMonth,
-        activeAutomations: workspace.activeAutomations
+        dmsThisMonth: workspace.dmsThisMonth ?? 0,
+        leadsThisMonth: workspace.leadsThisMonth ?? 0,
+        clicksThisMonth: workspace.clicksThisMonth ?? 0,
+        activeAutomations: workspace.activeAutomations ?? 0
       };
     });
   }, [workspacesQuery.data]);

@@ -80,10 +80,10 @@ const mergeDashboardWorkspaces = (
       instagramConnected: summary?.instagramConnected ?? workspace.instagramConnected,
       billingCycleEnd,
       nextBilling: billingCycleEnd ? formatBillingDate(billingCycleEnd) : workspace.nextBilling,
-      dmsThisMonth: summary?.dmsThisMonth ?? workspace.dmsThisMonth,
-      leadsThisMonth: summary?.leadsThisMonth ?? workspace.leadsThisMonth,
-      clicksThisMonth: summary?.clicksThisMonth ?? workspace.clicksThisMonth,
-      activeAutomations: summary?.activeAutomations ?? workspace.activeAutomations
+      dmsThisMonth: summary?.dmsThisMonth ?? workspace.dmsThisMonth ?? 0,
+      leadsThisMonth: summary?.leadsThisMonth ?? workspace.leadsThisMonth ?? 0,
+      clicksThisMonth: summary?.clicksThisMonth ?? workspace.clicksThisMonth ?? 0,
+      activeAutomations: summary?.activeAutomations ?? workspace.activeAutomations ?? 0
     };
   });
 };
@@ -266,7 +266,7 @@ export default function Dashboard() {
                   <td className="px-5 py-3">
                     <span className="px-2 py-0.5 rounded-full bg-muted text-xs font-mono">{activity.keyword ?? "—"}</span>
                   </td>
-                  <td className="px-5 py-3 font-mono">{activity.dmsSentThisMonth.toLocaleString()}</td>
+                  <td className="px-5 py-3 font-mono">{(activity.dmsSentThisMonth ?? 0).toLocaleString()}</td>
                   <td className="px-5 py-3">
                     <StatusBadge
                       status={
@@ -456,7 +456,7 @@ function Stat({
         <div className="text-xs text-muted-foreground">{label}</div>
         <Icon className="h-4 w-4 text-muted-foreground" />
       </div>
-      <div className={`text-3xl font-bold ${highlight ? "text-primary" : ""}`}>{value.toLocaleString()}</div>
+      <div className={`text-3xl font-bold ${highlight ? "text-primary" : ""}`}>{(value ?? 0).toLocaleString()}</div>
       <div className="flex items-center gap-1.5 mt-1.5 text-xs">
         {trend !== undefined && (
           <span className={`inline-flex items-center gap-0.5 font-medium ${up ? "text-success" : "text-destructive"}`}>

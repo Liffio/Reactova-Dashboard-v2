@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Music2, X } from "lucide-react";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, resolveApiAssetUrl } from "@/lib/api";
 import type { InstagramMusicTrack } from "@/hooks/useScheduler";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -151,7 +151,9 @@ export function SchedulerMusicPicker({
                 <CommandEmpty>No tracks found. Try another keyword.</CommandEmpty>
               ) : null}
               <CommandGroup>
-                {tracks.map((track) => (
+                {tracks.map((track) => {
+                  const coverSrc = resolveApiAssetUrl(track.coverUrl);
+                  return (
                   <CommandItem
                     key={`${track.id}:${track.clusterId}`}
                     value={`${track.id}-${track.title}`}
@@ -161,9 +163,9 @@ export function SchedulerMusicPicker({
                     }}
                     className="flex items-center gap-3"
                   >
-                    {track.coverUrl ? (
+                    {coverSrc ? (
                       <img
-                        src={track.coverUrl}
+                        src={coverSrc}
                         alt=""
                         className="h-10 w-10 rounded-md object-cover shrink-0"
                       />
@@ -179,7 +181,8 @@ export function SchedulerMusicPicker({
                       </p>
                     </div>
                   </CommandItem>
-                ))}
+                  );
+                })}
               </CommandGroup>
             </CommandList>
           </Command>

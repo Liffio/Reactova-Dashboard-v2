@@ -4,6 +4,25 @@ export const API_BASE =
   import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD ? "https://api.reactova.com" : "http://127.0.0.1:3001");
 
+/**
+ * All third-party API calls (Instagram, Meta, Stripe, etc.) must go through the Reactova backend.
+ * The browser must only call `${API_BASE}/api/v1/...` via apiRequest / apiUploadRequest — never fetch third-party hosts directly.
+ */
+export function resolveApiAssetUrl(pathOrUrl: string | null | undefined): string | null {
+  if (!pathOrUrl?.trim()) {
+    return null;
+  }
+  const trimmed = pathOrUrl.trim();
+  const apiBase = API_BASE.replace(/\/+$/, "");
+  if (trimmed.startsWith(`${apiBase}/`)) {
+    return trimmed;
+  }
+  if (trimmed.startsWith("/api/")) {
+    return `${apiBase}${trimmed}`;
+  }
+  return null;
+}
+
 /** Human-readable message from `{ error: ... }` JSON (string, Zod flatten, etc.). */
 export function formatApiErrorBody(payload: unknown): string {
   if (!payload || typeof payload !== "object") {

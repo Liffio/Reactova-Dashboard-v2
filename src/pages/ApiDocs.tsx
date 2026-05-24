@@ -123,6 +123,11 @@ Content-Type: application/json`}</Code>
         </p>
         <ul className="text-sm space-y-2 font-mono">
           <li><span className="text-primary">GET</span> /api/v1/external/scheduler/music/search?q=summer</li>
+          <li>
+            Track <code className="text-foreground">coverUrl</code> values point at{" "}
+            <code className="text-foreground">GET /api/v1/public/scheduler/music-cover</code> (signed proxy; no direct
+            Instagram CDN calls from clients)
+          </li>
           <li><span className="text-primary">GET</span> /api/v1/external/scheduler/posts</li>
           <li><span className="text-primary">GET</span> /api/v1/external/scheduler/posts/:id</li>
           <li><span className="text-primary">PATCH</span> /api/v1/external/scheduler/posts/:id</li>

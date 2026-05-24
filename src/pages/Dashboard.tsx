@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { PlanBadge } from "@/components/PlanBadge";
 import { StatusBadge, StatusDot } from "@/components/StatusBadge";
 import { getWorkspaceIndicatorStatus } from "@/lib/workspaceIndicator";
-import { resolveInstagramConnected } from "@/lib/workspaceInstagram";
-import { useApp } from "@/state/AppContext";
+import { useApp, type Workspace } from "@/state/AppContext";
+import type { DashboardResponse } from "@/hooks/useDashboard";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
 import { useCreateWorkspaceMutation } from "@/hooks/useCreateWorkspace";
@@ -28,8 +28,68 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+type DashboardWorkspaceCard = {
+  id: string;
+  handle: string;
+  plan: Workspace["plan"];
+  status: Workspace["status"];
+  instagramConnected: boolean;
+  nextBilling: string;
+  billingCycleEnd: string | null;
+  dmsThisMonth: number;
+  leadsThisMonth: number;
+  clicksThisMonth: number;
+  activeAutomations: number;
+};
+
+const formatBillingDate = (value: string | null | undefined) =>
+  value ? new Date(value).toLocaleDateString() : "—";
+
+const mapPlanName = (
+  plan: DashboardResponse["workspaceSummaries"][number]["plan"]
+): Workspace["plan"] => {
+  if (plan === "STARTER") return "Starter";
+  if (plan === "PRO") return "Pro";
+  if (plan === "BUSINESS") return "Business";
+  if (plan === "AGENCY") return "Agency";
+  return "Free";
+};
+
+const mergeDashboardWorkspaces = (
+  workspaces: Workspace[],
+  summaries: DashboardResponse["workspaceSummaries"]
+): DashboardWorkspaceCard[] => {
+  const summaryById = new Map(summaries.map((workspace) => [workspace.id, workspace]));
+
+  return workspaces.map((workspace) => {
+    const summary = summaryById.get(workspace.id);
+    const billingCycleEnd = summary?.billingCycleEnd ?? null;
+    return {
+      id: workspace.id,
+      handle: workspace.name,
+      plan: summary ? mapPlanName(summary.plan) : workspace.plan,
+      status: summary
+        ? summary.status === "PAYMENT_FAILED"
+          ? "failed"
+          : summary.status === "PAUSED"
+            ? "paused"
+            : summary.instagramConnected
+              ? "active"
+              : "disconnected"
+        : workspace.status,
+      instagramConnected: summary?.instagramConnected ?? workspace.instagramConnected,
+      billingCycleEnd,
+      nextBilling: billingCycleEnd ? formatBillingDate(billingCycleEnd) : workspace.nextBilling,
+      dmsThisMonth: summary?.dmsThisMonth ?? workspace.dmsThisMonth,
+      leadsThisMonth: summary?.leadsThisMonth ?? workspace.leadsThisMonth,
+      clicksThisMonth: summary?.clicksThisMonth ?? workspace.clicksThisMonth,
+      activeAutomations: summary?.activeAutomations ?? workspace.activeAutomations
+    };
+  });
+};
+
 export default function Dashboard() {
-  const { current, setCurrentId, refreshAuth } = useApp();
+  const { current, workspaces, setCurrentId, refreshAuth } = useApp();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -50,9 +110,12 @@ export default function Dashboard() {
   const [showLinkPrompt, setShowLinkPrompt] = useState(false);
   const [workspaceToDelete, setWorkspaceToDelete] = useState<{ id: string; handle: string } | null>(null);
   const dashboardQuery = useDashboardQuery(current.id);
-  const workspaceSummaries = dashboardQuery.data?.workspaceSummaries ?? [];
+  const workspaceCards = mergeDashboardWorkspaces(
+    workspaces,
+    dashboardQuery.data?.workspaceSummaries ?? []
+  );
   const today = Date.now();
-  const billingAlerts = workspaceSummaries
+  const billingAlerts = workspaceCards
     .filter((workspace) => workspace.billingCycleEnd)
     .map((workspace) => {
       const daysUntilRenewal = Math.ceil(
@@ -72,7 +135,7 @@ export default function Dashboard() {
     toast.success("Workspace created");
   });
   const deleteWorkspaceMutation = useDeleteWorkspaceMutation(async (deletedWorkspaceId) => {
-    const nextWorkspace = workspaceSummaries.find((workspace) => workspace.id !== deletedWorkspaceId);
+    const nextWorkspace = workspaceCards.find((workspace) => workspace.id !== deletedWorkspaceId);
     setCurrentId(nextWorkspace?.id ?? "");
     await refreshAuth();
     setWorkspaceToDelete(null);
@@ -93,7 +156,16 @@ export default function Dashboard() {
           <span className="flex-1">
             Workspace <strong>{workspace.handle ?? "Unlinked workspace"}</strong> renews in {daysUntilRenewal} day{daysUntilRenewal > 1 ? "s" : ""}
           </span>
-          <button className="text-accent font-medium hover:underline whitespace-nowrap">Update billing →</button>
+          <button
+            type="button"
+            onClick={() => {
+              setCurrentId(workspace.id);
+              void refreshAuth().then(() => navigate("/billing"));
+            }}
+            className="text-accent font-medium hover:underline whitespace-nowrap"
+          >
+            Update billing →
+          </button>
         </div>
       ))}
 
@@ -127,6 +199,37 @@ export default function Dashboard() {
           sub={`${dashboardQuery.data?.totals.schedulerDrafts ?? 0} drafts · ${dashboardQuery.data?.totals.postInsightsTracked ?? 0} with insights`}
         />
       </div>
+
+      {workspaceCards.length > 0 && (
+        <section className="rounded-xl bg-card border border-border overflow-hidden">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="font-semibold">Workspace billing</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Next renewal date for each workspace</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-muted-foreground border-b border-border">
+                  <th className="px-5 py-3 font-medium">Workspace</th>
+                  <th className="px-5 py-3 font-medium">Plan</th>
+                  <th className="px-5 py-3 font-medium">Next billing</th>
+                </tr>
+              </thead>
+              <tbody>
+                {workspaceCards.map((workspace) => (
+                  <tr key={workspace.id} className="stripe-row hover:bg-primary/5 transition-colors">
+                    <td className="px-5 py-3 font-medium">{workspace.handle}</td>
+                    <td className="px-5 py-3">
+                      <PlanBadge plan={workspace.plan} />
+                    </td>
+                    <td className="px-5 py-3 text-foreground">{workspace.nextBilling}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Button variant="accent" onClick={() => navigate("/automations")}><Plus className="h-4 w-4" /> Create Automation</Button>
@@ -188,41 +291,22 @@ export default function Dashboard() {
       <section>
         <h2 className="font-semibold mb-3">My Workspaces</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {workspaceSummaries.map((workspace) => (
+          {workspaceCards.map((workspace) => (
             <div key={workspace.id} className="p-5 rounded-xl bg-card border border-border hover:border-primary/40 transition-colors">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <StatusDot
                     status={getWorkspaceIndicatorStatus({
-                      status:
-                        workspace.status === "PAYMENT_FAILED"
-                          ? "failed"
-                          : workspace.status === "PAUSED"
-                            ? "paused"
-                            : resolveInstagramConnected(workspace)
-                              ? "active"
-                              : "disconnected",
-                      instagramConnected: resolveInstagramConnected(workspace)
+                      status: workspace.status,
+                      instagramConnected: workspace.instagramConnected
                     })}
                   />
-                  <span className="font-semibold truncate">{workspace.handle ?? "Unlinked workspace"}</span>
+                  <span className="font-semibold truncate">{workspace.handle}</span>
                 </div>
-                <PlanBadge
-                  plan={
-                    workspace.plan === "STARTER"
-                      ? "Starter"
-                      : workspace.plan === "PRO"
-                        ? "Pro"
-                        : workspace.plan === "BUSINESS"
-                          ? "Business"
-                          : workspace.plan === "AGENCY"
-                            ? "Agency"
-                            : "Free"
-                  }
-                />
+                <PlanBadge plan={workspace.plan} />
               </div>
               <div className="space-y-1.5 text-xs text-muted-foreground mb-4">
-                <div className="flex justify-between"><span>Next billing</span><span className="text-foreground">{workspace.billingCycleEnd ? new Date(workspace.billingCycleEnd).toLocaleDateString() : "—"}</span></div>
+                <div className="flex justify-between"><span>Next billing</span><span className="text-foreground">{workspace.nextBilling}</span></div>
                 <div className="flex justify-between"><span>DMs this month</span><span className="text-foreground font-mono">{workspace.dmsThisMonth.toLocaleString()}</span></div>
                 <div className="flex justify-between"><span>Leads this month</span><span className="text-foreground font-mono">{workspace.leadsThisMonth.toLocaleString()}</span></div>
                 <div className="flex justify-between"><span>Link clicks</span><span className="text-foreground font-mono">{workspace.clicksThisMonth.toLocaleString()}</span></div>
@@ -246,11 +330,11 @@ export default function Dashboard() {
                   variant="destructive"
                   size="sm"
                   className="w-full"
-                  disabled={workspaceSummaries.length <= 1}
+                  disabled={workspaceCards.length <= 1}
                   onClick={() =>
                     setWorkspaceToDelete({
                       id: workspace.id,
-                      handle: workspace.handle ?? "Unlinked workspace"
+                      handle: workspace.handle
                     })
                   }
                 >
@@ -333,7 +417,7 @@ export default function Dashboard() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteWorkspaceMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              disabled={!workspaceToDelete || deleteWorkspaceMutation.isPending || workspaceSummaries.length <= 1}
+              disabled={!workspaceToDelete || deleteWorkspaceMutation.isPending || workspaceCards.length <= 1}
               onClick={() => {
                 if (!workspaceToDelete) return;
                 deleteWorkspaceMutation.mutate(workspaceToDelete.id, {

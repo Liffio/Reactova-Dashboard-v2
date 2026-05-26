@@ -1,5 +1,25 @@
 import { ReactNode, useMemo, useState } from "react";
-import { Bell, Menu } from "lucide-react";
+import {
+  AlertCircle,
+  BadgeCheck,
+  BarChart2,
+  Bell,
+  BellOff,
+  CheckCheck,
+  CheckCircle,
+  CreditCard,
+  Menu,
+  MessageSquareOff,
+  Pause,
+  Play,
+  Trash2,
+  UserPlus,
+  Users,
+  WifiOff,
+  XCircle,
+  Zap,
+  type LucideIcon
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { useApp } from "@/state/AppContext";
@@ -7,6 +27,7 @@ import { PlanBadge } from "@/components/PlanBadge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   inviteIdFromNotification,
   isInviteNotification,
@@ -17,39 +38,304 @@ import {
 } from "@/hooks/useNotifications";
 import { useAcceptInviteByIdMutation } from "@/hooks/useTeamAccess";
 import { toast } from "@/components/ui/sonner";
+import { cn } from "@/lib/utils";
 
-export function DashboardLayout({ title, subtitle, actions, headerActions, children }: { title: string; subtitle?: string; actions?: ReactNode; headerActions?: ReactNode; children: ReactNode }) {
-  const { current, user, setCurrentId, refreshAuth } = useApp();
+// ─── Notification type config ────────────────────────────────────────────────
+
+type TypeConfig = { icon: LucideIcon; bg: string; fg: string };
+
+const TYPE_CONFIG: Record<string, TypeConfig> = {
+  WORKSPACE_INVITE_RECEIVED: { icon: UserPlus,         bg: "bg-primary/10",               fg: "text-primary" },
+  DM_DELIVERY_FAILURE:       { icon: MessageSquareOff, bg: "bg-destructive/10",            fg: "text-destructive" },
+  BILLING_REMINDER:          { icon: CreditCard,       bg: "bg-[hsl(var(--warning)/0.12)]", fg: "text-[hsl(var(--warning))]" },
+  NEW_LEAD_CAPTURED:         { icon: Users,            bg: "bg-[hsl(var(--success)/0.12)]", fg: "text-[hsl(var(--success))]" },
+  WEEKLY_PERFORMANCE_SUMMARY:{ icon: BarChart2,        bg: "bg-[hsl(var(--info)/0.12)]",   fg: "text-[hsl(var(--info))]" },
+  AFFILIATE_COMMISSION_APPROVED: { icon: BadgeCheck,   bg: "bg-[hsl(var(--success)/0.12)]", fg: "text-[hsl(var(--success))]" },
+  INSTAGRAM_DISCONNECTED:    { icon: WifiOff,          bg: "bg-destructive/10",            fg: "text-destructive" },
+  AUTOMATION_CREATED:        { icon: Zap,              bg: "bg-primary/10",               fg: "text-primary" },
+  AUTOMATION_ACTIVATED:      { icon: Play,             bg: "bg-[hsl(var(--success)/0.12)]", fg: "text-[hsl(var(--success))]" },
+  AUTOMATION_PAUSED:         { icon: Pause,            bg: "bg-muted",                    fg: "text-muted-foreground" },
+  AUTOMATION_DELETED:        { icon: Trash2,           bg: "bg-destructive/10",            fg: "text-destructive" },
+  POST_PUBLISHED:            { icon: CheckCircle,      bg: "bg-[hsl(var(--success)/0.12)]", fg: "text-[hsl(var(--success))]" },
+  POST_FAILED:               { icon: XCircle,          bg: "bg-destructive/10",            fg: "text-destructive" },
+};
+
+const FALLBACK_CONFIG: TypeConfig = { icon: AlertCircle, bg: "bg-muted", fg: "text-muted-foreground" };
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function relTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function getGroup(dateStr: string): "Today" | "Yesterday" | "Older" {
+  const d = new Date(dateStr);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return "Today";
+  const yest = new Date(now);
+  yest.setDate(yest.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return "Yesterday";
+  return "Older";
+}
+
+// ─── Notification Row ─────────────────────────────────────────────────────────
+
+function NotificationRow({
+  item,
+  onMarkRead,
+  onAcceptInvite,
+  accepting,
+}: {
+  item: NotificationItem;
+  onMarkRead: (id: string) => void;
+  onAcceptInvite: (item: NotificationItem) => void;
+  accepting: boolean;
+}) {
+  const config = TYPE_CONFIG[item.type] ?? FALLBACK_CONFIG;
+  const Icon = config.icon;
+
+  return (
+    <div
+      className={cn(
+        "relative flex items-start gap-3 px-4 py-3.5 border-b border-border/50 last:border-b-0 transition-colors",
+        !item.isRead ? "bg-primary/[0.025] dark:bg-primary/[0.05]" : "hover:bg-muted/30"
+      )}
+    >
+      {!item.isRead && (
+        <span className="absolute left-1.5 top-[18px] h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+      )}
+
+      <div className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full", config.bg)}>
+        <Icon className={cn("h-3.5 w-3.5", config.fg)} />
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <p className={cn("text-[13px] leading-snug", !item.isRead ? "font-semibold text-foreground" : "font-medium text-foreground/80")}>
+            {item.name}
+          </p>
+          <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5 tabular-nums">{relTime(item.createdAt)}</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{item.details}</p>
+
+        <div className="flex items-center gap-3 mt-1.5">
+          {isInviteNotification(item) && (
+            <Button
+              size="sm"
+              className="h-6 text-xs px-3"
+              disabled={accepting}
+              onClick={() => onAcceptInvite(item)}
+            >
+              Accept invite
+            </Button>
+          )}
+          {!item.isRead && (
+            <button
+              type="button"
+              className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => onMarkRead(item.id)}
+            >
+              Mark read
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Notification Panel ───────────────────────────────────────────────────────
+
+function NotificationPanel({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const inboxQuery = useInboxQuery();
   const markReadMutation = useMarkInboxReadMutation();
   const markAllReadMutation = useMarkAllInboxReadMutation();
   const acceptInviteMutation = useAcceptInviteByIdMutation();
-  const notifications = inboxQuery.data?.notifications ?? [];
+  const { setCurrentId, refreshAuth } = useApp();
+  const [tab, setTab] = useState<"all" | "unread">("all");
 
-  const unreadCount = useMemo(
-    () => notifications.filter((item) => !item.isRead).length,
-    [notifications]
-  );
+  const notifications = inboxQuery.data?.notifications ?? [];
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.isRead).length, [notifications]);
+  const filtered = tab === "unread" ? notifications.filter((n) => !n.isRead) : notifications;
+
+  const grouped = useMemo(() => {
+    const groups: { label: string; items: NotificationItem[] }[] = [];
+    const groupOrder = ["Today", "Yesterday", "Older"] as const;
+    const map: Record<string, NotificationItem[]> = { Today: [], Yesterday: [], Older: [] };
+    for (const item of filtered) {
+      map[getGroup(item.createdAt)].push(item);
+    }
+    for (const label of groupOrder) {
+      if (map[label].length > 0) groups.push({ label, items: map[label] });
+    }
+    return groups;
+  }, [filtered]);
 
   const handleAcceptInvite = async (item: NotificationItem) => {
     const inviteId = inviteIdFromNotification(item);
-    if (!inviteId) {
-      return;
-    }
+    if (!inviteId) return;
     try {
       const result = await acceptInviteMutation.mutateAsync(inviteId);
       setCurrentId(result.workspaceId);
       await refreshAuth();
       toast.success("Workspace invite accepted");
-      setNotificationsOpen(false);
+      onOpenChange(false);
       navigate("/dashboard");
     } catch (error) {
       toast.error((error as Error).message);
     }
   };
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="Open notifications"
+          className="relative p-2 rounded-lg hover:bg-card transition-colors"
+        >
+          <Bell className="h-5 w-5 text-muted-foreground" />
+          {unreadCount > 0 && (
+            <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent align="end" sideOffset={8} className="w-[380px] p-0 shadow-xl border-border/80 overflow-hidden rounded-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-semibold">Notifications</span>
+            {unreadCount > 0 && (
+              <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                {unreadCount}
+              </span>
+            )}
+          </div>
+          {unreadCount > 0 && (
+            <button
+              type="button"
+              onClick={() => markAllReadMutation.mutate()}
+              disabled={markAllReadMutation.isPending}
+              className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              <CheckCheck className="h-3.5 w-3.5" />
+              Mark all read
+            </button>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-border bg-muted/30">
+          {(["all", "unread"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={cn(
+                "flex-1 py-2 text-xs font-medium transition-colors relative",
+                tab === t
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {t === "all" ? "All" : `Unread${unreadCount > 0 ? ` (${unreadCount})` : ""}`}
+              {tab === t && (
+                <span className="absolute bottom-0 inset-x-4 h-0.5 rounded-full bg-primary" />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* List */}
+        <ScrollArea className="max-h-[420px]">
+          {inboxQuery.isLoading ? (
+            <div className="space-y-px py-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-start gap-3 px-4 py-3.5">
+                  <div className="h-7 w-7 rounded-full bg-muted animate-pulse shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 w-32 rounded bg-muted animate-pulse" />
+                    <div className="h-2.5 w-48 rounded bg-muted animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : grouped.length > 0 ? (
+            grouped.map(({ label, items }) => (
+              <div key={label}>
+                <div className="sticky top-0 z-10 px-4 py-1.5 bg-muted/60 backdrop-blur-sm border-b border-border/40">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    {label}
+                  </span>
+                </div>
+                {items.map((item) => (
+                  <NotificationRow
+                    key={item.id}
+                    item={item}
+                    onMarkRead={(id) => markReadMutation.mutate(id)}
+                    onAcceptInvite={(n) => void handleAcceptInvite(n)}
+                    accepting={acceptInviteMutation.isPending}
+                  />
+                ))}
+              </div>
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center py-14 text-center px-6">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
+                <BellOff className="h-5 w-5 text-muted-foreground/60" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">
+                {tab === "unread" ? "No unread notifications" : "No notifications yet"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {tab === "unread" ? "You're all caught up." : "We'll notify you when something happens."}
+              </p>
+            </div>
+          )}
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ─── Layout ───────────────────────────────────────────────────────────────────
+
+export function DashboardLayout({
+  title,
+  subtitle,
+  actions,
+  headerActions,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+  headerActions?: ReactNode;
+  children: ReactNode;
+}) {
+  const { current, user } = useApp();
+  const [open, setOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
@@ -69,83 +355,13 @@ export function DashboardLayout({ title, subtitle, actions, headerActions, child
               <span className="text-sm text-muted-foreground">{current.handle}</span>
               <PlanBadge plan={current.plan} />
             </div>
-            <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Open notifications"
-                  className="relative p-2 rounded-lg hover:bg-card transition-colors"
-                >
-                  <Bell className="h-5 w-5 text-muted-foreground" />
-                  {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-accent" />}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-[340px] p-0">
-                <div className="border-b border-border px-4 py-3 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold">Notifications</h3>
-                    <p className="text-xs text-muted-foreground">
-                      {unreadCount > 0 ? `${unreadCount} unread` : "You're all caught up"}
-                    </p>
-                  </div>
-                  {unreadCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => markAllReadMutation.mutate()}
-                      className="text-xs text-primary hover:text-primary/80 transition-colors"
-                    >
-                      Mark all read
-                    </button>
-                  )}
-                </div>
-                <div className="max-h-80 overflow-y-auto">
-                  {notifications.map((item) => (
-                    <div key={item.id} className="px-4 py-3 border-b last:border-b-0 border-border bg-popover">
-                      <div className="flex items-start gap-2">
-                        {!item.isRead ? <span className="mt-1.5 h-2 w-2 rounded-full bg-accent shrink-0" /> : <span className="mt-1.5 h-2 w-2 shrink-0" />}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium truncate">{item.name}</p>
-                            <span className="text-[11px] text-muted-foreground shrink-0">
-                              {new Date(item.createdAt).toLocaleString()}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">{item.details}</p>
-                          {isInviteNotification(item) && (
-                            <Button
-                              size="sm"
-                              className="mt-2 h-7"
-                              disabled={acceptInviteMutation.isPending}
-                              onClick={() => void handleAcceptInvite(item)}
-                            >
-                              Accept invite
-                            </Button>
-                          )}
-                          {!item.isRead && (
-                            <button
-                              type="button"
-                              onClick={() => markReadMutation.mutate(item.id)}
-                              className="mt-1 text-[11px] text-primary hover:text-primary/80 transition-colors"
-                            >
-                              Mark as read
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {!inboxQuery.isLoading && notifications.length === 0 && (
-                    <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-                      No notifications yet.
-                    </div>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
+
+            <NotificationPanel open={notificationsOpen} onOpenChange={setNotificationsOpen} />
+
             <ThemeToggle />
             {headerActions}
             <div className="h-9 w-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold text-sm">
-              {(user?.name ?? "NA").split(" ").map(n => n[0]).join("")}
+              {(user?.name ?? "NA").split(" ").map((n) => n[0]).join("")}
             </div>
           </div>
           {actions && (

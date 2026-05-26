@@ -1,12 +1,23 @@
 import { useEffect, useRef } from "react";
 import { io, type Socket } from "socket.io-client";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/components/ui/sonner";
+import { toast, type AppToastType } from "@/components/ui/sonner";
 import { API_BASE } from "@/lib/api";
 import { useAppSelector } from "@/store/hooks";
 import { useApp } from "@/state/AppContext";
 import type { NotificationItem } from "@/hooks/useNotifications";
 import type { SocketClientEvents, SocketServerEvents } from "./types";
+
+const ERROR_TYPES   = new Set(["DM_DELIVERY_FAILURE", "INSTAGRAM_DISCONNECTED", "AUTOMATION_DELETED", "POST_FAILED"]);
+const SUCCESS_TYPES = new Set(["NEW_LEAD_CAPTURED", "AFFILIATE_COMMISSION_APPROVED", "AUTOMATION_ACTIVATED", "AUTOMATION_CREATED", "POST_PUBLISHED"]);
+const WARNING_TYPES = new Set(["BILLING_REMINDER"]);
+
+function notifToastType(type: string): AppToastType {
+  if (ERROR_TYPES.has(type))   return "error";
+  if (SUCCESS_TYPES.has(type)) return "success";
+  if (WARNING_TYPES.has(type)) return "warning";
+  return "info";
+}
 
 const canUseBrowserNotifications = () =>
   typeof window !== "undefined" && "Notification" in window;
@@ -83,7 +94,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
           }
         );
         const notification = payload as NotificationItem;
-        toast(notification.name, { description: notification.details });
+        const toastType = notifToastType(notification.type);
+        toast[toastType](notification.name, { description: notification.details });
         showBrowserNotification(notification);
       });
       socketRef.current = socket;

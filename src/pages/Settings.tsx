@@ -976,14 +976,22 @@ function Team() {
           </select>
           <Button
             onClick={async () => {
-              await createInviteMutation.mutateAsync({
+              const result = await createInviteMutation.mutateAsync({
                 email,
                 roleKey,
                 moduleAccess: [],
                 permissionKeys,
                 policyKeys
               });
-              toast.success(`Invitation sent to ${email}. They'll receive an email with a link to accept.`);
+              if (result.emailSent) {
+                toast.success(`Invitation sent to ${email}. They'll receive an email with a link to accept.`);
+              } else if (result.inAppNotified) {
+                toast.success(`Invite created for ${email}. They already have a Reactova account and were notified in-app.`);
+              } else {
+                toast.warning(
+                  `Invite created for ${email}, but email could not be sent. Check BREVO_API_KEY / SMTP settings on the server.`
+                );
+              }
               setEmail("");
               setPermissionKeys([]);
               setPolicyKeys([]);

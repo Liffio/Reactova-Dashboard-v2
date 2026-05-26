@@ -1,28 +1,54 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useMemo, useState } from "react";
 import { Bell, Menu } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { useApp } from "@/state/AppContext";
 import { PlanBadge } from "@/components/PlanBadge";
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
-  useMarkAllNotificationsReadMutation,
-  useMarkNotificationReadMutation,
-  useNotificationsQuery
+  inviteIdFromNotification,
+  isInviteNotification,
+  useInboxQuery,
+  useMarkAllInboxReadMutation,
+  useMarkInboxReadMutation,
+  type NotificationItem
 } from "@/hooks/useNotifications";
+import { useAcceptInviteByIdMutation } from "@/hooks/useTeamAccess";
+import { toast } from "@/components/ui/sonner";
 
 export function DashboardLayout({ title, subtitle, actions, headerActions, children }: { title: string; subtitle?: string; actions?: ReactNode; headerActions?: ReactNode; children: ReactNode }) {
-  const { current, user } = useApp();
+  const { current, user, setCurrentId, refreshAuth } = useApp();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const notificationsQuery = useNotificationsQuery(current.id);
-  const markReadMutation = useMarkNotificationReadMutation(current.id);
-  const markAllReadMutation = useMarkAllNotificationsReadMutation(current.id);
-  const notifications = notificationsQuery.data?.notifications ?? [];
+  const inboxQuery = useInboxQuery();
+  const markReadMutation = useMarkInboxReadMutation();
+  const markAllReadMutation = useMarkAllInboxReadMutation();
+  const acceptInviteMutation = useAcceptInviteByIdMutation();
+  const notifications = inboxQuery.data?.notifications ?? [];
 
-  const unreadCount = notifications.filter((item) => !item.isRead).length;
-  const markAllAsRead = () => {
-    markAllReadMutation.mutate();
+  const unreadCount = useMemo(
+    () => notifications.filter((item) => !item.isRead).length,
+    [notifications]
+  );
+
+  const handleAcceptInvite = async (item: NotificationItem) => {
+    const inviteId = inviteIdFromNotification(item);
+    if (!inviteId) {
+      return;
+    }
+    try {
+      const result = await acceptInviteMutation.mutateAsync(inviteId);
+      setCurrentId(result.workspaceId);
+      await refreshAuth();
+      toast.success("Workspace invite accepted");
+      setNotificationsOpen(false);
+      navigate("/dashboard");
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
   };
 
   return (
@@ -65,7 +91,7 @@ export function DashboardLayout({ title, subtitle, actions, headerActions, child
                   {unreadCount > 0 && (
                     <button
                       type="button"
-                      onClick={markAllAsRead}
+                      onClick={() => markAllReadMutation.mutate()}
                       className="text-xs text-primary hover:text-primary/80 transition-colors"
                     >
                       Mark all read
@@ -85,6 +111,16 @@ export function DashboardLayout({ title, subtitle, actions, headerActions, child
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">{item.details}</p>
+                          {isInviteNotification(item) && (
+                            <Button
+                              size="sm"
+                              className="mt-2 h-7"
+                              disabled={acceptInviteMutation.isPending}
+                              onClick={() => void handleAcceptInvite(item)}
+                            >
+                              Accept invite
+                            </Button>
+                          )}
                           {!item.isRead && (
                             <button
                               type="button"
@@ -98,7 +134,7 @@ export function DashboardLayout({ title, subtitle, actions, headerActions, child
                       </div>
                     </div>
                   ))}
-                  {!notificationsQuery.isLoading && notifications.length === 0 && (
+                  {!inboxQuery.isLoading && notifications.length === 0 && (
                     <div className="px-4 py-8 text-center text-xs text-muted-foreground">
                       No notifications yet.
                     </div>

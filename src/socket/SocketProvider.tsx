@@ -66,10 +66,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       });
       socket.on("notification:new", (payload) => {
         queryClient.setQueryData(
-          ["notifications", payload.workspaceId],
-          (existing: { notifications: NotificationItem[]; preferences: unknown[] } | undefined) => {
+          ["inbox"],
+          (existing: { notifications: NotificationItem[] } | undefined) => {
             if (!existing) {
-              return existing;
+              return { notifications: [payload as NotificationItem] };
             }
             const hasExisting = existing.notifications.some(
               (notification) => notification.id === payload.id
@@ -78,13 +78,13 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
               return existing;
             }
             return {
-              ...existing,
-              notifications: [payload, ...existing.notifications]
+              notifications: [payload as NotificationItem, ...existing.notifications]
             };
           }
         );
-        toast(payload.name, { description: payload.details });
-        showBrowserNotification(payload);
+        const notification = payload as NotificationItem;
+        toast(notification.name, { description: notification.details });
+        showBrowserNotification(notification);
       });
       socketRef.current = socket;
     } else if (!socketRef.current.connected) {

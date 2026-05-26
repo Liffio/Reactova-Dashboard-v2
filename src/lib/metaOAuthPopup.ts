@@ -1,6 +1,7 @@
 import { API_BASE } from "@/lib/api";
 
 export const META_OAUTH_MESSAGE_TYPE = "reactova:meta-oauth";
+export const META_OAUTH_CLOSE_MESSAGE_TYPE = "reactova:meta-oauth-close";
 
 const APP_ORIGIN = window.location.origin;
 const API_ORIGIN = new URL(API_BASE).origin;
@@ -50,6 +51,48 @@ function writePopupLoading(popup: Window) {
   }
 }
 
+/** Browsers often block window.close() inside the OAuth popup after cross-origin redirects. */
+function forceClosePopup(popup: Window) {
+  let attempts = 0;
+  const intervalId = window.setInterval(() => {
+    attempts += 1;
+    if (popup.closed) {
+      window.clearInterval(intervalId);
+      return;
+    }
+    try {
+      popup.close();
+    } catch {
+      // ignore
+    }
+    if (attempts >= 20) {
+      window.clearInterval(intervalId);
+    }
+  }, 200);
+
+  try {
+    window.focus();
+  } catch {
+    // ignore
+  }
+}
+
+function isTrustedOAuthMessage(data: unknown): data is MetaOAuthMessage {
+  return Boolean(
+    data &&
+      typeof data === "object" &&
+      (data as MetaOAuthMessage).type === META_OAUTH_MESSAGE_TYPE &&
+      (data as MetaOAuthMessage).payload &&
+      typeof (data as MetaOAuthMessage).payload === "object"
+  );
+}
+
+function isOAuthCloseMessage(data: unknown): boolean {
+  return Boolean(
+    data && typeof data === "object" && (data as { type?: string }).type === META_OAUTH_CLOSE_MESSAGE_TYPE
+  );
+}
+
 /**
  * Opens OAuth in a popup synchronously (must be called directly from a user click handler).
  * Fetches the authorize URL asynchronously after the popup is created.
@@ -78,8 +121,12 @@ export function openMetaOAuthPopup(
       if (event.origin !== APP_ORIGIN && event.origin !== API_ORIGIN) {
         return;
       }
-      const data = event.data as MetaOAuthMessage | undefined;
-      if (!data || data.type !== META_OAUTH_MESSAGE_TYPE) {
+      const data = event.data;
+      if (isOAuthCloseMessage(data)) {
+        forceClosePopup(popup);
+        return;
+      }
+      if (!isTrustedOAuthMessage(data)) {
         return;
       }
       settle(data.payload);
@@ -94,7 +141,7 @@ export function openMetaOAuthPopup(
           settle({ meta: "connected", step: 3 });
         }
       });
-    }, 1500);
+    }, 800);
 
     const closedPollId = window.setInterval(() => {
       if (!popup.closed || settled) {
@@ -132,11 +179,7 @@ export function openMetaOAuthPopup(
       }
       settled = true;
       cleanup();
-      try {
-        popup.close();
-      } catch {
-        // ignore
-      }
+      forceClosePopup(popup);
       resolve(result);
     }
 
@@ -146,11 +189,7 @@ export function openMetaOAuthPopup(
       }
       settled = true;
       cleanup();
-      try {
-        popup.close();
-      } catch {
-        // ignore
-      }
+      forceClosePopup(popup);
       reject(error);
     }
 

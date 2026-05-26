@@ -102,7 +102,13 @@ export function useCreateInviteMutation(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: InvitePayload) =>
-      apiRequest<{ id: string; status: string; expiresAt: string }>("/api/v1/team/invites", {
+      apiRequest<{
+        id: string;
+        status: string;
+        expiresAt: string;
+        emailSent?: boolean;
+        inAppNotified?: boolean;
+      }>("/api/v1/team/invites", {
         method: "POST",
         workspaceId,
         body: payload
@@ -148,9 +154,31 @@ export function useAcceptInviteMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (token: string) =>
-      apiRequest<void>("/api/v1/auth/invites/accept", { method: "POST", body: { token } }),
+      apiRequest<{ ok: boolean; workspaceId: string; authorization: unknown }>("/api/v1/auth/invites/accept", {
+        method: "POST",
+        body: { token }
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
+      void queryClient.invalidateQueries({ queryKey: ["inbox"] });
+      void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    }
+  });
+}
+
+export function useAcceptInviteByIdMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (inviteId: string) =>
+      apiRequest<{ ok: boolean; workspaceId: string; authorization: unknown }>(
+        `/api/v1/auth/invites/${inviteId}/accept`,
+        { method: "POST" }
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
+      void queryClient.invalidateQueries({ queryKey: ["inbox"] });
+      void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      void queryClient.invalidateQueries({ queryKey: ["team-invites"] });
     }
   });
 }

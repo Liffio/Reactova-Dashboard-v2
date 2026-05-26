@@ -24,13 +24,12 @@ export default function MetaOAuthComplete() {
     const returnTo = searchParams.get("returnTo") === "settings" ? "settings" : "onboarding";
 
     if (window.opener && !window.opener.closed) {
-      window.opener.postMessage(
-        { type: META_OAUTH_MESSAGE_TYPE, payload: result },
-        window.location.origin
-      );
+      window.opener.postMessage({ type: META_OAUTH_MESSAGE_TYPE, payload: result }, window.location.origin);
       window.close();
       return;
     }
+
+    // Popup flow is handled on the API host; this route is only a non-popup fallback.
 
     if (result.meta === "connected") {
       const step = result.step ?? 3;

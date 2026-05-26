@@ -1,4 +1,9 @@
+import { API_BASE } from "@/lib/api";
+
 export const META_OAUTH_MESSAGE_TYPE = "reactova:meta-oauth";
+
+const APP_ORIGIN = window.location.origin;
+const API_ORIGIN = new URL(API_BASE).origin;
 
 export type MetaOAuthResult = {
   meta: "connected" | "error";
@@ -33,7 +38,7 @@ export function openMetaOAuthPopup(authorizeUrl: string): Promise<MetaOAuthResul
     }, timeoutMs);
 
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) {
+      if (event.origin !== APP_ORIGIN && event.origin !== API_ORIGIN) {
         return;
       }
       const data = event.data as MetaOAuthMessage | undefined;

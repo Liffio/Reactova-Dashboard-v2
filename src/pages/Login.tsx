@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useForm } from "@tanstack/react-form";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -31,6 +31,9 @@ export default function Login() {
   const mfaVerifyMutation = useMfaLoginVerifyMutation();
   const mfaEmailSendMutation = useMfaLoginEmailSendMutation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get("redirect") ?? "/dashboard";
+
   const form = useForm({
     defaultValues: {
       email: "",
@@ -46,7 +49,7 @@ export default function Login() {
         setExpiresIn(0);
         return;
       }
-      navigate("/dashboard");
+      navigate(redirectTo);
     }
   });
 
@@ -59,7 +62,7 @@ export default function Login() {
       code: otp.trim(),
       method: mfaMethod
     });
-    navigate("/dashboard");
+    navigate(redirectTo);
   };
 
   const onSendEmailOtp = async () => {

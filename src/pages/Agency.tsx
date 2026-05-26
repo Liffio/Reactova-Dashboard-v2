@@ -22,7 +22,7 @@ export default function Agency() {
   if (current.plan !== "Agency") {
     return (
       <DashboardLayout title="Agency Panel">
-        <PlanGate requiredPlan="Agency" message="Agency Panel is available on the Agency plan." className="min-h-[320px]" />
+        <PlanGate requiredPlan="Agency" message="Agency Panel is Coming Soon...!!" className="min-h-[320px]" disableButton={true} />
       </DashboardLayout>
     );
   }

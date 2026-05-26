@@ -28,6 +28,7 @@ import Settings from "./pages/Settings";
 import Billing from "./pages/Billing";
 import Agency from "./pages/Agency";
 import RbacMaster from "./pages/RbacMaster";
+import AcceptInvite from "./pages/AcceptInvite";
 import PublicBioLink from "./pages/PublicBioLink";
 import ShortLinkRedirect from "./pages/ShortLinkRedirect";
 import ApiDocs from "./pages/ApiDocs";
@@ -73,6 +74,7 @@ const App = () => (
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/onboarding" element={<Onboarding />} />
+                  <Route path="/accept-invite" element={<AcceptInvite />} />
                   <Route path="/dashboard" element={<ProtectedRoute module="workspace"><Dashboard /></ProtectedRoute>} />
                   <Route path="/automations" element={<ProtectedRoute module="automation"><Automations /></ProtectedRoute>} />
                   <Route path="/short-links" element={<ProtectedRoute module="shortlink"><ShortLinks /></ProtectedRoute>} />

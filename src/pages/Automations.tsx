@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { useCan } from "@/hooks/useCan";
 import { useBillingConfigQuery } from "@/hooks/useBilling";
 import { useAppSelector } from "@/store/hooks";
+import { useApp } from "@/state/AppContext";
 import { apiRequest } from "@/lib/api";
 import { followUpDelayFromApi, formatDurationLabel, parseDurationSeconds } from "@/lib/duration";
 import { toast } from "@/components/ui/sonner";
@@ -29,27 +30,27 @@ const POST_MODE_OPTIONS: Array<{
   description: string;
   recommended?: boolean;
 }> = [
-  {
-    value: "any",
-    label: "Account template",
-    shortLabel: "All posts",
-    description:
-      "One automation for your whole account — every existing reel/post and every new one you publish.",
-    recommended: true
-  },
-  {
-    value: "next",
-    label: "New posts only",
-    shortLabel: "Next",
-    description: "Only reels/posts published after you save this automation (not older content)."
-  },
-  {
-    value: "specific",
-    label: "Single post",
-    shortLabel: "One post",
-    description: "Runs on one reel or post you pick."
-  }
-];
+    {
+      value: "any",
+      label: "Account template",
+      shortLabel: "All posts",
+      description:
+        "One automation for your whole account — every existing reel/post and every new one you publish.",
+      recommended: true
+    },
+    {
+      value: "next",
+      label: "New posts only",
+      shortLabel: "Next",
+      description: "Only reels/posts published after you save this automation (not older content)."
+    },
+    {
+      value: "specific",
+      label: "Single post",
+      shortLabel: "One post",
+      description: "Runs on one reel or post you pick."
+    }
+  ];
 type Automation = {
   id: string;
   name: string;
@@ -244,7 +245,9 @@ const createTriggerBlock = (overrides: Partial<TriggerBlock> = {}): TriggerBlock
 });
 
 export default function Automations() {
+  const { current } = useApp();
   const workspaceId = useAppSelector((state) => state.auth.workspaceId);
+  const igConnected = current.instagramConnected;
   const [editing, setEditing] = useState<Automation | null>(null);
   const [open, setOpen] = useState(false);
   const canCreate = useCan("automation", "create");
@@ -303,128 +306,145 @@ export default function Automations() {
 
   return (
     <DashboardLayout title="Automations" subtitle="Convert comments, story replies, and shared reels into DMs on autopilot.">
-      <div className="flex justify-end -mt-2">
-        <Button
-          variant="accent"
-          onClick={() => {
-            setEditing(null);
-            setOpen(true);
-          }}
-          disabled={!canCreate}
-        >
-          <Plus className="h-4 w-4" /> Create New Automation
-        </Button>
-      </div>
+    
 
-      {automationsQuery.isLoading && (
-        <section className="rounded-xl bg-card border border-border p-6 text-sm text-muted-foreground">
-          Loading automations...
-        </section>
-      )}
-
-      {automationsQuery.isError && (
-        <section className="rounded-xl bg-card border border-destructive/30 p-6 text-sm text-destructive">
-          {(automationsQuery.error as Error).message}
-        </section>
-      )}
-
-      {items.length === 0 ? (
-        <EmptyState
-          icon={Zap}
-          title="No automations yet"
-          description="Create your first automation to start converting Instagram engagement into DMs"
-          ctaLabel={canCreate ? "Create Automation" : "No permission to create"}
-          onCta={() => {
-            if (canCreate) setOpen(true);
-          }}
-        />
+      {!igConnected ? (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm">
+          <span className="mt-0.5 text-amber-500">⚠</span>
+          <p className="text-muted-foreground">
+            Instagram is not connected.{" "}
+            <Link to="/settings?tab=General" className="font-medium text-foreground underline underline-offset-4 hover:text-primary">
+              Go to Settings → General
+            </Link>{" "}
+            to connect your Instagram account and enable automations.
+          </p>
+        </div>
       ) : (
-        <section className="rounded-xl bg-card border border-border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                  <th className="px-5 py-3 font-medium">Workflow Name</th>
-                  <th className="px-5 py-3 font-medium">Trigger Keywords</th>
-                  <th className="px-5 py-3 font-medium">Target Reel/Post</th>
-                  <th className="px-5 py-3 font-medium">Link</th>
-                  <th className="px-5 py-3 font-medium">DMs Sent</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium">Created</th>
-                  <th className="px-5 py-3 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((a) => (
-                  <tr key={a.id} className="stripe-row hover:bg-primary/5 transition-colors">
-                    <td className="px-5 py-3 font-medium">{a.name}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {(a.anyComment ? ["ANY COMMENT"] : a.keywords).slice(0, 3).map((k) => (
-                          <span key={k} className="px-2 py-0.5 rounded-full bg-muted text-xs font-mono">{k}</span>
-                        ))}
-                        {!a.anyComment && a.keywords.length > 3 && (
-                          <span className="text-xs text-muted-foreground">+{a.keywords.length - 3} more</span>
-                        )}
-                      </div>
-                      <div className="mt-1 text-[11px] text-muted-foreground">
-                        Includes story replies and shared reel/post DMs
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-xs text-muted-foreground">
-                      {a.postScope === "SPECIFIC" || a.postId ? (
-                        <div className="space-y-1">
-                          <div className="font-mono text-[11px]">{shortId(a.postId!)}</div>
-                          <div className="line-clamp-2">{mediaById.get(a.postId!)?.caption || "Specific reel/post"}</div>
-                        </div>
-                      ) : a.postScope === "NEXT" ? (
-                        <span>New posts only</span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1">
-                          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
-                            Template
-                          </span>
-                          All posts
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-xs">
-                      {a.dmButtonUrl ? (
-                        <a className="text-primary hover:underline break-all" href={a.dmButtonUrl} target="_blank" rel="noreferrer">
-                          {a.dmButtonUrl}
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground">No link</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 font-mono">{a._count.dmJobs.toLocaleString()}</td>
-                    <td className="px-5 py-3"><StatusBadge status={formatStatus(a.status)} withDot /></td>
-                    <td className="px-5 py-3 text-muted-foreground">{new Date(a.createdAt).toLocaleDateString()}</td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="inline-flex gap-1">
-                        <button
-                          className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-40"
-                          onClick={() => { setEditing(a); setOpen(true); }}
-                          disabled={!canUpdate}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          className="p-1.5 rounded-md hover:bg-destructive/15 text-muted-foreground hover:text-destructive disabled:opacity-40"
-                          onClick={() => deleteMutation.mutate(a.id)}
-                          disabled={!canDelete || deleteMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <>
+            <div className="flex justify-end -mt-2">
+              <Button
+                variant="accent"
+                onClick={() => {
+                  setEditing(null);
+                  setOpen(true);
+                }}
+                disabled={!canCreate}
+              >
+                <Plus className="h-4 w-4" /> Create New Automation
+              </Button>
+            </div>
+          {automationsQuery.isLoading && (
+            <section className="rounded-xl bg-card border border-border p-6 text-sm text-muted-foreground">
+              Loading automations...
+            </section>
+          )}
+
+          {automationsQuery.isError && (
+            <section className="rounded-xl bg-card border border-destructive/30 p-6 text-sm text-destructive">
+              {(automationsQuery.error as Error).message}
+            </section>
+          )}
+
+          {items.length === 0 ? (
+            <EmptyState
+              icon={Zap}
+              title="No automations yet"
+              description="Create your first automation to start converting Instagram engagement into DMs"
+              ctaLabel={canCreate ? "Create Automation" : "No permission to create"}
+              onCta={() => {
+                if (canCreate) setOpen(true);
+              }}
+            />
+          ) : (
+            <section className="rounded-xl bg-card border border-border overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-muted-foreground border-b border-border">
+                      <th className="px-5 py-3 font-medium">Workflow Name</th>
+                      <th className="px-5 py-3 font-medium">Trigger Keywords</th>
+                      <th className="px-5 py-3 font-medium">Target Reel/Post</th>
+                      <th className="px-5 py-3 font-medium">Link</th>
+                      <th className="px-5 py-3 font-medium">DMs Sent</th>
+                      <th className="px-5 py-3 font-medium">Status</th>
+                      <th className="px-5 py-3 font-medium">Created</th>
+                      <th className="px-5 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((a) => (
+                      <tr key={a.id} className="stripe-row hover:bg-primary/5 transition-colors">
+                        <td className="px-5 py-3 font-medium">{a.name}</td>
+                        <td className="px-5 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {(a.anyComment ? ["ANY COMMENT"] : a.keywords).slice(0, 3).map((k) => (
+                              <span key={k} className="px-2 py-0.5 rounded-full bg-muted text-xs font-mono">{k}</span>
+                            ))}
+                            {!a.anyComment && a.keywords.length > 3 && (
+                              <span className="text-xs text-muted-foreground">+{a.keywords.length - 3} more</span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-[11px] text-muted-foreground">
+                            Includes story replies and shared reel/post DMs
+                          </div>
+                        </td>
+                        <td className="px-5 py-3 text-xs text-muted-foreground">
+                          {a.postScope === "SPECIFIC" || a.postId ? (
+                            <div className="space-y-1">
+                              <div className="font-mono text-[11px]">{shortId(a.postId!)}</div>
+                              <div className="line-clamp-2">{mediaById.get(a.postId!)?.caption || "Specific reel/post"}</div>
+                            </div>
+                          ) : a.postScope === "NEXT" ? (
+                            <span>New posts only</span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+                                Template
+                              </span>
+                              All posts
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-xs">
+                          {a.dmButtonUrl ? (
+                            <a className="text-primary hover:underline break-all" href={a.dmButtonUrl} target="_blank" rel="noreferrer">
+                              {a.dmButtonUrl}
+                            </a>
+                          ) : (
+                            <span className="text-muted-foreground">No link</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 font-mono">{a._count.dmJobs.toLocaleString()}</td>
+                        <td className="px-5 py-3"><StatusBadge status={formatStatus(a.status)} withDot /></td>
+                        <td className="px-5 py-3 text-muted-foreground">{new Date(a.createdAt).toLocaleDateString()}</td>
+                        <td className="px-5 py-3 text-right">
+                          <div className="inline-flex gap-1">
+                            <button
+                              className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-40"
+                              onClick={() => { setEditing(a); setOpen(true); }}
+                              disabled={!canUpdate}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              className="p-1.5 rounded-md hover:bg-destructive/15 text-muted-foreground hover:text-destructive disabled:opacity-40"
+                              onClick={() => deleteMutation.mutate(a.id)}
+                              disabled={!canDelete || deleteMutation.isPending}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}</>
       )}
+
+
     </DashboardLayout>
   );
 }
@@ -632,12 +652,12 @@ function AutomationBuilder({
       followBeforeDm: normalizedBlocks.some((block) => block.followBeforeDm),
       followUps: canCustomizeFollowUps
         ? followUps
-            .map((step, index) => ({
-              delay: step.delay.trim().toLowerCase(),
-              message: step.message.trim(),
-              order: index
-            }))
-            .filter((step) => step.message.length > 0)
+          .map((step, index) => ({
+            delay: step.delay.trim().toLowerCase(),
+            message: step.message.trim(),
+            order: index
+          }))
+          .filter((step) => step.message.length > 0)
         : undefined,
       status: targetStatus
     };
@@ -706,258 +726,258 @@ function AutomationBuilder({
 
           {/* ── STEP 0: Name & Triggers ── */}
           <div className={cn("space-y-4", step !== 0 && "hidden")}>
-              {/* Workflow Name card */}
-              <div className="rounded-xl border border-border bg-card p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Workflow Name
+            {/* Workflow Name card */}
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Workflow Name
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Status:</span>
+                  <span className={cn("text-xs font-medium", status === "ACTIVE" ? "text-green-500" : "text-muted-foreground")}>
+                    {status === "ACTIVE" ? "Active" : status === "PAUSED" ? "Paused" : "Draft"}
                   </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Status:</span>
-                    <span className={cn("text-xs font-medium", status === "ACTIVE" ? "text-green-500" : "text-muted-foreground")}>
-                      {status === "ACTIVE" ? "Active" : status === "PAUSED" ? "Paused" : "Draft"}
-                    </span>
-                    <Switch
-                      checked={status === "ACTIVE"}
-                      onCheckedChange={(v) => setStatus(v ? "ACTIVE" : "PAUSED")}
-                    />
-                  </div>
-                </div>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="bg-background border-border"
-                />
-              </div>
-
-              {/* Triggers section */}
-              <div>
-                {/* Section header */}
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                    <Zap className="h-3.5 w-3.5 text-primary" />
-                  </span>
-                  <span className="text-sm font-semibold text-primary">Step 1: Name &amp; triggers</span>
-                </div>
-                <p className="text-xs text-muted-foreground mb-4 ml-8">
-                  Configure your keyword triggers{" "}
-                  <span className="text-primary cursor-default">and</span>{" "}
-                  automated responses.
-                </p>
-
-                {/* Any comment toggle */}
-                {anyComment !== undefined && (
-                  <div className="ml-8 mb-4 flex items-center gap-2">
-                    <Switch checked={anyComment} onCheckedChange={setAnyCommentMode} />
-                    <span className="text-xs text-muted-foreground">Trigger on any comment</span>
-                  </div>
-                )}
-
-                {/* Trigger timeline */}
-                <div className="relative">
-                  <div
-                    className="absolute left-3 top-4 w-px bg-border"
-                    style={{ height: `calc(100% - 1.5rem)` }}
+                  <Switch
+                    checked={status === "ACTIVE"}
+                    onCheckedChange={(v) => setStatus(v ? "ACTIVE" : "PAUSED")}
                   />
+                </div>
+              </div>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="bg-background border-border"
+              />
+            </div>
 
-                  <div className="space-y-3">
-                    {triggerBlocks.map((block, index) => (
-                      <div key={block.id} className="relative pl-8">
-                        <div
-                          className={cn(
-                            "absolute left-1.5 top-3.5 h-3 w-3 rounded-full border-2 transition-colors",
-                            expandedBlockIds.has(block.id)
-                              ? "border-primary bg-primary/20"
-                              : "border-border bg-card"
-                          )}
-                        />
-                        <TriggerAccordionRow
-                          block={block}
-                          index={index}
-                          isExpanded={expandedBlockIds.has(block.id)}
-                          anyComment={anyComment}
-                          canRemove={triggerBlocks.length > 1}
-                          onToggleExpand={() => toggleBlockExpanded(block.id)}
-                          onRemove={() => removeBlock(block.id)}
-                          onUpdate={(patch) => updateBlock(block.id, patch)}
-                        />
-                      </div>
-                    ))}
+            {/* Triggers section */}
+            <div>
+              {/* Section header */}
+              <div className="flex items-center gap-2 mb-1">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Zap className="h-3.5 w-3.5 text-primary" />
+                </span>
+                <span className="text-sm font-semibold text-primary">Step 1: Name &amp; triggers</span>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4 ml-8">
+                Configure your keyword triggers{" "}
+                <span className="text-primary cursor-default">and</span>{" "}
+                automated responses.
+              </p>
 
-                    {/* Add new trigger block */}
-                    <div className="relative pl-8">
-                      <div className="absolute left-1.5 top-3.5 h-3 w-3 rounded-full border-2 border-dashed border-primary/30 bg-card" />
-                      <button
-                        type="button"
-                        onClick={addBlock}
-                        disabled={anyComment}
-                        className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-border py-3 text-sm text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors disabled:pointer-events-none disabled:opacity-50"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Add New Trigger Block
-                      </button>
+              {/* Any comment toggle */}
+              {anyComment !== undefined && (
+                <div className="ml-8 mb-4 flex items-center gap-2">
+                  <Switch checked={anyComment} onCheckedChange={setAnyCommentMode} />
+                  <span className="text-xs text-muted-foreground">Trigger on any comment</span>
+                </div>
+              )}
+
+              {/* Trigger timeline */}
+              <div className="relative">
+                <div
+                  className="absolute left-3 top-4 w-px bg-border"
+                  style={{ height: `calc(100% - 1.5rem)` }}
+                />
+
+                <div className="space-y-3">
+                  {triggerBlocks.map((block, index) => (
+                    <div key={block.id} className="relative pl-8">
+                      <div
+                        className={cn(
+                          "absolute left-1.5 top-3.5 h-3 w-3 rounded-full border-2 transition-colors",
+                          expandedBlockIds.has(block.id)
+                            ? "border-primary bg-primary/20"
+                            : "border-border bg-card"
+                        )}
+                      />
+                      <TriggerAccordionRow
+                        block={block}
+                        index={index}
+                        isExpanded={expandedBlockIds.has(block.id)}
+                        anyComment={anyComment}
+                        canRemove={triggerBlocks.length > 1}
+                        onToggleExpand={() => toggleBlockExpanded(block.id)}
+                        onRemove={() => removeBlock(block.id)}
+                        onUpdate={(patch) => updateBlock(block.id, patch)}
+                      />
                     </div>
+                  ))}
+
+                  {/* Add new trigger block */}
+                  <div className="relative pl-8">
+                    <div className="absolute left-1.5 top-3.5 h-3 w-3 rounded-full border-2 border-dashed border-primary/30 bg-card" />
+                    <button
+                      type="button"
+                      onClick={addBlock}
+                      disabled={anyComment}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-border py-3 text-sm text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add New Trigger Block
+                    </button>
                   </div>
                 </div>
               </div>
+            </div>
           </div>
 
           {/* ── STEP 1: Select reel/post ── */}
           <div className={cn("space-y-4", step !== 1 && "hidden")}>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                    <ImagePlus className="h-3.5 w-3.5 text-primary" />
-                  </span>
-                  <span className="text-sm font-semibold text-primary">Step 2: Select reel/post</span>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <ImagePlus className="h-3.5 w-3.5 text-primary" />
+                </span>
+                <span className="text-sm font-semibold text-primary">Step 2: Select reel/post</span>
+              </div>
+              <p className="text-xs text-muted-foreground ml-8">
+                Pick how this automation applies to your Instagram content. Use account template to set up once for all posts.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {POST_MODE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setPostMode(option.value)}
+                  className={cn(
+                    "w-full rounded-xl border p-4 text-left transition-colors",
+                    postMode === option.value
+                      ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                      : "border-border bg-card hover:border-muted-foreground/40"
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">{option.label}</span>
+                    {option.recommended && (
+                      <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+                        Recommended
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
+                </button>
+              ))}
+            </div>
+
+            {postMode === "specific" ? (
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">Selected post</div>
+                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                      {selectedMedia?.caption || "No reel/post selected yet."}
+                    </p>
+                    {requiresPostSelection && (
+                      <p className="mt-2 text-xs text-destructive">
+                        Select a reel or post to continue to review.
+                      </p>
+                    )}
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setIsMediaPickerOpen(true)}>
+                    <ImagePlus className="h-4 w-4" /> Choose reel/post
+                  </Button>
                 </div>
-                <p className="text-xs text-muted-foreground ml-8">
-                  Pick how this automation applies to your Instagram content. Use account template to set up once for all posts.
+              </div>
+            ) : postMode === "any" ? (
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
+                <p className="font-medium text-foreground">Account-wide template</p>
+                <p className="mt-1 text-muted-foreground">
+                  Comments on any reel or post (old or new) can trigger this workflow when keywords match.
+                  You only need one automation — no per-post setup.
                 </p>
               </div>
-
-              <div className="space-y-2">
-                {POST_MODE_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setPostMode(option.value)}
-                    className={cn(
-                      "w-full rounded-xl border p-4 text-left transition-colors",
-                      postMode === option.value
-                        ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                        : "border-border bg-card hover:border-muted-foreground/40"
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium">{option.label}</span>
-                      {option.recommended && (
-                        <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
-                          Recommended
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
-                  </button>
-                ))}
+            ) : (
+              <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+                Applies to reels and posts published after you save. Older posts are excluded.
               </div>
-
-              {postMode === "specific" ? (
-                <div className="rounded-xl border border-border bg-card p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium">Selected post</div>
-                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                        {selectedMedia?.caption || "No reel/post selected yet."}
-                      </p>
-                      {requiresPostSelection && (
-                        <p className="mt-2 text-xs text-destructive">
-                          Select a reel or post to continue to review.
-                        </p>
-                      )}
-                    </div>
-                    <Button type="button" variant="outline" size="sm" onClick={() => setIsMediaPickerOpen(true)}>
-                      <ImagePlus className="h-4 w-4" /> Choose reel/post
-                    </Button>
-                  </div>
-                </div>
-              ) : postMode === "any" ? (
-                <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
-                  <p className="font-medium text-foreground">Account-wide template</p>
-                  <p className="mt-1 text-muted-foreground">
-                    Comments on any reel or post (old or new) can trigger this workflow when keywords match.
-                    You only need one automation — no per-post setup.
-                  </p>
-                </div>
-              ) : (
-                <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
-                  Applies to reels and posts published after you save. Older posts are excluded.
-                </div>
-              )}
+            )}
           </div>
 
           {/* ── STEP 2: Review ── */}
           <div className={cn("space-y-4", step !== 2 && "hidden")}>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                    <Zap className="h-3.5 w-3.5 text-primary" />
-                  </span>
-                  <span className="text-sm font-semibold text-primary">Step 3: Review</span>
-                </div>
-                <p className="text-xs text-muted-foreground ml-8">
-                  Confirm your workflow settings before saving.
-                </p>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Zap className="h-3.5 w-3.5 text-primary" />
+                </span>
+                <span className="text-sm font-semibold text-primary">Step 3: Review</span>
               </div>
+              <p className="text-xs text-muted-foreground ml-8">
+                Confirm your workflow settings before saving.
+              </p>
+            </div>
 
-              <div className="grid gap-3 text-sm sm:grid-cols-2">
-                <ReviewItem label="Status" value={status} />
-                <ReviewItem
-                  label="Target"
-                  value={
-                    postMode === "specific"
-                      ? selectedMedia?.caption || selectedPostId || "Select a post"
-                      : postMode === "any"
-                        ? "Account template (all posts)"
-                        : "New posts only"
+            <div className="grid gap-3 text-sm sm:grid-cols-2">
+              <ReviewItem label="Status" value={status} />
+              <ReviewItem
+                label="Target"
+                value={
+                  postMode === "specific"
+                    ? selectedMedia?.caption || selectedPostId || "Select a post"
+                    : postMode === "any"
+                      ? "Account template (all posts)"
+                      : "New posts only"
+                }
+              />
+              <ReviewItem
+                label="Trigger blocks"
+                value={anyComment ? "Any comment/reply" : `${triggerBlocks.length} keyword flows`}
+              />
+              <ReviewItem
+                label="Active trigger"
+                value={anyComment ? "Any comment" : previewBlock?.keyword || "No keyword"}
+              />
+              <ReviewItem label="Auto reply" value={previewBlock?.autoReply ? "Enabled" : "Disabled"} />
+              <ReviewItem
+                label="DM button"
+                value={
+                  previewBlock?.dmButtonUrl.trim()
+                    ? previewBlock.dmButtonLabel.trim() || "Open link"
+                    : "No button"
+                }
+              />
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Lock className="h-3.5 w-3.5" /> Follow Before DM
+                </div>
+                <Switch
+                  checked={previewBlock?.followBeforeDm ?? false}
+                  onCheckedChange={(checked) =>
+                    previewBlock && updateBlock(previewBlock.id, { followBeforeDm: checked })
                   }
                 />
-                <ReviewItem
-                  label="Trigger blocks"
-                  value={anyComment ? "Any comment/reply" : `${triggerBlocks.length} keyword flows`}
-                />
-                <ReviewItem
-                  label="Active trigger"
-                  value={anyComment ? "Any comment" : previewBlock?.keyword || "No keyword"}
-                />
-                <ReviewItem label="Auto reply" value={previewBlock?.autoReply ? "Enabled" : "Disabled"} />
-                <ReviewItem
-                  label="DM button"
-                  value={
-                    previewBlock?.dmButtonUrl.trim()
-                      ? previewBlock.dmButtonLabel.trim() || "Open link"
-                      : "No button"
-                  }
-                />
               </div>
+              <FollowUpSequencesSection
+                canCustomize={canCustomizeFollowUps}
+                followUpLimit={dmFollowUpLimit}
+                followUps={followUps}
+                onChange={setFollowUps}
+              />
+            </div>
 
-              <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Lock className="h-3.5 w-3.5" /> Follow Before DM
-                  </div>
-                  <Switch
-                    checked={previewBlock?.followBeforeDm ?? false}
-                    onCheckedChange={(checked) =>
-                      previewBlock && updateBlock(previewBlock.id, { followBeforeDm: checked })
-                    }
-                  />
-                </div>
-                <FollowUpSequencesSection
-                  canCustomize={canCustomizeFollowUps}
-                  followUpLimit={dmFollowUpLimit}
-                  followUps={followUps}
-                  onChange={setFollowUps}
-                />
-              </div>
-
-              <div className="flex gap-2 pt-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={mutation.isPending}
-                  onClick={() => mutation.mutate("DRAFT")}
-                >
-                  Save Draft
-                </Button>
-                <Button
-                  size="sm"
-                  disabled={mutation.isPending || (postMode === "specific" && !selectedPostId)}
-                  onClick={() => mutation.mutate(status)}
-                >
-                  {mutation.isPending ? "Saving..." : mode === "edit" ? "Update Automation" : "Save & Activate"}
-                </Button>
-              </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={mutation.isPending}
+                onClick={() => mutation.mutate("DRAFT")}
+              >
+                Save Draft
+              </Button>
+              <Button
+                size="sm"
+                disabled={mutation.isPending || (postMode === "specific" && !selectedPostId)}
+                onClick={() => mutation.mutate(status)}
+              >
+                {mutation.isPending ? "Saving..." : mode === "edit" ? "Update Automation" : "Save & Activate"}
+              </Button>
+            </div>
           </div>
 
           {/* Footer navigation */}

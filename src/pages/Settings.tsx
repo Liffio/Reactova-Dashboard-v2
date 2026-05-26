@@ -24,6 +24,7 @@ import { toast } from "@/components/ui/sonner";
 import {
   useCreateInviteMutation,
   useRemoveMemberMutation,
+  useRevokeInviteMutation,
   useTeamInvitesQuery,
   useTeamMembersQuery,
   useTeamOptionsQuery,
@@ -83,16 +84,7 @@ export default function Settings() {
       {tab === "General" && <General />}
       {tab === "Billing" && <BillingSettingsTab />}
       {tab === "Notifications" && <Notifications />}
-      {tab === "Team" &&
-        (current.plan === "Business" || current.plan === "Agency" ? (
-          <Team />
-        ) : (
-          <PlanGate
-            requiredPlan="Business"
-            message="Team members are available on Business and Agency plans."
-            className="min-h-[280px]"
-          />
-        ))}
+      {tab === "Team" && <Team />}
       {tab === "API" && <ApiCredentialsSettings />}
       {tab === "Security" && (
         <SecuritySection
@@ -851,12 +843,17 @@ function Notifications() {
   );
 }
 
+const PLAN_TEAM_LIMITS: Record<string, number> = {
+  Free: 2, Starter: 5, Pro: 10, Business: 20, Agency: 50
+};
+
 function Team() {
   const { current } = useApp();
   const membersQuery = useTeamMembersQuery(current.id);
   const invitesQuery = useTeamInvitesQuery(current.id);
   const optionsQuery = useTeamOptionsQuery(current.id);
   const createInviteMutation = useCreateInviteMutation(current.id);
+  const revokeInviteMutation = useRevokeInviteMutation(current.id);
   const updateMemberMutation = useUpdateMemberMutation(current.id);
   const removeMemberMutation = useRemoveMemberMutation(current.id);
 
@@ -864,6 +861,10 @@ function Team() {
   const [roleKey, setRoleKey] = useState("MEMBER");
   const [permissionKeys, setPermissionKeys] = useState<string[]>([]);
   const [policyKeys, setPolicyKeys] = useState<string[]>([]);
+
+  const memberLimit = PLAN_TEAM_LIMITS[current.plan] ?? 2;
+  const memberCount = membersQuery.data?.length ?? 0;
+  const atLimit = memberCount >= memberLimit;
 
   const moduleGroups = useMemo(() => {
     const grouped = new Map<string, { moduleName: string; keys: string[] }>();
@@ -893,18 +894,32 @@ function Team() {
   return (
     <div className="space-y-5">
       <section className="rounded-xl bg-card border border-border p-4 space-y-3">
-        <h3 className="font-semibold">Invite Team Member</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Invite Team Member</h3>
+          <span className="text-xs text-muted-foreground">
+            {memberCount} / {memberLimit} seats used
+          </span>
+        </div>
+        {atLimit && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-muted-foreground">
+            You've reached the {memberLimit}-member limit on the {current.plan} plan.{" "}
+            <Link to="/billing" className="font-medium text-foreground underline underline-offset-2 hover:text-primary">Upgrade</Link>{" "}
+            to invite more people.
+          </div>
+        )}
         <div className="grid md:grid-cols-3 gap-2">
           <Input
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="member@company.com"
             className="bg-input border-border"
+            disabled={atLimit}
           />
           <select
             value={roleKey}
             onChange={(event) => setRoleKey(event.target.value)}
-            className="h-10 rounded-md border border-border bg-input px-3 text-sm"
+            className="h-10 rounded-md border border-border bg-input px-3 text-sm disabled:opacity-50"
+            disabled={atLimit}
           >
             {(optionsQuery.data?.roles ?? []).map((role) => (
               <option key={role.key} value={role.key}>
@@ -921,11 +936,12 @@ function Team() {
                 permissionKeys,
                 policyKeys
               });
+              toast.success(`Invitation sent to ${email}. They'll receive an email with a link to accept.`);
               setEmail("");
               setPermissionKeys([]);
               setPolicyKeys([]);
             }}
-            disabled={!email || createInviteMutation.isPending}
+            disabled={!email || createInviteMutation.isPending || atLimit}
           >
             <Plus className="h-4 w-4" /> Send Invite
           </Button>
@@ -985,71 +1001,123 @@ function Team() {
       <section className="rounded-xl bg-card border border-border overflow-hidden">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-xs text-muted-foreground border-b border-border">
-            <th className="px-5 py-3">Member</th><th className="px-5 py-3">Email</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Joined</th><th />
+            <th className="px-5 py-3">Member</th><th className="px-5 py-3">Email</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Permissions</th><th />
           </tr></thead>
-          <tbody>{(membersQuery.data ?? []).map((m) => (
-            <tr key={m.user.email} className="stripe-row">
-              <td className="px-5 py-3 flex items-center gap-2">
-                <div className="h-7 w-7 rounded-full bg-primary/20 text-primary text-xs flex items-center justify-center font-semibold">{m.user.name.split(" ").map(n => n[0]).join("")}</div>
-                {m.user.name}
-              </td>
-              <td className="px-5 py-3 text-muted-foreground">
-                {m.user.email}
-                {m.immutableSuperAdmin && <span className="text-[10px] text-primary block">immutable super admin</span>}
-              </td>
-              <td className="px-5 py-3">
-                <select
-                  className="h-8 rounded-md border border-border bg-input px-2 text-xs"
-                  value={m.role.key}
-                  onChange={async (event) => {
-                    await updateMemberMutation.mutateAsync({
-                      userId: m.user.id,
-                      payload: { roleKey: event.target.value, permissionKeys: [], policyKeys: [] }
-                    });
-                  }}
-                  disabled={m.immutableSuperAdmin || updateMemberMutation.isPending}
-                >
-                  {(optionsQuery.data?.roles ?? []).map((role) => (
-                    <option key={role.key} value={role.key}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="px-5 py-3 text-muted-foreground">{m.permissions.length} effective perms</td>
-              <td className="px-5 py-3">
-                <button
-                  disabled={m.immutableSuperAdmin || removeMemberMutation.isPending}
-                  onClick={async () => {
-                    await removeMemberMutation.mutateAsync(m.user.id);
-                  }}
-                  className="p-1.5 text-muted-foreground hover:text-destructive disabled:opacity-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </td>
-            </tr>
-          ))}</tbody>
+          <tbody>{(membersQuery.data ?? []).map((m) => {
+            const isOwner = m.role.key === "OWNER";
+            return (
+              <tr key={m.user.email} className="stripe-row">
+                <td className="px-5 py-3 flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-full bg-primary/20 text-primary text-xs flex items-center justify-center font-semibold">{m.user.name.split(" ").map(n => n[0]).join("")}</div>
+                  {m.user.name}
+                  {isOwner && <span className="text-[10px] text-primary">owner</span>}
+                </td>
+                <td className="px-5 py-3 text-muted-foreground">
+                  {m.user.email}
+                  {m.immutableSuperAdmin && <span className="text-[10px] text-primary block">immutable super admin</span>}
+                </td>
+                <td className="px-5 py-3">
+                  {isOwner ? (
+                    <span className="text-xs text-muted-foreground">Owner</span>
+                  ) : (
+                    <select
+                      className="h-8 rounded-md border border-border bg-input px-2 text-xs"
+                      value={m.role.key}
+                      onChange={async (event) => {
+                        await updateMemberMutation.mutateAsync({
+                          userId: m.user.id,
+                          payload: { roleKey: event.target.value, permissionKeys: [], policyKeys: [] }
+                        });
+                      }}
+                      disabled={m.immutableSuperAdmin || updateMemberMutation.isPending}
+                    >
+                      {(optionsQuery.data?.roles ?? []).map((role) => (
+                        <option key={role.key} value={role.key}>
+                          {role.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </td>
+                <td className="px-5 py-3 text-muted-foreground text-sm">{m.permissions.length} perms</td>
+                <td className="px-5 py-3">
+                  {!isOwner && (
+                    <button
+                      disabled={m.immutableSuperAdmin || removeMemberMutation.isPending}
+                      onClick={async () => {
+                        await removeMemberMutation.mutateAsync(m.user.id);
+                        toast.success(`${m.user.name} removed from workspace`);
+                      }}
+                      className="p-1.5 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                      title="Remove member"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}</tbody>
         </table>
       </section>
 
       <section className="rounded-xl bg-card border border-border p-4">
-        <h3 className="font-semibold mb-2">Invites</h3>
+        <h3 className="font-semibold mb-3">Invites</h3>
         <div className="space-y-2 text-sm">
           {(invitesQuery.data ?? []).map((invite) => (
-            <div key={invite.id} className="flex items-center justify-between border border-border rounded-lg px-3 py-2">
-              <div>
-                <div className="font-medium">{invite.email}</div>
+            <div key={invite.id} className="flex items-center justify-between border border-border rounded-lg px-3 py-2 gap-2">
+              <div className="min-w-0">
+                <div className="font-medium truncate">{invite.email}</div>
                 <div className="text-xs text-muted-foreground">
-                  {invite.status} · role {invite.baseRole.key}
+                  {invite.baseRole?.name ?? invite.baseRole?.key ?? "Member"} ·{" "}
+                  <span className={
+                    invite.status === "PENDING" ? "text-amber-500"
+                    : invite.status === "ACCEPTED" ? "text-green-500"
+                    : "text-muted-foreground"
+                  }>
+                    {invite.status === "PENDING" ? "Awaiting acceptance"
+                     : invite.status === "ACCEPTED" ? "Active"
+                     : invite.status === "EXPIRED" ? "Expired"
+                     : "Revoked"}
+                  </span>
                 </div>
               </div>
-              <div className="text-xs text-muted-foreground">
-                perms {(invite.accessConfig.permissionKeys ?? []).length} · policies {(invite.accessConfig.policyKeys ?? []).length}
+              <div className="flex items-center gap-2 shrink-0">
+                {invite.status === "PENDING" && new Date(invite.expiresAt) > new Date() && (
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    expires {new Date(invite.expiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  </span>
+                )}
+                {invite.status === "PENDING" && (
+                  <button
+                    disabled={revokeInviteMutation.isPending}
+                    onClick={async () => {
+                      await revokeInviteMutation.mutateAsync(invite.id);
+                      toast.success("Invite revoked");
+                    }}
+                    className="p-1 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                    title="Revoke invite"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {invite.status === "ACCEPTED" && invite.acceptedUserId && (
+                  <button
+                    disabled={removeMemberMutation.isPending}
+                    onClick={async () => {
+                      await removeMemberMutation.mutateAsync(invite.acceptedUserId!);
+                      toast.success(`${invite.email} removed from workspace`);
+                    }}
+                    className="p-1 text-muted-foreground hover:text-destructive disabled:opacity-50"
+                    title="Remove access"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           ))}
-          {invitesQuery.data?.length === 0 && <p className="text-xs text-muted-foreground">No invites yet.</p>}
+          {invitesQuery.data?.length === 0 && <p className="text-xs text-muted-foreground">No invites sent yet.</p>}
         </div>
       </section>
     </div>

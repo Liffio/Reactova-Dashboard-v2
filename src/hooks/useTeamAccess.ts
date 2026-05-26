@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
+import { useAppSelector } from "@/store/hooks";
 
 export type TeamMember = {
   user: { id: string; email: string; name: string };
@@ -13,6 +14,7 @@ export type WorkspaceInvite = {
   id: string;
   email: string;
   status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
+  acceptedUserId: string | null;
   expiresAt: string;
   acceptedAt: string | null;
   revokedAt: string | null;
@@ -36,6 +38,25 @@ export type TeamOptions = {
     effect: "ALLOW" | "DENY";
     description: string | null;
   }>;
+};
+
+export type InvitePreview = {
+  id: string;
+  email: string;
+  inviterName: string;
+  workspaceName: string;
+  roleName: string;
+  expiresAt: string;
+};
+
+export type PendingInvite = {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  inviterName: string;
+  roleName: string;
+  expiresAt: string;
+  createdAt: string;
 };
 
 type InvitePayload = {
@@ -81,7 +102,7 @@ export function useCreateInviteMutation(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: InvitePayload) =>
-      apiRequest<{ id: string; acceptanceToken: string | null; status: string }>("/api/v1/team/invites", {
+      apiRequest<{ id: string; status: string; expiresAt: string }>("/api/v1/team/invites", {
         method: "POST",
         workspaceId,
         body: payload
@@ -89,6 +110,47 @@ export function useCreateInviteMutation(workspaceId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["team-members", workspaceId] });
       void queryClient.invalidateQueries({ queryKey: ["team-invites", workspaceId] });
+    }
+  });
+}
+
+export function useRevokeInviteMutation(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (inviteId: string) =>
+      apiRequest<void>(`/api/v1/team/invites/${inviteId}`, { method: "DELETE", workspaceId }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["team-invites", workspaceId] });
+    }
+  });
+}
+
+export function useInvitePreviewQuery(token: string | null) {
+  return useQuery({
+    queryKey: ["invite-preview", token],
+    queryFn: () => apiRequest<InvitePreview>(`/api/v1/auth/invites/preview?token=${encodeURIComponent(token!)}`),
+    enabled: Boolean(token),
+    retry: false
+  });
+}
+
+export function usePendingInvitesQuery() {
+  const isAuthenticated = useAppSelector((s) => Boolean(s.auth.accessToken));
+  return useQuery({
+    queryKey: ["pending-invites"],
+    queryFn: () => apiRequest<PendingInvite[]>("/api/v1/auth/invites/mine"),
+    enabled: isAuthenticated,
+    staleTime: 60_000
+  });
+}
+
+export function useAcceptInviteMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (token: string) =>
+      apiRequest<void>("/api/v1/auth/invites/accept", { method: "POST", body: { token } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pending-invites"] });
     }
   });
 }

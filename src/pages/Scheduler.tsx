@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   addMonths,
   eachDayOfInterval,
@@ -1169,922 +1170,934 @@ export default function Scheduler() {
       title="Posts & Scheduler"
       subtitle="Plan content, schedule publishes, and review performance from live Instagram data."
     >
-      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)} className="w-full">
-        <TabsList className="flex w-full flex-wrap h-auto gap-1 p-1 sm:inline-flex sm:h-10">
-          <TabsTrigger value="planner" className="flex-1 sm:flex-none">
-            Planner
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex-1 sm:flex-none">
-            Post analytics
-          </TabsTrigger>
-        </TabsList>
+      {!current.instagramConnected ? (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm">
+          <span className="mt-0.5 text-amber-500">⚠</span>
+          <p className="text-muted-foreground">
+            Instagram is not connected.{" "}
+            <Link to="/settings?tab=General" className="font-medium text-foreground underline underline-offset-4 hover:text-primary">
+              Go to Settings → General
+            </Link>{" "}
+            to connect your Instagram account and enable post scheduling.
+          </p>
+        </div>
+      ) : (
+        <>
+          <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)} className="w-full">
+            <TabsList className="flex w-full flex-wrap h-auto gap-1 p-1 sm:inline-flex sm:h-10">
+              <TabsTrigger value="planner" className="flex-1 sm:flex-none">
+                Planner
+              </TabsTrigger>
+              <TabsTrigger value="analytics" className="flex-1 sm:flex-none">
+                Post analytics
+              </TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="planner" className="mt-4 space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            <div className="inline-flex p-1 rounded-lg bg-card border border-border w-full sm:w-auto">
-              {(["calendar", "list"] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setView(v)}
-                  className={cn(
-                    "flex-1 sm:flex-none px-3 py-1.5 rounded-md text-xs font-medium capitalize",
-                    view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground",
-                  )}
-                >
-                  {v === "calendar" ? (
-                    <span className="inline-flex items-center justify-center gap-1">
-                      <CalendarDays className="h-3.5 w-3.5" /> Calendar
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center justify-center gap-1">
-                      <List className="h-3.5 w-3.5" /> List
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-            {canCreate && (
-              <Button className="w-full sm:w-auto" onClick={() => setComposeOpen(true)}>
-                New post
-              </Button>
-            )}
-          </div>
-
-          {!accountsQuery.data?.accounts?.length && (
-            <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-              Connect Instagram in Settings to enable scheduling and analytics sync for this workspace.
-            </div>
-          )}
-
-          {view === "calendar" ? (
-            <section className="rounded-xl bg-card border border-border p-3 sm:p-5 w-full overflow-hidden">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-                <h3 className="font-semibold text-foreground">{format(cursorMonth, "MMMM yyyy")}</h3>
-                <div className="flex flex-wrap gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                    onClick={() => setCursorMonth((d) => addMonths(d, -1))}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="sm" type="button" onClick={() => setCursorMonth(startOfMonth(new Date()))}>
-                    Today
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                    onClick={() => setCursorMonth((d) => addMonths(d, 1))}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
+            <TabsContent value="planner" className="mt-4 space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <div className="inline-flex p-1 rounded-lg bg-card border border-border w-full sm:w-auto">
+                  {(["calendar", "list"] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setView(v)}
+                      className={cn(
+                        "flex-1 sm:flex-none px-3 py-1.5 rounded-md text-xs font-medium capitalize",
+                        view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+                      )}
+                    >
+                      {v === "calendar" ? (
+                        <span className="inline-flex items-center justify-center gap-1">
+                          <CalendarDays className="h-3.5 w-3.5" /> Calendar
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center justify-center gap-1">
+                          <List className="h-3.5 w-3.5" /> List
+                        </span>
+                      )}
+                    </button>
+                  ))}
                 </div>
+                {canCreate && (
+                  <Button className="w-full sm:w-auto" onClick={() => setComposeOpen(true)}>
+                    New post
+                  </Button>
+                )}
               </div>
-              {calendarQuery.isLoading ? (
-                <div className="flex justify-center py-12 text-muted-foreground">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
-              ) : (
-                <div className="w-full overflow-x-auto">
-                  <div className="grid grid-cols-7 gap-1 min-w-[280px] text-xs">
-                    {WEEK_LABELS.map((d) => (
-                      <div key={d} className="text-center text-muted-foreground py-2 font-medium">
-                        {d}
-                      </div>
-                    ))}
-                    {calendarDays.map((day, idx) => {
-                      if (!day) {
-                        return <div key={`pad-${idx}`} className="min-h-20 sm:min-h-24 md:min-h-28" />;
-                      }
-                      const inMonth = isSameMonth(day, cursorMonth);
-                      const dayPosts = postsForDay(day, posts);
-                      return (
-                        <div
-                          key={day.toISOString()}
-                          className={cn(
-                            "min-h-20 sm:min-h-24 md:min-h-28 rounded-lg border border-border p-1 sm:p-2 transition-colors",
-                            inMonth ? "bg-background hover:border-primary/40" : "bg-muted/30 opacity-60",
-                          )}
-                        >
-                          <div className="text-[11px] text-muted-foreground">{format(day, "d")}</div>
-                          <div className="mt-1 space-y-1 overflow-hidden">
-                            {dayPosts.map((p) => (
-                              <button
-                                key={p.id}
-                                type="button"
-                                onClick={() => openPostDetail(p.id)}
-                                className={cn(
-                                  "bg-card border border-border rounded px-1 sm:px-1.5 py-1 mb-0.5 flex items-center gap-1.5 w-full min-w-0 border-l-2 text-left cursor-pointer hover:bg-muted/40 transition-colors",
-                                  statusBorderClass(p.status),
-                                )}
-                              >
-                                <SchedulerMediaThumb
-                                  url={p.thumbnailUrl}
-                                  className="h-6 w-6"
-                                  imgClassName="h-6 w-6"
-                                />
-                                <span className="text-xs text-foreground truncate flex-1 min-w-0">
-                                  {p.captionPreview ?? p.type}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </section>
-          ) : (
-            <section className="rounded-xl bg-card border border-border overflow-hidden w-full">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[600px]">
-                  <thead>
-                    <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                      <th className="px-4 py-3 font-medium">Preview</th>
-                      <th className="px-4 py-3 font-medium">Caption</th>
-                      <th className="px-4 py-3 font-medium hidden sm:table-cell">Platform</th>
-                      <th className="px-4 py-3 font-medium">When</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 font-medium text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(listQuery.data?.posts ?? []).map((p) => (
-                      <tr
-                        key={p.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => openPostDetail(p.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            openPostDetail(p.id);
-                          }
-                        }}
-                        className="stripe-row border-b border-border last:border-0 cursor-pointer hover:bg-muted/30"
+
+
+              {view === "calendar" ? (
+                <section className="rounded-xl bg-card border border-border p-3 sm:p-5 w-full overflow-hidden">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+                    <h3 className="font-semibold text-foreground">{format(cursorMonth, "MMMM yyyy")}</h3>
+                    <div className="flex flex-wrap gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() => setCursorMonth((d) => addMonths(d, -1))}
                       >
-                        <td className="px-4 py-3">
-                          <SchedulerMediaThumb
-                            url={p.thumbnailUrl}
-                            className="h-10 w-10"
-                            imgClassName="h-10 w-10 rounded-md"
-                          />
-                        </td>
-                        <td className="px-4 py-3 max-w-[200px] sm:max-w-none">
-                          <div className="font-medium line-clamp-2">{p.caption ?? "—"}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">{p.type}</div>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{p.platformKey}</td>
-                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                          {p.scheduledAt
-                            ? format(new Date(p.scheduledAt), "MMM d, HH:mm")
-                            : p.publishedAt
-                              ? format(new Date(p.publishedAt), "MMM d, HH:mm")
-                              : "—"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <StatusBadge status={mapSchedulerStatus(p.status)} withDot />
-                        </td>
-                        <td className="px-4 py-3 text-right space-x-1 whitespace-nowrap">
-                          {canUpdate && canPublishNowPost(p) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              type="button"
-                              disabled={publishNowMutation.isPending}
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                try {
-                                  await publishNowMutation.mutateAsync(p.id);
-                                  toast.success("Publish queued");
-                                } catch (err) {
-                                  toast.error(err instanceof Error ? err.message : "Publish failed");
-                                }
-                              }}
-                            >
-                              Publish now
-                            </Button>
-                          )}
-                          {canDelete && (p.status === "SCHEDULED" || p.status === "DRAFT" || p.status === "FAILED") && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              type="button"
-                              disabled={cancelMutation.isPending}
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                try {
-                                  await cancelMutation.mutateAsync(p.id);
-                                  toast.success("Post cancelled");
-                                } catch (err) {
-                                  toast.error(err instanceof Error ? err.message : "Could not cancel");
-                                }
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {!listQuery.isLoading && (listQuery.data?.posts.length ?? 0) === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                          No posts in this month. Create a post to see it here.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
-        </TabsContent>
-
-        <TabsContent value="analytics" className="mt-4 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:justify-between sm:items-center">
-            <Button
-              variant="outline"
-              className="w-full sm:w-auto"
-              type="button"
-              disabled={syncMutation.isPending}
-              onClick={async () => {
-                try {
-                  const r = await syncMutation.mutateAsync();
-                  if ("skippedRateLimit" in r && r.skippedRateLimit) {
-                    toast.info("Sync rate limited", { description: "Try again in a few minutes." });
-                  } else {
-                    toast.success(`Synced ${r.upserted} posts`);
-                  }
-                } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Sync failed");
-                }
-              }}
-            >
-              {syncMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              <span className="ml-2">Sync from Instagram</span>
-            </Button>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <span className="text-xs text-muted-foreground shrink-0">Sort posts</span>
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
-                <SelectTrigger className="w-full sm:max-w-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="impressions">Impressions</SelectItem>
-                  <SelectItem value="engagement">Engagement rate</SelectItem>
-                  <SelectItem value="likes">Likes</SelectItem>
-                  <SelectItem value="comments">Comments</SelectItem>
-                  <SelectItem value="saves">Saves</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {overviewQuery.isLoading ? (
-            <div className="flex justify-center py-16 text-muted-foreground">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-                {[
-                  { label: "Tracked posts", value: overviewQuery.data?.totalPosts ?? 0 },
-                  { label: "Scheduled", value: overviewQuery.data?.scheduledPosts ?? 0 },
-                  { label: "Published", value: overviewQuery.data?.publishedPosts ?? 0 },
-                  { label: "Failed", value: overviewQuery.data?.failedPosts ?? 0 },
-                  { label: "Impressions", value: overviewQuery.data?.totalImpressions ?? 0 },
-                  { label: "Reach", value: overviewQuery.data?.totalReach ?? 0 },
-                  { label: "Likes", value: overviewQuery.data?.totalLikes ?? 0 },
-                  {
-                    label: "Avg engagement %",
-                    value:
-                      overviewQuery.data?.avgEngagementRate != null
-                        ? overviewQuery.data.avgEngagementRate.toFixed(1)
-                        : "—",
-                  },
-                ].map((s) => (
-                  <Card key={s.label}>
-                    <CardHeader className="p-4 sm:p-6 pb-2">
-                      <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        {s.label}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 sm:p-6 pt-0">
-                      <div className="text-2xl sm:text-3xl font-bold text-foreground">{s.value}</div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              <Card>
-                <CardHeader className="p-4 sm:p-6">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <BarChart2 className="h-4 w-4" /> Performance by day
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 sm:p-6 pt-0">
-                  <div className="w-full aspect-[16/7] min-h-40">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={overviewQuery.data?.dailySeries ?? []}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                        <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                        <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={40} />
-                        <Tooltip
-                          contentStyle={{
-                            background: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: 8,
-                          }}
-                        />
-                        <Line type="monotone" dataKey="impressions" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Impressions" />
-                        <Line type="monotone" dataKey="reach" stroke="hsl(var(--accent))" strokeWidth={2} dot={false} name="Reach" />
-                        <Line type="monotone" dataKey="likes" stroke="hsl(var(--success))" strokeWidth={2} dot={false} name="Likes" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="p-4 sm:p-6">
-                  <CardTitle className="text-sm font-semibold">Engagement by hour (UTC)</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 sm:p-6 pt-0 overflow-x-auto">
-                  <div className="inline-flex flex-col gap-1 min-w-max">
-                    <div className="grid grid-cols-[2rem_repeat(7,minmax(0,1fr))] gap-1 text-[10px] text-muted-foreground">
-                      <div />
-                      {WEEK_LABELS.map((d) => (
-                        <div key={d} className="text-center">
-                          {d}
-                        </div>
-                      ))}
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" type="button" onClick={() => setCursorMonth(startOfMonth(new Date()))}>
+                        Today
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() => setCursorMonth((d) => addMonths(d, 1))}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
                     </div>
-                    {Array.from({ length: 24 }, (_, hour) => (
-                      <div key={hour} className="grid grid-cols-[2rem_repeat(7,minmax(0,1fr))] gap-1 items-center">
-                        <div className="text-[10px] text-muted-foreground text-right pr-1">{hour}</div>
-                        {WEEK_LABELS.map((_, dayIdx) => heatCell(dayIdx, hour))}
-                      </div>
-                    ))}
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="p-4 sm:p-6">
-                  <CardTitle className="text-sm font-semibold">Posts</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0 sm:p-0">
+                  {calendarQuery.isLoading ? (
+                    <div className="flex justify-center py-12 text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="w-full overflow-x-auto">
+                      <div className="grid grid-cols-7 gap-1 min-w-[280px] text-xs">
+                        {WEEK_LABELS.map((d) => (
+                          <div key={d} className="text-center text-muted-foreground py-2 font-medium">
+                            {d}
+                          </div>
+                        ))}
+                        {calendarDays.map((day, idx) => {
+                          if (!day) {
+                            return <div key={`pad-${idx}`} className="min-h-20 sm:min-h-24 md:min-h-28" />;
+                          }
+                          const inMonth = isSameMonth(day, cursorMonth);
+                          const dayPosts = postsForDay(day, posts);
+                          return (
+                            <div
+                              key={day.toISOString()}
+                              className={cn(
+                                "min-h-20 sm:min-h-24 md:min-h-28 rounded-lg border border-border p-1 sm:p-2 transition-colors",
+                                inMonth ? "bg-background hover:border-primary/40" : "bg-muted/30 opacity-60",
+                              )}
+                            >
+                              <div className="text-[11px] text-muted-foreground">{format(day, "d")}</div>
+                              <div className="mt-1 space-y-1 overflow-hidden">
+                                {dayPosts.map((p) => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => openPostDetail(p.id)}
+                                    className={cn(
+                                      "bg-card border border-border rounded px-1 sm:px-1.5 py-1 mb-0.5 flex items-center gap-1.5 w-full min-w-0 border-l-2 text-left cursor-pointer hover:bg-muted/40 transition-colors",
+                                      statusBorderClass(p.status),
+                                    )}
+                                  >
+                                    <SchedulerMediaThumb
+                                      url={p.thumbnailUrl}
+                                      className="h-6 w-6"
+                                      imgClassName="h-6 w-6"
+                                    />
+                                    <span className="text-xs text-foreground truncate flex-1 min-w-0">
+                                      {p.captionPreview ?? p.type}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </section>
+              ) : (
+                <section className="rounded-xl bg-card border border-border overflow-hidden w-full">
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm min-w-[640px]">
+                    <table className="w-full text-sm min-w-[600px]">
                       <thead>
                         <tr className="text-left text-xs text-muted-foreground border-b border-border">
+                          <th className="px-4 py-3 font-medium">Preview</th>
                           <th className="px-4 py-3 font-medium">Caption</th>
-                          <th className="px-4 py-3 font-medium hidden md:table-cell">Published</th>
-                          <th className="px-4 py-3 font-medium">Impr.</th>
-                          <th className="px-4 py-3 font-medium hidden sm:table-cell">Reach</th>
-                          <th className="px-4 py-3 font-medium">Likes</th>
-                          <th className="px-4 py-3 font-medium hidden lg:table-cell">ER %</th>
+                          <th className="px-4 py-3 font-medium hidden sm:table-cell">Platform</th>
+                          <th className="px-4 py-3 font-medium">When</th>
+                          <th className="px-4 py-3 font-medium">Status</th>
+                          <th className="px-4 py-3 font-medium text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {(analyticsPostsQuery.data?.posts ?? []).map((row) => (
-                          <tr key={String(row.id)} className="stripe-row border-b border-border last:border-0">
-                            <td className="px-4 py-3 line-clamp-2 max-w-xs">
-                              {String(row.caption ?? "—")}
+                        {(listQuery.data?.posts ?? []).map((p) => (
+                          <tr
+                            key={p.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => openPostDetail(p.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                openPostDetail(p.id);
+                              }
+                            }}
+                            className="stripe-row border-b border-border last:border-0 cursor-pointer hover:bg-muted/30"
+                          >
+                            <td className="px-4 py-3">
+                              <SchedulerMediaThumb
+                                url={p.thumbnailUrl}
+                                className="h-10 w-10"
+                                imgClassName="h-10 w-10 rounded-md"
+                              />
                             </td>
-                            <td className="px-4 py-3 text-muted-foreground hidden md:table-cell whitespace-nowrap">
-                              {row.publishedAt ? format(new Date(String(row.publishedAt)), "MMM d, yyyy") : "—"}
+                            <td className="px-4 py-3 max-w-[200px] sm:max-w-none">
+                              <div className="font-medium line-clamp-2">{p.caption ?? "—"}</div>
+                              <div className="text-xs text-muted-foreground mt-0.5">{p.type}</div>
                             </td>
-                            <td className="px-4 py-3 font-mono text-xs">{row.impressions != null ? String(row.impressions) : "—"}</td>
-                            <td className="px-4 py-3 font-mono text-xs hidden sm:table-cell">
-                              {row.reach != null ? String(row.reach) : "—"}
+                            <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{p.platformKey}</td>
+                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                              {p.scheduledAt
+                                ? format(new Date(p.scheduledAt), "MMM d, HH:mm")
+                                : p.publishedAt
+                                  ? format(new Date(p.publishedAt), "MMM d, HH:mm")
+                                  : "—"}
                             </td>
-                            <td className="px-4 py-3 font-mono text-xs">{row.likes != null ? String(row.likes) : "—"}</td>
-                            <td className="px-4 py-3 font-mono text-xs hidden lg:table-cell">
-                              {row.engagementRate != null ? Number(row.engagementRate).toFixed(1) : "—"}
+                            <td className="px-4 py-3">
+                              <StatusBadge status={mapSchedulerStatus(p.status)} withDot />
+                            </td>
+                            <td className="px-4 py-3 text-right space-x-1 whitespace-nowrap">
+                              {canUpdate && canPublishNowPost(p) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  type="button"
+                                  disabled={publishNowMutation.isPending}
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      await publishNowMutation.mutateAsync(p.id);
+                                      toast.success("Publish queued");
+                                    } catch (err) {
+                                      toast.error(err instanceof Error ? err.message : "Publish failed");
+                                    }
+                                  }}
+                                >
+                                  Publish now
+                                </Button>
+                              )}
+                              {canDelete && (p.status === "SCHEDULED" || p.status === "DRAFT" || p.status === "FAILED") && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  type="button"
+                                  disabled={cancelMutation.isPending}
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      await cancelMutation.mutateAsync(p.id);
+                                      toast.success("Post cancelled");
+                                    } catch (err) {
+                                      toast.error(err instanceof Error ? err.message : "Could not cancel");
+                                    }
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              )}
                             </td>
                           </tr>
                         ))}
-                        {!analyticsPostsQuery.isLoading && (analyticsPostsQuery.data?.posts.length ?? 0) === 0 && (
+                        {!listQuery.isLoading && (listQuery.data?.posts.length ?? 0) === 0 && (
                           <tr>
                             <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                              Run a sync to load analytics for your Instagram posts.
+                              No posts in this month. Create a post to see it here.
                             </td>
                           </tr>
                         )}
                       </tbody>
                     </table>
                   </div>
-                </CardContent>
-              </Card>
-            </>
-          )}
-        </TabsContent>
-      </Tabs>
+                </section>
+              )}
+            </TabsContent>
 
-      <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
-        <DialogContent className="w-full max-w-[min(100vw-1.5rem,56rem)] max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>New scheduled post</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-6 py-2 lg:grid-cols-[minmax(0,1fr)_min(100%,400px)] lg:items-start">
-            <div className="space-y-3 order-1 min-w-0 lg:order-2">
-              <div className="space-y-1">
-                <Label>Type</Label>
-                <Select value={form.type} onValueChange={(v) => onChangePostType(v as ScheduledPost["type"])}>
-                  <SelectTrigger className="bg-background border border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="FEED">Feed (image URL)</SelectItem>
-                    <SelectItem value="REEL">Reel (MP4/MOV or image)</SelectItem>
-                    <SelectItem value="CAROUSEL">Carousel (queue only)</SelectItem>
-                    <SelectItem value="STORY">Story (queue only)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Feed posts need a public HTTPS image URL for Instagram. Upload stores the file under your workspace on
-                  the server and fills that URL; for local dev, set{" "}
-                  <span className="font-mono">SCHEDULER_UPLOAD_PUBLIC_BASE_URL</span> to your tunnel origin if Meta cannot
-                  reach localhost.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label>Media</Label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    type="file"
-                    accept={form.type === "REEL" ? SCHEDULER_MEDIA_ACCEPT_REEL : SCHEDULER_MEDIA_ACCEPT_FEED}
-                    multiple={form.type === "CAROUSEL"}
-                    className="cursor-pointer bg-background border border-border"
-                    disabled={postMediaUploadMutation.isPending}
-                    onChange={(e) => void onPickPostMediaFile(e)}
-                  />
-                  {postMediaUploadMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
-                  ) : null}
-                  {(form.primaryMediaUrl || form.carouselMediaUrls.length > 0) ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-muted-foreground bg-background border border-border"
-                      onClick={() => setForm((f) => ({ ...f, primaryMediaUrl: "", carouselMediaUrls: [] }))}
-                    >
-                      Clear media
-                    </Button>
-                  ) : null}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {form.type === "REEL"
-                    ? "Reel: MP4 or MOV (up to 100 MB), or JPEG / PNG / WebP / GIF (up to 15 MB)."
-                    : form.type === "CAROUSEL"
-                      ? `Carousel: add 2-${CAROUSEL_MEDIA_MAX} images. You can select multiple files at once.`
-                      : "Images only: JPEG, PNG, WebP, or GIF, up to 15 MB. Pick Reel for video."}
-                </p>
-                {form.type === "CAROUSEL" ? (
-                  <div className="space-y-3 rounded-lg border border-border bg-background p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <Label className="text-xs">Carousel images</Label>
-                      <span className="text-[11px] text-muted-foreground">
-                        {form.carouselMediaUrls.length}/{CAROUSEL_MEDIA_MAX}
-                      </span>
-                    </div>
-                    {form.carouselMediaUrls.length > 0 ? (
-                      <div className="grid grid-cols-3 gap-2">
-                        {form.carouselMediaUrls.map((url, index) => (
-                          <div key={`${url}-${index}`} className="group relative aspect-square overflow-hidden rounded-md border border-border bg-muted">
-                            <img src={url} alt={`Carousel image ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
-                            <span className="absolute left-1.5 top-1.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                              {index + 1}
-                            </span>
-                            <button
-                              type="button"
-                              className="absolute right-1.5 top-1.5 rounded-full bg-black/70 p-1 text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
-                              onClick={() => removeCarouselUrl(index)}
-                              aria-label={`Remove carousel image ${index + 1}`}
-                            >
-                              <X className="h-3 w-3" aria-hidden />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Upload or add at least 2 images for a carousel draft.</p>
-                    )}
-                    <div className="flex gap-2">
-                      <Input
-                        value={carouselUrlDraft}
-                        onChange={(e) => setCarouselUrlDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            addCarouselUrl();
-                          }
-                        }}
-                        placeholder="Add HTTPS image URL"
-                        className="bg-input border-border"
-                        disabled={form.carouselMediaUrls.length >= CAROUSEL_MEDIA_MAX}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={form.carouselMediaUrls.length >= CAROUSEL_MEDIA_MAX}
-                        onClick={addCarouselUrl}
-                      >
-                        Add
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              {form.type !== "CAROUSEL" ? (
-                <div className="space-y-1">
-                  <Label>Primary media URL (HTTPS, optional if you uploaded)</Label>
-                  <Input
-                    value={form.primaryMediaUrl}
-                    onChange={(e) => setForm((f) => ({ ...f, primaryMediaUrl: e.target.value }))}
-                    placeholder="https://… or use upload above"
-                    className="bg-background border border-border"
-                  />
-                </div>
-              ) : null}
-              <div className="space-y-1">
-                <Label>Caption</Label>
-                <textarea
-                  className="w-full min-h-24 max-h-60 resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm"
-                  value={form.caption}
-                  onChange={(e) => setForm((f) => ({ ...f, caption: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Hashtags (space or comma separated)</Label>
-                <Input
-                  value={form.hashtags}
-                  onChange={(e) => setForm((f) => ({ ...f, hashtags: e.target.value }))}
-                  placeholder="#test #test2"
-                  className="bg-background border border-border"
-                />
-              </div>
-              {workspaceId ? (
-                <SchedulerMusicPicker
-                  workspaceId={workspaceId}
-                  postType={form.type}
-                  selected={selectedMusic}
-                  onSelect={setSelectedMusic}
-                  musicSoundVolume={form.musicSoundVolume}
-                  originalSoundVolume={form.originalSoundVolume}
-                  onMusicSoundVolumeChange={(value) =>
-                    setForm((f) => ({ ...f, musicSoundVolume: value }))
-                  }
-                  onOriginalSoundVolumeChange={(value) =>
-                    setForm((f) => ({ ...f, originalSoundVolume: value }))
-                  }
-                  shareToFeed={form.shareToFeed}
-                  onShareToFeedChange={(checked) => setForm((f) => ({ ...f, shareToFeed: checked }))}
-                />
-              ) : null}
-              <div className="space-y-3 rounded-xl border border-border bg-background p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <Label>{form.type === "REEL" ? "Reel trigger words" : "Auto DM"}</Label>
-                    <p className="text-xs text-muted-foreground">
-                      {form.type === "REEL"
-                        ? "When someone comments these words on this reel after publish, send an auto DM."
-                        : "Create or reuse an automation for this post after it publishes."}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={form.automationEnabled}
-                    onCheckedChange={(checked) => setForm((f) => ({ ...f, automationEnabled: checked }))}
-                  />
-                </div>
-                {form.automationEnabled ? (
-                  <div className="space-y-4">
-                    {form.type !== "REEL" ? (
-                    <div className="space-y-1">
-                      <Label>Reuse premade automation</Label>
-                      <Select value={form.automationTemplateId} onValueChange={applyAutomationTemplate}>
-                        <SelectTrigger className="bg-input border-border">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="custom">Custom automation</SelectItem>
-                          {(automationTemplatesQuery.data ?? []).map((automation) => (
-                            <SelectItem key={automation.id} value={automation.id}>
-                              {automation.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[11px] text-muted-foreground">
-                        Reused automations are copied without their existing reel/post binding.
-                      </p>
-                    </div>
-                    ) : null}
-
-                    <div className="space-y-1">
-                      <Label>Automation name</Label>
-                      <Input
-                        value={form.automationName}
-                        onChange={(e) => setForm((f) => ({ ...f, automationName: e.target.value }))}
-                        placeholder="Automation for this scheduled post"
-                        className="bg-input border-border"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <Label>Any comment / reply trigger</Label>
-                        <p className="text-xs text-muted-foreground">Skip trigger words and reply to any matching engagement.</p>
-                      </div>
-                      <Switch
-                        checked={form.automationAnyComment}
-                        onCheckedChange={(checked) => setForm((f) => ({ ...f, automationAnyComment: checked }))}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>{form.type === "REEL" ? "Comment trigger words" : "Trigger words"}</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={form.automationKeywordDraft}
-                          disabled={form.automationAnyComment}
-                          onChange={(e) => setForm((f) => ({ ...f, automationKeywordDraft: e.target.value }))}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              addAutomationKeyword();
-                            }
-                          }}
-                          placeholder="GUIDE"
-                          className="bg-input border-border"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={form.automationAnyComment}
-                          onClick={addAutomationKeyword}
-                        >
-                          Add
-                        </Button>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {form.automationKeywords.map((keyword) => (
-                          <span key={keyword} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs">
-                            {keyword}
-                            <button type="button" onClick={() => removeAutomationKeyword(keyword)}>
-                              <X className="h-3 w-3 text-muted-foreground hover:text-destructive" aria-hidden />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label>Auto DM message</Label>
-                      <textarea
-                        className="w-full min-h-20 max-h-44 resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm"
-                        value={form.automationDmMessage}
-                        onChange={(e) => setForm((f) => ({ ...f, automationDmMessage: e.target.value.slice(0, 900) }))}
-                        placeholder="Hi there! Here's your link..."
-                      />
-                      <div className="text-[11px] text-muted-foreground text-right">{form.automationDmMessage.length}/900</div>
-                    </div>
-
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="space-y-1">
-                        <Label>DM button label</Label>
-                        <Input
-                          value={form.automationButtonLabel}
-                          onChange={(e) => setForm((f) => ({ ...f, automationButtonLabel: e.target.value.slice(0, 20) }))}
-                          placeholder="Open Link"
-                          className="bg-input border-border"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>DM button URL</Label>
-                        <Input
-                          value={form.automationButtonUrl}
-                          onChange={(e) => setForm((f) => ({ ...f, automationButtonUrl: e.target.value }))}
-                          placeholder="https://..."
-                          className="bg-input border-border"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 rounded-lg border border-border bg-card p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <Label>Auto reply</Label>
-                          <p className="text-xs text-muted-foreground">
-                            Public comment replies rotate through these responses.
-                          </p>
-                        </div>
-                        <Switch
-                          checked={form.automationAutoReply}
-                          onCheckedChange={(checked) => setForm((f) => ({ ...f, automationAutoReply: checked }))}
-                        />
-                      </div>
-                      {form.automationAutoReply ? (
-                        <div className="space-y-2">
-                          {form.automationReplyMessages.map((message, index) => (
-                            <div key={index} className="flex gap-2">
-                              <textarea
-                                className="min-h-16 flex-1 resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm"
-                                value={message}
-                                maxLength={140}
-                                onChange={(e) => setAutomationReplyMessage(index, e.target.value)}
-                                placeholder={`Response ${index + 1}`}
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="mt-1 text-muted-foreground"
-                                onClick={() => removeAutomationReplyMessage(index)}
-                              >
-                                <X className="h-4 w-4" aria-hidden />
-                              </Button>
-                            </div>
-                          ))}
-                          <Button type="button" variant="outline" size="sm" onClick={addAutomationReplyMessage}>
-                            Add response
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              <div className="space-y-1">
-                <Label>Schedule (optional — leave empty for draft)</Label>
-                <Input
-                  type="datetime-local"
-                  value={form.scheduleLocal}
-                  onChange={(e) => setForm((f) => ({ ...f, scheduleLocal: e.target.value }))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Time is interpreted in the timezone below (not the server clock).
-                </p>
-              </div>
-              <div className="space-y-1">
-                <Label>Timezone</Label>
-                <Select value={form.timezone} onValueChange={(tz) => setForm((f) => ({ ...f, timezone: tz }))}>
-                  <SelectTrigger className="bg-background border border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIMEZONES.map((tz) => (
-                      <SelectItem key={tz} value={tz}>
-                        {tz}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="order-1 space-y-1 lg:order-2 lg:sticky lg:top-2 self-start w-full flex flex-col items-center lg:items-stretch">
-              <p className="text-xs font-medium text-muted-foreground w-full max-w-[400px] text-center lg:text-left">
-                Instagram preview
-              </p>
-              <IgStylePostPreview
-                type={form.type}
-                username={previewIgHandle}
-                profilePictureUrl={previewIgAccount.profilePictureUrl}
-                mediaUrl={form.primaryMediaUrl}
-                mediaUrls={form.carouselMediaUrls}
-                caption={form.caption}
-                hashtagsRaw={form.hashtags}
-              />
-            </div>
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" type="button" onClick={() => setComposeOpen(false)}>
-              Close
-            </Button>
-            <Button
-              type="button"
-              disabled={createMutation.isPending || postMediaUploadMutation.isPending}
-              onClick={() => void onCreate()}
-            >
-              {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={detailOpen}
-        onOpenChange={(open) => {
-          setDetailOpen(open);
-          if (!open) {
-            setDetailPostId(null);
-          }
-        }}
-      >
-        <DialogContent className="w-full max-w-[min(100vw-1.5rem,56rem)] max-h-[92vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Post details</DialogTitle>
-          </DialogHeader>
-          {detailPostQuery.isLoading && (
-            <div className="flex justify-center py-12 text-muted-foreground">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-          )}
-          {detailPostQuery.isError && (
-            <p className="text-sm text-destructive py-4">Could not load this post.</p>
-          )}
-          {detailPostQuery.data?.post && (
-            <div className="grid gap-6 py-1 text-sm lg:grid-cols-[minmax(0,1fr)_min(100%,400px)] lg:items-start">
-              <div className="space-y-3 order-2 min-w-0 lg:order-1">
-                <SchedulerPostDetailFields post={detailPostQuery.data.post} />
-              </div>
-              <div className="order-1 space-y-2 lg:order-2 lg:sticky lg:top-2 self-start w-full flex flex-col items-center lg:items-stretch">
-                <p className="text-xs font-medium text-muted-foreground w-full max-w-[400px] text-center lg:text-left">
-                  Instagram preview
-                </p>
-                <IgStylePostPreview
-                  type={detailPostQuery.data.post.type}
-                  username={detailPreviewIgAccount.handle}
-                  profilePictureUrl={detailPreviewIgAccount.profilePictureUrl}
-                  mediaUrl={
-                    detailPostQuery.data.post.primaryMediaUrl ?? detailPostQuery.data.post.thumbnailUrl ?? ""
-                  }
-                  mediaUrls={detailPostQuery.data.post.carouselMediaUrls}
-                  caption={detailPostQuery.data.post.caption ?? ""}
-                  hashtagsRaw={detailPostQuery.data.post.hashtags.join(" ")}
-                />
-              </div>
-            </div>
-          )}
-          <DialogFooter className="gap-2 flex-col sm:flex-row sm:justify-end">
-            {detailPostQuery.data?.post && canUpdate && canPublishNowPost(detailPostQuery.data.post) && (
-              <Button
-                type="button"
-                variant="default"
-                disabled={publishNowMutation.isPending}
-                onClick={async () => {
-                  const id = detailPostQuery.data?.post?.id;
-                  if (!id) {
-                    return;
-                  }
-                  try {
-                    await publishNowMutation.mutateAsync(id);
-                    toast.success("Publish queued");
-                    void detailPostQuery.refetch();
-                  } catch (err) {
-                    toast.error(err instanceof Error ? err.message : "Publish failed");
-                  }
-                }}
-              >
-                {publishNowMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Publish now"}
-              </Button>
-            )}
-            {detailPostQuery.data?.post &&
-              canDelete &&
-              (detailPostQuery.data.post.status === "SCHEDULED" ||
-                detailPostQuery.data.post.status === "DRAFT" ||
-                detailPostQuery.data.post.status === "FAILED") && (
+            <TabsContent value="analytics" className="mt-4 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:justify-between sm:items-center">
                 <Button
-                  type="button"
                   variant="outline"
-                  className="text-destructive border-destructive/40 hover:bg-destructive/10"
-                  disabled={cancelMutation.isPending}
+                  className="w-full sm:w-auto"
+                  type="button"
+                  disabled={syncMutation.isPending}
                   onClick={async () => {
-                    const id = detailPostQuery.data?.post?.id;
-                    if (!id) {
-                      return;
-                    }
                     try {
-                      await cancelMutation.mutateAsync(id);
-                      toast.success("Post cancelled");
-                      setDetailOpen(false);
-                      setDetailPostId(null);
-                    } catch (err) {
-                      toast.error(err instanceof Error ? err.message : "Could not cancel");
+                      const r = await syncMutation.mutateAsync();
+                      if ("skippedRateLimit" in r && r.skippedRateLimit) {
+                        toast.info("Sync rate limited", { description: "Try again in a few minutes." });
+                      } else {
+                        toast.success(`Synced ${r.upserted} posts`);
+                      }
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Sync failed");
                     }
                   }}
                 >
-                  Cancel post
+                  {syncMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  <span className="ml-2">Sync from Instagram</span>
                 </Button>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <span className="text-xs text-muted-foreground shrink-0">Sort posts</span>
+                  <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+                    <SelectTrigger className="w-full sm:max-w-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="impressions">Impressions</SelectItem>
+                      <SelectItem value="engagement">Engagement rate</SelectItem>
+                      <SelectItem value="likes">Likes</SelectItem>
+                      <SelectItem value="comments">Comments</SelectItem>
+                      <SelectItem value="saves">Saves</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {overviewQuery.isLoading ? (
+                <div className="flex justify-center py-16 text-muted-foreground">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                    {[
+                      { label: "Tracked posts", value: overviewQuery.data?.totalPosts ?? 0 },
+                      { label: "Scheduled", value: overviewQuery.data?.scheduledPosts ?? 0 },
+                      { label: "Published", value: overviewQuery.data?.publishedPosts ?? 0 },
+                      { label: "Failed", value: overviewQuery.data?.failedPosts ?? 0 },
+                      { label: "Impressions", value: overviewQuery.data?.totalImpressions ?? 0 },
+                      { label: "Reach", value: overviewQuery.data?.totalReach ?? 0 },
+                      { label: "Likes", value: overviewQuery.data?.totalLikes ?? 0 },
+                      {
+                        label: "Avg engagement %",
+                        value:
+                          overviewQuery.data?.avgEngagementRate != null
+                            ? overviewQuery.data.avgEngagementRate.toFixed(1)
+                            : "—",
+                      },
+                    ].map((s) => (
+                      <Card key={s.label}>
+                        <CardHeader className="p-4 sm:p-6 pb-2">
+                          <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            {s.label}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 sm:p-6 pt-0">
+                          <div className="text-2xl sm:text-3xl font-bold text-foreground">{s.value}</div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+
+                  <Card>
+                    <CardHeader className="p-4 sm:p-6">
+                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <BarChart2 className="h-4 w-4" /> Performance by day
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 sm:p-6 pt-0">
+                      <div className="w-full aspect-[16/7] min-h-40">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={overviewQuery.data?.dailySeries ?? []}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                            <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                            <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={40} />
+                            <Tooltip
+                              contentStyle={{
+                                background: "hsl(var(--card))",
+                                border: "1px solid hsl(var(--border))",
+                                borderRadius: 8,
+                              }}
+                            />
+                            <Line type="monotone" dataKey="impressions" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Impressions" />
+                            <Line type="monotone" dataKey="reach" stroke="hsl(var(--accent))" strokeWidth={2} dot={false} name="Reach" />
+                            <Line type="monotone" dataKey="likes" stroke="hsl(var(--success))" strokeWidth={2} dot={false} name="Likes" />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="p-4 sm:p-6">
+                      <CardTitle className="text-sm font-semibold">Engagement by hour (UTC)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 sm:p-6 pt-0 overflow-x-auto">
+                      <div className="inline-flex flex-col gap-1 min-w-max">
+                        <div className="grid grid-cols-[2rem_repeat(7,minmax(0,1fr))] gap-1 text-[10px] text-muted-foreground">
+                          <div />
+                          {WEEK_LABELS.map((d) => (
+                            <div key={d} className="text-center">
+                              {d}
+                            </div>
+                          ))}
+                        </div>
+                        {Array.from({ length: 24 }, (_, hour) => (
+                          <div key={hour} className="grid grid-cols-[2rem_repeat(7,minmax(0,1fr))] gap-1 items-center">
+                            <div className="text-[10px] text-muted-foreground text-right pr-1">{hour}</div>
+                            {WEEK_LABELS.map((_, dayIdx) => heatCell(dayIdx, hour))}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="p-4 sm:p-6">
+                      <CardTitle className="text-sm font-semibold">Posts</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0 sm:p-0">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[640px]">
+                          <thead>
+                            <tr className="text-left text-xs text-muted-foreground border-b border-border">
+                              <th className="px-4 py-3 font-medium">Caption</th>
+                              <th className="px-4 py-3 font-medium hidden md:table-cell">Published</th>
+                              <th className="px-4 py-3 font-medium">Impr.</th>
+                              <th className="px-4 py-3 font-medium hidden sm:table-cell">Reach</th>
+                              <th className="px-4 py-3 font-medium">Likes</th>
+                              <th className="px-4 py-3 font-medium hidden lg:table-cell">ER %</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(analyticsPostsQuery.data?.posts ?? []).map((row) => (
+                              <tr key={String(row.id)} className="stripe-row border-b border-border last:border-0">
+                                <td className="px-4 py-3 line-clamp-2 max-w-xs">
+                                  {String(row.caption ?? "—")}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground hidden md:table-cell whitespace-nowrap">
+                                  {row.publishedAt ? format(new Date(String(row.publishedAt)), "MMM d, yyyy") : "—"}
+                                </td>
+                                <td className="px-4 py-3 font-mono text-xs">{row.impressions != null ? String(row.impressions) : "—"}</td>
+                                <td className="px-4 py-3 font-mono text-xs hidden sm:table-cell">
+                                  {row.reach != null ? String(row.reach) : "—"}
+                                </td>
+                                <td className="px-4 py-3 font-mono text-xs">{row.likes != null ? String(row.likes) : "—"}</td>
+                                <td className="px-4 py-3 font-mono text-xs hidden lg:table-cell">
+                                  {row.engagementRate != null ? Number(row.engagementRate).toFixed(1) : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                            {!analyticsPostsQuery.isLoading && (analyticsPostsQuery.data?.posts.length ?? 0) === 0 && (
+                              <tr>
+                                <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                                  Run a sync to load analytics for your Instagram posts.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
               )}
-            <Button variant="outline" type="button" onClick={() => setDetailOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </TabsContent>
+          </Tabs>
+
+          <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
+            <DialogContent className="w-full max-w-[min(100vw-1.5rem,56rem)] max-h-[92vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>New scheduled post</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-6 py-2 lg:grid-cols-[minmax(0,1fr)_min(100%,400px)] lg:items-start">
+                <div className="space-y-3 order-1 min-w-0 lg:order-2">
+                  <div className="space-y-1">
+                    <Label>Type</Label>
+                    <Select value={form.type} onValueChange={(v) => onChangePostType(v as ScheduledPost["type"])}>
+                      <SelectTrigger className="bg-background border border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="FEED">Feed (image URL)</SelectItem>
+                        <SelectItem value="REEL">Reel (MP4/MOV or image)</SelectItem>
+                        <SelectItem value="CAROUSEL">Carousel (queue only)</SelectItem>
+                        <SelectItem value="STORY">Story (queue only)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Feed posts need a public HTTPS image URL for Instagram. Upload stores the file under your workspace on
+                      the server and fills that URL; for local dev, set{" "}
+                      <span className="font-mono">SCHEDULER_UPLOAD_PUBLIC_BASE_URL</span> to your tunnel origin if Meta cannot
+                      reach localhost.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Media</Label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input
+                        type="file"
+                        accept={form.type === "REEL" ? SCHEDULER_MEDIA_ACCEPT_REEL : SCHEDULER_MEDIA_ACCEPT_FEED}
+                        multiple={form.type === "CAROUSEL"}
+                        className="cursor-pointer bg-background border border-border"
+                        disabled={postMediaUploadMutation.isPending}
+                        onChange={(e) => void onPickPostMediaFile(e)}
+                      />
+                      {postMediaUploadMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
+                      ) : null}
+                      {(form.primaryMediaUrl || form.carouselMediaUrls.length > 0) ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground bg-background border border-border"
+                          onClick={() => setForm((f) => ({ ...f, primaryMediaUrl: "", carouselMediaUrls: [] }))}
+                        >
+                          Clear media
+                        </Button>
+                      ) : null}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {form.type === "REEL"
+                        ? "Reel: MP4 or MOV (up to 100 MB), or JPEG / PNG / WebP / GIF (up to 15 MB)."
+                        : form.type === "CAROUSEL"
+                          ? `Carousel: add 2-${CAROUSEL_MEDIA_MAX} images. You can select multiple files at once.`
+                          : "Images only: JPEG, PNG, WebP, or GIF, up to 15 MB. Pick Reel for video."}
+                    </p>
+                    {form.type === "CAROUSEL" ? (
+                      <div className="space-y-3 rounded-lg border border-border bg-background p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="text-xs">Carousel images</Label>
+                          <span className="text-[11px] text-muted-foreground">
+                            {form.carouselMediaUrls.length}/{CAROUSEL_MEDIA_MAX}
+                          </span>
+                        </div>
+                        {form.carouselMediaUrls.length > 0 ? (
+                          <div className="grid grid-cols-3 gap-2">
+                            {form.carouselMediaUrls.map((url, index) => (
+                              <div key={`${url}-${index}`} className="group relative aspect-square overflow-hidden rounded-md border border-border bg-muted">
+                                <img src={url} alt={`Carousel image ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
+                                <span className="absolute left-1.5 top-1.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                  {index + 1}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="absolute right-1.5 top-1.5 rounded-full bg-black/70 p-1 text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+                                  onClick={() => removeCarouselUrl(index)}
+                                  aria-label={`Remove carousel image ${index + 1}`}
+                                >
+                                  <X className="h-3 w-3" aria-hidden />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Upload or add at least 2 images for a carousel draft.</p>
+                        )}
+                        <div className="flex gap-2">
+                          <Input
+                            value={carouselUrlDraft}
+                            onChange={(e) => setCarouselUrlDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                addCarouselUrl();
+                              }
+                            }}
+                            placeholder="Add HTTPS image URL"
+                            className="bg-input border-border"
+                            disabled={form.carouselMediaUrls.length >= CAROUSEL_MEDIA_MAX}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={form.carouselMediaUrls.length >= CAROUSEL_MEDIA_MAX}
+                            onClick={addCarouselUrl}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  {form.type !== "CAROUSEL" ? (
+                    <div className="space-y-1">
+                      <Label>Primary media URL (HTTPS, optional if you uploaded)</Label>
+                      <Input
+                        value={form.primaryMediaUrl}
+                        onChange={(e) => setForm((f) => ({ ...f, primaryMediaUrl: e.target.value }))}
+                        placeholder="https://… or use upload above"
+                        className="bg-background border border-border"
+                      />
+                    </div>
+                  ) : null}
+                  <div className="space-y-1">
+                    <Label>Caption</Label>
+                    <textarea
+                      className="w-full min-h-24 max-h-60 resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm"
+                      value={form.caption}
+                      onChange={(e) => setForm((f) => ({ ...f, caption: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Hashtags (space or comma separated)</Label>
+                    <Input
+                      value={form.hashtags}
+                      onChange={(e) => setForm((f) => ({ ...f, hashtags: e.target.value }))}
+                      placeholder="#test #test2"
+                      className="bg-background border border-border"
+                    />
+                  </div>
+                  {workspaceId ? (
+                    <SchedulerMusicPicker
+                      workspaceId={workspaceId}
+                      postType={form.type}
+                      selected={selectedMusic}
+                      onSelect={setSelectedMusic}
+                      musicSoundVolume={form.musicSoundVolume}
+                      originalSoundVolume={form.originalSoundVolume}
+                      onMusicSoundVolumeChange={(value) =>
+                        setForm((f) => ({ ...f, musicSoundVolume: value }))
+                      }
+                      onOriginalSoundVolumeChange={(value) =>
+                        setForm((f) => ({ ...f, originalSoundVolume: value }))
+                      }
+                      shareToFeed={form.shareToFeed}
+                      onShareToFeedChange={(checked) => setForm((f) => ({ ...f, shareToFeed: checked }))}
+                    />
+                  ) : null}
+                  <div className="space-y-3 rounded-xl border border-border bg-background p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label>{form.type === "REEL" ? "Reel trigger words" : "Auto DM"}</Label>
+                        <p className="text-xs text-muted-foreground">
+                          {form.type === "REEL"
+                            ? "When someone comments these words on this reel after publish, send an auto DM."
+                            : "Create or reuse an automation for this post after it publishes."}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={form.automationEnabled}
+                        onCheckedChange={(checked) => setForm((f) => ({ ...f, automationEnabled: checked }))}
+                      />
+                    </div>
+                    {form.automationEnabled ? (
+                      <div className="space-y-4">
+                        {form.type !== "REEL" ? (
+                          <div className="space-y-1">
+                            <Label>Reuse premade automation</Label>
+                            <Select value={form.automationTemplateId} onValueChange={applyAutomationTemplate}>
+                              <SelectTrigger className="bg-input border-border">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="custom">Custom automation</SelectItem>
+                                {(automationTemplatesQuery.data ?? []).map((automation) => (
+                                  <SelectItem key={automation.id} value={automation.id}>
+                                    {automation.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-[11px] text-muted-foreground">
+                              Reused automations are copied without their existing reel/post binding.
+                            </p>
+                          </div>
+                        ) : null}
+
+                        <div className="space-y-1">
+                          <Label>Automation name</Label>
+                          <Input
+                            value={form.automationName}
+                            onChange={(e) => setForm((f) => ({ ...f, automationName: e.target.value }))}
+                            placeholder="Automation for this scheduled post"
+                            className="bg-input border-border"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <Label>Any comment / reply trigger</Label>
+                            <p className="text-xs text-muted-foreground">Skip trigger words and reply to any matching engagement.</p>
+                          </div>
+                          <Switch
+                            checked={form.automationAnyComment}
+                            onCheckedChange={(checked) => setForm((f) => ({ ...f, automationAnyComment: checked }))}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>{form.type === "REEL" ? "Comment trigger words" : "Trigger words"}</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              value={form.automationKeywordDraft}
+                              disabled={form.automationAnyComment}
+                              onChange={(e) => setForm((f) => ({ ...f, automationKeywordDraft: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  addAutomationKeyword();
+                                }
+                              }}
+                              placeholder="GUIDE"
+                              className="bg-input border-border"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={form.automationAnyComment}
+                              onClick={addAutomationKeyword}
+                            >
+                              Add
+                            </Button>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {form.automationKeywords.map((keyword) => (
+                              <span key={keyword} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs">
+                                {keyword}
+                                <button type="button" onClick={() => removeAutomationKeyword(keyword)}>
+                                  <X className="h-3 w-3 text-muted-foreground hover:text-destructive" aria-hidden />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label>Auto DM message</Label>
+                          <textarea
+                            className="w-full min-h-20 max-h-44 resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm"
+                            value={form.automationDmMessage}
+                            onChange={(e) => setForm((f) => ({ ...f, automationDmMessage: e.target.value.slice(0, 900) }))}
+                            placeholder="Hi there! Here's your link..."
+                          />
+                          <div className="text-[11px] text-muted-foreground text-right">{form.automationDmMessage.length}/900</div>
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <Label>DM button label</Label>
+                            <Input
+                              value={form.automationButtonLabel}
+                              onChange={(e) => setForm((f) => ({ ...f, automationButtonLabel: e.target.value.slice(0, 20) }))}
+                              placeholder="Open Link"
+                              className="bg-input border-border"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label>DM button URL</Label>
+                            <Input
+                              value={form.automationButtonUrl}
+                              onChange={(e) => setForm((f) => ({ ...f, automationButtonUrl: e.target.value }))}
+                              placeholder="https://..."
+                              className="bg-input border-border"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <Label>Auto reply</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Public comment replies rotate through these responses.
+                              </p>
+                            </div>
+                            <Switch
+                              checked={form.automationAutoReply}
+                              onCheckedChange={(checked) => setForm((f) => ({ ...f, automationAutoReply: checked }))}
+                            />
+                          </div>
+                          {form.automationAutoReply ? (
+                            <div className="space-y-2">
+                              {form.automationReplyMessages.map((message, index) => (
+                                <div key={index} className="flex gap-2">
+                                  <textarea
+                                    className="min-h-16 flex-1 resize-y rounded-lg border border-border bg-input px-3 py-2 text-sm"
+                                    value={message}
+                                    maxLength={140}
+                                    onChange={(e) => setAutomationReplyMessage(index, e.target.value)}
+                                    placeholder={`Response ${index + 1}`}
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="mt-1 text-muted-foreground"
+                                    onClick={() => removeAutomationReplyMessage(index)}
+                                  >
+                                    <X className="h-4 w-4" aria-hidden />
+                                  </Button>
+                                </div>
+                              ))}
+                              <Button type="button" variant="outline" size="sm" onClick={addAutomationReplyMessage}>
+                                Add response
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Schedule (optional — leave empty for draft)</Label>
+                    <Input
+                      type="datetime-local"
+                      value={form.scheduleLocal}
+                      onChange={(e) => setForm((f) => ({ ...f, scheduleLocal: e.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Time is interpreted in the timezone below (not the server clock).
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Timezone</Label>
+                    <Select value={form.timezone} onValueChange={(tz) => setForm((f) => ({ ...f, timezone: tz }))}>
+                      <SelectTrigger className="bg-background border border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TIMEZONES.map((tz) => (
+                          <SelectItem key={tz} value={tz}>
+                            {tz}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="order-1 space-y-1 lg:order-2 lg:sticky lg:top-2 self-start w-full flex flex-col items-center lg:items-stretch">
+                  <p className="text-xs font-medium text-muted-foreground w-full max-w-[400px] text-center lg:text-left">
+                    Instagram preview
+                  </p>
+                  <IgStylePostPreview
+                    type={form.type}
+                    username={previewIgHandle}
+                    profilePictureUrl={previewIgAccount.profilePictureUrl}
+                    mediaUrl={form.primaryMediaUrl}
+                    mediaUrls={form.carouselMediaUrls}
+                    caption={form.caption}
+                    hashtagsRaw={form.hashtags}
+                  />
+                </div>
+              </div>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button variant="outline" type="button" onClick={() => setComposeOpen(false)}>
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  disabled={createMutation.isPending || postMediaUploadMutation.isPending}
+                  onClick={() => void onCreate()}
+                >
+                  {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={detailOpen}
+            onOpenChange={(open) => {
+              setDetailOpen(open);
+              if (!open) {
+                setDetailPostId(null);
+              }
+            }}
+          >
+            <DialogContent className="w-full max-w-[min(100vw-1.5rem,56rem)] max-h-[92vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Post details</DialogTitle>
+              </DialogHeader>
+              {detailPostQuery.isLoading && (
+                <div className="flex justify-center py-12 text-muted-foreground">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              )}
+              {detailPostQuery.isError && (
+                <p className="text-sm text-destructive py-4">Could not load this post.</p>
+              )}
+              {detailPostQuery.data?.post && (
+                <div className="grid gap-6 py-1 text-sm lg:grid-cols-[minmax(0,1fr)_min(100%,400px)] lg:items-start">
+                  <div className="space-y-3 order-2 min-w-0 lg:order-1">
+                    <SchedulerPostDetailFields post={detailPostQuery.data.post} />
+                  </div>
+                  <div className="order-1 space-y-2 lg:order-2 lg:sticky lg:top-2 self-start w-full flex flex-col items-center lg:items-stretch">
+                    <p className="text-xs font-medium text-muted-foreground w-full max-w-[400px] text-center lg:text-left">
+                      Instagram preview
+                    </p>
+                    <IgStylePostPreview
+                      type={detailPostQuery.data.post.type}
+                      username={detailPreviewIgAccount.handle}
+                      profilePictureUrl={detailPreviewIgAccount.profilePictureUrl}
+                      mediaUrl={
+                        detailPostQuery.data.post.primaryMediaUrl ?? detailPostQuery.data.post.thumbnailUrl ?? ""
+                      }
+                      mediaUrls={detailPostQuery.data.post.carouselMediaUrls}
+                      caption={detailPostQuery.data.post.caption ?? ""}
+                      hashtagsRaw={detailPostQuery.data.post.hashtags.join(" ")}
+                    />
+                  </div>
+                </div>
+              )}
+              <DialogFooter className="gap-2 flex-col sm:flex-row sm:justify-end">
+                {detailPostQuery.data?.post && canUpdate && canPublishNowPost(detailPostQuery.data.post) && (
+                  <Button
+                    type="button"
+                    variant="default"
+                    disabled={publishNowMutation.isPending}
+                    onClick={async () => {
+                      const id = detailPostQuery.data?.post?.id;
+                      if (!id) {
+                        return;
+                      }
+                      try {
+                        await publishNowMutation.mutateAsync(id);
+                        toast.success("Publish queued");
+                        void detailPostQuery.refetch();
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : "Publish failed");
+                      }
+                    }}
+                  >
+                    {publishNowMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Publish now"}
+                  </Button>
+                )}
+                {detailPostQuery.data?.post &&
+                  canDelete &&
+                  (detailPostQuery.data.post.status === "SCHEDULED" ||
+                    detailPostQuery.data.post.status === "DRAFT" ||
+                    detailPostQuery.data.post.status === "FAILED") && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                      disabled={cancelMutation.isPending}
+                      onClick={async () => {
+                        const id = detailPostQuery.data?.post?.id;
+                        if (!id) {
+                          return;
+                        }
+                        try {
+                          await cancelMutation.mutateAsync(id);
+                          toast.success("Post cancelled");
+                          setDetailOpen(false);
+                          setDetailPostId(null);
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : "Could not cancel");
+                        }
+                      }}
+                    >
+                      Cancel post
+                    </Button>
+                  )}
+                <Button variant="outline" type="button" onClick={() => setDetailOpen(false)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
+
+
     </DashboardLayout>
   );
 }

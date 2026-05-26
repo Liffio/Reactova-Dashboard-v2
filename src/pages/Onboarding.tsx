@@ -14,7 +14,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/api";
-import { openMetaOAuthPopup } from "@/lib/metaOAuthPopup";
+import { openMetaOAuthPopup, buildMetaOAuthStartPath } from "@/lib/metaOAuthPopup";
+import { resolveInstagramConnected } from "@/lib/workspaceInstagram";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setAuthMe } from "@/store/authSlice";
 import type { AuthMePayload } from "@/types/auth";
@@ -128,14 +129,27 @@ export default function Onboarding() {
   });
 
   const startMetaOAuth = useMutation({
-    mutationFn: async () => {
-      const workspaceId = await resolveWorkspaceId();
-      const { url } = await apiRequest<{ url: string }>(
-        "/api/v1/integrations/meta/oauth/start?returnTo=onboarding",
-        { workspaceId }
-      );
-      return openMetaOAuthPopup(url);
-    },
+    mutationFn: () =>
+      openMetaOAuthPopup(
+        async () => {
+          const workspaceId = await resolveWorkspaceId();
+          const { url } = await apiRequest<{ url: string }>(buildMetaOAuthStartPath("onboarding"), {
+            workspaceId,
+          });
+          return url;
+        },
+        {
+          checkConnected: async () => {
+            const workspaceId = await resolveWorkspaceId();
+            const workspaces = await apiRequest<Array<{ id: string; instagramConnected?: boolean; onboarding?: Record<string, unknown> }>>(
+              "/api/v1/workspaces",
+              { workspaceId }
+            );
+            const workspace = workspaces.find((item) => item.id === workspaceId);
+            return workspace ? resolveInstagramConnected(workspace) : false;
+          },
+        }
+      ),
     onSuccess: (result) => {
       if (result.meta === "connected") {
         setIgConnected(true);

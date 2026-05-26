@@ -20,7 +20,7 @@ import { PlanGate } from "@/components/PlanGate";
 import { useApp } from "@/state/AppContext";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/api";
-import { openMetaOAuthPopup } from "@/lib/metaOAuthPopup";
+import { openMetaOAuthPopup, buildMetaOAuthStartPath } from "@/lib/metaOAuthPopup";
 import { toast } from "@/components/ui/sonner";
 import {
   useCreateInviteMutation,
@@ -643,13 +643,25 @@ function General() {
     onError: (error) => toast.error((error as Error).message)
   });
   const reconnectMutation = useMutation({
-    mutationFn: async () => {
-      const { url } = await apiRequest<{ url: string }>(
-        "/api/v1/integrations/meta/oauth/start?returnTo=settings",
-        { workspaceId: current.id }
-      );
-      return openMetaOAuthPopup(url);
-    },
+    mutationFn: () =>
+      openMetaOAuthPopup(
+        async () => {
+          const { url } = await apiRequest<{ url: string }>(buildMetaOAuthStartPath("settings"), {
+            workspaceId: current.id,
+          });
+          return url;
+        },
+        {
+          checkConnected: async () => {
+            const workspaces = await apiRequest<Array<{ id: string; instagramConnected?: boolean; onboarding?: Record<string, unknown> }>>(
+              "/api/v1/workspaces",
+              { workspaceId: current.id }
+            );
+            const workspace = workspaces.find((item) => item.id === current.id);
+            return workspace ? resolveInstagramConnected(workspace) : false;
+          },
+        }
+      ),
     onSuccess: async (result) => {
       if (result.meta === "connected") {
         await queryClient.invalidateQueries({ queryKey: ["workspaces"] });

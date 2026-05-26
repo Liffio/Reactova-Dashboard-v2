@@ -16,25 +16,62 @@ type MetaOAuthMessage = {
   payload: MetaOAuthResult;
 };
 
-const POPUP_FEATURES = "popup=yes,width=520,height=720,scrollbars=yes,resizable=yes";
+export type OpenMetaOAuthPopupOptions = {
+  /** Polls workspace connection while popup is open (fallback when postMessage/opener fails). */
+  checkConnected?: () => Promise<boolean>;
+};
 
-export function openMetaOAuthPopup(authorizeUrl: string): Promise<MetaOAuthResult> {
+function buildPopupFeatures(): string {
+  const width = 520;
+  const height = 720;
+  const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
+  const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
+  return [
+    `width=${width}`,
+    `height=${height}`,
+    `left=${left}`,
+    `top=${top}`,
+    "scrollbars=yes",
+    "resizable=yes",
+    "toolbar=no",
+    "menubar=no",
+    "location=no",
+    "status=no",
+  ].join(",");
+}
+
+function writePopupLoading(popup: Window) {
+  try {
+    popup.document.title = "Instagram";
+    popup.document.body.innerHTML =
+      "<p style=\"font-family:system-ui,sans-serif;padding:24px;color:#666;margin:0\">Opening Instagram…</p>";
+  } catch {
+    // cross-origin once navigation starts
+  }
+}
+
+/**
+ * Opens OAuth in a popup synchronously (must be called directly from a user click handler).
+ * Fetches the authorize URL asynchronously after the popup is created.
+ */
+export function openMetaOAuthPopup(
+  fetchAuthorizeUrl: () => Promise<string>,
+  options: OpenMetaOAuthPopupOptions = {}
+): Promise<MetaOAuthResult> {
   return new Promise((resolve, reject) => {
-    const popup = window.open(authorizeUrl, "reactova-meta-oauth", POPUP_FEATURES);
+    const popup = window.open("about:blank", "reactova-meta-oauth", buildPopupFeatures());
     if (!popup) {
       reject(new Error("Popup blocked. Allow popups for this site and try again."));
       return;
     }
 
+    writePopupLoading(popup);
+
+    let settled = false;
+
     const timeoutMs = 10 * 60 * 1000;
     const timeoutId = window.setTimeout(() => {
-      cleanup();
-      try {
-        popup.close();
-      } catch {
-        // ignore
-      }
-      reject(new Error("Instagram login timed out. Please try again."));
+      fail(new Error("Instagram login timed out. Please try again."));
     }, timeoutMs);
 
     const onMessage = (event: MessageEvent) => {
@@ -45,28 +82,94 @@ export function openMetaOAuthPopup(authorizeUrl: string): Promise<MetaOAuthResul
       if (!data || data.type !== META_OAUTH_MESSAGE_TYPE) {
         return;
       }
+      settle(data.payload);
+    };
+
+    const connectionPollId = window.setInterval(() => {
+      if (!options.checkConnected || settled) {
+        return;
+      }
+      void options.checkConnected().then((connected) => {
+        if (connected) {
+          settle({ meta: "connected", step: 3 });
+        }
+      });
+    }, 1500);
+
+    const closedPollId = window.setInterval(() => {
+      if (!popup.closed || settled) {
+        return;
+      }
+      window.setTimeout(async () => {
+        if (settled) {
+          return;
+        }
+        if (options.checkConnected) {
+          try {
+            const connected = await options.checkConnected();
+            if (connected) {
+              settle({ meta: "connected", step: 3 });
+              return;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        fail(new Error("Instagram login was cancelled."));
+      }, 600);
+    }, 400);
+
+    function cleanup() {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(connectionPollId);
+      window.clearInterval(closedPollId);
+      window.removeEventListener("message", onMessage);
+    }
+
+    function settle(result: MetaOAuthResult) {
+      if (settled) {
+        return;
+      }
+      settled = true;
       cleanup();
       try {
         popup.close();
       } catch {
         // ignore
       }
-      resolve(data.payload);
-    };
+      resolve(result);
+    }
 
-    const pollId = window.setInterval(() => {
-      if (popup.closed) {
-        cleanup();
-        reject(new Error("Instagram login was cancelled."));
+    function fail(error: Error) {
+      if (settled) {
+        return;
       }
-    }, 400);
-
-    function cleanup() {
-      window.clearTimeout(timeoutId);
-      window.clearInterval(pollId);
-      window.removeEventListener("message", onMessage);
+      settled = true;
+      cleanup();
+      try {
+        popup.close();
+      } catch {
+        // ignore
+      }
+      reject(error);
     }
 
     window.addEventListener("message", onMessage);
+
+    void fetchAuthorizeUrl()
+      .then((url) => {
+        popup.location.href = url;
+      })
+      .catch((error) => {
+        fail(error instanceof Error ? error : new Error(String(error)));
+      });
   });
+}
+
+export function buildMetaOAuthStartPath(returnTo: "onboarding" | "settings"): string {
+  const params = new URLSearchParams({
+    returnTo,
+    clientOrigin: window.location.origin,
+  });
+  return `/api/v1/integrations/meta/oauth/start?${params.toString()}`;
 }

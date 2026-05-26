@@ -12,6 +12,7 @@ export type WorkspaceApi = {
   status: "ACTIVE" | "PAUSED" | "PAYMENT_FAILED" | "INSTAGRAM_DISCONNECTED";
   billingCycleEnd?: string | null;
   onboarding?: Record<string, unknown> | null;
+  onboardingState?: Record<string, unknown> | null;
   meta?: Record<string, unknown> | null;
   createdAt: string;
   dmsThisMonth: number;

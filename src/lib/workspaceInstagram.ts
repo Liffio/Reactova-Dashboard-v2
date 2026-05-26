@@ -4,14 +4,24 @@ type WorkspaceOnboarding = {
   };
 };
 
+function readOnboardingState(
+  workspace: {
+    onboarding?: WorkspaceOnboarding | Record<string, unknown> | null;
+    onboardingState?: WorkspaceOnboarding | Record<string, unknown> | null;
+  }
+): WorkspaceOnboarding | null | undefined {
+  return (workspace.onboarding ?? workspace.onboardingState) as WorkspaceOnboarding | null | undefined;
+}
+
 export function resolveInstagramConnected(workspace: {
   instagramConnected?: boolean;
   onboarding?: WorkspaceOnboarding | Record<string, unknown> | null;
+  onboardingState?: WorkspaceOnboarding | Record<string, unknown> | null;
 }): boolean {
-  if (workspace.instagramConnected) {
-    return true;
+  if (typeof workspace.instagramConnected === "boolean") {
+    return workspace.instagramConnected;
   }
 
-  const onboarding = workspace.onboarding as WorkspaceOnboarding | null | undefined;
+  const onboarding = readOnboardingState(workspace);
   return onboarding?.ig?.connected === true;
 }

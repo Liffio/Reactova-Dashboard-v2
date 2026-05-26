@@ -70,6 +70,7 @@ export default function Login() {
       return;
     }
     const result = await mfaEmailSendMutation.mutateAsync({ preAuthToken: mfaPreAuthToken });
+    console.log(result);
     setResendIn(result.retryAfterSec);
     setExpiresIn(result.expiresInSec);
   };

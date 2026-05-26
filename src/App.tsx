@@ -15,6 +15,7 @@ import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import Register from "./pages/Register";
 import Onboarding from "./pages/Onboarding";
+import MetaOAuthComplete from "./pages/MetaOAuthComplete";
 import Dashboard from "./pages/Dashboard";
 import Automations from "./pages/Automations";
 import ShortLinks from "./pages/ShortLinks";
@@ -74,6 +75,7 @@ const App = () => (
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/onboarding" element={<Onboarding />} />
+                  <Route path="/oauth/meta/complete" element={<MetaOAuthComplete />} />
                   <Route path="/accept-invite" element={<AcceptInvite />} />
                   <Route path="/dashboard" element={<ProtectedRoute module="workspace"><Dashboard /></ProtectedRoute>} />
                   <Route path="/automations" element={<ProtectedRoute module="automation"><Automations /></ProtectedRoute>} />

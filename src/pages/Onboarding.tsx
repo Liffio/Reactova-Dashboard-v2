@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/api";
+import { openMetaOAuthPopup } from "@/lib/metaOAuthPopup";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setAuthMe } from "@/store/authSlice";
 import type { AuthMePayload } from "@/types/auth";
@@ -129,8 +130,25 @@ export default function Onboarding() {
   const startMetaOAuth = useMutation({
     mutationFn: async () => {
       const workspaceId = await resolveWorkspaceId();
-      const { url } = await apiRequest<{ url: string }>("/api/v1/integrations/meta/oauth/start", { workspaceId });
-      window.location.href = url;
+      const { url } = await apiRequest<{ url: string }>(
+        "/api/v1/integrations/meta/oauth/start?returnTo=onboarding",
+        { workspaceId }
+      );
+      return openMetaOAuthPopup(url);
+    },
+    onSuccess: (result) => {
+      if (result.meta === "connected") {
+        setIgConnected(true);
+        setIgError(null);
+        setStep(3);
+        void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+        toast.success("Instagram connected successfully");
+        return;
+      }
+      const reason = result.reason ?? "token_exchange_failed";
+      setIgError({ reason });
+      setStep(2);
+      toast.error(IG_ERRORS[reason]?.title ?? "Instagram connection failed");
     },
     onError: (err) => toast.error((err as Error).message),
   });
@@ -158,12 +176,13 @@ export default function Onboarding() {
   // Handle OAuth redirect params (runs once on mount)
   useEffect(() => {
     const meta = searchParams.get("meta");
-    const stepParam = Number(searchParams.get("step")) || null;
 
-    if (meta === "connected" || meta === "connected=1") {
+    if (meta === "connected") {
       setIgConnected(true);
       setIgError(null);
-      setStep((prev) => Math.max(prev, stepParam ?? 3));
+      const stepParam = Number(searchParams.get("step"));
+      const nextStep = Number.isFinite(stepParam) ? Math.min(Math.max(stepParam, 1), 3) : 3;
+      setStep((prev) => Math.max(prev, nextStep));
       void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
       toast.success("Instagram connected successfully");
     }
@@ -331,7 +350,7 @@ export default function Onboarding() {
                     >
                       <Instagram className="h-4 w-4" />
                       {startMetaOAuth.isPending
-                        ? "Redirecting to Instagram…"
+                        ? "Opening Instagram…"
                         : igError
                           ? "Retry Instagram connect"
                           : "Connect with Instagram"}

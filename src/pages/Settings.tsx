@@ -20,6 +20,7 @@ import { PlanGate } from "@/components/PlanGate";
 import { useApp } from "@/state/AppContext";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/api";
+import { openMetaOAuthPopup } from "@/lib/metaOAuthPopup";
 import { toast } from "@/components/ui/sonner";
 import {
   useCreateInviteMutation,
@@ -605,6 +606,29 @@ function General() {
     setWorkspaceName(current.name);
   }, [current.id, current.name]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const meta = params.get("meta");
+    if (!meta) {
+      return;
+    }
+
+    if (meta === "connected") {
+      void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      void refreshAuth();
+      toast.success("Instagram connected successfully");
+    } else if (meta === "error") {
+      const reason = decodeURIComponent(params.get("reason") ?? "");
+      toast.error(reason ? `Instagram connection failed: ${reason.replace(/_/g, " ")}` : "Instagram connection failed");
+    }
+
+    params.delete("meta");
+    params.delete("reason");
+    params.delete("step");
+    const next = params.toString();
+    navigate(next ? `/settings?${next}` : "/settings?tab=General", { replace: true });
+  }, [navigate, queryClient, refreshAuth]);
+
   const renameWorkspaceMutation = useMutation({
     mutationFn: async (displayName: string) =>
       apiRequest(`/api/v1/workspaces/${current.id}`, {
@@ -620,10 +644,21 @@ function General() {
   });
   const reconnectMutation = useMutation({
     mutationFn: async () => {
-      const { url } = await apiRequest<{ url: string }>("/api/v1/integrations/meta/oauth/start", {
-        workspaceId: current.id
-      });
-      window.location.href = url;
+      const { url } = await apiRequest<{ url: string }>(
+        "/api/v1/integrations/meta/oauth/start?returnTo=settings",
+        { workspaceId: current.id }
+      );
+      return openMetaOAuthPopup(url);
+    },
+    onSuccess: async (result) => {
+      if (result.meta === "connected") {
+        await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+        await refreshAuth();
+        toast.success("Instagram connected successfully");
+        return;
+      }
+      const reason = result.reason ?? "token_exchange_failed";
+      toast.error(`Instagram connection failed: ${reason.replace(/_/g, " ")}`);
     },
     onError: (error) => toast.error((error as Error).message)
   });

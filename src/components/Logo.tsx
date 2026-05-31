@@ -1,12 +1,40 @@
 import { cn } from "@/lib/utils";
 
-export function Logo({ className = "", hideText = true, isCenter = false, size = "md" }: { className?: string, hideText?: boolean, isCenter?: boolean, size?: "sm" | "md" | "lg" }) {
-  const sizeClass = size === "sm" ? "h-8 w-auto" : size === "md" ? "h-12 w-auto" : "h-24 w-auto mb-2 ";
+interface LogoProps {
+  className?: string;
+  hideText?: boolean;
+  isCenter?: boolean;
+  size?: "sm" | "md" | "lg";
+}
+
+export function Logo({
+  className,
+  hideText = true,
+  isCenter = false,
+  size = "md",
+}: LogoProps) {
+  const imageSize = {
+    sm: "h-8",
+    md: "h-12",
+    lg: "h-24",
+  };
+
   return (
-    <>
-      <div className={cn("flex items-center justify-start", isCenter && "justify-center!", `${sizeClass} ${className}`)} >
-        <img src="/logo.png" alt="Logo" className={`${className}`} />
-      </div>
-    </>
+    <div
+      className={cn(
+        "flex items-center",
+        isCenter ? "justify-center" : "justify-start"
+      )}
+    >
+      <img
+        src="/logo.png"
+        alt="Liffio"
+        className={cn(
+          imageSize[size],
+          "w-auto object-contain shrink-0",
+          className
+        )}
+      />
+    </div>
   );
 }

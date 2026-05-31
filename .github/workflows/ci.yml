@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   pull_request:
@@ -41,4 +41,4 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_API_URL: https://api.reactova.com
+          VITE_API_URL: https://api.liffio.com

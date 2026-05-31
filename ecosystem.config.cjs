@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PM2: static dashboard via `serve` (Vite build in ./dist).
  * Nginx terminates TLS and reverse-proxies to 127.0.0.1:3000.
  *
@@ -31,7 +31,7 @@ module.exports = {
   apps: [
     {
       ...common,
-      name: "reactova-dashboard",
+      name: "liffio-dashboard",
       interpreter: "node",
       script: serveMain,
       args: "-s dist -l tcp://127.0.0.1:3000",

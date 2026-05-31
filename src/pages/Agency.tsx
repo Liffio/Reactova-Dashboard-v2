@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Plus, Search, ExternalLink, Settings as SettingsIcon, Trash2, Info, Building2 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -131,7 +131,7 @@ export default function Agency() {
               <div className="space-y-2"><Label>Logo upload</Label><div className="h-24 rounded-lg bg-input border border-dashed border-border flex items-center justify-center text-xs text-muted-foreground">Upload SVG or PNG</div></div>
               <div className="space-y-2"><Label>Favicon</Label><div className="h-24 rounded-lg bg-input border border-dashed border-border flex items-center justify-center text-xs text-muted-foreground">Upload .ico</div></div>
             </div>
-            <p className="text-xs text-muted-foreground">Your clients will see your agency's brand, not Reactova, when they log in.</p>
+            <p className="text-xs text-muted-foreground">Your clients will see your agency's brand, not Liffio, when they log in.</p>
             <Button>Save Branding</Button>
           </SettingsCard>
           <SettingsCard title="Login Preview">
@@ -153,14 +153,14 @@ export default function Agency() {
             <div className="p-4 rounded-lg bg-background border border-border space-y-2 text-xs">
               <div className="font-semibold text-sm mb-1">DNS Setup</div>
               <div className="flex items-center gap-2"><span className="text-muted-foreground">Step 1:</span><CopyField value="A 76.76.21.21" /></div>
-              <div className="flex items-center gap-2"><span className="text-muted-foreground">Step 2:</span><CopyField value="CNAME → app.reactova.com" /></div>
+              <div className="flex items-center gap-2"><span className="text-muted-foreground">Step 2:</span><CopyField value="CNAME → app.liffio.com" /></div>
               <p className="text-muted-foreground">Step 3: SSL is auto-provisioned via Cloudflare — no action needed.</p>
             </div>
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-warning/15 text-warning text-xs"><span className="h-1.5 w-1.5 rounded-full bg-warning" /> Pending</span>
             <Button>Save Domain Settings</Button>
           </SettingsCard>
           <SettingsCard title="Short Links Domain">
-            <div className="space-y-2"><Label>Custom short link domain</Label><Input placeholder="go.youragency.com" defaultValue="go.reactova.com" className="bg-input border-border" /></div>
+            <div className="space-y-2"><Label>Custom short link domain</Label><Input placeholder="go.youragency.com" defaultValue="go.liffio.com" className="bg-input border-border" /></div>
           </SettingsCard>
         </div>
       )}

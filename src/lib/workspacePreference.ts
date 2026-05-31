@@ -1,6 +1,6 @@
-const LEGACY_KEY = "reactova_active_workspace_id";
+﻿const LEGACY_KEY = "liffio_active_workspace_id";
 
-const scopedKey = (userId: string) => `reactova_active_workspace_${userId}`;
+const scopedKey = (userId: string) => `liffio_active_workspace_${userId}`;
 
 export function readStoredActiveWorkspaceId(userId?: string | null): string | null {
   if (typeof window === "undefined") {

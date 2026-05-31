@@ -1,7 +1,7 @@
-import { API_BASE } from "@/lib/api";
+﻿import { API_BASE } from "@/lib/api";
 
-export const META_OAUTH_MESSAGE_TYPE = "reactova:meta-oauth";
-export const META_OAUTH_CLOSE_MESSAGE_TYPE = "reactova:meta-oauth-close";
+export const META_OAUTH_MESSAGE_TYPE = "liffio:meta-oauth";
+export const META_OAUTH_CLOSE_MESSAGE_TYPE = "liffio:meta-oauth-close";
 
 const APP_ORIGIN = window.location.origin;
 const API_ORIGIN = new URL(API_BASE).origin;
@@ -102,7 +102,7 @@ export function openMetaOAuthPopup(
   options: OpenMetaOAuthPopupOptions = {}
 ): Promise<MetaOAuthResult> {
   return new Promise((resolve, reject) => {
-    const popup = window.open("about:blank", "reactova-meta-oauth", buildPopupFeatures());
+    const popup = window.open("about:blank", "liffio-meta-oauth", buildPopupFeatures());
     if (!popup) {
       reject(new Error("Popup blocked. Allow popups for this site and try again."));
       return;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Instagram, Trash2, Plus, RefreshCw, ChevronRight, Shield } from "lucide-react";
@@ -134,12 +134,12 @@ function SecurityHome() {
     {
       href: settingsSearch("Security", "mfa"),
       title: "Multi-factor authentication (MFA)",
-      body: "Broader login protection: password plus other factors (SMS, email OTP, authenticator, etc.). Reactova currently uses authenticator OTP; more channels may follow."
+      body: "Broader login protection: password plus other factors (SMS, email OTP, authenticator, etc.). Liffio currently uses authenticator OTP; more channels may follow."
     },
     {
       href: settingsSearch("Security", "consent"),
       title: "Security disclosure & consent",
-      body: "Review the disclosure you acknowledged. Security emails are sent from noreply with reply-to support@reactova.com."
+      body: "Review the disclosure you acknowledged. Security emails are sent from noreply with reply-to support@liffio.com."
     },
     {
       href: settingsSearch("Security", "delete"),
@@ -159,8 +159,8 @@ function SecurityHome() {
           <p className="text-sm text-muted-foreground mt-1">
             <strong className="text-foreground">2FA</strong> here means a second factor using <strong className="text-foreground">OTP</strong> (one-time codes).
             <strong className="text-foreground"> MFA</strong> is the wider idea—combining password with SMS, email OTP,
-            authenticator apps, and similar. Reactova currently delivers login OTP via an authenticator app; security
-            notices are emailed from noreply@reactova.com (reply to support@reactova.com).
+            authenticator apps, and similar. Liffio currently delivers login OTP via an authenticator app; security
+            notices are emailed from noreply@liffio.com (reply to support@liffio.com).
           </p>
         </div>
       </div>
@@ -202,7 +202,7 @@ function AuthenticatorPanel({ variant }: { variant: "2fa" | "mfa" }) {
   const lead =
     variant === "2fa"
       ? "2FA adds a second factor after your password: a one-time passcode (OTP). Here that OTP is a rotating 6-digit code from an authenticator app you control."
-      : "MFA combines something you know (password) with additional factors—mobile SMS, email OTP, authenticator apps, and more. Reactova currently supports authenticator-based OTP for sign-in; SMS and email OTP may be added later.";
+      : "MFA combines something you know (password) with additional factors—mobile SMS, email OTP, authenticator apps, and more. Liffio currently supports authenticator-based OTP for sign-in; SMS and email OTP may be added later.";
 
   const startMutation = useMutation({
     mutationFn: () =>
@@ -315,8 +315,8 @@ function AuthenticatorPanel({ variant }: { variant: "2fa" | "mfa" }) {
           </div>
         )}
         <p className="text-sm text-muted-foreground">
-          When you turn protection on or off, Reactova sends a security email from <span className="font-mono text-xs">noreply@reactova.com</span> with reply-to{" "}
-          <span className="font-mono text-xs">support@reactova.com</span>. Other product emails still follow your workspace notification preferences.
+          When you turn protection on or off, Liffio sends a security email from <span className="font-mono text-xs">noreply@liffio.com</span> with reply-to{" "}
+          <span className="font-mono text-xs">support@liffio.com</span>. Other product emails still follow your workspace notification preferences.
         </p>
         {mfaEnabled ? (
           <div className="space-y-3 max-w-md">
@@ -451,9 +451,9 @@ function SecurityConsent() {
         <div className="text-sm text-muted-foreground space-y-3 leading-relaxed">
           <p>
             You acknowledged that extra login protection (2FA uses OTP; MFA can include OTP via app, SMS, email, and similar)
-            is optional but recommended, that you are responsible for backup access to your factors, and that Reactova may
-            email you from <span className="font-mono text-xs">noreply@reactova.com</span> when you change security settings—replies go to{" "}
-            <span className="font-mono text-xs">support@reactova.com</span>.
+            is optional but recommended, that you are responsible for backup access to your factors, and that Liffio may
+            email you from <span className="font-mono text-xs">noreply@liffio.com</span> when you change security settings—replies go to{" "}
+            <span className="font-mono text-xs">support@liffio.com</span>.
           </p>
           <p>
             Workspace notification preferences still control routine product emails; they do not turn off these security
@@ -805,7 +805,7 @@ function General() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          During Instagram authorisation, Meta can show the registered app name. This is a Meta platform limitation and does not affect your Reactova branding.
+          During Instagram authorisation, Meta can show the registered app name. This is a Meta platform limitation and does not affect your Liffio branding.
         </p>
         <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 space-y-2">
           <p className="text-xs text-warning">
@@ -986,7 +986,7 @@ function Team() {
               if (result.emailSent) {
                 toast.success(`Invitation sent to ${email}. They'll receive an email with a link to accept.`);
               } else if (result.inAppNotified) {
-                toast.success(`Invite created for ${email}. They already have a Reactova account and were notified in-app.`);
+                toast.success(`Invite created for ${email}. They already have a Liffio account and were notified in-app.`);
               } else {
                 toast.warning(
                   `Invite created for ${email}, but email could not be sent. Check BREVO_API_KEY / SMTP settings on the server.`

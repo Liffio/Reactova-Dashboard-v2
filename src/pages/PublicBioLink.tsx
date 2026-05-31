@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from "react";
+﻿import { useMemo, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { API_BASE } from "@/lib/api";
@@ -120,7 +120,7 @@ export default function PublicBioLink() {
           )
         )}
       </div>
-      <div className="text-xs mt-10 text-center opacity-75">Powered by Reactova</div>
+      <div className="text-xs mt-10 text-center opacity-75">Powered by Liffio</div>
     </BioFrame>
   );
 }

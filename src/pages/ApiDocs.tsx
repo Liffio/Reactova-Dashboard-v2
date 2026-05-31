@@ -1,4 +1,4 @@
-import { API_BASE } from "@/lib/api";
+﻿import { API_BASE } from "@/lib/api";
 
 const baseUrl = API_BASE.replace(/\/$/, "");
 
@@ -23,7 +23,7 @@ export default function ApiDocs() {
   return (
     <article className="space-y-10 text-foreground">
       <header className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Reactova External API</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Liffio External API</h1>
         <p className="text-muted-foreground leading-relaxed">
           Automate post scheduling and workflow creation from Postman, Zapier, or your own scripts.
           API keys are account-scoped and only work with the endpoints documented here.

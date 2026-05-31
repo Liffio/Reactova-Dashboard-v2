@@ -1,6 +1,6 @@
-# Reactova Client
+﻿# Liffio Client
 
-Vite + React frontend for Reactova.
+Vite + React frontend for Liffio.
 
 ## Scripts
 

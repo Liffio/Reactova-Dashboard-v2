@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+﻿import { useEffect, useRef } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { API_BASE } from "@/lib/api";
 
@@ -9,7 +9,7 @@ type ResolveResponse = {
 };
 
 /**
- * Public short link handler for go.reactova.com/{slug}.
+ * Public short link handler for go.liffio.com/{slug}.
  * Records click via API, then redirects to destination.
  */
 export default function ShortLinkRedirect() {

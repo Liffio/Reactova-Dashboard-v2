@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation } from "react-router-dom";
+﻿import { Link, Outlet, useLocation } from "react-router-dom";
 import { BookOpen, ExternalLink, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -32,7 +32,7 @@ export function DocsLayout() {
             </button>
             <Link to="/docs/api" className="flex items-center gap-2 font-semibold text-primary">
               <BookOpen className="h-5 w-5" />
-              Reactova API
+              Liffio API
             </Link>
             <span className="hidden sm:inline text-xs text-muted-foreground px-2 py-0.5 rounded-full border border-border">
               v1
@@ -88,10 +88,10 @@ export function DocsLayout() {
 
       <footer className="border-t border-border mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
-          <span>© {new Date().getFullYear()} Reactova. API documentation.</span>
+          <span>© {new Date().getFullYear()} Liffio. API documentation.</span>
           <div className="flex gap-4">
-            <a href="https://reactova.com" className="hover:text-primary transition-colors" target="_blank" rel="noopener noreferrer">
-              reactova.com
+            <a href="https://liffio.com" className="hover:text-primary transition-colors" target="_blank" rel="noopener noreferrer">
+              liffio.com
             </a>
             <a href="/settings?tab=API" className="hover:text-primary transition-colors" target="_blank" rel="noopener noreferrer">
               API credentials

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+﻿import { Fragment, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -57,7 +57,7 @@ const IG_ERRORS: Record<string, { title: string; summary: string; steps: string[
   },
   instagram_already_linked: {
     title: "Account already connected",
-    summary: "This Instagram account is already connected to another Reactova workspace.",
+    summary: "This Instagram account is already connected to another Liffio workspace.",
     steps: ["Disconnect it from the other workspace first, then return here and reconnect."],
   },
   invalid_platform_app: {
@@ -262,7 +262,7 @@ export default function Onboarding() {
           {step === 1 && (
             <div className="space-y-7">
               <div>
-                <h1 className="text-2xl font-bold tracking-tight">Welcome to Reactova</h1>
+                <h1 className="text-2xl font-bold tracking-tight">Welcome to Liffio</h1>
                 <p className="text-muted-foreground mt-1 text-sm">
                   Connect your Instagram and start sending automated DMs in minutes.
                 </p>
@@ -278,7 +278,7 @@ export default function Onboarding() {
                     placeholder="My Brand, Studio Name…"
                     className="bg-input"
                   />
-                  <p className="text-xs text-muted-foreground">Used as your workspace label inside Reactova.</p>
+                  <p className="text-xs text-muted-foreground">Used as your workspace label inside Liffio.</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -320,7 +320,7 @@ export default function Onboarding() {
               <div>
                 <h1 className="text-2xl font-bold tracking-tight">Connect your Instagram</h1>
                 <p className="text-muted-foreground mt-1 text-sm">
-                  Reactova uses the official Instagram Business API — your password is never shared.
+                  Liffio uses the official Instagram Business API — your password is never shared.
                 </p>
               </div>
 
@@ -391,8 +391,8 @@ export default function Onboarding() {
                 </h1>
                 <p className="text-muted-foreground mt-1 text-sm">
                   {automationCreated
-                    ? "Reactova is now monitoring your comments 24/7 and sending DMs automatically."
-                    : "When someone comments a keyword on your post, Reactova sends them a DM instantly."}
+                    ? "Liffio is now monitoring your comments 24/7 and sending DMs automatically."
+                    : "When someone comments a keyword on your post, Liffio sends them a DM instantly."}
                 </p>
               </div>
 

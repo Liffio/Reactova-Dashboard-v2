@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ChevronDown, ChevronUp, Eye, Heart, ImagePlus, Lock, MessageCircle, MoreHorizontal, Plus, Edit, Send, Trash2, Zap } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -137,10 +137,10 @@ const normalizeClientButtonUrl = (value: string): string => {
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 };
 const keywordBlocksStorageKey = (workspaceId: string | null, automationId: string | null) =>
-  `reactova_automation_keyword_blocks_${workspaceId ?? "none"}_${automationId ?? "create"}`;
+  `liffio_automation_keyword_blocks_${workspaceId ?? "none"}_${automationId ?? "create"}`;
 
 const builderDraftStorageKey = (workspaceId: string | null, automationId: string | null) =>
-  `reactova_automation_builder_draft_${workspaceId ?? "none"}_${automationId ?? "create"}`;
+  `liffio_automation_builder_draft_${workspaceId ?? "none"}_${automationId ?? "create"}`;
 
 type AutomationBuilderDraft = {
   name: string;
@@ -1430,7 +1430,7 @@ function FollowUpSequencesSection({
           </Link>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          On the Free plan, Reactova automatically sends a branded follow-up DM about 5 minutes after your primary DM.
+          On the Free plan, Liffio automatically sends a branded follow-up DM about 5 minutes after your primary DM.
           Upgrade to customize follow-up messages and timing.
         </p>
         <div className="rounded-lg border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground whitespace-pre-line">

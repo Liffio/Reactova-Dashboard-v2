@@ -1,11 +1,11 @@
-import { store } from "@/store";
+﻿import { store } from "@/store";
 
 export const API_BASE =
   import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD ? "https://api.reactova.com" : "http://127.0.0.1:3001");
+  (import.meta.env.PROD ? "https://api.liffio.com" : "http://127.0.0.1:3001");
 
 /**
- * All third-party API calls (Instagram, Meta, Stripe, etc.) must go through the Reactova backend.
+ * All third-party API calls (Instagram, Meta, Stripe, etc.) must go through the Liffio backend.
  * The browser must only call `${API_BASE}/api/v1/...` via apiRequest / apiUploadRequest — never fetch third-party hosts directly.
  */
 export function resolveApiAssetUrl(pathOrUrl: string | null | undefined): string | null {

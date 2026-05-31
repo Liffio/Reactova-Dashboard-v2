@@ -1,4 +1,4 @@
-name: Deploy Frontend
+﻿name: Deploy Frontend
 
 on:
   push:
@@ -78,7 +78,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_API_URL: https://api.reactova.com
+          VITE_API_URL: https://api.liffio.com
 
   deploy:
     name: Deploy to Frontend Droplet
@@ -124,10 +124,10 @@ jobs:
             DEPLOY_PATH="${DEPLOY_PATH#"${DEPLOY_PATH%%[![:space:]]*}"}"
             DEPLOY_PATH="${DEPLOY_PATH%"${DEPLOY_PATH##*[![:space:]]}"}"
             if [ -z "${DEPLOY_PATH}" ]; then
-              DEPLOY_PATH="/var/www/reactova-dashboard"
+              DEPLOY_PATH="/var/www/liffio-dashboard"
             fi
 
-            echo "Deploying app.reactova.com React dashboard to ${DEPLOY_PATH}"
+            echo "Deploying app.liffio.com React dashboard to ${DEPLOY_PATH}"
             if [ ! -d "${DEPLOY_PATH}" ]; then
               echo "Deploy path is not a directory: ${DEPLOY_PATH}. Create it and clone this repo, or set FRONTEND_DEPLOY_PATH (no trailing newline)."
               exit 1
@@ -152,7 +152,7 @@ jobs:
 
             npm ci
             # Must match API CORS allowlist (see server APP_PUBLIC_URL / CORS_ORIGINS). Rebuild if API host changes.
-            VITE_API_URL=https://api.reactova.com npm run build
+            VITE_API_URL=https://api.liffio.com npm run build
 
             pm2 startOrReload ecosystem.config.cjs --env production --update-env
             pm2 save

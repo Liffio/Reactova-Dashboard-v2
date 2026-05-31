@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+﻿import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Provider } from "react-redux";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -39,12 +39,12 @@ import { ReferralCapture } from "@/components/ReferralCapture";
 const queryClient = new QueryClient();
 const isBioDomain = () => {
   const host = window.location.hostname.toLowerCase();
-  return host === "bio.reactova.com" || host.startsWith("bio.reactova.");
+  return host === "bio.liffio.com" || host.startsWith("bio.liffio.");
 };
 
 const isShortLinkDomain = () => {
   const host = window.location.hostname.toLowerCase();
-  return host === "go.reactova.com" || host.startsWith("go.reactova.");
+  return host === "go.liffio.com" || host.startsWith("go.liffio.");
 };
 
 const App = () => (

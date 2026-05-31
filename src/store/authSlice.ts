@@ -1,4 +1,4 @@
-import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+﻿import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { AuthMePayload, AuthUser, AuthorizationPayload } from "@/types/auth";
 
 type AuthState = {
@@ -17,7 +17,7 @@ type AuthState = {
 };
 
 const initialState: AuthState = {
-  accessToken: localStorage.getItem("reactova_access_token"),
+  accessToken: localStorage.getItem("liffio_access_token"),
   user: null,
   workspaceId: null,
   role: null,
@@ -42,7 +42,7 @@ const authSlice = createSlice({
       }>
     ) => {
       state.accessToken = action.payload.accessToken;
-      localStorage.setItem("reactova_access_token", action.payload.accessToken);
+      localStorage.setItem("liffio_access_token", action.payload.accessToken);
     },
     setAuthMe: (state, action: PayloadAction<AuthMePayload>) => {
       state.user = action.payload.user;
@@ -83,7 +83,7 @@ const authSlice = createSlice({
       state.mfaEmailOtpEnabled = true;
       state.mfaSmsOtpEnabled = false;
       state.mfaOnboardingConsentAt = null;
-      localStorage.removeItem("reactova_access_token");
+      localStorage.removeItem("liffio_access_token");
     }
   }
 });

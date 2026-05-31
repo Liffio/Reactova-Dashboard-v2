@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { Plus, ExternalLink, Trash2, Link2, X } from "lucide-react";
 import {
   createColumnHelper,
@@ -32,7 +32,7 @@ const getShortLinkPreviewBase = () => {
     }
   }
   if (import.meta.env.PROD) {
-    return "go.reactova.com";
+    return "go.liffio.com";
   }
   const apiBase = import.meta.env.VITE_API_URL as string | undefined;
   if (apiBase) {

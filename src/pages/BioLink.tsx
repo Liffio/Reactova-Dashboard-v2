@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+﻿import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { BarChart3, GripVertical, Plus, Trash2 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ const buttonStyles = [
   { key: "soft", label: "Soft" }
 ] as const;
 
-const domainPrefix = "https://bio.reactova.com/";
+const domainPrefix = "https://bio.liffio.com/";
 
 type DraftLink = BioLinkItem & { bioLinkId?: string };
 type DraftSocial = BioLinkSocialItem & { bioLinkId?: string };
@@ -268,7 +268,7 @@ export default function BioLink() {
     }
 
     await updateProfileMutation.mutateAsync({
-      displayName: draft.displayName.trim() || user?.name || "Reactova User",
+      displayName: draft.displayName.trim() || user?.name || "Liffio User",
       bio: draft.bio.trim(),
       accentColor: draft.accentColor,
       buttonStyle: draft.buttonStyle,
@@ -1001,7 +1001,7 @@ export default function BioLink() {
                       )
                     )}
                   </div>
-                  <div className="text-[10px] mt-auto pt-6 opacity-80">Powered by Reactova</div>
+                  <div className="text-[10px] mt-auto pt-6 opacity-80">Powered by Liffio</div>
                 </div>
               </div>
             </div>

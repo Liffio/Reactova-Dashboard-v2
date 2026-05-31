@@ -72,15 +72,19 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
   const method = config.method ?? "GET";
   const isAnonymousPublicRead = token === null && method === "GET" && path.startsWith("/api/v1/public/");
 
+  const hasExplicitBody = config.body !== undefined && config.body !== null;
+  const usesJsonBody = hasExplicitBody || (method !== "GET" && method !== "HEAD");
+  const jsonBody = hasExplicitBody ? config.body : usesJsonBody ? {} : undefined;
+
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     credentials: isAnonymousPublicRead ? "omit" : "include",
     headers: {
-      ...(config.body || !isAnonymousPublicRead ? { "Content-Type": "application/json" } : {}),
+      ...(usesJsonBody ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(config.workspaceId ? { "x-workspace-id": config.workspaceId } : {})
     },
-    ...(config.body ? { body: JSON.stringify(config.body) } : {})
+    ...(jsonBody !== undefined ? { body: JSON.stringify(jsonBody) } : {})
   });
 
   if (!res.ok) {

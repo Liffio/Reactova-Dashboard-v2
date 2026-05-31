@@ -4,8 +4,8 @@ export function Logo({ className = "", hideText = true, isCenter = false, size =
   const sizeClass = size === "sm" ? "h-8 w-auto" : size === "md" ? "h-12 w-auto" : "h-24 w-auto mb-2 ";
   return (
     <>
-      <div className={cn("flex items-center", isCenter && "justify-center", `${className}`)} >
-        <img src="/logo.png" alt="Logo" className={`${sizeClass} ${className}`} />
+      <div className={cn("flex items-center", isCenter && "justify-center", `${sizeClass} ${className}`)} >
+        <img src="/logo.png" alt="Logo" className={` ${className}`} />
       </div>
     </>
   );

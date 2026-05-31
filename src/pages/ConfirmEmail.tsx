@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Mail, RefreshCw } from "lucide-react";
@@ -20,6 +20,8 @@ export default function ConfirmEmail() {
   const user = useAppSelector((state) => state.auth.user);
   const emailVerified = useAppSelector((state) => state.auth.emailVerified);
   const [resendIn, setResendIn] = useState(0);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const initialSendDone = useRef(false);
 
   const authMeQuery = useQuery({
     queryKey: ["auth-me", "confirm-email", accessToken],
@@ -62,16 +64,27 @@ export default function ConfirmEmail() {
         await queryClient.invalidateQueries({ queryKey: ["auth-me"] });
         return;
       }
+      setDeliveryError(null);
       setResendIn(60);
       toast.success("Confirmation email sent");
     },
     onError: (error) => {
       const message = (error as Error).message;
+      setDeliveryError(message);
       const match = message.match(/(\d+)\s*seconds?/i);
       if (match) setResendIn(Number(match[1]));
       toast.error(message);
     }
   });
+
+  useEffect(() => {
+    if (!accessToken || emailVerified || initialSendDone.current) {
+      return;
+    }
+    initialSendDone.current = true;
+    resendMutation.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- send once when landing on this page
+  }, [accessToken, emailVerified]);
 
   if (!accessToken) {
     return null;
@@ -98,6 +111,12 @@ export default function ConfirmEmail() {
           <p>After you click the link, you can close that tab and return here.</p>
           <p>This page updates as soon as your email is verified (no refresh needed).</p>
         </div>
+
+        {deliveryError && (
+          <div className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {deliveryError}
+          </div>
+        )}
 
         <div className="mt-6 space-y-3">
           <Button

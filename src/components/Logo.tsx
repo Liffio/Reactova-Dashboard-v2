@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-export function Logo({ className = "", hideText = false, isCenter = false, size = "md" }: { className?: string, hideText?: boolean, isCenter?: boolean, size?: "sm" | "md" | "lg" }) {
+export function Logo({ className = "", hideText = true, isCenter = false, size = "md" }: { className?: string, hideText?: boolean, isCenter?: boolean, size?: "sm" | "md" | "lg" }) {
   const sizeClass = size === "sm" ? "h-8 w-auto" : size === "md" ? "h-10 w-auto" : "h-12 w-auto";
   return (
     <>

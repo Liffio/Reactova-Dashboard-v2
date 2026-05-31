@@ -2,8 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 
 type CreateWorkspaceInput = {
-  igHandle?: string;
-  plan: "FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY";
+  name?: string;
 };
 
 export function useCreateWorkspaceMutation(onCreated?: (workspaceId: string) => Promise<void> | void) {
@@ -14,8 +13,7 @@ export function useCreateWorkspaceMutation(onCreated?: (workspaceId: string) => 
       apiRequest<{ id: string }>("/api/v1/workspaces", {
         method: "POST",
         body: {
-          igHandle: input.igHandle,
-          plan: input.plan
+          name: input.name?.trim() || undefined
         }
       }),
     onSuccess: async (workspace) => {

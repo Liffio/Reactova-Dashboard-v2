@@ -94,7 +94,7 @@ export default function Register() {
               localRef: refPayload.localRef
             });
             clearStoredReferralCode();
-            navigate("/onboarding");
+            navigate("/confirm-email");
           }}
         >
           <div className="space-y-1.5">

@@ -147,11 +147,18 @@ export function useRegisterMutation() {
       }),
     onSuccess: async (payload) => {
       dispatch(setAuthSession({ accessToken: payload.accessToken }));
-      dispatch(setAuthorization(payload.authorization));
       const authMe = await apiRequest<AuthMePayload>("/api/v1/auth/me", {
         token: payload.accessToken
       });
       dispatch(setAuthMe(authMe));
+      if (payload.authorization) {
+        dispatch(
+          setAuthorization({
+            ...payload.authorization,
+            emailVerified: authMe.emailVerified
+          })
+        );
+      }
     }
   });
 }

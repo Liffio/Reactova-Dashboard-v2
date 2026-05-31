@@ -710,9 +710,9 @@ function General() {
             maxLength={80}
             disabled={renameWorkspaceMutation.isPending}
           />
-          {current.handle && current.handle !== current.name && (
+          {current.igHandle && (
             <p className="text-xs text-muted-foreground">
-              Instagram: <span className="font-mono">{current.handle}</span>
+              Instagram: <span className="font-mono">{current.igHandle}</span>
             </p>
           )}
         </div>
@@ -783,7 +783,11 @@ function General() {
                 instagramConnected: resolveInstagramConnected(current)
               })}
             />
-            <span className="font-mono text-sm">{current.handle}</span>
+            <span className="font-mono text-sm">
+              {resolveInstagramConnected(current) && current.igHandle
+                ? current.igHandle
+                : "Not connected"}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <Button

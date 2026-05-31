@@ -56,9 +56,13 @@ const IG_ERRORS: Record<string, { title: string; summary: string; steps: string[
     ],
   },
   instagram_already_linked: {
-    title: "Account already connected",
-    summary: "This Instagram account is already connected to another Liffio workspace.",
-    steps: ["Disconnect it from the other workspace first, then return here and reconnect."],
+    title: "Instagram account already in use",
+    summary:
+      "This Instagram account is already connected to another workspace on your account. Each workspace needs its own Instagram account.",
+    steps: [
+      "Use a different Instagram Professional account for this workspace, or",
+      "Disconnect that account from your other workspace in Settings, then try again.",
+    ],
   },
   invalid_platform_app: {
     title: "Meta app configuration error",
@@ -97,6 +101,7 @@ export default function Onboarding() {
   const dispatch = useAppDispatch();
   const workspaceIdFromStore = useAppSelector((s) => s.auth.workspaceId);
   const isOnboarded = useAppSelector((s) => s.auth.isOnboarded);
+  const emailVerified = useAppSelector((s) => s.auth.emailVerified);
 
   const [step, setStep] = useState(1);
   const [displayName, setDisplayName] = useState("");
@@ -181,6 +186,12 @@ export default function Onboarding() {
     onSuccess: () => navigate("/dashboard", { replace: true }),
     onError: (err) => toast.error((err as Error).message),
   });
+
+  useEffect(() => {
+    if (!emailVerified) {
+      navigate("/confirm-email", { replace: true });
+    }
+  }, [emailVerified, navigate]);
 
   // Redirect if already onboarded
   useEffect(() => {

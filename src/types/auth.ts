@@ -12,6 +12,7 @@ export type AuthMePayload = {
   permissions: string[];
   isPlatformSuperAdmin: boolean;
   isOnboarded: boolean;
+  emailVerified: boolean;
   mfaEnabled: boolean;
   mfaEmailOtpEnabled: boolean;
   mfaSmsOtpEnabled: boolean;

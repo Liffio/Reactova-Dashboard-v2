@@ -80,16 +80,14 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
   const [wsOpen, setWsOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [showLinkPrompt, setShowLinkPrompt] = useState(false);
-  const [workspaceHandle, setWorkspaceHandle] = useState("");
-  const [workspacePlan, setWorkspacePlan] = useState<"FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY">("FREE");
+  const [workspaceName, setWorkspaceName] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
   const createWorkspaceMutation = useCreateWorkspaceMutation(
     async (workspaceId) => {
       setCurrentId(workspaceId);
       await refreshAuth();
-      setWorkspaceHandle("");
-      setWorkspacePlan("FREE");
+      setWorkspaceName("");
       setCreateOpen(false);
       setWsOpen(false);
       toast.success("Workspace created");
@@ -143,7 +141,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <div className="px-4 pt-5 pb-3">
+        <div className="p-4 pb-3">
           <Logo />
         </div>
 
@@ -196,24 +194,15 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
               {createOpen && (
                 <div className="border-t border-border p-3 space-y-2">
                   <Input
-                    value={workspaceHandle}
-                    onChange={(event) => setWorkspaceHandle(event.target.value.replace(/^@/, ""))}
-                    placeholder="Workspace handle (optional)"
+                    value={workspaceName}
+                    onChange={(event) => setWorkspaceName(event.target.value)}
+                    placeholder="Workspace name (optional)"
                     className="h-9 bg-input border-border"
+                    maxLength={80}
                   />
-                  <select
-                    value={workspacePlan}
-                    onChange={(event) =>
-                      setWorkspacePlan(event.target.value as "FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY")
-                    }
-                    className="h-9 w-full rounded-md border border-border bg-input px-2 text-xs"
-                  >
-                    <option value="FREE">Free</option>
-                    <option value="STARTER">Starter</option>
-                    <option value="PRO">Pro</option>
-                    <option value="BUSINESS">Business</option>
-                    <option value="AGENCY">Agency</option>
-                  </select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Instagram is linked per workspace in Settings after creation. Only one free workspace is allowed per account.
+                  </p>
                   <Button
                     type="button"
                     className="h-9 w-full"
@@ -221,10 +210,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
                     onClick={() =>
                       createWorkspaceMutation.mutate(
                         {
-                          igHandle: workspaceHandle.trim()
-                            ? `@${workspaceHandle.trim().replace(/^@/, "")}`
-                            : undefined,
-                          plan: workspacePlan
+                          name: workspaceName.trim() || undefined
                         },
                         { onError: (error) => toast.error((error as Error).message) }
                       )

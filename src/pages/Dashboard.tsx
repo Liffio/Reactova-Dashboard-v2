@@ -105,8 +105,7 @@ export default function Dashboard() {
     }
   }, [searchParams, setSearchParams, refreshAuth]);
   const [createOpen, setCreateOpen] = useState(false);
-  const [workspaceHandle, setWorkspaceHandle] = useState("");
-  const [workspacePlan, setWorkspacePlan] = useState<"FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY">("FREE");
+  const [workspaceName, setWorkspaceName] = useState("");
   const [showLinkPrompt, setShowLinkPrompt] = useState(false);
   const [workspaceToDelete, setWorkspaceToDelete] = useState<{ id: string; handle: string } | null>(null);
   const dashboardQuery = useDashboardQuery(current.id);
@@ -128,8 +127,7 @@ export default function Dashboard() {
   const createWorkspaceMutation = useCreateWorkspaceMutation(async (workspaceId) => {
     setCurrentId(workspaceId);
     await refreshAuth();
-    setWorkspaceHandle("");
-    setWorkspacePlan("FREE");
+    setWorkspaceName("");
     setCreateOpen(false);
     setShowLinkPrompt(true);
     toast.success("Workspace created");
@@ -356,32 +354,22 @@ export default function Dashboard() {
           <div className="mt-4 rounded-xl bg-card border border-border p-4 space-y-3">
             <h3 className="font-semibold text-sm">Create Workspace</h3>
             <Input
-              value={workspaceHandle}
-              onChange={(event) => setWorkspaceHandle(event.target.value.replace(/^@/, ""))}
-              placeholder="Workspace handle (optional)"
+              value={workspaceName}
+              onChange={(event) => setWorkspaceName(event.target.value)}
+              placeholder="Workspace name (optional)"
               className="bg-input border-border max-w-md"
+              maxLength={80}
             />
-            <select
-              value={workspacePlan}
-              onChange={(event) =>
-                setWorkspacePlan(event.target.value as "FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY")
-              }
-              className="h-10 w-full max-w-md rounded-md border border-border bg-input px-3 text-sm"
-            >
-              <option value="FREE">Free</option>
-              <option value="STARTER">Starter</option>
-              <option value="PRO">Pro</option>
-              <option value="BUSINESS">Business</option>
-              <option value="AGENCY">Agency</option>
-            </select>
+            <p className="text-xs text-muted-foreground max-w-md">
+              Link Instagram separately in Settings. Only one free workspace is allowed per account.
+            </p>
             <Button
               className="w-full sm:w-auto"
               disabled={createWorkspaceMutation.isPending}
               onClick={() =>
                 createWorkspaceMutation.mutate(
                   {
-                    igHandle: workspaceHandle.trim() ? `@${workspaceHandle.trim().replace(/^@/, "")}` : undefined,
-                    plan: workspacePlan
+                    name: workspaceName.trim() || undefined
                   },
                   { onError: (error) => toast.error((error as Error).message) }
                 )

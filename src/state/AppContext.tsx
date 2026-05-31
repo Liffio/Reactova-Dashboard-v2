@@ -27,6 +27,7 @@ export type WorkspaceStatus = "active" | "paused" | "failed" | "disconnected";
 export interface Workspace {
   id: string;
   handle: string;
+  igHandle: string | null;
   name: string;
   plan: PlanName;
   status: WorkspaceStatus;
@@ -110,13 +111,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     return workspacesQuery.data.map((workspace) => {
       const instagramConnected = resolveInstagramConnected(workspace);
+      const igHandle = instagramConnected ? workspace.igHandle?.trim() || null : null;
       const label =
         workspace.displayName?.trim() ||
-        workspace.igHandle?.trim() ||
+        (igHandle ?? "") ||
         "Unlinked workspace";
       return {
         id: workspace.id,
-        handle: workspace.igHandle?.trim() || label,
+        handle: label,
+        igHandle,
         name: label,
         plan: mapPlan(workspace.plan),
         status:

@@ -8,12 +8,14 @@ import { AppProvider } from "@/state/AppContext";
 import { SocketProvider } from "@/socket/SocketProvider";
 import { store } from "@/store";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { AuthOnlyRoute } from "@/components/auth/AuthOnlyRoute";
 import { PlatformAdminRoute } from "@/components/auth/PlatformAdminRoute";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import Register from "./pages/Register";
+import ConfirmEmail from "./pages/ConfirmEmail";
 import Onboarding from "./pages/Onboarding";
 import MetaOAuthComplete from "./pages/MetaOAuthComplete";
 import Dashboard from "./pages/Dashboard";
@@ -74,7 +76,22 @@ const App = () => (
                   <Route path="/login" element={<Login />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/register" element={<Register />} />
-                  <Route path="/onboarding" element={<Onboarding />} />
+                  <Route
+                    path="/confirm-email"
+                    element={
+                      <AuthOnlyRoute>
+                        <ConfirmEmail />
+                      </AuthOnlyRoute>
+                    }
+                  />
+                  <Route
+                    path="/onboarding"
+                    element={
+                      <AuthOnlyRoute>
+                        <Onboarding />
+                      </AuthOnlyRoute>
+                    }
+                  />
                   <Route path="/oauth/meta/complete" element={<MetaOAuthComplete />} />
                   <Route path="/accept-invite" element={<AcceptInvite />} />
                   <Route path="/dashboard" element={<ProtectedRoute module="workspace"><Dashboard /></ProtectedRoute>} />

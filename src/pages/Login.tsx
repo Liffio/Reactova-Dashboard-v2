@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
 import { useLoginMutation, useMfaLoginEmailSendMutation, useMfaLoginVerifyMutation } from "@/hooks/useAuth";
+import { postAuthLandingPath } from "@/lib/authNavigation";
+import { store } from "@/store";
 
 const toErrorText = (value: unknown): string | null => {
   if (typeof value === "string") {
@@ -49,7 +51,8 @@ export default function Login() {
         setExpiresIn(0);
         return;
       }
-      navigate(redirectTo);
+      const { emailVerified, isOnboarded } = store.getState().auth;
+      navigate(postAuthLandingPath({ emailVerified, isOnboarded }, redirectTo));
     }
   });
 
@@ -62,7 +65,8 @@ export default function Login() {
       code: otp.trim(),
       method: mfaMethod
     });
-    navigate(redirectTo);
+    const { emailVerified, isOnboarded } = store.getState().auth;
+    navigate(postAuthLandingPath({ emailVerified, isOnboarded }, redirectTo));
   };
 
   const onSendEmailOtp = async () => {
@@ -100,7 +104,7 @@ export default function Login() {
       <ThemeToggle className="fixed top-4 right-4 p-2 rounded-lg border border-border bg-card/80 backdrop-blur hover:bg-card transition-colors z-20" />
       <div className="w-full max-w-md bg-card border border-border rounded-2xl p-8 shadow-2xl animate-fade-in">
         <div className="flex flex-col items-center mb-7">
-          <Logo size="lg" />
+          <Logo size="md" />
           <p className="text-sm text-muted-foreground mt-3">
             {mfaPreAuthToken
               ? "Choose authenticator or email OTP to continue"

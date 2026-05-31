@@ -10,6 +10,7 @@ type AuthState = {
   modules: AuthorizationPayload["modules"];
   isPlatformSuperAdmin: boolean;
   isOnboarded: boolean;
+  emailVerified: boolean;
   mfaEnabled: boolean;
   mfaEmailOtpEnabled: boolean;
   mfaSmsOtpEnabled: boolean;
@@ -25,6 +26,7 @@ const initialState: AuthState = {
   modules: [],
   isPlatformSuperAdmin: false,
   isOnboarded: false,
+  emailVerified: false,
   mfaEnabled: false,
   mfaEmailOtpEnabled: true,
   mfaSmsOtpEnabled: false,
@@ -52,6 +54,7 @@ const authSlice = createSlice({
       state.modules = action.payload.modules;
       state.isPlatformSuperAdmin = action.payload.isPlatformSuperAdmin;
       state.isOnboarded = action.payload.isOnboarded;
+      state.emailVerified = action.payload.emailVerified;
       state.mfaEnabled = action.payload.mfaEnabled;
       state.mfaEmailOtpEnabled = action.payload.mfaEmailOtpEnabled;
       state.mfaSmsOtpEnabled = action.payload.mfaSmsOtpEnabled;
@@ -64,6 +67,7 @@ const authSlice = createSlice({
       state.modules = action.payload?.modules ?? [];
       state.isPlatformSuperAdmin = action.payload?.isPlatformSuperAdmin ?? false;
       state.isOnboarded = action.payload?.isOnboarded ?? false;
+      state.emailVerified = action.payload?.emailVerified ?? false;
       state.mfaEnabled = action.payload?.mfaEnabled ?? state.mfaEnabled;
       state.mfaEmailOtpEnabled = action.payload?.mfaEmailOtpEnabled ?? state.mfaEmailOtpEnabled;
       state.mfaSmsOtpEnabled = action.payload?.mfaSmsOtpEnabled ?? state.mfaSmsOtpEnabled;
@@ -79,6 +83,7 @@ const authSlice = createSlice({
       state.modules = [];
       state.isPlatformSuperAdmin = false;
       state.isOnboarded = false;
+      state.emailVerified = false;
       state.mfaEnabled = false;
       state.mfaEmailOtpEnabled = true;
       state.mfaSmsOtpEnabled = false;

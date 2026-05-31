@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { updateFavicon } from "@/lib/utils";
 
 export type ThemeMode = "light" | "dark";
 
@@ -15,7 +16,11 @@ export function useTheme() {
   const applyTheme = (nextTheme: ThemeMode) => {
     document.documentElement.classList.remove("light", "dark");
     document.documentElement.classList.add(nextTheme);
+
     localStorage.setItem("theme", nextTheme);
+
+    updateFavicon(nextTheme); // <-- add this
+
     setTheme(nextTheme);
   };
 

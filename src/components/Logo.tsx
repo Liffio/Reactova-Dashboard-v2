@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/hooks/useTheme";
 
 interface LogoProps {
   className?: string;
@@ -9,7 +10,6 @@ interface LogoProps {
 
 export function Logo({
   className,
-  hideText = true,
   isCenter = false,
   size = "md",
 }: LogoProps) {
@@ -31,7 +31,17 @@ export function Logo({
         alt="Liffio"
         className={cn(
           imageSize[size],
-          "w-auto object-contain shrink-0",
+          "w-auto object-contain dark:hidden",
+          className
+        )}
+      />
+
+      <img
+        src="/logo-light.png"
+        alt="Liffio"
+        className={cn(
+          imageSize[size],
+          "hidden w-auto object-contain dark:block",
           className
         )}
       />

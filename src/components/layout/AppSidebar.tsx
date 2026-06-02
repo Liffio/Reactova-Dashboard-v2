@@ -2,7 +2,7 @@ import { useMemo, useState, type ComponentType } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Home, Zap, Link2, CalendarDays, LayoutTemplate, BarChart2, Users,
-  Gift, Settings, LogOut, ChevronDown, Plus, Building2, Check, Shield, CreditCard,
+  Gift, Settings, LogOut, ChevronDown, Plus, Building2, Check, Shield, CreditCard, Mail,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { PlanBadge } from "@/components/PlanBadge";
@@ -131,6 +131,14 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
         label: "RBAC Master",
         section: "general" as const,
         order: 999,
+        action: undefined as string | undefined
+      },
+      {
+        to: "/admin/email-templates",
+        icon: Mail,
+        label: "Email Templates",
+        section: "general" as const,
+        order: 1000,
         action: undefined as string | undefined
       }
     ];

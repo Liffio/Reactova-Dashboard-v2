@@ -34,6 +34,7 @@ import Settings from "./pages/Settings";
 import Billing from "./pages/Billing";
 import Agency from "./pages/Agency";
 import RbacMaster from "./pages/RbacMaster";
+import EmailTemplates from "./pages/admin/EmailTemplates";
 import AcceptInvite from "./pages/AcceptInvite";
 import PublicBioLink from "./pages/PublicBioLink";
 import ShortLinkRedirect from "./pages/ShortLinkRedirect";
@@ -120,6 +121,7 @@ const App = () => (
                   <Route path="/billing" element={<ProtectedRoute module="workspace"><Billing /></ProtectedRoute>} />
                   <Route path="/agency" element={<ProtectedRoute module="agency"><Agency /></ProtectedRoute>} />
                   <Route path="/rbac-master" element={<PlatformAdminRoute><RbacMaster /></PlatformAdminRoute>} />
+                  <Route path="/admin/email-templates" element={<PlatformAdminRoute><EmailTemplates /></PlatformAdminRoute>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               )}

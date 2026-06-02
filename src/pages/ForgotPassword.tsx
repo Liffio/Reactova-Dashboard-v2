@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { AuthShell } from "@/components/layout/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -101,15 +101,13 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <ThemeToggle className="fixed top-4 right-4 p-2 rounded-lg border border-border bg-card/80 backdrop-blur hover:bg-card transition-colors z-20" />
-      <div className="w-full max-w-md bg-card border border-border rounded-2xl p-8 shadow-2xl animate-fade-in">
-        <div className="flex flex-col items-center mb-7">
-          <Logo size="lg" />
-          <p className="text-sm text-muted-foreground mt-3 text-center">
-            {step === "email" ? "Enter your email to receive a reset code" : "Enter the code and your new password"}
-          </p>
-        </div>
+    <AuthShell>
+      <div className="flex flex-col items-center mb-7">
+        <Logo size="lg" />
+        <p className="text-sm text-muted-foreground mt-3 text-center">
+          {step === "email" ? "Enter your email to receive a reset code" : "Enter the code and your new password"}
+        </p>
+      </div>
 
         {step === "email" ? (
           <form
@@ -248,7 +246,6 @@ export default function ForgotPassword() {
             </Button>
           </div>
         )}
-      </div>
-    </div>
+    </AuthShell>
   );
 }

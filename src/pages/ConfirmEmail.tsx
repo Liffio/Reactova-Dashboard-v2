@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Mail, RefreshCw } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -11,14 +11,18 @@ import { useAppDispatch } from "@/store/hooks";
 import { setAuthMe } from "@/store/authSlice";
 import type { AuthMePayload } from "@/types/auth";
 import { toast } from "@/components/ui/sonner";
+import { loginPathWithRedirect, postAuthLandingPath, sanitizeAuthRedirect } from "@/lib/authNavigation";
 
 export default function ConfirmEmail() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = sanitizeAuthRedirect(searchParams.get("redirect"), "/onboarding");
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
   const accessToken = useAppSelector((state) => state.auth.accessToken);
   const user = useAppSelector((state) => state.auth.user);
   const emailVerified = useAppSelector((state) => state.auth.emailVerified);
+  const isOnboarded = useAppSelector((state) => state.auth.isOnboarded);
   const [resendIn, setResendIn] = useState(0);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
   const initialSendDone = useRef(false);
@@ -39,13 +43,17 @@ export default function ConfirmEmail() {
 
   useEffect(() => {
     if (!accessToken) {
-      navigate("/login", { replace: true });
+      const loginTo =
+        redirectTo !== "/onboarding" ? loginPathWithRedirect(redirectTo) : "/login";
+      navigate(loginTo, { replace: true });
       return;
     }
     if (emailVerified) {
-      navigate("/onboarding", { replace: true });
+      navigate(postAuthLandingPath({ emailVerified: true, isOnboarded }, redirectTo), {
+        replace: true
+      });
     }
-  }, [accessToken, emailVerified, navigate]);
+  }, [accessToken, emailVerified, isOnboarded, navigate, redirectTo]);
 
   useEffect(() => {
     if (resendIn <= 0) return;

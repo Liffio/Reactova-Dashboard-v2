@@ -21,7 +21,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Inter", "Segoe UI", "Helvetica Neue", "Arial", "sans-serif"],
+        sans: ["Plus Jakarta Sans", "Inter", "Segoe UI", "Helvetica Neue", "Arial", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -89,7 +89,15 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       transitionDuration: {
-        DEFAULT: "150ms",
+        DEFAULT: "200ms",
+      },
+      transitionTimingFunction: {
+        "out-expo": "cubic-bezier(0.22, 1, 0.36, 1)",
+      },
+      boxShadow: {
+        elevated:
+          "0 1px 2px hsl(var(--foreground) / 0.04), 0 12px 40px -16px hsl(var(--primary) / 0.12), 0 24px 60px -24px hsl(var(--foreground) / 0.1)",
+        card: "0 1px 2px hsl(var(--foreground) / 0.04), 0 8px 24px -12px hsl(var(--foreground) / 0.08)",
       },
       keyframes: {
         "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },

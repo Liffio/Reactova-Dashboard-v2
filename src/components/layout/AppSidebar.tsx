@@ -1,5 +1,5 @@
 import { useMemo, useState, type ComponentType } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   Home, Zap, Link2, CalendarDays, LayoutTemplate, BarChart2, Users,
   Gift, Settings, LogOut, ChevronDown, Plus, Building2, Check, Shield, CreditCard,
@@ -72,6 +72,27 @@ const sortByOrder = <T extends { order: number }>(items: T[]): T[] =>
     })
     .map(({ item }) => item);
 
+function SidebarNavLink({
+  item,
+  onClose,
+}: {
+  item: { to: string; label: string; icon: ComponentType<{ className?: string }> };
+  onClose: () => void;
+}) {
+  return (
+    <NavLink
+      to={item.to}
+      onClick={onClose}
+      className={({ isActive }) =>
+        cn("nav-link", isActive && "nav-link-active")
+      }
+    >
+      <item.icon className="h-4 w-4 shrink-0" />
+      <span>{item.label}</span>
+    </NavLink>
+  );
+}
+
 export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
   const { user, current, workspaces, setCurrentId, refreshAuth } = useApp();
   const modules = useModules();
@@ -82,7 +103,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
   const [showLinkPrompt, setShowLinkPrompt] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
   const navigate = useNavigate();
-  const location = useLocation();
+
   const createWorkspaceMutation = useCreateWorkspaceMutation(
     async (workspaceId) => {
       setCurrentId(workspaceId);
@@ -94,14 +115,6 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
       setShowLinkPrompt(true);
     }
   );
-
-  const itemCls = (active: boolean) =>
-    cn(
-      "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-      active
-        ? "bg-primary/15 text-primary"
-        : "text-muted-foreground hover:bg-card hover:text-foreground"
-    );
 
   const visibleNavigation = modules.flatMap((module) => {
     const moduleEntries = navigationByModule[module.key] ?? [];
@@ -130,28 +143,32 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
 
   return (
     <>
-      {/* Mobile overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={onClose} />
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden animate-in fade-in duration-150"
+          onClick={onClose}
+          aria-hidden
+        />
       )}
 
       <aside
         className={cn(
-          "fixed lg:sticky top-0 left-0 z-50 h-screen w-72 shrink-0 bg-background border-r border-border flex flex-col transition-transform",
+          "fixed lg:sticky top-0 left-0 z-50 h-screen w-[17.5rem] shrink-0 flex flex-col",
+          "bg-sidebar border-r border-border/60",
+          "transition-transform duration-200 ease-out will-change-transform",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <div className="p-4 pb-3">
+        <div className="px-4 py-5 border-b border-border/50">
           <Logo />
         </div>
 
-        {/* Workspace switcher */}
-        <div className="px-3 pb-3 relative mt-3">
+        <div className="px-3 py-3 relative">
           <button
+            type="button"
             onClick={() => setWsOpen((v) => !v)}
-            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg bg-card border border-border hover:border-primary/40 transition-colors"
-          >
-            <StatusDot
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-card/80 border border-border/70 hover:border-primary/30 transition-colors duration-150"
+          >            <StatusDot
               status={getWorkspaceIndicatorStatus({
                 status: current.status,
                 instagramConnected: resolveInstagramConnected(current)
@@ -161,16 +178,20 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
               <div className="text-sm font-medium truncate">{current.name}</div>
             </div>
             <PlanBadge plan={current.plan} />
-            <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", wsOpen && "rotate-180")} />
+            <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", wsOpen && "rotate-180")} />
           </button>
 
           {wsOpen && (
-            <div className="absolute left-3 right-3 mt-2 bg-card border border-border rounded-lg shadow-2xl z-50 overflow-hidden animate-fade-in">
+            <div className="absolute left-3 right-3 mt-1.5 bg-popover border border-border/70 rounded-lg shadow-lg z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
               {workspaces.map((w) => (
                 <button
                   key={w.id}
+                  type="button"
                   onClick={() => { setCurrentId(w.id); setWsOpen(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-background transition-colors text-left"
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors duration-150",
+                    w.id === current.id ? "bg-primary/10" : "hover:bg-muted/50"
+                  )}
                 >
                   <StatusDot
                     status={getWorkspaceIndicatorStatus({
@@ -180,27 +201,27 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
                   />
                   <span className="flex-1 text-sm truncate">{w.name}</span>
                   <PlanBadge plan={w.plan} />
-                  {w.id === current.id && <Check className="h-4 w-4 text-primary" />}
+                  {w.id === current.id && <Check className="h-4 w-4 text-primary shrink-0" />}
                 </button>
               ))}
               <button
                 type="button"
                 onClick={() => setCreateOpen((prev) => !prev)}
-                className="w-full flex items-center gap-2 px-3 py-2.5 border-t border-border text-sm text-primary hover:bg-background"
+                className="w-full flex items-center gap-2 px-3 py-2.5 border-t border-border/60 text-sm text-primary hover:bg-muted/50 transition-colors duration-150"
               >
                 <Plus className="h-4 w-4" />
                 Add Workspace
               </button>
               {createOpen && (
-                <div className="border-t border-border p-3 space-y-2">
+                <div className="border-t border-border/60 p-3 space-y-2 bg-muted/20">
                   <Input
                     value={workspaceName}
                     onChange={(event) => setWorkspaceName(event.target.value)}
                     placeholder="Workspace name (optional)"
-                    className="h-9 bg-input border-border"
+                    className="h-9"
                     maxLength={80}
                   />
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
                     Instagram is linked per workspace in Settings after creation. Only one free workspace is allowed per account.
                   </p>
                   <Button
@@ -209,9 +230,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
                     disabled={createWorkspaceMutation.isPending}
                     onClick={() =>
                       createWorkspaceMutation.mutate(
-                        {
-                          name: workspaceName.trim() || undefined
-                        },
+                        { name: workspaceName.trim() || undefined },
                         { onError: (error) => toast.error((error as Error).message) }
                       )
                     }
@@ -224,59 +243,41 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 space-y-1 scrollbar-thin">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground px-3 pt-2 pb-1">Menu</div>
+        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 scrollbar-thin">
+          <p className="sidebar-section-label">Menu</p>
           {mainNavigation.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={onClose}
-              className={({ isActive }) => itemCls(isActive)}
-            >
-              <item.icon className="h-4 w-4" />
-              <span>{item.label}</span>
-            </NavLink>
+            <SidebarNavLink key={item.to} item={item} onClose={onClose} />
           ))}
 
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground px-3 pt-5 pb-1">General</div>
+          <p className="sidebar-section-label mt-4">General</p>
           {generalNavigation.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={onClose}
-              className={({ isActive }) => itemCls(isActive)}
-            >
-              <item.icon className="h-4 w-4" />
-              <span>{item.label}</span>
-            </NavLink>
+            <SidebarNavLink key={item.to} item={item} onClose={onClose} />
           ))}
         </nav>
 
-        <div className="p-3 border-t border-border space-y-3">
-          <div className="flex items-center gap-3 px-2">
-            <div className="h-9 w-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold text-sm">
-              {(user?.name ?? "NA").split(" ").map(n => n[0]).join("")}
+        <div className="p-3 border-t border-border/60">
+          <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
+            <div className="h-9 w-9 shrink-0 rounded-full bg-primary/15 text-primary flex items-center justify-center font-semibold text-sm">
+              {(user?.name ?? "NA").split(" ").map((n) => n[0]).join("")}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold truncate">{user?.name ?? "Unknown User"}</div>
-              <div className="text-xs text-muted-foreground truncate">{user?.email ?? "-"}</div>
+              <p className="text-sm font-medium truncate">{user?.name ?? "Unknown User"}</p>
+              <p className="text-xs text-muted-foreground truncate">{user?.email ?? "-"}</p>
             </div>
-            <div className="flex items-center gap-3 px-2">
-              <button
-                onClick={async () => {
-                  await logoutMutation.mutateAsync();
-                  navigate("/login");
-                }}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            </div>
+            <button
+              type="button"
+              title="Sign out"
+              onClick={async () => {
+                await logoutMutation.mutateAsync();
+                navigate("/login");
+              }}
+              className="shrink-0 p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors duration-150"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
-
         </div>
-      </aside>
-      <AlertDialog open={showLinkPrompt} onOpenChange={setShowLinkPrompt}>
+      </aside>      <AlertDialog open={showLinkPrompt} onOpenChange={setShowLinkPrompt}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Link Instagram for this workspace?</AlertDialogTitle>

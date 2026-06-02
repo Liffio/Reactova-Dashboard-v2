@@ -342,16 +342,23 @@ export function DashboardLayout({
       <AppSidebar mobileOpen={open} onClose={() => setOpen(false)} />
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="sticky top-0 z-30 bg-background/85 backdrop-blur border-b border-border">
-          <div className="flex items-center gap-3 px-2 lg:px-4 py-5">
-            <button className="lg:hidden p-2 -ml-2 rounded-md hover:bg-card" onClick={() => setOpen(true)}>
+        <header className="sticky top-0 z-30 glass-header">
+          <div className="flex items-center gap-3 px-3 lg:px-5 py-3.5 lg:py-4">
+            <button
+              type="button"
+              className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-muted/60 transition-colors duration-150"
+              onClick={() => setOpen(true)}
+              aria-label="Open menu"
+            >
               <Menu className="h-5 w-5" />
             </button>
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg lg:text-xl font-bold truncate">{title}</h1>
-              {subtitle && <p className="text-xs text-muted-foreground truncate">{subtitle}</p>}
+              <h1 className="text-lg lg:text-xl font-semibold tracking-tight truncate">{title}</h1>
+              {subtitle && (
+                <p className="text-xs text-muted-foreground truncate mt-0.5">{subtitle}</p>
+              )}
             </div>
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border">
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/40 border border-border/50">
               <span className="text-sm text-muted-foreground">{current.handle}</span>
               <PlanBadge plan={current.plan} />
             </div>
@@ -360,16 +367,21 @@ export function DashboardLayout({
 
             <ThemeToggle />
             {headerActions}
-            <div className="h-9 w-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold text-sm">
+            <div
+              className="h-9 w-9 rounded-full bg-primary/15 text-primary flex items-center justify-center font-semibold text-sm shrink-0"
+              title={user?.name ?? "User"}
+            >
               {(user?.name ?? "NA").split(" ").map((n) => n[0]).join("")}
             </div>
           </div>
           {actions && (
-            <div className="px-4 lg:px-8 pb-4 flex flex-wrap gap-2 justify-end">{actions}</div>
+            <div className="px-4 lg:px-6 pb-3 flex flex-wrap gap-2 justify-end">{actions}</div>
           )}
         </header>
 
-        <main className="flex-1 px-4 lg:px-8 py-6 space-y-6 container w-full">{children}</main>
+        <main className="flex-1 px-4 lg:px-6 py-5 lg:py-6 container w-full">
+          <div className="space-y-5 lg:space-y-6">{children}</div>
+        </main>
       </div>
     </div>
   );

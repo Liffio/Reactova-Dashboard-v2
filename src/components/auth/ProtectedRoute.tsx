@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
+import { isAffiliateProgramRedirect, loginPathWithRedirect } from "@/lib/authNavigation";
 import { useAppSelector } from "@/store/hooks";
 
 type ProtectedRouteProps = {
@@ -9,6 +10,10 @@ type ProtectedRouteProps = {
 };
 
 export function ProtectedRoute({ children, module, action = "read" }: ProtectedRouteProps) {
+  const location = useLocation();
+  const returnTo = `${location.pathname}${location.search}`;
+  const skipOnboardingForAffiliate = isAffiliateProgramRedirect(location.pathname);
+
   const token = useAppSelector((state) => state.auth.accessToken);
   const user = useAppSelector((state) => state.auth.user);
   const permissions = useAppSelector((state) => state.auth.permissions);
@@ -16,7 +21,7 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
   const isOnboarded = useAppSelector((state) => state.auth.isOnboarded);
 
   if (!token) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPathWithRedirect(returnTo)} replace />;
   }
 
   if (!user) {
@@ -24,10 +29,14 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
   }
 
   if (!emailVerified) {
-    return <Navigate to="/confirm-email" replace />;
+    const confirmEmail =
+      returnTo !== "/"
+        ? `/confirm-email?redirect=${encodeURIComponent(returnTo)}`
+        : "/confirm-email";
+    return <Navigate to={confirmEmail} replace />;
   }
 
-  if (!isOnboarded) {
+  if (!isOnboarded && !skipOnboardingForAffiliate) {
     return <Navigate to="/onboarding" replace />;
   }
 

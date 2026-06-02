@@ -199,13 +199,13 @@ export default function Dashboard() {
       </div>
 
       {workspaceCards.length > 0 && (
-        <section className="rounded-xl bg-card border border-border overflow-hidden">
-          <div className="px-5 py-4 border-b border-border">
-            <h2 className="font-semibold">Workspace billing</h2>
+        <section className="surface-card overflow-hidden">
+          <div className="px-5 py-4 border-b border-border/60">
+            <h2 className="font-semibold text-sm">Workspace billing</h2>
             <p className="text-xs text-muted-foreground mt-0.5">Next renewal date for each workspace</p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="data-table">
               <thead>
                 <tr className="text-left text-xs text-muted-foreground border-b border-border">
                   <th className="px-5 py-3 font-medium">Workspace</th>
@@ -215,7 +215,7 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {workspaceCards.map((workspace) => (
-                  <tr key={workspace.id} className="stripe-row hover:bg-primary/5 transition-colors">
+                  <tr key={workspace.id}>
                     <td className="px-5 py-3 font-medium">{workspace.handle}</td>
                     <td className="px-5 py-3">
                       <PlanBadge plan={workspace.plan} />
@@ -236,13 +236,13 @@ export default function Dashboard() {
         <Button variant="outline" onClick={() => navigate("/analytics")}>View Analytics</Button>
       </div>
 
-      <section className="rounded-xl bg-card border border-border overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 className="font-semibold">Recent Activity</h2>
-          <button onClick={() => navigate("/automations")} className="text-xs text-primary hover:underline">View all →</button>
+      <section className="surface-card overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+          <h2 className="font-semibold text-sm">Recent Activity</h2>
+          <button type="button" onClick={() => navigate("/automations")} className="text-xs text-primary hover:underline">View all →</button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="data-table">
             <thead>
               <tr className="text-left text-xs text-muted-foreground border-b border-border">
                 <th className="px-5 py-3 font-medium">Post</th>
@@ -254,7 +254,7 @@ export default function Dashboard() {
             </thead>
             <tbody>
               {(dashboardQuery.data?.recentActivities ?? []).map((activity) => (
-                <tr key={activity.id} className="stripe-row hover:bg-primary/5 transition-colors">
+                <tr key={activity.id}>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
                       <div className="h-9 w-9 rounded-md bg-gradient-to-br from-primary/20 to-accent/20 shrink-0" />
@@ -287,10 +287,13 @@ export default function Dashboard() {
       </section>
 
       <section>
-        <h2 className="font-semibold mb-3">My Workspaces</h2>
+        <h2 className="font-semibold text-sm mb-3">My Workspaces</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {workspaceCards.map((workspace) => (
-            <div key={workspace.id} className="p-5 rounded-xl bg-card border border-border hover:border-primary/40 transition-colors">
+            <div
+              key={workspace.id}
+              className="surface-card p-5 transition-colors duration-150 hover:border-primary/25"
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <StatusDot
@@ -344,14 +347,14 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => setCreateOpen((prev) => !prev)}
-            className="p-5 rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-card/50 transition-colors flex flex-col items-center justify-center min-h-[180px] text-muted-foreground hover:text-primary"
+            className="p-5 rounded-xl border-2 border-dashed border-border/70 hover:border-primary/40 hover:bg-muted/20 transition-colors duration-150 flex flex-col items-center justify-center min-h-[180px] text-muted-foreground hover:text-primary"
           >
             <Plus className="h-6 w-6 mb-2" />
             <span className="text-sm font-medium">Add Workspace</span>
           </button>
         </div>
         {createOpen && (
-          <div className="mt-4 rounded-xl bg-card border border-border p-4 space-y-3">
+          <div className="mt-4 surface-card p-4 space-y-3">
             <h3 className="font-semibold text-sm">Create Workspace</h3>
             <Input
               value={workspaceName}
@@ -439,12 +442,16 @@ function Stat({
 }) {
   const up = (trend ?? 0) >= 0;
   return (
-    <div className="p-5 rounded-xl bg-card border border-border">
+    <div className="surface-card p-5">
       <div className="flex items-center justify-between mb-3">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        <div className="text-xs font-medium text-muted-foreground">{label}</div>
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+          <Icon className="h-4 w-4 text-primary" />
+        </div>
       </div>
-      <div className={`text-3xl font-bold ${highlight ? "text-primary" : ""}`}>{(value ?? 0).toLocaleString()}</div>
+      <div className={`text-2xl lg:text-3xl font-bold tracking-tight tabular-nums ${highlight ? "text-primary" : ""}`}>
+        {(value ?? 0).toLocaleString()}
+      </div>
       <div className="flex items-center gap-1.5 mt-1.5 text-xs">
         {trend !== undefined && (
           <span className={`inline-flex items-center gap-0.5 font-medium ${up ? "text-success" : "text-destructive"}`}>

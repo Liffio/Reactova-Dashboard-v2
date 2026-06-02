@@ -18,6 +18,7 @@ import Register from "./pages/Register";
 import ConfirmEmail from "./pages/ConfirmEmail";
 import Onboarding from "./pages/Onboarding";
 import MetaOAuthComplete from "./pages/MetaOAuthComplete";
+import GoogleAuthComplete from "./pages/GoogleAuthComplete";
 import Dashboard from "./pages/Dashboard";
 import Automations from "./pages/Automations";
 import ShortLinks from "./pages/ShortLinks";
@@ -93,6 +94,7 @@ const App = () => (
                     }
                   />
                   <Route path="/oauth/meta/complete" element={<MetaOAuthComplete />} />
+                  <Route path="/auth/google/complete" element={<GoogleAuthComplete />} />
                   <Route path="/accept-invite" element={<AcceptInvite />} />
                   <Route path="/dashboard" element={<ProtectedRoute module="workspace"><Dashboard /></ProtectedRoute>} />
                   <Route path="/automations" element={<ProtectedRoute module="automation"><Automations /></ProtectedRoute>} />

@@ -144,10 +144,11 @@ function TemplateDetail({ template }: { template: EmailTemplateEntry }) {
   const brevoSyncMutation = useBrevoSyncMutation();
   const publishMutation = usePublishMutation();
 
-  // Load code HTML into editor when template or tab changes
+  // Load code HTML into editor and preview when template or tab changes
   useEffect(() => {
     if (editorTab === "code" && codeHtmlQuery.data?.html) {
       setEditorHtml(codeHtmlQuery.data.html);
+      setPreviewSrc(codeHtmlQuery.data.html);
       setIsDirty(false);
     }
   }, [codeHtmlQuery.data, editorTab]);
@@ -155,6 +156,7 @@ function TemplateDetail({ template }: { template: EmailTemplateEntry }) {
   useEffect(() => {
     if (editorTab === "brevo" && brevoHtmlQuery.data?.html) {
       setEditorHtml(brevoHtmlQuery.data.html);
+      setPreviewSrc(brevoHtmlQuery.data.html);
       setIsDirty(false);
     }
   }, [brevoHtmlQuery.data, editorTab]);
@@ -177,7 +179,6 @@ function TemplateDetail({ template }: { template: EmailTemplateEntry }) {
   };
 
   const handleLivePreview = () => {
-    // Open the server-rendered preview in a new tab (uses sample vars)
     const [category, key] = template.ref.split(".");
     window.open(`${API_BASE}/api/v1/admin/email-templates/${category}/${key}/preview`, "_blank");
   };
@@ -464,16 +465,11 @@ function TemplateDetail({ template }: { template: EmailTemplateEntry }) {
             </div>
           </div>
 
-          {previewSrc !== null ? (
+          {previewSrc ? (
             <EmailPreview html={previewSrc} view={previewView} />
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3 border border-dashed border-border rounded-xl text-muted-foreground text-sm min-h-[400px]">
-              <Eye className="h-8 w-8 opacity-40" />
-              <p>Click the refresh button to render a preview</p>
-              <Button variant="outline" size="sm" onClick={refreshPreview} className="gap-1.5">
-                <RefreshCw className="h-3.5 w-3.5" />
-                Render preview
-              </Button>
+            <div className="flex-1 flex items-center justify-center border border-dashed border-border rounded-xl text-muted-foreground text-sm min-h-[400px]">
+              <RefreshCw className="h-5 w-5 animate-spin opacity-40" />
             </div>
           )}
         </div>

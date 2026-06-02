@@ -103,8 +103,17 @@ export default function Register() {
   const [searchParams] = useSearchParams();
   const redirectParam = searchParams.get("redirect");
   const redirectTo = redirectParam ? sanitizeAuthRedirect(redirectParam) : "";
+  const pendingPlanParam = searchParams.get("plan")?.toUpperCase() ?? null;
   const registerMutation = useRegisterMutation();
   const loginTo = redirectTo ? loginPathWithRedirect(redirectTo) : "/login";
+
+  // Store pending plan when the page loads (from marketing site link)
+  useEffect(() => {
+    if (pendingPlanParam) {
+      localStorage.setItem("pending_plan", pendingPlanParam);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const s = useMemo(() => strength(pw), [pw]);
   const segs = [0, 1, 2, 3];
   const strengthColor = s <= 1 ? "bg-destructive" : s === 2 ? "bg-warning" : s === 3 ? "bg-info" : "bg-success";

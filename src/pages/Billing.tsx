@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { CreditCard, IndianRupee, Loader2, Shield } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ const formatUsd = (amount: number | null) => {
 export function BillingContent() {
   const { current, refreshAuth } = useApp();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [interval, setInterval] = useState<Interval>("monthly");
   const [provider, setProvider] = useState<"stripe" | "razorpay">("stripe");
@@ -79,6 +80,13 @@ export function BillingContent() {
         void queryClient.invalidateQueries({ queryKey: ["billing-subscription", current.id] });
         void queryClient.invalidateQueries({ queryKey: ["billing-invoices", current.id] });
         void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+        // Post-registration checkout redirect
+        const postCheckout = localStorage.getItem("liffio_post_checkout");
+        if (postCheckout) {
+          localStorage.removeItem("liffio_post_checkout");
+          navigate(postCheckout, { replace: true });
+          return;
+        }
       })();
     }
     if (status === "cancelled") toast.info("Checkout cancelled");

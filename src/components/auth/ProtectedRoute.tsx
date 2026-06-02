@@ -13,6 +13,7 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
   const location = useLocation();
   const returnTo = `${location.pathname}${location.search}`;
   const skipOnboardingForAffiliate = isAffiliateProgramRedirect(location.pathname);
+  const skipOnboardingForBilling = location.pathname === "/billing";
 
   const token = useAppSelector((state) => state.auth.accessToken);
   const user = useAppSelector((state) => state.auth.user);
@@ -36,7 +37,7 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
     return <Navigate to={confirmEmail} replace />;
   }
 
-  if (!isOnboarded && !skipOnboardingForAffiliate) {
+  if (!isOnboarded && !skipOnboardingForAffiliate && !skipOnboardingForBilling) {
     return <Navigate to="/onboarding" replace />;
   }
 

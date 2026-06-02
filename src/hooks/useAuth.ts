@@ -163,6 +163,31 @@ export function useRegisterMutation() {
   });
 }
 
+export function useEmailVerifyCodeMutation() {
+  const dispatch = useAppDispatch();
+  return useMutation({
+    mutationFn: async (code: string) => {
+      const res = await fetch(`${API_BASE}/api/v1/auth/email-verification/verify-code`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code })
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Verification failed");
+      return data;
+    },
+    onSuccess: async () => {
+      const state = (await import("@/store")).store.getState();
+      const token = state.auth.accessToken;
+      if (token) {
+        const authMe = await apiRequest<AuthMePayload>("/api/v1/auth/me", { token });
+        dispatch(setAuthMe(authMe));
+      }
+    }
+  });
+}
+
 export function useLogoutMutation() {
   const dispatch = useAppDispatch();
   const userId = useAppSelector((state) => state.auth.user?.id);

@@ -19,6 +19,8 @@ import ConfirmEmail from "./pages/ConfirmEmail";
 import Onboarding from "./pages/Onboarding";
 import MetaOAuthComplete from "./pages/MetaOAuthComplete";
 import GoogleAuthComplete from "./pages/GoogleAuthComplete";
+import PostRegistrationCheckout from "./pages/PostRegistrationCheckout";
+import { VerifiedRoute } from "@/components/auth/VerifiedRoute";
 import Dashboard from "./pages/Dashboard";
 import Automations from "./pages/Automations";
 import ShortLinks from "./pages/ShortLinks";
@@ -88,9 +90,17 @@ const App = () => (
                   <Route
                     path="/onboarding"
                     element={
-                      <AuthOnlyRoute>
+                      <VerifiedRoute>
                         <Onboarding />
-                      </AuthOnlyRoute>
+                      </VerifiedRoute>
+                    }
+                  />
+                  <Route
+                    path="/checkout"
+                    element={
+                      <VerifiedRoute>
+                        <PostRegistrationCheckout />
+                      </VerifiedRoute>
                     }
                   />
                   <Route path="/oauth/meta/complete" element={<MetaOAuthComplete />} />

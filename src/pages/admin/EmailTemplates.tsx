@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mail, Code2, Globe, Eye, Smartphone, Monitor, RefreshCw, Upload, Trash2, CheckCircle, Lock, ChevronRight, AlertTriangle } from "lucide-react";
+import { Mail, Code2, Globe, Eye, Smartphone, Monitor, RefreshCw, Upload, Trash2, CheckCircle, Lock, ChevronRight, AlertTriangle, Plus, Sparkles, Copy } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -15,6 +18,8 @@ import {
   useDeleteCodeOverrideMutation,
   useBrevoSyncMutation,
   usePublishMutation,
+  useCreateTemplateMutation,
+  useDeleteTemplateMutation,
   type EmailTemplateEntry,
   type ActiveEmailSource
 } from "@/hooks/useEmailTemplates";
@@ -93,6 +98,8 @@ function TemplateListItem({
       <div className="mt-0.5 shrink-0">
         {template.isOtpLocked ? (
           <Lock className="h-4 w-4 text-amber-500" />
+        ) : template.isCustom ? (
+          <Sparkles className="h-4 w-4 text-violet-500 group-hover:text-violet-600 transition-colors" />
         ) : (
           <Mail className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
         )}
@@ -126,6 +133,106 @@ function TemplateListItem({
   );
 }
 
+// ── New template dialog ───────────────────────────────────────────────────────
+
+function NewTemplateDialog({ open, onClose }: { open: boolean; onClose: (ref?: string) => void }) {
+  const [label, setLabel] = useState("");
+  const [subject, setSubject] = useState("");
+  const [vars, setVars] = useState("");
+  const [slug, setSlug] = useState("");
+  const createMutation = useCreateTemplateMutation();
+
+  const reset = () => { setLabel(""); setSubject(""); setVars(""); setSlug(""); };
+
+  const handleSubmit = async () => {
+    if (!label.trim() || !subject.trim()) {
+      toast.error("Label and subject are required");
+      return;
+    }
+    const variables = vars.split(",").map((v) => v.trim()).filter(Boolean).filter((v) => /^\w+$/.test(v));
+    try {
+      const result = await createMutation.mutateAsync({
+        label: label.trim(),
+        subject: subject.trim(),
+        variables,
+        slug: slug.trim() || undefined
+      });
+      toast.success(`Template created: ${result.ref}`);
+      reset();
+      onClose(result.ref);
+    } catch (err) {
+      toast.error((err as Error).message ?? "Create failed");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) { reset(); onClose(); } }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-violet-500" />
+            New Email Template
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4 py-2">
+          <div className="flex flex-col gap-1.5">
+            <Label>Template name *</Label>
+            <Input placeholder="e.g. Welcome Bonus" value={label} onChange={(e) => setLabel(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Subject line *</Label>
+            <Input placeholder="e.g. Here's your welcome bonus, {{name}}!" value={subject} onChange={(e) => setSubject(e.target.value)} />
+            <p className="text-xs text-muted-foreground">Use <code className="text-[11px]">{"{{name}}"}</code> and other variables inline.</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Custom variables <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Input placeholder="bonusAmount, expiryDate, couponCode" value={vars} onChange={(e) => setVars(e.target.value)} />
+            <p className="text-xs text-muted-foreground">Comma-separated. <code>name</code>, <code>appUrl</code>, <code>logoUrl</code>, <code>year</code> are always included.</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Custom slug <span className="text-muted-foreground font-normal">(optional)</span></Label>
+            <Input placeholder="Auto-generated from name" value={slug} onChange={(e) => setSlug(e.target.value)} />
+            <p className="text-xs text-muted-foreground">Used as the code ref: <code>custom.<em>slug</em></code></p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { reset(); onClose(); }}>Cancel</Button>
+          <Button onClick={() => void handleSubmit()} disabled={createMutation.isPending} className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            {createMutation.isPending ? "Creating..." : "Create template"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Usage snippet (for custom templates) ─────────────────────────────────────
+
+function UsageSnippet({ template }: { template: EmailTemplateEntry }) {
+  const vars = template.variables.filter((v) => !["appUrl", "logoUrl", "year", "supportEmail", "replyEmail", "billingReplyEmail"].includes(v));
+  const varLines = vars.map((v) => `      ${v}: "value",`).join("\n");
+  const snippet = `await emailService.sendCustomEmail({\n  ref: "${template.ref}",\n  to: recipientEmail,\n  vars: {\n${varLines}\n  }\n});`;
+
+  return (
+    <div className="rounded-xl border border-border bg-muted/30 p-4 flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Usage in code</p>
+        <Button
+          variant="ghost" size="icon" className="h-6 w-6"
+          onClick={() => { void navigator.clipboard.writeText(snippet); toast.success("Copied!"); }}
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      <pre className="text-xs font-mono text-foreground/80 whitespace-pre-wrap break-all">{snippet}</pre>
+      <p className="text-[11px] text-muted-foreground">Import <code>emailService</code> from <code>services/email</code> in any backend route or service.</p>
+    </div>
+  );
+}
+
 // ── Detail panel ──────────────────────────────────────────────────────────────
 
 function TemplateDetail({ template }: { template: EmailTemplateEntry }) {
@@ -143,6 +250,7 @@ function TemplateDetail({ template }: { template: EmailTemplateEntry }) {
   const deleteOverrideMutation = useDeleteCodeOverrideMutation();
   const brevoSyncMutation = useBrevoSyncMutation();
   const publishMutation = usePublishMutation();
+  const deleteTemplateMutation = useDeleteTemplateMutation();
 
   // Load code HTML into editor and preview when template or tab changes
   useEffect(() => {
@@ -233,7 +341,8 @@ function TemplateDetail({ template }: { template: EmailTemplateEntry }) {
     saveCodeMutation.isPending ||
     deleteOverrideMutation.isPending ||
     brevoSyncMutation.isPending ||
-    publishMutation.isPending;
+    publishMutation.isPending ||
+    deleteTemplateMutation.isPending;
 
   return (
     <div className="flex flex-col h-full gap-4">
@@ -429,6 +538,23 @@ function TemplateDetail({ template }: { template: EmailTemplateEntry }) {
               <Upload className="h-3.5 w-3.5" />
               {publishMutation.isPending ? "Publishing..." : "Publish & activate"}
             </Button>
+
+            {template.isCustom && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (!confirm(`Delete "${template.label}"? This cannot be undone.`)) return;
+                  await deleteTemplateMutation.mutateAsync(template.ref);
+                  toast.success("Template deleted");
+                }}
+                disabled={isBusy}
+                className="gap-1.5 text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </Button>
+            )}
           </div>
         </div>
 
@@ -482,6 +608,9 @@ function TemplateDetail({ template }: { template: EmailTemplateEntry }) {
           <p>This is an OTP template. It always renders from code at send time — Brevo source is not available. You can still edit and save the HTML override which will be used instead of the base code render.</p>
         </div>
       )}
+
+      {/* Usage snippet for custom templates */}
+      {template.isCustom && <UsageSnippet template={template} />}
     </div>
   );
 }
@@ -491,6 +620,7 @@ function TemplateDetail({ template }: { template: EmailTemplateEntry }) {
 export default function EmailTemplates() {
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [newTemplateOpen, setNewTemplateOpen] = useState(false);
 
   const listQuery = useEmailTemplatesQuery();
   const templates = listQuery.data?.templates ?? [];
@@ -504,6 +634,7 @@ export default function EmailTemplates() {
 
   const security = filtered.filter((t) => t.category === "security");
   const notifications = filtered.filter((t) => t.category === "notifications");
+  const custom = filtered.filter((t) => t.category === "custom");
 
   const selectedTemplate = templates.find((t) => t.ref === selectedRef) ?? null;
 
@@ -512,6 +643,14 @@ export default function EmailTemplates() {
       title="Email Templates"
       subtitle="Manage transactional email templates — edit HTML, preview, and choose Code or Brevo source per template."
     >
+      <NewTemplateDialog
+        open={newTemplateOpen}
+        onClose={(ref) => {
+          setNewTemplateOpen(false);
+          if (ref) setSelectedRef(ref);
+        }}
+      />
+
       <div className="grid lg:grid-cols-[280px_1fr] gap-4 h-full min-h-[600px]">
         {/* Left: template list */}
         <aside className="rounded-xl border border-border bg-card p-3 flex flex-col gap-2 overflow-y-auto">
@@ -552,6 +691,39 @@ export default function EmailTemplates() {
                 />
               ))}
             </>
+          )}
+
+          {/* Custom templates */}
+          <div className="mt-3 flex items-center justify-between px-1">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Custom</p>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5"
+              title="Create new template"
+              onClick={() => setNewTemplateOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          {custom.length > 0 ? (
+            custom.map((t) => (
+              <TemplateListItem
+                key={t.ref}
+                template={t}
+                isSelected={t.ref === selectedRef}
+                onClick={() => setSelectedRef(t.ref)}
+              />
+            ))
+          ) : (
+            <button
+              type="button"
+              onClick={() => setNewTemplateOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border text-xs text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Create your first custom template
+            </button>
           )}
         </aside>
 

@@ -10,9 +10,11 @@ export type EmailTemplateEntry = {
   templateId: number | null;
   activeSource: ActiveEmailSource;
   isOtpLocked: boolean;
+  isCustom: boolean;
   hasCodeOverride: boolean;
   variables: string[];
-  category: "security" | "notifications";
+  category: "security" | "notifications" | "custom";
+  subject?: string;
 };
 
 export type EmailTemplatesListResponse = {
@@ -111,6 +113,38 @@ export function useSetSourceMutation() {
         method: "PUT",
         body: { source }
       }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "email-templates"] });
+    }
+  });
+}
+
+export function useCreateTemplateMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { label: string; subject: string; variables: string[]; slug?: string }) =>
+      apiRequest<{ ok: boolean; ref: string; key: string; label: string; subject: string; variables: string[] }>(
+        "/api/v1/admin/email-templates",
+        { method: "POST", body: data }
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "email-templates"] });
+    }
+  });
+}
+
+export function useDeleteTemplateMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ref: string) => {
+      const { category, key } = (() => {
+        const dot = ref.indexOf(".");
+        return { category: ref.slice(0, dot), key: ref.slice(dot + 1) };
+      })();
+      return apiRequest<{ ok: boolean }>(`/api/v1/admin/email-templates/${category}/${key}`, {
+        method: "DELETE"
+      });
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["admin", "email-templates"] });
     }

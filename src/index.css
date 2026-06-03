@@ -224,31 +224,9 @@
     mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black 20%, transparent 75%);
   }
 
-  .auth-panel-mesh {
+  .auth-mesh-subtle {
     background:
-      radial-gradient(ellipse 90% 70% at 0% 0%, hsl(var(--primary) / 0.14), transparent 55%),
-      radial-gradient(ellipse 70% 55% at 100% 100%, hsl(var(--accent) / 0.1), transparent 50%);
-  }
-
-  .auth-orb-primary {
-    background: hsl(var(--primary) / 0.18);
-  }
-
-  .auth-orb-accent {
-    background: hsl(var(--accent) / 0.12);
-  }
-
-  @keyframes auth-float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-6px); }
-  }
-
-  .auth-float-slow {
-    animation: auth-float 5s ease-in-out infinite;
-  }
-
-  .auth-float-delayed {
-    animation: auth-float 5s ease-in-out 1.2s infinite;
+      radial-gradient(ellipse 50% 40% at 50% 0%, hsl(var(--primary) / 0.04), transparent 70%);
   }
 
   .dashboard-mesh {

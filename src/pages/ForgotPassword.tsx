@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, KeyRound } from "lucide-react";
-import { Logo } from "@/components/Logo";
 import { AuthShell } from "@/components/layout/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,23 +100,20 @@ export default function ForgotPassword() {
   };
 
   return (
-    <AuthShell variant="forgot-password">
-      <div className="flex flex-col items-center mb-7 text-center">
-        <div className="lg:hidden">
-          <Logo size="lg" />
+    <AuthShell variant="forgot-password" maxWidth="sm">
+      <header className="mb-6 border-b border-border/60 pb-5">
+        <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md border border-border bg-muted/40 text-muted-foreground">
+          <KeyRound className="h-4 w-4" />
         </div>
-        <div className="mt-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-          <KeyRound className="h-6 w-6" />
-        </div>
-        <h1 className="mt-4 text-2xl font-bold tracking-tight text-foreground">
-          {step === "email" ? "Reset your password" : "Choose a new password"}
+        <h1 className="text-lg font-semibold tracking-tight text-foreground">
+          {step === "email" ? "Reset password" : "Set new password"}
         </h1>
-        <p className="text-sm text-muted-foreground mt-2 max-w-xs">
+        <p className="mt-1 text-[13px] text-muted-foreground">
           {step === "email"
-            ? "Enter your email and we'll send a 6-digit code valid for 5 minutes."
-            : "Enter the code from your inbox and set a new password."}
+            ? "A verification code will be sent to your email."
+            : "Enter the code and choose a new password."}
         </p>
-      </div>
+      </header>
 
         {step === "email" ? (
           <form

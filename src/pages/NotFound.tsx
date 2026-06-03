@@ -12,16 +12,16 @@ const NotFound = () => {
 
   return (
     <AuthShell maxWidth="sm">
-      <div className="text-center py-2">
-        <p className="text-6xl font-bold tracking-tighter text-primary">404</p>
-        <h1 className="mt-4 text-lg font-semibold">Page not found</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you&apos;re looking for doesn&apos;t exist or was moved.
+      <header className="mb-6 border-b border-border/60 pb-5">
+        <p className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">404</p>
+        <h1 className="mt-2 text-lg font-semibold">Page not found</h1>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          This URL does not exist or may have been moved.
         </p>
-        <Button asChild className="mt-6">
-          <Link to="/dashboard">Back to dashboard</Link>
-        </Button>
-      </div>
+      </header>
+      <Button asChild className="w-full h-10">
+        <Link to="/dashboard">Return to dashboard</Link>
+      </Button>
     </AuthShell>
   );
 };

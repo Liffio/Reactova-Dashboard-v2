@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
-import { Logo } from "@/components/Logo";
 import { GoogleIcon } from "@/components/auth/GoogleIcon";
 import { AuthShell } from "@/components/layout/AuthShell";
 import { Button } from "@/components/ui/button";
@@ -84,20 +83,17 @@ export default function Login() {
   const googleUrl = `${API_BASE}/api/v1/auth/google?redirect=${encodeURIComponent(redirectTo)}&fe=${encodeURIComponent(window.location.origin)}`;
 
   return (
-    <AuthShell variant="login">
-      <div className="flex flex-col items-center mb-8 text-center">
-        <div className="lg:hidden">
-          <Logo size="md" />
-        </div>
-        <h1 className="mt-4 lg:mt-0 text-2xl font-bold tracking-tight text-foreground">
-          {mfaPreAuthToken ? "Two-factor verification" : "Welcome back"}
+    <AuthShell variant="login" maxWidth="sm">
+      <header className="mb-6 border-b border-border/60 pb-5">
+        <h1 className="text-lg font-semibold tracking-tight text-foreground">
+          {mfaPreAuthToken ? "Two-factor authentication" : "Sign in"}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="mt-1 text-[13px] text-muted-foreground">
           {mfaPreAuthToken
-            ? "Enter the code from your authenticator or email"
-            : "Sign in to continue to your workspace"}
+            ? "Enter the verification code to continue."
+            : "Access your Liffio workspace."}
         </p>
-      </div>
+      </header>
 
       {searchParams.get("error") && (
         <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -193,7 +189,7 @@ export default function Login() {
           {/* Google Sign In */}
           <a
             href={googleUrl}
-            className="flex w-full items-center justify-center gap-3 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground shadow-sm transition-all hover:bg-muted/50 hover:border-border/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-10 w-full items-center justify-center gap-2.5 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <GoogleIcon />
             Continue with Google
@@ -291,10 +287,10 @@ export default function Login() {
         </>
       )}
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
-        Don't have an account?{" "}
-        <Link to={registerTo} className="text-primary font-medium hover:underline">
-          Create one free
+      <p className="mt-5 pt-5 border-t border-border/60 text-center text-[13px] text-muted-foreground">
+        No account?{" "}
+        <Link to={registerTo} className="font-medium text-foreground hover:text-primary transition-colors">
+          Register
         </Link>
       </p>
     </AuthShell>

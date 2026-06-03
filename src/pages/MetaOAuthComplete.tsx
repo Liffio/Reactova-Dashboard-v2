@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Instagram } from "lucide-react";
 import { META_OAUTH_MESSAGE_TYPE, type MetaOAuthResult } from "@/lib/metaOAuthPopup";
+import { AppShellBackdrop } from "@/components/layout/AppShellBackdrop";
 
 function parseResult(searchParams: URLSearchParams): MetaOAuthResult {
   const meta = searchParams.get("meta");
@@ -50,8 +51,9 @@ export default function MetaOAuthComplete() {
   }, [navigate, searchParams]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-background text-foreground p-6">
-      <Instagram className="h-8 w-8 text-primary animate-pulse" />
+    <div className="app-shell relative min-h-screen flex flex-col items-center justify-center gap-3 p-6">
+      <AppShellBackdrop />
+      <Instagram className="relative z-10 h-8 w-8 text-primary animate-pulse" />
       <p className="text-sm text-muted-foreground">Completing Instagram connection…</p>
     </div>
   );

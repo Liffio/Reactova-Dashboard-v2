@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Check, Zap } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { AppShellBackdrop } from "@/components/layout/AppShellBackdrop";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -102,15 +103,17 @@ export default function PostRegistrationCheckout() {
   );
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <ThemeToggle className="fixed top-4 right-4 p-2 rounded-lg border border-border bg-card/80 backdrop-blur hover:bg-card transition-colors z-20" />
+    <div className="app-shell relative min-h-screen flex items-center justify-center p-4">
+      <AppShellBackdrop />
+      <ThemeToggle className="glass-pill fixed top-4 right-4 z-20 p-2.5 border-0" />
 
-      <div className="w-full max-w-md">
-        <div className="flex justify-center mb-8">
-          <Logo size="lg" />
+      <div className="relative z-10 container flex justify-center w-full max-w-md">
+        <div className="w-full">
+        <div className="flex justify-center mb-6">
+          <Logo size="md" />
         </div>
 
-        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-2xl animate-in fade-in duration-300">
+        <div className="glass-surface rounded-2xl overflow-hidden animate-in fade-in duration-300">
           {/* Plan header */}
           <div className="bg-primary/10 border-b border-border px-8 py-6 text-center">
             <div className="inline-flex items-center gap-2 text-primary font-semibold text-sm mb-2">
@@ -206,6 +209,7 @@ export default function PostRegistrationCheckout() {
             Sandbox mode — no real charges will be made.
           </p>
         )}
+        </div>
       </div>
     </div>
   );

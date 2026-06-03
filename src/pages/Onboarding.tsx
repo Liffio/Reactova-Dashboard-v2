@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronRight, AlertCircle, Lock,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { AppShellBackdrop } from "@/components/layout/AppShellBackdrop";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -254,20 +255,18 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+    <div className="app-shell min-h-screen flex flex-col">
+      <AppShellBackdrop />
+      <header className="relative z-10 flex items-center justify-between px-6 py-4 glass-header">
         <Logo />
-        <ThemeToggle className="p-2 rounded-lg border border-border bg-card/80 backdrop-blur hover:bg-card transition-colors" />
+        <ThemeToggle className="glass-pill p-2 border-0" />
       </header>
 
-      {/* Content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-4 py-10">
-        {/* Step progress */}
+      <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-10">
         <StepProgress step={step} />
 
-        {/* Card — key triggers re-animation on step change */}
-        <div key={step} className="w-full max-w-lg bg-card border border-border rounded-2xl shadow-xl p-8 animate-fade-in">
+        <div key={step} className="container w-full max-w-lg animate-fade-in">
+          <div className="glass-surface w-full rounded-2xl p-8">
 
           {/* ── Step 1: Brand ──────────────────────────────────────── */}
           {step === 1 && (
@@ -331,7 +330,7 @@ export default function Onboarding() {
               <div>
                 <h1 className="text-2xl font-bold tracking-tight">Connect your Instagram</h1>
                 <p className="text-muted-foreground mt-1 text-sm">
-                  Liffio uses the official Instagram Business API — your password is never shared.
+                  Liffio connects via Instagram Business Login — your password is never shared.
                 </p>
               </div>
 
@@ -478,9 +477,9 @@ export default function Onboarding() {
               )}
             </div>
           )}
+          </div>
         </div>
 
-        {/* Back navigation */}
         {step > 1 && (
           <button
             className="mt-5 text-sm text-muted-foreground hover:text-foreground transition-colors"

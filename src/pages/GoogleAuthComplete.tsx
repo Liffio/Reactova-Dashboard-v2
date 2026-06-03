@@ -6,6 +6,7 @@ import { apiRequest } from "@/lib/api";
 import { postAuthLandingPath, sanitizeAuthRedirect } from "@/lib/authNavigation";
 import { store } from "@/store";
 import type { AuthMePayload } from "@/types/auth";
+import { AppShellBackdrop } from "@/components/layout/AppShellBackdrop";
 
 export default function GoogleAuthComplete() {
   const [searchParams] = useSearchParams();
@@ -35,8 +36,9 @@ export default function GoogleAuthComplete() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-background text-foreground p-6">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    <div className="app-shell relative min-h-screen flex flex-col items-center justify-center gap-3 p-6">
+      <AppShellBackdrop />
+      <div className="relative z-10 h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       <p className="text-sm text-muted-foreground">Completing sign in with Google…</p>
     </div>
   );

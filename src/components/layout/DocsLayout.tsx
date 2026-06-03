@@ -3,6 +3,7 @@ import { BookOpen, ExternalLink, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AppShellBackdrop } from "@/components/layout/AppShellBackdrop";
 
 const nav = [
   { href: "/docs/api", label: "Overview" },
@@ -18,13 +19,14 @@ export function DocsLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+    <div className="app-shell min-h-screen flex flex-col">
+      <AppShellBackdrop />
+      <header className="sticky top-0 z-40 glass-header">
+        <div className="container h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="lg:hidden p-2 rounded-md hover:bg-muted"
+              className="lg:hidden p-2 rounded-md hover:bg-muted/50"
               onClick={() => setMobileOpen((v) => !v)}
               aria-label="Toggle navigation"
             >
@@ -34,12 +36,12 @@ export function DocsLayout() {
               <BookOpen className="h-5 w-5" />
               Liffio API
             </Link>
-            <span className="hidden sm:inline text-xs text-muted-foreground px-2 py-0.5 rounded-full border border-border">
+            <span className="hidden sm:inline glass-pill text-xs text-muted-foreground px-2 py-0.5">
               v1
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <ThemeToggle />
+            <ThemeToggle className="glass-pill border-0" />
             <a
               href="/settings?tab=API"
               target="_blank"
@@ -48,18 +50,18 @@ export function DocsLayout() {
             >
               Manage keys <ExternalLink className="h-3.5 w-3.5" />
             </a>
-            <a href="/login" className="text-sm px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity">
+            <a href="/login" className="text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity">
               Sign in
             </a>
           </div>
         </div>
       </header>
 
-      <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 flex gap-8">
+      <div className="relative z-10 container flex-1 flex gap-8 py-8">
         <aside
           className={cn(
             "lg:block w-56 shrink-0",
-            mobileOpen ? "block fixed inset-0 top-14 z-30 bg-background p-4 border-r border-border" : "hidden"
+            mobileOpen ? "block fixed inset-0 top-14 z-30 glass-sidebar p-4 border-r" : "hidden"
           )}
         >
           <nav className="space-y-1 sticky top-24">
@@ -69,10 +71,10 @@ export function DocsLayout() {
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
                 className={cn(
-                  "block px-3 py-2 rounded-md text-sm transition-colors",
+                  "block px-3 py-2 rounded-lg text-sm transition-colors",
                   location.pathname === item.href.split("#")[0]
-                    ? "bg-primary/10 text-primary font-medium"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    ? "bg-primary/10 text-primary font-medium border border-primary/15"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 )}
               >
                 {item.label}
@@ -81,13 +83,15 @@ export function DocsLayout() {
           </nav>
         </aside>
 
-        <main className="flex-1 min-w-0 max-w-3xl">
-          <Outlet />
+        <main className="flex-1 min-w-0 max-w-3xl mx-auto lg:mx-0">
+          <div className="glass-surface rounded-xl p-6 sm:p-8">
+            <Outlet />
+          </div>
         </main>
       </div>
 
-      <footer className="border-t border-border mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
+      <footer className="relative z-10 glass-header mt-auto">
+        <div className="container py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
           <span>© {new Date().getFullYear()} Liffio. API documentation.</span>
           <div className="flex gap-4">
             <a href="https://liffio.com" className="hover:text-primary transition-colors" target="_blank" rel="noopener noreferrer">

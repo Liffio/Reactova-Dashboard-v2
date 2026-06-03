@@ -39,6 +39,7 @@ import {
 import { useAcceptInviteByIdMutation } from "@/hooks/useTeamAccess";
 import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
+import { AppShellBackdrop } from "@/components/layout/AppShellBackdrop";
 
 // ─── Notification type config ────────────────────────────────────────────────
 
@@ -219,7 +220,7 @@ function NotificationPanel({
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="end" sideOffset={8} className="w-[380px] p-0 shadow-xl border-border/80 overflow-hidden rounded-xl">
+      <PopoverContent align="end" sideOffset={8} className="glass-surface w-[380px] p-0 overflow-hidden rounded-xl border-border/40">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">
@@ -338,10 +339,11 @@ export function DashboardLayout({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex bg-background text-foreground">
+    <div className="app-shell min-h-screen flex">
+      <AppShellBackdrop />
       <AppSidebar mobileOpen={open} onClose={() => setOpen(false)} />
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="relative z-10 flex flex-1 min-w-0 flex-col">
         <header className="sticky top-0 z-30 glass-header">
           <div className="flex items-center gap-3 px-3 lg:px-5 py-3.5 lg:py-4">
             <button
@@ -358,7 +360,7 @@ export function DashboardLayout({
                 <p className="text-xs text-muted-foreground truncate mt-0.5">{subtitle}</p>
               )}
             </div>
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/40 border border-border/50">
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full glass-pill">
               <span className="text-sm text-muted-foreground">{current.handle}</span>
               <PlanBadge plan={current.plan} />
             </div>
@@ -368,10 +370,12 @@ export function DashboardLayout({
             <ThemeToggle />
             {headerActions}
             <div
-              className="h-9 w-9 rounded-full bg-primary/15 text-primary flex items-center justify-center font-semibold text-sm shrink-0"
+              className="auth-ig-ring h-9 w-9 shrink-0 rounded-full p-[2px]"
               title={user?.name ?? "User"}
             >
-              {(user?.name ?? "NA").split(" ").map((n) => n[0]).join("")}
+              <span className="flex h-full w-full items-center justify-center rounded-full glass-inset text-primary font-semibold text-sm">
+                {(user?.name ?? "NA").split(" ").map((n) => n[0]).join("")}
+              </span>
             </div>
           </div>
           {actions && (

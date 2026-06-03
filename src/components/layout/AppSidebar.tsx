@@ -162,7 +162,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
       <aside
         className={cn(
           "fixed lg:sticky top-0 left-0 z-50 h-screen w-[17.5rem] shrink-0 flex flex-col",
-          "bg-sidebar border-r border-border/60",
+          "glass-sidebar border-r",
           "transition-transform duration-200 ease-out will-change-transform",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
@@ -175,7 +175,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
           <button
             type="button"
             onClick={() => setWsOpen((v) => !v)}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-card/80 border border-border/70 hover:border-primary/30 transition-colors duration-150"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg glass-surface border-border/40 hover:border-primary/25 transition-all duration-200"
           >            <StatusDot
               status={getWorkspaceIndicatorStatus({
                 status: current.status,
@@ -190,7 +190,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
           </button>
 
           {wsOpen && (
-            <div className="absolute left-3 right-3 mt-1.5 bg-popover border border-border/70 rounded-lg shadow-lg z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute left-3 right-3 mt-1.5 glass-surface rounded-lg z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
               {workspaces.map((w) => (
                 <button
                   key={w.id}

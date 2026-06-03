@@ -99,14 +99,16 @@ export default function ConfirmEmail() {
 
   return (
     <AuthShell variant="confirm-email" maxWidth="sm">
-      <header className="mb-6 border-b border-border/60 pb-5">
-        <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md border border-border bg-muted/40 text-muted-foreground">
-          <Mail className="h-4 w-4" />
+      <header className="auth-form-header mb-6 pb-5">
+        <div className="auth-ig-ring mb-4 inline-flex h-11 w-11 items-center justify-center rounded-full p-[2px]">
+          <span className="flex h-full w-full items-center justify-center rounded-full auth-glass-inner">
+            <Mail className="h-5 w-5 text-primary" />
+          </span>
         </div>
-        <h1 className="text-lg font-semibold tracking-tight text-foreground">Verify email</h1>
-        <p className="mt-1 text-[13px] text-muted-foreground leading-relaxed">
-          Enter the six-digit code sent to{" "}
-          <span className="font-medium text-foreground">{user?.email ?? "your address"}</span>.
+        <h1 className="text-xl font-bold tracking-tight text-foreground">Verify your email</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
+          Code sent to{" "}
+          <span className="font-semibold text-foreground">{user?.email ?? "your inbox"}</span>
         </p>
       </header>
 
@@ -151,7 +153,7 @@ export default function ConfirmEmail() {
         </Button>
         <p className="text-center text-[13px] text-muted-foreground">
           Wrong address?{" "}
-          <Link to="/login" className="font-medium text-foreground hover:text-primary transition-colors">
+          <Link to="/login" className="auth-ig-gradient-text font-semibold hover:opacity-90">
             Sign in
           </Link>
         </p>

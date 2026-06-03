@@ -84,14 +84,14 @@ export default function Login() {
 
   return (
     <AuthShell variant="login" maxWidth="sm">
-      <header className="mb-6 border-b border-border/60 pb-5">
-        <h1 className="text-lg font-semibold tracking-tight text-foreground">
-          {mfaPreAuthToken ? "Two-factor authentication" : "Sign in"}
+      <header className="auth-form-header mb-6 pb-5">
+        <h1 className="text-xl font-bold tracking-tight text-foreground">
+          {mfaPreAuthToken ? "Verify it's you" : "Welcome back"}
         </h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">
+        <p className="mt-1.5 text-sm text-muted-foreground">
           {mfaPreAuthToken
-            ? "Enter the verification code to continue."
-            : "Access your Liffio workspace."}
+            ? "Enter your authenticator or email code."
+            : "Sign in to manage your Instagram automations."}
         </p>
       </header>
 
@@ -189,18 +189,18 @@ export default function Login() {
           {/* Google Sign In */}
           <a
             href={googleUrl}
-            className="flex h-10 w-full items-center justify-center gap-2.5 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="auth-btn-google flex h-11 w-full items-center justify-center gap-2.5 rounded-xl px-4 text-sm font-medium text-foreground transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <GoogleIcon />
             Continue with Google
           </a>
 
-          <div className="relative my-5">
+          <div className="auth-divider relative my-5">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border/60" />
+              <span className="auth-divider-line w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-card px-3 text-muted-foreground">or continue with email</span>
+              <span className="auth-glass-pill px-3 py-0.5 text-muted-foreground">or email</span>
             </div>
           </div>
 
@@ -287,10 +287,10 @@ export default function Login() {
         </>
       )}
 
-      <p className="mt-5 pt-5 border-t border-border/60 text-center text-[13px] text-muted-foreground">
-        No account?{" "}
-        <Link to={registerTo} className="font-medium text-foreground hover:text-primary transition-colors">
-          Register
+      <p className="auth-form-header mt-6 pt-5 text-center text-sm text-muted-foreground">
+        New to Liffio?{" "}
+        <Link to={registerTo} className="auth-ig-gradient-text font-semibold hover:opacity-90">
+          Create free account
         </Link>
       </p>
     </AuthShell>

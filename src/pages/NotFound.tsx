@@ -11,15 +11,15 @@ const NotFound = () => {
   }, [location.pathname]);
 
   return (
-    <AuthShell maxWidth="sm">
-      <header className="mb-6 border-b border-border/60 pb-5">
-        <p className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">404</p>
-        <h1 className="mt-2 text-lg font-semibold">Page not found</h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">
+    <AuthShell maxWidth="sm" variant="default">
+      <header className="auth-form-header mb-6 pb-5 text-center">
+        <p className="auth-ig-gradient-text text-4xl font-bold tabular-nums tracking-tight">404</p>
+        <h1 className="mt-3 text-xl font-bold text-foreground">Page not found</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
           This URL does not exist or may have been moved.
         </p>
       </header>
-      <Button asChild className="w-full h-10">
+      <Button asChild className="w-full h-11 rounded-xl">
         <Link to="/dashboard">Return to dashboard</Link>
       </Button>
     </AuthShell>

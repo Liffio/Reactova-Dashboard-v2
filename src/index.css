@@ -229,6 +229,203 @@
       radial-gradient(ellipse 50% 40% at 50% 0%, hsl(var(--primary) / 0.04), transparent 70%);
   }
 
+  /* —— Auth: Instagram liquid glass —— */
+  .auth-page {
+    background: hsl(var(--background));
+  }
+
+  .auth-ig-mesh {
+    background:
+      radial-gradient(ellipse 90% 70% at 15% 20%, hsl(330 85% 60% / 0.22), transparent 55%),
+      radial-gradient(ellipse 80% 60% at 85% 15%, hsl(248 85% 60% / 0.2), transparent 50%),
+      radial-gradient(ellipse 70% 55% at 50% 95%, hsl(25 95% 55% / 0.18), transparent 50%),
+      radial-gradient(ellipse 60% 50% at 70% 60%, hsl(280 70% 55% / 0.12), transparent 45%);
+  }
+
+  .dark .auth-ig-mesh {
+    background:
+      radial-gradient(ellipse 90% 70% at 15% 20%, hsl(330 85% 55% / 0.14), transparent 55%),
+      radial-gradient(ellipse 80% 60% at 85% 15%, hsl(248 85% 60% / 0.16), transparent 50%),
+      radial-gradient(ellipse 70% 55% at 50% 95%, hsl(25 95% 50% / 0.12), transparent 50%),
+      radial-gradient(ellipse 60% 50% at 70% 60%, hsl(280 70% 50% / 0.1), transparent 45%);
+  }
+
+  .auth-ig-grid {
+    background-image:
+      linear-gradient(hsl(var(--foreground) / 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--foreground) / 0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 45%, black 15%, transparent 72%);
+  }
+
+  .auth-liquid-orb {
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.55;
+    animation: auth-orb-drift 18s ease-in-out infinite;
+  }
+
+  .auth-liquid-orb-a {
+    background: linear-gradient(135deg, hsl(330 90% 60%), hsl(280 80% 55%));
+  }
+
+  .auth-liquid-orb-b {
+    background: linear-gradient(135deg, hsl(248 90% 62%), hsl(199 85% 55%));
+    animation-delay: -6s;
+  }
+
+  .auth-liquid-orb-c {
+    background: linear-gradient(135deg, hsl(25 95% 58%), hsl(330 85% 58%));
+    animation-delay: -12s;
+  }
+
+  @keyframes auth-orb-drift {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(3%, 4%) scale(1.05); }
+    66% { transform: translate(-2%, 2%) scale(0.96); }
+  }
+
+  .auth-ig-gradient-text {
+    background: linear-gradient(
+      120deg,
+      hsl(25 95% 55%) 0%,
+      hsl(330 85% 58%) 35%,
+      hsl(248 85% 62%) 70%,
+      hsl(199 85% 52%) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .auth-ig-ring {
+    background: linear-gradient(
+      135deg,
+      #f09433,
+      #e6683c,
+      #dc2743,
+      #cc2366,
+      #bc1888
+    );
+  }
+
+  .auth-glass-panel {
+    position: relative;
+    border-radius: 1.25rem;
+    background: linear-gradient(
+      145deg,
+      hsl(var(--card) / 0.55) 0%,
+      hsl(var(--card) / 0.28) 50%,
+      hsl(var(--card) / 0.38) 100%
+    );
+    backdrop-filter: blur(28px) saturate(1.65);
+    -webkit-backdrop-filter: blur(28px) saturate(1.65);
+    border: 1px solid hsl(var(--foreground) / 0.08);
+    box-shadow:
+      0 0 0 1px hsl(var(--foreground) / 0.04) inset,
+      0 1px 0 hsl(var(--foreground) / 0.12) inset,
+      0 24px 48px -12px hsl(var(--foreground) / 0.12),
+      0 8px 24px -8px hsl(248 85% 60% / 0.15);
+  }
+
+  .auth-glass-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--foreground) / 0.22) 0%,
+      hsl(var(--foreground) / 0.04) 40%,
+      hsl(330 85% 60% / 0.25) 55%,
+      hsl(248 85% 60% / 0.2) 75%,
+      hsl(var(--foreground) / 0.06) 100%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .auth-glass-inner {
+    background: hsl(var(--foreground) / 0.04);
+    border: 1px solid hsl(var(--foreground) / 0.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .auth-glass-pill {
+    border-radius: 9999px;
+    background: hsl(var(--foreground) / 0.06);
+    border: 1px solid hsl(var(--foreground) / 0.08);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .auth-bubble-in {
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.2), hsl(330 85% 60% / 0.12));
+    border: 1px solid hsl(var(--primary) / 0.25);
+  }
+
+  .auth-bubble-out {
+    background: hsl(var(--foreground) / 0.06);
+    border: 1px solid hsl(var(--foreground) / 0.08);
+  }
+
+  .auth-live-dot {
+    background: hsl(var(--success));
+    box-shadow: 0 0 0 3px hsl(var(--success) / 0.25);
+    animation: auth-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes auth-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(0.92); }
+  }
+
+  .auth-glass-form .auth-form-header {
+    border-bottom: 1px solid hsl(var(--foreground) / 0.08);
+  }
+
+  .auth-glass-form input:not([type="checkbox"]),
+  .auth-glass-form button[role="combobox"] {
+    background: hsl(var(--foreground) / 0.04) !important;
+    border-color: hsl(var(--foreground) / 0.1) !important;
+    backdrop-filter: blur(8px);
+  }
+
+  .auth-glass-form input:not([type="checkbox"]):focus-visible {
+    border-color: hsl(var(--primary) / 0.5) !important;
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15);
+  }
+
+  .auth-glass-form [data-input-otp-slot],
+  .auth-glass-form [role="presentation"] > div {
+    background: hsl(var(--foreground) / 0.05) !important;
+    border-color: hsl(var(--foreground) / 0.12) !important;
+  }
+
+  .auth-divider span {
+    background: transparent;
+  }
+
+  .auth-divider-line {
+    border-color: hsl(var(--foreground) / 0.1);
+  }
+
+  .auth-btn-google {
+    background: hsl(var(--foreground) / 0.05);
+    border: 1px solid hsl(var(--foreground) / 0.12);
+    backdrop-filter: blur(10px);
+  }
+
+  .auth-btn-google:hover {
+    background: hsl(var(--foreground) / 0.09);
+    border-color: hsl(var(--primary) / 0.35);
+  }
+
   .dashboard-mesh {
     background:
       radial-gradient(ellipse 60% 40% at 100% 0%, hsl(var(--primary) / 0.06), transparent 50%),

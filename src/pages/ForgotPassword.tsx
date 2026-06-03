@@ -101,17 +101,17 @@ export default function ForgotPassword() {
 
   return (
     <AuthShell variant="forgot-password" maxWidth="sm">
-      <header className="mb-6 border-b border-border/60 pb-5">
-        <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md border border-border bg-muted/40 text-muted-foreground">
-          <KeyRound className="h-4 w-4" />
+      <header className="auth-form-header mb-6 pb-5">
+        <div className="auth-glass-pill mb-4 flex h-10 w-10 items-center justify-center text-primary">
+          <KeyRound className="h-5 w-5" />
         </div>
-        <h1 className="text-lg font-semibold tracking-tight text-foreground">
-          {step === "email" ? "Reset password" : "Set new password"}
+        <h1 className="text-xl font-bold tracking-tight text-foreground">
+          {step === "email" ? "Reset password" : "New password"}
         </h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">
+        <p className="mt-1.5 text-sm text-muted-foreground">
           {step === "email"
-            ? "A verification code will be sent to your email."
-            : "Enter the code and choose a new password."}
+            ? "We'll email a 6-digit code — valid for 5 minutes."
+            : "Enter the code and set a secure new password."}
         </p>
       </header>
 

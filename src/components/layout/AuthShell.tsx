@@ -1,45 +1,50 @@
 import type { ReactNode } from "react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { AuthFeaturePanel, type AuthPanelVariant } from "@/components/auth/AuthFeaturePanel";
+import { AuthBackdrop } from "@/components/auth/AuthBackdrop";
+import { AuthInstagramShowcase, type AuthPanelVariant } from "@/components/auth/AuthFeaturePanel";
 
 type AuthShellProps = {
   children: ReactNode;
-  maxWidth?: "xs" | "sm" | "md";
+  maxWidth?: "sm" | "md";
   variant?: AuthPanelVariant;
 };
 
-const maxWidthClass = {
-  xs: "max-w-[340px]",
-  sm: "max-w-[360px]",
-  md: "max-w-[380px]",
+const formMaxWidth = {
+  sm: "max-w-[400px]",
+  md: "max-w-[440px]",
 };
 
 export function AuthShell({ children, maxWidth = "sm", variant = "default" }: AuthShellProps) {
   return (
-    <div className="relative min-h-screen bg-background">
-      <div className="auth-mesh-subtle pointer-events-none absolute inset-0" aria-hidden />
+    <div className="auth-page relative min-h-screen w-full overflow-x-hidden">
+      <AuthBackdrop />
 
-      <ThemeToggle className="fixed top-4 right-4 z-20 h-9 w-9 flex items-center justify-center rounded-md border border-border/80 bg-card/95 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors" />
+      <ThemeToggle className="auth-glass-pill fixed top-4 right-4 z-30 !rounded-full p-2.5 border-0 shadow-none hover:scale-105 transition-transform" />
 
-      <div className="relative z-10 flex min-h-screen">
-        <AuthFeaturePanel variant={variant} />
-
-        <main className="flex flex-1 flex-col items-center justify-center px-5 py-12 sm:px-6">
-          <div className={["w-full animate-in fade-in duration-200", maxWidthClass[maxWidth]].join(" ")}>
-            <div className="mb-6 lg:hidden">
-              <Logo size="sm" />
+      <div className="relative z-10 flex min-h-screen w-full items-center justify-center py-8 sm:py-10">
+        <div className="container mx-auto w-full max-w-6xl px-4 sm:px-6">
+          <div className="mx-auto flex w-full flex-col items-center justify-center gap-8 lg:flex-row lg:items-stretch lg:justify-center lg:gap-8 xl:gap-10">
+            <div className="flex w-full justify-center lg:w-auto lg:flex-1 lg:max-w-[480px] lg:justify-end">
+              <AuthInstagramShowcase variant={variant} />
             </div>
 
-            <div className="rounded-lg border border-border bg-card px-6 py-7 shadow-sm">
-              {children}
-            </div>
+            <div className={["flex w-full flex-col items-center mx-auto", formMaxWidth[maxWidth], "lg:mx-0 lg:shrink-0"].join(" ")}>
+              <div className="mb-5 flex justify-center lg:hidden">
+                <Logo size="sm" />
+              </div>
 
-            <p className="mt-5 text-center text-[11px] text-muted-foreground/75">
-              © {new Date().getFullYear()} Liffio · Privacy · Terms
-            </p>
+              <div className="auth-glass-panel auth-glass-form w-full">
+                <div className="relative p-6 sm:p-8">{children}</div>
+              </div>
+
+              <p className="mt-5 text-center text-[11px] text-muted-foreground/80 px-4">
+                Secured with encryption · Meta Business API ·{" "}
+                <span className="text-foreground/70">© {new Date().getFullYear()} Liffio</span>
+              </p>
+            </div>
           </div>
-        </main>
+        </div>
       </div>
     </div>
   );

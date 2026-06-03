@@ -205,48 +205,48 @@
 
   .app-mesh {
     background:
-      radial-gradient(ellipse 75% 60% at 88% 6%, hsl(var(--primary) / 0.14), transparent 52%),
-      radial-gradient(ellipse 65% 55% at 6% 88%, hsl(330 85% 60% / 0.11), transparent 48%),
-      radial-gradient(ellipse 60% 50% at 48% 52%, hsl(25 90% 55% / 0.08), transparent 55%);
+      radial-gradient(ellipse 75% 60% at 88% 6%, hsl(var(--primary) / 0.08), transparent 52%),
+      radial-gradient(ellipse 65% 55% at 6% 88%, hsl(330 85% 60% / 0.06), transparent 48%),
+      radial-gradient(ellipse 60% 50% at 48% 52%, hsl(25 90% 55% / 0.04), transparent 55%);
   }
 
   .dark .app-mesh {
     background:
-      radial-gradient(ellipse 75% 60% at 88% 6%, hsl(var(--primary) / 0.12), transparent 52%),
-      radial-gradient(ellipse 65% 55% at 6% 88%, hsl(330 85% 60% / 0.1), transparent 48%),
-      radial-gradient(ellipse 60% 50% at 48% 52%, hsl(25 90% 55% / 0.07), transparent 55%);
+      radial-gradient(ellipse 75% 60% at 88% 6%, hsl(var(--primary) / 0.07), transparent 52%),
+      radial-gradient(ellipse 65% 55% at 6% 88%, hsl(330 85% 60% / 0.05), transparent 48%),
+      radial-gradient(ellipse 60% 50% at 48% 52%, hsl(25 90% 55% / 0.035), transparent 55%);
   }
 
   .app-ig-grid {
     background-image:
-      linear-gradient(hsl(var(--foreground) / 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--foreground) / 0.05) 1px, transparent 1px);
+      linear-gradient(hsl(var(--foreground) / 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--foreground) / 0.035) 1px, transparent 1px);
     background-size: 44px 44px;
     mask-image: radial-gradient(ellipse 85% 75% at 50% 40%, black 10%, transparent 70%);
   }
 
   .app-orb {
     border-radius: 50%;
-    filter: blur(56px);
-    opacity: 0.52;
-    animation: app-orb-drift 20s ease-in-out infinite;
+    filter: blur(72px);
+    opacity: 0.26;
+    animation: app-orb-drift 24s ease-in-out infinite;
   }
 
   .dark .app-orb {
-    opacity: 0.45;
+    opacity: 0.22;
   }
 
   .app-orb-a {
-    background: linear-gradient(135deg, hsl(var(--primary) / 0.85), hsl(330 85% 60% / 0.55));
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.4), hsl(330 85% 60% / 0.22));
   }
 
   .app-orb-b {
-    background: linear-gradient(135deg, hsl(248 85% 60% / 0.75), hsl(var(--primary) / 0.5));
+    background: linear-gradient(135deg, hsl(248 85% 60% / 0.35), hsl(var(--primary) / 0.22));
     animation-delay: -7s;
   }
 
   .app-orb-c {
-    background: linear-gradient(135deg, hsl(25 90% 55% / 0.65), hsl(330 85% 60% / 0.45));
+    background: linear-gradient(135deg, hsl(25 90% 55% / 0.28), hsl(330 85% 60% / 0.18));
     animation-delay: -14s;
   }
 
@@ -256,8 +256,7 @@
   }
 
   /* Shared liquid-glass panel treatment */
-  .glass-surface,
-  .surface-card {
+  .glass-surface {
     position: relative;
     background: linear-gradient(
       145deg,
@@ -272,12 +271,11 @@
       0 1px 0 hsl(var(--foreground) / 0.14) inset,
       0 -1px 0 hsl(var(--foreground) / 0.04) inset,
       0 12px 40px -10px hsl(var(--foreground) / 0.1),
-      0 4px 20px -6px hsl(248 85% 60% / 0.12);
-    transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+      0 4px 20px -6px hsl(248 85% 60% / 0.1);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
   }
 
-  .glass-surface::before,
-  .surface-card::before {
+  .glass-surface::before {
     content: "";
     position: absolute;
     inset: 0;
@@ -285,11 +283,11 @@
     padding: 1px;
     background: linear-gradient(
       135deg,
-      hsl(var(--foreground) / 0.28) 0%,
-      hsl(var(--foreground) / 0.06) 35%,
-      hsl(330 85% 60% / 0.22) 52%,
-      hsl(248 85% 60% / 0.18) 72%,
-      hsl(var(--foreground) / 0.08) 100%
+      hsl(var(--foreground) / 0.22) 0%,
+      hsl(var(--foreground) / 0.05) 40%,
+      hsl(330 85% 60% / 0.16) 55%,
+      hsl(248 85% 60% / 0.12) 75%,
+      hsl(var(--foreground) / 0.06) 100%
     );
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -299,15 +297,125 @@
   }
 
   .surface-card {
-    @apply rounded-xl;
+    @apply rounded-xl overflow-hidden;
+    position: relative;
+    isolation: isolate;
+    background:
+      radial-gradient(ellipse 90% 55% at 100% 0%, hsl(248 85% 60% / 0.07), transparent 52%),
+      radial-gradient(ellipse 70% 45% at 0% 100%, hsl(330 85% 60% / 0.05), transparent 48%),
+      linear-gradient(
+        155deg,
+        hsl(var(--card) / 0.68) 0%,
+        hsl(var(--card) / 0.48) 42%,
+        hsl(var(--card) / 0.56) 100%
+      );
+    backdrop-filter: blur(20px) saturate(1.65);
+    -webkit-backdrop-filter: blur(20px) saturate(1.65);
+    border: 1px solid hsl(var(--foreground) / 0.11);
+    box-shadow:
+      0 1px 0 hsl(var(--foreground) / 0.12) inset,
+      0 -1px 0 hsl(var(--foreground) / 0.03) inset,
+      0 10px 36px -12px hsl(var(--foreground) / 0.09),
+      0 2px 12px -4px hsl(248 85% 60% / 0.08);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
+  }
+
+  .surface-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--foreground) / 0.2) 0%,
+      hsl(var(--foreground) / 0.04) 38%,
+      hsl(330 85% 60% / 0.18) 54%,
+      hsl(248 85% 60% / 0.14) 72%,
+      hsl(var(--foreground) / 0.06) 100%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .surface-card::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    border-radius: inherit 0 0 inherit;
+    background: linear-gradient(
+      180deg,
+      hsl(25 90% 55% / 0.7) 0%,
+      hsl(330 85% 60% / 0.55) 35%,
+      hsl(248 85% 60% / 0.5) 70%,
+      hsl(var(--primary) / 0.35) 100%
+    );
+    opacity: 0.85;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .surface-card > * {
+    position: relative;
+    z-index: 1;
   }
 
   .surface-card:hover {
-    border-color: hsl(var(--primary) / 0.28);
+    border-color: hsl(var(--primary) / 0.22);
+    transform: translateY(-1px);
     box-shadow:
-      0 1px 0 hsl(var(--foreground) / 0.16) inset,
-      0 16px 48px -12px hsl(248 85% 60% / 0.18),
-      0 6px 24px -8px hsl(var(--foreground) / 0.12);
+      0 1px 0 hsl(var(--foreground) / 0.14) inset,
+      0 14px 40px -12px hsl(248 85% 60% / 0.12),
+      0 4px 16px -6px hsl(var(--foreground) / 0.1);
+  }
+
+  .card-header-bar {
+    @apply flex flex-col space-y-1 px-6 pt-5 pb-4 pl-7;
+    border-bottom: 1px solid hsl(var(--foreground) / 0.08);
+    background: linear-gradient(
+      180deg,
+      hsl(var(--foreground) / 0.05) 0%,
+      hsl(var(--foreground) / 0.01) 100%
+    );
+  }
+
+  .card-section-head {
+    @apply px-5 py-4 pl-6 border-b;
+    border-color: hsl(var(--foreground) / 0.08);
+    background: linear-gradient(
+      90deg,
+      hsl(var(--primary) / 0.06) 0%,
+      transparent 55%
+    );
+  }
+
+  .card-icon-badge {
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-lg;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.18), hsl(330 85% 60% / 0.1));
+    border: 1px solid hsl(var(--primary) / 0.15);
+    box-shadow: 0 1px 0 hsl(var(--foreground) / 0.06) inset;
+  }
+
+  .card-stat-row {
+    @apply flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg text-sm;
+    background: hsl(var(--foreground) / 0.03);
+    border: 1px solid hsl(var(--foreground) / 0.06);
+  }
+
+  .card-stat-row + .card-stat-row {
+    margin-top: 0.375rem;
+  }
+
+  .card-footer-bar {
+    @apply flex items-center gap-2 pt-4 mt-4;
+    border-top: 1px solid hsl(var(--foreground) / 0.08);
   }
 
   .glass-inset {
@@ -378,16 +486,16 @@
 
   .auth-ig-mesh {
     background:
-      radial-gradient(ellipse 90% 70% at 15% 20%, hsl(330 85% 60% / 0.22), transparent 55%),
-      radial-gradient(ellipse 80% 60% at 85% 15%, hsl(248 85% 60% / 0.18), transparent 50%),
-      radial-gradient(ellipse 70% 55% at 50% 95%, hsl(25 95% 55% / 0.16), transparent 50%);
+      radial-gradient(ellipse 90% 70% at 15% 20%, hsl(330 85% 60% / 0.12), transparent 55%),
+      radial-gradient(ellipse 80% 60% at 85% 15%, hsl(248 85% 60% / 0.1), transparent 50%),
+      radial-gradient(ellipse 70% 55% at 50% 95%, hsl(25 95% 55% / 0.08), transparent 50%);
   }
 
   .dark .auth-ig-mesh {
     background:
-      radial-gradient(ellipse 90% 70% at 15% 20%, hsl(330 85% 55% / 0.16), transparent 55%),
-      radial-gradient(ellipse 80% 60% at 85% 15%, hsl(248 85% 60% / 0.14), transparent 50%),
-      radial-gradient(ellipse 70% 55% at 50% 95%, hsl(25 95% 50% / 0.12), transparent 50%);
+      radial-gradient(ellipse 90% 70% at 15% 20%, hsl(330 85% 55% / 0.09), transparent 55%),
+      radial-gradient(ellipse 80% 60% at 85% 15%, hsl(248 85% 60% / 0.08), transparent 50%),
+      radial-gradient(ellipse 70% 55% at 50% 95%, hsl(25 95% 50% / 0.06), transparent 50%);
   }
 
   .auth-ig-grid {
@@ -400,13 +508,13 @@
 
   .auth-liquid-orb {
     border-radius: 50%;
-    filter: blur(52px);
-    opacity: 0.55;
-    animation: auth-orb-drift 20s ease-in-out infinite;
+    filter: blur(68px);
+    opacity: 0.3;
+    animation: auth-orb-drift 22s ease-in-out infinite;
   }
 
   .dark .auth-liquid-orb {
-    opacity: 0.48;
+    opacity: 0.24;
   }
 
   .auth-liquid-orb-a {

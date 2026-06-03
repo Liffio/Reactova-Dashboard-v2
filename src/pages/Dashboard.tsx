@@ -17,6 +17,7 @@ import { toast } from "@/components/ui/sonner";
 import { useCreateWorkspaceMutation } from "@/hooks/useCreateWorkspace";
 import { useDashboardQuery } from "@/hooks/useDashboard";
 import { useDeleteWorkspaceMutation } from "@/hooks/useDeleteWorkspace";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -200,7 +201,7 @@ export default function Dashboard() {
 
       {workspaceCards.length > 0 && (
         <section className="surface-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-border/60">
+          <div className="card-section-head">
             <h2 className="font-semibold text-sm">Workspace billing</h2>
             <p className="text-xs text-muted-foreground mt-0.5">Next renewal date for each workspace</p>
           </div>
@@ -237,9 +238,9 @@ export default function Dashboard() {
       </div>
 
       <section className="surface-card overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+        <div className="card-section-head flex items-center justify-between gap-3">
           <h2 className="font-semibold text-sm">Recent Activity</h2>
-          <button type="button" onClick={() => navigate("/automations")} className="text-xs text-primary hover:underline">View all →</button>
+          <button type="button" onClick={() => navigate("/automations")} className="text-xs text-primary hover:underline shrink-0">View all →</button>
         </div>
         <div className="overflow-x-auto">
           <table className="data-table">
@@ -292,9 +293,9 @@ export default function Dashboard() {
           {workspaceCards.map((workspace) => (
             <div
               key={workspace.id}
-              className="surface-card p-5 transition-colors duration-150 hover:border-primary/25"
+              className="surface-card p-5 pl-6 transition-colors duration-150"
             >
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 min-w-0">
                   <StatusDot
                     status={getWorkspaceIndicatorStatus({
@@ -306,14 +307,14 @@ export default function Dashboard() {
                 </div>
                 <PlanBadge plan={workspace.plan} />
               </div>
-              <div className="space-y-1.5 text-xs text-muted-foreground mb-4">
-                <div className="flex justify-between"><span>Next billing</span><span className="text-foreground">{workspace.nextBilling}</span></div>
-                <div className="flex justify-between"><span>DMs this month</span><span className="text-foreground font-mono">{workspace.dmsThisMonth.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span>Leads this month</span><span className="text-foreground font-mono">{workspace.leadsThisMonth.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span>Link clicks</span><span className="text-foreground font-mono">{workspace.clicksThisMonth.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span>Active automations</span><span className="text-foreground font-mono">{workspace.activeAutomations.toLocaleString()}</span></div>
+              <div className="space-y-0 mb-4 text-xs">
+                <div className="card-stat-row"><span className="text-muted-foreground">Next billing</span><span className="text-foreground font-medium">{workspace.nextBilling}</span></div>
+                <div className="card-stat-row"><span className="text-muted-foreground">DMs this month</span><span className="text-foreground font-mono tabular-nums">{workspace.dmsThisMonth.toLocaleString()}</span></div>
+                <div className="card-stat-row"><span className="text-muted-foreground">Leads this month</span><span className="text-foreground font-mono tabular-nums">{workspace.leadsThisMonth.toLocaleString()}</span></div>
+                <div className="card-stat-row"><span className="text-muted-foreground">Link clicks</span><span className="text-foreground font-mono tabular-nums">{workspace.clicksThisMonth.toLocaleString()}</span></div>
+                <div className="card-stat-row"><span className="text-muted-foreground">Active automations</span><span className="text-foreground font-mono tabular-nums">{workspace.activeAutomations.toLocaleString()}</span></div>
               </div>
-              <div className="flex gap-2">
+              <div className="card-footer-bar !pt-3 !mt-0 !border-t-0 flex gap-2">
                 <Button variant="outline" size="sm" className="flex-1" onClick={() => navigate("/settings")}>Manage</Button>
                 <Button
                   size="sm"
@@ -442,24 +443,31 @@ function Stat({
 }) {
   const up = (trend ?? 0) >= 0;
   return (
-    <div className="surface-card p-5">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-xs font-medium text-muted-foreground">{label}</div>
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+    <div className="surface-card p-5 pl-6 flex flex-col">
+      <div className="flex items-start justify-between gap-2 mb-4">
+        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="card-icon-badge">
           <Icon className="h-4 w-4 text-primary" />
         </div>
       </div>
-      <div className={`text-2xl lg:text-3xl font-bold tracking-tight tabular-nums ${highlight ? "text-primary" : ""}`}>
-        {(value ?? 0).toLocaleString()}
-      </div>
-      <div className="flex items-center gap-1.5 mt-1.5 text-xs">
-        {trend !== undefined && (
-          <span className={`inline-flex items-center gap-0.5 font-medium ${up ? "text-success" : "text-destructive"}`}>
-            {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-            {Math.abs(trend)}%
-          </span>
+      <div
+        className={cn(
+          "glass-inset rounded-xl px-3 py-3 flex-1",
+          highlight && "ring-1 ring-primary/20"
         )}
-        {sub && <span className="text-muted-foreground">{sub}</span>}
+      >
+        <div className={`text-2xl lg:text-3xl font-bold tracking-tight tabular-nums ${highlight ? "auth-ig-gradient-text" : "text-foreground"}`}>
+          {(value ?? 0).toLocaleString()}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 mt-2 text-xs">
+          {trend !== undefined && (
+            <span className={`inline-flex items-center gap-0.5 font-medium rounded-md px-1.5 py-0.5 ${up ? "text-success bg-success/10" : "text-destructive bg-destructive/10"}`}>
+              {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              {Math.abs(trend)}%
+            </span>
+          )}
+          {sub && <span className="text-muted-foreground">{sub}</span>}
+        </div>
       </div>
     </div>
   );

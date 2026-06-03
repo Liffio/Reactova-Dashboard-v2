@@ -3,13 +3,11 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { Mail, RefreshCw } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { AuthShell } from "@/components/layout/AuthShell";
 import { Button } from "@/components/ui/button";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { apiRequest } from "@/lib/api";
-import { useAppSelector, useAppDispatch } from "@/store/hooks";
-import { setAuthMe } from "@/store/authSlice";
-import type { AuthMePayload } from "@/types/auth";
+import { useAppSelector } from "@/store/hooks";
 import { toast } from "@/components/ui/sonner";
 import { loginPathWithRedirect, sanitizeAuthRedirect } from "@/lib/authNavigation";
 import { useEmailVerifyCodeMutation } from "@/hooks/useAuth";
@@ -77,7 +75,6 @@ export default function ConfirmEmail() {
   }, [accessToken, emailVerified]);
 
   const handleVerified = () => {
-    // Check for a pending paid plan from registration
     const pendingPlan = localStorage.getItem("pending_plan");
     if (pendingPlan && PAID_PLANS.includes(pendingPlan)) {
       localStorage.removeItem("pending_plan");
@@ -88,7 +85,6 @@ export default function ConfirmEmail() {
     navigate(isOnboarded ? (redirectTo || "/dashboard") : "/onboarding", { replace: true });
   };
 
-  // Auto-submit when 6 digits entered
   useEffect(() => {
     if (otp.length !== 6) return;
     verifyMutation.mutate(otp, {
@@ -104,66 +100,68 @@ export default function ConfirmEmail() {
   if (!accessToken) return null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <ThemeToggle className="fixed top-4 right-4 p-2 rounded-lg border border-border bg-card/80 backdrop-blur hover:bg-card transition-colors z-20" />
-      <div className="w-full max-w-md bg-card border border-border rounded-2xl p-8 shadow-2xl animate-in fade-in duration-300">
-        <div className="flex flex-col items-center mb-6 text-center">
+    <AuthShell variant="confirm-email" maxWidth="md">
+      <div className="flex flex-col items-center mb-6 text-center">
+        <div className="lg:hidden">
           <Logo size="lg" />
-          <div className="mt-5 h-12 w-12 rounded-full bg-primary/15 flex items-center justify-center">
-            <Mail className="h-6 w-6 text-primary" />
-          </div>
-          <h1 className="text-xl font-bold mt-4">Check your email</h1>
-          <p className="text-sm text-muted-foreground mt-2">
-            We sent a 6-digit code to{" "}
-            <span className="font-semibold text-foreground">{user?.email ?? "your email"}</span>.
-            Enter it below — you can copy it from any device.
-          </p>
         </div>
-
-        <div className="flex justify-center mb-6">
-          <InputOTP
-            maxLength={6}
-            value={otp}
-            onChange={(v) => setOtp(v.replace(/\D/g, ""))}
-            disabled={verifyMutation.isPending}
-          >
-            <InputOTPGroup>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <InputOTPSlot key={i} index={i} />
-              ))}
-            </InputOTPGroup>
-          </InputOTP>
+        <div className="mt-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 ring-4 ring-primary/10">
+          <Mail className="h-7 w-7 text-primary" />
         </div>
-
-        {verifyMutation.isPending && (
-          <p className="text-center text-sm text-muted-foreground mb-4">Verifying…</p>
-        )}
-
-        {deliveryError && (
-          <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {deliveryError}
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            disabled={resendMutation.isPending || resendIn > 0}
-            onClick={() => { setOtp(""); resendMutation.mutate(); }}
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            {resendIn > 0 ? `Resend in ${resendIn}s` : resendMutation.isPending ? "Sending…" : "Resend code"}
-          </Button>
-          <p className="text-center text-xs text-muted-foreground">
-            Wrong address?{" "}
-            <Link to="/login" className="text-primary hover:underline">
-              Sign in with a different account
-            </Link>
-          </p>
-        </div>
+        <h1 className="text-2xl font-bold mt-5 tracking-tight">Check your email</h1>
+        <p className="text-sm text-muted-foreground mt-2 max-w-sm leading-relaxed">
+          We sent a 6-digit code to{" "}
+          <span className="font-semibold text-foreground">{user?.email ?? "your email"}</span>.
+          Paste it below — works from any device.
+        </p>
       </div>
-    </div>
+
+      <div className="flex justify-center mb-6">
+        <InputOTP
+          maxLength={6}
+          value={otp}
+          onChange={(v) => setOtp(v.replace(/\D/g, ""))}
+          disabled={verifyMutation.isPending}
+        >
+          <InputOTPGroup>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <InputOTPSlot key={i} index={i} />
+            ))}
+          </InputOTPGroup>
+        </InputOTP>
+      </div>
+
+      {verifyMutation.isPending && (
+        <p className="text-center text-sm text-muted-foreground mb-4">Verifying…</p>
+      )}
+
+      {deliveryError && (
+        <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {deliveryError}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          disabled={resendMutation.isPending || resendIn > 0}
+          onClick={() => {
+            setOtp("");
+            resendMutation.mutate();
+          }}
+        >
+          <RefreshCw className="h-4 w-4 mr-2" />
+          {resendIn > 0 ? `Resend in ${resendIn}s` : resendMutation.isPending ? "Sending…" : "Resend code"}
+        </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          Wrong address?{" "}
+          <Link to="/login" className="text-primary hover:underline">
+            Sign in with a different account
+          </Link>
+        </p>
+      </div>
+    </AuthShell>
   );
 }

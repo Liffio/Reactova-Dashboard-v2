@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, KeyRound } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { AuthShell } from "@/components/layout/AuthShell";
 import { Button } from "@/components/ui/button";
@@ -101,11 +101,21 @@ export default function ForgotPassword() {
   };
 
   return (
-    <AuthShell>
-      <div className="flex flex-col items-center mb-7">
-        <Logo size="lg" />
-        <p className="text-sm text-muted-foreground mt-3 text-center">
-          {step === "email" ? "Enter your email to receive a reset code" : "Enter the code and your new password"}
+    <AuthShell variant="forgot-password">
+      <div className="flex flex-col items-center mb-7 text-center">
+        <div className="lg:hidden">
+          <Logo size="lg" />
+        </div>
+        <div className="mt-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+          <KeyRound className="h-6 w-6" />
+        </div>
+        <h1 className="mt-4 text-2xl font-bold tracking-tight text-foreground">
+          {step === "email" ? "Reset your password" : "Choose a new password"}
+        </h1>
+        <p className="text-sm text-muted-foreground mt-2 max-w-xs">
+          {step === "email"
+            ? "Enter your email and we'll send a 6-digit code valid for 5 minutes."
+            : "Enter the code from your inbox and set a new password."}
         </p>
       </div>
 

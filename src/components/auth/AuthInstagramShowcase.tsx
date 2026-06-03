@@ -39,7 +39,7 @@ function DmPreviewCard() {
 
 export function AuthInstagramShowcase({ variant = "default" }: { variant?: AuthPanelVariant }) {
   return (
-    <div className={cn("auth-glass-panel relative w-full max-w-md mx-auto lg:max-w-none lg:mx-0")}>
+    <div className={cn("auth-glass-panel relative w-full max-w-md mx-auto lg:max-w-none lg:mx-0 shadow-elevated")}>
       <div className="relative p-6 sm:p-7">
         <Logo size="sm" />
         <h2 className="mt-5 text-lg font-semibold leading-snug tracking-tight sm:text-xl">

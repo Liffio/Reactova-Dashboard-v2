@@ -175,7 +175,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
           <button
             type="button"
             onClick={() => setWsOpen((v) => !v)}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg glass-surface border-border/40 hover:border-primary/25 transition-all duration-200"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg glass-surface hover:border-primary/30 transition-all duration-200"
           >            <StatusDot
               status={getWorkspaceIndicatorStatus({
                 status: current.status,

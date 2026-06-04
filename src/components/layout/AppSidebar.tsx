@@ -1,5 +1,5 @@
 import { useMemo, useState, type ComponentType } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import {
   Home,
   Zap,
@@ -31,16 +31,7 @@ import type { AuthorizationModule } from "@/types/auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from "@/components/ui/alert-dialog";
+import { LinkInstagramPromptDialog } from "@/components/workspace/LinkInstagramPromptDialog";
 
 const navigationByModule: Record<
   string,
@@ -132,7 +123,6 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
   const [createOpen, setCreateOpen] = useState(false);
   const [showLinkPrompt, setShowLinkPrompt] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
-  const navigate = useNavigate();
 
   const createWorkspaceMutation = useCreateWorkspaceMutation(
     async (workspaceId) => {
@@ -327,26 +317,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
 
       <UserAccountSheet open={accountOpen} onOpenChange={setAccountOpen} />
 
-      <AlertDialog open={showLinkPrompt} onOpenChange={setShowLinkPrompt}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Link Instagram for this workspace?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This workspace was created successfully. To run automations and workspace features, you need to link an Instagram account from settings.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Not now</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                navigate("/settings");
-              }}
-            >
-              Yes, go to settings
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <LinkInstagramPromptDialog open={showLinkPrompt} onOpenChange={setShowLinkPrompt} />
     </>
   );
 }

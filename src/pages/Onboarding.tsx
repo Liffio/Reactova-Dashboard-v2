@@ -57,12 +57,13 @@ const IG_ERRORS: Record<string, { title: string; summary: string; steps: string[
     ],
   },
   instagram_already_linked: {
-    title: "Instagram account already in use",
+    title: "Could not move Instagram connection",
     summary:
-      "This Instagram account is already connected to another workspace on your account. Each workspace needs its own Instagram account.",
+      "This Instagram account was linked on another workspace, but we could not move it automatically. Try again from Settings, or disconnect Instagram on the other workspace first.",
     steps: [
-      "Use a different Instagram Professional account for this workspace, or",
-      "Disconnect that account from your other workspace in Settings, then try again.",
+      "Open Settings → General on the workspace that should keep Instagram",
+      "Use a different Instagram Professional account for this workspace, or disconnect the other workspace first",
+      "Return here and connect again",
     ],
   },
   invalid_platform_app: {

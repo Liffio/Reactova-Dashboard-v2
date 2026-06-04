@@ -27,6 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { LinkInstagramPromptDialog } from "@/components/workspace/LinkInstagramPromptDialog";
 
 const formatBillingDate = (value: string | null | undefined) =>
   value ? new Date(value).toLocaleDateString() : "—";
@@ -238,20 +239,7 @@ export default function Dashboard() {
         canDelete={workspaceCards.length > 1}
       />
 
-      <AlertDialog open={showLinkPrompt} onOpenChange={setShowLinkPrompt}>
-        <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Link Instagram?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Workspace created. Connect Instagram in Settings to run automations.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
-            <AlertDialogCancel className="mt-0">Later</AlertDialogCancel>
-            <AlertDialogAction onClick={() => navigate("/settings")}>Go to settings</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <LinkInstagramPromptDialog open={showLinkPrompt} onOpenChange={setShowLinkPrompt} />
 
       <AlertDialog open={Boolean(workspaceToDelete)} onOpenChange={(open) => !open && setWorkspaceToDelete(null)}>
         <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">

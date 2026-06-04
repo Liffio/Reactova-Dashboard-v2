@@ -632,31 +632,35 @@ function General() {
     },
     onError: (error) => toast.error((error as Error).message)
   });
+  const checkWorkspaceInstagramConnected = async () => {
+    const workspaces = await apiRequest<
+      Array<{ id: string; instagramConnected?: boolean; onboarding?: Record<string, unknown> }>
+    >("/api/v1/workspaces", { workspaceId: current.id });
+    const workspace = workspaces.find((item) => item.id === current.id);
+    return workspace ? resolveInstagramConnected(workspace) : false;
+  };
+
   const reconnectMutation = useMutation({
     mutationFn: () => {
-      // If workspace already has Instagram connected, checkConnected would immediately
-      // resolve true (detecting the OLD connection) and close the popup before the user
-      // even reaches Instagram's auth page. Skip it for reconnect and rely on postMessage.
       const wasAlreadyConnected = resolveInstagramConnected(current);
+      let authorizeUrlReady = false;
       return openMetaOAuthPopup(
         async () => {
           const { url } = await apiRequest<{ url: string }>(buildMetaOAuthStartPath("settings"), {
             workspaceId: current.id,
           });
+          authorizeUrlReady = true;
           return url;
         },
-        wasAlreadyConnected
-          ? {}
-          : {
-              checkConnected: async () => {
-                const workspaces = await apiRequest<Array<{ id: string; instagramConnected?: boolean; onboarding?: Record<string, unknown> }>>(
-                  "/api/v1/workspaces",
-                  { workspaceId: current.id }
-                );
-                const workspace = workspaces.find((item) => item.id === current.id);
-                return workspace ? resolveInstagramConnected(workspace) : false;
-              },
+        {
+          checkConnected: async () => {
+            if (!authorizeUrlReady || wasAlreadyConnected) {
+              return false;
             }
+            return checkWorkspaceInstagramConnected();
+          },
+          verifyConnected: checkWorkspaceInstagramConnected,
+        }
       );
     },
     onSuccess: async (result) => {
@@ -670,6 +674,12 @@ function General() {
       const reason = result.reason ?? "token_exchange_failed";
       if (reason === "user_canceled") {
         // User deliberately closed the Meta popup — no error to show
+        return;
+      }
+      if (reason === "connection_not_persisted") {
+        toast.error(
+          "Instagram authorized but Liffio could not save the connection. Restart the API worker and try again."
+        );
         return;
       }
       toast.error(`Instagram connection failed: ${reason.replace(/_/g, " ")}`);

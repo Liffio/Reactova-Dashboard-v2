@@ -20,7 +20,32 @@ type MetaOAuthMessage = {
 export type OpenMetaOAuthPopupOptions = {
   /** Polls workspace connection while popup is open (fallback when postMessage/opener fails). */
   checkConnected?: () => Promise<boolean>;
+  /** Confirms DB persistence after OAuth success (postMessage path). Defaults to checkConnected. */
+  verifyConnected?: () => Promise<boolean>;
 };
+
+const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+
+async function waitForConnectionConfirmation(
+  checkConnected: (() => Promise<boolean>) | undefined,
+  maxWaitMs = 12_000
+): Promise<boolean> {
+  if (!checkConnected) {
+    return true;
+  }
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    try {
+      if (await checkConnected()) {
+        return true;
+      }
+    } catch {
+      // ignore transient API errors during OAuth
+    }
+    await sleep(500);
+  }
+  return false;
+}
 
 function buildPopupFeatures(): string {
   const width = 520;
@@ -129,7 +154,7 @@ export function openMetaOAuthPopup(
       if (!isTrustedOAuthMessage(data)) {
         return;
       }
-      settle(data.payload);
+      void settleAfterVerification(data.payload);
     };
 
     const connectionPollId = window.setInterval(() => {
@@ -138,7 +163,7 @@ export function openMetaOAuthPopup(
       }
       void options.checkConnected().then((connected) => {
         if (connected) {
-          settle({ meta: "connected", step: 3 });
+          void settleAfterVerification({ meta: "connected", step: 3 });
         }
       });
     }, 800);
@@ -155,7 +180,7 @@ export function openMetaOAuthPopup(
           try {
             const connected = await options.checkConnected();
             if (connected) {
-              settle({ meta: "connected", step: 3 });
+              await settleAfterVerification({ meta: "connected", step: 3 });
               return;
             }
           } catch {
@@ -181,6 +206,18 @@ export function openMetaOAuthPopup(
       cleanup();
       forceClosePopup(popup);
       resolve(result);
+    }
+
+    async function settleAfterVerification(result: MetaOAuthResult) {
+      if (result.meta === "connected") {
+        const verify = options.verifyConnected ?? options.checkConnected;
+        const confirmed = await waitForConnectionConfirmation(verify);
+        if (!confirmed) {
+          settle({ meta: "error", reason: "connection_not_persisted" });
+          return;
+        }
+      }
+      settle(result);
     }
 
     function fail(error: Error) {

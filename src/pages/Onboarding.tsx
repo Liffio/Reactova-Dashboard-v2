@@ -155,6 +155,15 @@ export default function Onboarding() {
             const workspace = workspaces.find((item) => item.id === workspaceId);
             return workspace ? resolveInstagramConnected(workspace) : false;
           },
+          verifyConnected: async () => {
+            const workspaceId = await resolveWorkspaceId();
+            const workspaces = await apiRequest<Array<{ id: string; instagramConnected?: boolean; onboarding?: Record<string, unknown> }>>(
+              "/api/v1/workspaces",
+              { workspaceId }
+            );
+            const workspace = workspaces.find((item) => item.id === workspaceId);
+            return workspace ? resolveInstagramConnected(workspace) : false;
+          },
         }
       ),
     onSuccess: (result) => {

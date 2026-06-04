@@ -1,23 +1,22 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import {
-  TrendingUp, TrendingDown, Zap, Link2, Users,
-  Plus, ArrowUpRight, AlertTriangle, CalendarDays,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { AlertTriangle, CalendarDays, Link2, Users, Zap } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { DashboardActivityFeed } from "@/components/dashboard/DashboardActivityFeed";
+import { DashboardQuickActions } from "@/components/dashboard/DashboardQuickActions";
+import { DashboardStatCard } from "@/components/dashboard/DashboardStatCard";
+import { DashboardWelcome } from "@/components/dashboard/DashboardWelcome";
+import {
+  DashboardWorkspaceGrid,
+  type DashboardWorkspaceCardData,
+} from "@/components/dashboard/DashboardWorkspaceGrid";
 import { Button } from "@/components/ui/button";
-import { PlanBadge } from "@/components/PlanBadge";
-import { StatusBadge, StatusDot } from "@/components/StatusBadge";
-import { getWorkspaceIndicatorStatus } from "@/lib/workspaceIndicator";
+import { toast } from "@/components/ui/sonner";
 import { useApp, type Workspace } from "@/state/AppContext";
 import type { DashboardResponse } from "@/hooks/useDashboard";
-import { Input } from "@/components/ui/input";
-import { toast } from "@/components/ui/sonner";
 import { useCreateWorkspaceMutation } from "@/hooks/useCreateWorkspace";
 import { useDashboardQuery } from "@/hooks/useDashboard";
 import { useDeleteWorkspaceMutation } from "@/hooks/useDeleteWorkspace";
-import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,20 +27,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-type DashboardWorkspaceCard = {
-  id: string;
-  handle: string;
-  plan: Workspace["plan"];
-  status: Workspace["status"];
-  instagramConnected: boolean;
-  nextBilling: string;
-  billingCycleEnd: string | null;
-  dmsThisMonth: number;
-  leadsThisMonth: number;
-  clicksThisMonth: number;
-  activeAutomations: number;
-};
 
 const formatBillingDate = (value: string | null | undefined) =>
   value ? new Date(value).toLocaleDateString() : "—";
@@ -59,7 +44,7 @@ const mapPlanName = (
 const mergeDashboardWorkspaces = (
   workspaces: Workspace[],
   summaries: DashboardResponse["workspaceSummaries"]
-): DashboardWorkspaceCard[] => {
+): DashboardWorkspaceCardData[] => {
   const summaryById = new Map(summaries.map((workspace) => [workspace.id, workspace]));
 
   return workspaces.map((workspace) => {
@@ -79,12 +64,11 @@ const mergeDashboardWorkspaces = (
               : "disconnected"
         : workspace.status,
       instagramConnected: summary?.instagramConnected ?? workspace.instagramConnected,
-      billingCycleEnd,
       nextBilling: billingCycleEnd ? formatBillingDate(billingCycleEnd) : workspace.nextBilling,
       dmsThisMonth: summary?.dmsThisMonth ?? workspace.dmsThisMonth ?? 0,
       leadsThisMonth: summary?.leadsThisMonth ?? workspace.leadsThisMonth ?? 0,
       clicksThisMonth: summary?.clicksThisMonth ?? workspace.clicksThisMonth ?? 0,
-      activeAutomations: summary?.activeAutomations ?? workspace.activeAutomations ?? 0
+      activeAutomations: summary?.activeAutomations ?? workspace.activeAutomations ?? 0,
     };
   });
 };
@@ -105,34 +89,39 @@ export default function Dashboard() {
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams, refreshAuth]);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [workspaceName, setWorkspaceName] = useState("");
+
   const [showLinkPrompt, setShowLinkPrompt] = useState(false);
   const [workspaceToDelete, setWorkspaceToDelete] = useState<{ id: string; handle: string } | null>(null);
   const dashboardQuery = useDashboardQuery(current.id);
+  const loading = dashboardQuery.isLoading;
+  const totals = dashboardQuery.data?.totals;
+
   const workspaceCards = mergeDashboardWorkspaces(
     workspaces,
     dashboardQuery.data?.workspaceSummaries ?? []
   );
+
   const today = Date.now();
   const billingAlerts = workspaceCards
-    .filter((workspace) => workspace.billingCycleEnd)
     .map((workspace) => {
+      const summary = dashboardQuery.data?.workspaceSummaries.find((w) => w.id === workspace.id);
+      const end = summary?.billingCycleEnd;
+      if (!end) return null;
       const daysUntilRenewal = Math.ceil(
-        (new Date(workspace.billingCycleEnd as string).getTime() - today) / (24 * 60 * 60 * 1000)
+        (new Date(end).getTime() - today) / (24 * 60 * 60 * 1000)
       );
       return { workspace, daysUntilRenewal };
     })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
     .filter((item) => item.daysUntilRenewal >= 0 && item.daysUntilRenewal <= 3);
 
   const createWorkspaceMutation = useCreateWorkspaceMutation(async (workspaceId) => {
     setCurrentId(workspaceId);
     await refreshAuth();
-    setWorkspaceName("");
-    setCreateOpen(false);
     setShowLinkPrompt(true);
     toast.success("Workspace created");
   });
+
   const deleteWorkspaceMutation = useDeleteWorkspaceMutation(async (deletedWorkspaceId) => {
     const nextWorkspace = workspaceCards.find((workspace) => workspace.id !== deletedWorkspaceId);
     setCurrentId(nextWorkspace?.id ?? "");
@@ -141,334 +130,154 @@ export default function Dashboard() {
     toast.success("Workspace deleted");
   });
 
- 
   return (
-    <DashboardLayout title="Dashboard" subtitle="Plan, prioritize, and grow your audience.">
+    <DashboardLayout title="Dashboard" subtitle={current.name}>
       {dashboardQuery.error && (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div
+          role="alert"
+          className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
           {(dashboardQuery.error as Error).message}
         </div>
       )}
+
       {billingAlerts.map(({ workspace, daysUntilRenewal }) => (
-        <div key={workspace.id} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-accent/10 border border-accent/40 text-sm">
-          <AlertTriangle className="h-4 w-4 text-accent shrink-0" />
-          <span className="flex-1">
-            Workspace <strong>{workspace.handle ?? "Unlinked workspace"}</strong> renews in {daysUntilRenewal} day{daysUntilRenewal > 1 ? "s" : ""}
-          </span>
-          <button
-            type="button"
+        <div
+          key={workspace.id}
+          className="surface-card flex flex-col sm:flex-row sm:items-center gap-3 p-4 pl-5 border-accent/30 bg-accent/5"
+        >
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <AlertTriangle className="h-5 w-5 text-accent shrink-0 mt-0.5" />
+            <p className="text-sm leading-relaxed">
+              <strong className="text-foreground">{workspace.handle}</strong> renews in{" "}
+              {daysUntilRenewal} day{daysUntilRenewal !== 1 ? "s" : ""}.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full sm:w-auto h-10 shrink-0"
             onClick={() => {
               setCurrentId(workspace.id);
               void refreshAuth().then(() => navigate("/billing"));
             }}
-            className="text-accent font-medium hover:underline whitespace-nowrap"
           >
-            Update billing →
-          </button>
+            Update billing
+          </Button>
         </div>
       ))}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <Stat
-          icon={Zap}
-          label="DMs Sent This Month"
-          value={dashboardQuery.data?.totals.dmsSentThisMonth ?? 0}
-          trend={dashboardQuery.data?.totals.dmsTrendPercent ?? undefined}
-          sub={`Last month: ${(dashboardQuery.data?.totals.dmsSentLastMonth ?? 0).toLocaleString()}`}
-          highlight
-        />
-        <Stat
-          icon={Zap}
-          label="Automations"
-          value={dashboardQuery.data?.totals.activeAutomations ?? 0}
-          sub={`${dashboardQuery.data?.totals.totalAutomations ?? 0} total · ${(dashboardQuery.data?.totals.pausedAutomations ?? 0)} paused · ${(dashboardQuery.data?.totals.draftAutomations ?? 0)} draft`}
-        />
-        <Stat
-          icon={Link2}
-          label="Link Clicks"
-          value={dashboardQuery.data?.totals.linkClicksThisMonth ?? 0}
-          trend={dashboardQuery.data?.totals.clickTrendPercent ?? undefined}
-          sub={`Last month: ${(dashboardQuery.data?.totals.linkClicksLastMonth ?? 0).toLocaleString()}`}
-        />
-        <Stat icon={Users} label="Leads Captured" value={dashboardQuery.data?.totals.leadsCapturedThisMonth ?? 0} sub="this month" />
-        <Stat
-          icon={CalendarDays}
-          label="Scheduled posts"
-          value={dashboardQuery.data?.totals.schedulerScheduled ?? 0}
-          sub={`${dashboardQuery.data?.totals.schedulerDrafts ?? 0} drafts · ${dashboardQuery.data?.totals.postInsightsTracked ?? 0} with insights`}
-        />
-      </div>
+      <DashboardWelcome loading={loading} />
 
-      {workspaceCards.length > 0 && (
-        <section className="surface-card overflow-hidden">
-          <div className="card-section-head">
-            <h2 className="font-semibold text-sm">Workspace billing</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Next renewal date for each workspace</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                  <th className="px-5 py-3 font-medium">Workspace</th>
-                  <th className="px-5 py-3 font-medium">Plan</th>
-                  <th className="px-5 py-3 font-medium">Next billing</th>
-                </tr>
-              </thead>
-              <tbody>
-                {workspaceCards.map((workspace) => (
-                  <tr key={workspace.id}>
-                    <td className="px-5 py-3 font-medium">{workspace.handle}</td>
-                    <td className="px-5 py-3">
-                      <PlanBadge plan={workspace.plan} />
-                    </td>
-                    <td className="px-5 py-3 text-foreground">{workspace.nextBilling}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+      <DashboardQuickActions />
 
-      <div className="flex flex-wrap gap-2">
-        <Button variant="accent" onClick={() => navigate("/automations")}><Plus className="h-4 w-4" /> Create Automation</Button>
-        <Button variant="outline" onClick={() => navigate("/short-links")}><Link2 className="h-4 w-4" /> Add Short Link</Button>
-        <Button variant="outline" onClick={() => navigate("/scheduler")}>Schedule Post</Button>
-        <Button variant="outline" onClick={() => navigate("/analytics")}>View Analytics</Button>
-      </div>
-
-      <section className="surface-card overflow-hidden">
-        <div className="card-section-head flex items-center justify-between gap-3">
-          <h2 className="font-semibold text-sm">Recent Activity</h2>
-          <button type="button" onClick={() => navigate("/automations")} className="text-xs text-primary hover:underline shrink-0">View all →</button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr className="text-left text-xs text-muted-foreground border-b border-border">
-                <th className="px-5 py-3 font-medium">Post</th>
-                <th className="px-5 py-3 font-medium">Keyword</th>
-                <th className="px-5 py-3 font-medium">DMs Sent</th>
-                <th className="px-5 py-3 font-medium">Status</th>
-                <th className="px-5 py-3 font-medium">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(dashboardQuery.data?.recentActivities ?? []).map((activity) => (
-                <tr key={activity.id}>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-md bg-gradient-to-br from-primary/20 to-accent/20 shrink-0" />
-                      <span className="font-medium">{activity.title}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className="px-2 py-0.5 rounded-full bg-muted text-xs font-mono">{activity.keyword ?? "—"}</span>
-                  </td>
-                  <td className="px-5 py-3 font-mono">{(activity.dmsSentThisMonth ?? 0).toLocaleString()}</td>
-                  <td className="px-5 py-3">
-                    <StatusBadge
-                      status={
-                        activity.status === "PAUSED" ? "paused" : activity.status === "DRAFT" ? "draft" : "active"
-                      }
-                      withDot
-                    />
-                  </td>
-                  <td className="px-5 py-3 text-muted-foreground">{new Date(activity.createdAt).toLocaleDateString()}</td>
-                </tr>
-              ))}
-              {!dashboardQuery.isLoading && (dashboardQuery.data?.recentActivities.length ?? 0) === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-5 py-8 text-center text-muted-foreground">No recent activity found for this workspace.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      <section aria-label="Key metrics">
+        <h2 className="text-sm font-semibold text-foreground mb-3">This month</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
+          <DashboardStatCard
+            icon={Zap}
+            label="DMs sent"
+            value={totals?.dmsSentThisMonth ?? 0}
+            trend={totals?.dmsTrendPercent}
+            sub={`Last month: ${(totals?.dmsSentLastMonth ?? 0).toLocaleString()}`}
+            highlight
+            loading={loading}
+          />
+          <DashboardStatCard
+            icon={Zap}
+            label="Automations"
+            value={totals?.activeAutomations ?? 0}
+            sub={`${totals?.totalAutomations ?? 0} total`}
+            loading={loading}
+          />
+          <DashboardStatCard
+            icon={Link2}
+            label="Link clicks"
+            value={totals?.linkClicksThisMonth ?? 0}
+            trend={totals?.clickTrendPercent}
+            sub={`Last month: ${(totals?.linkClicksLastMonth ?? 0).toLocaleString()}`}
+            loading={loading}
+          />
+          <DashboardStatCard
+            icon={Users}
+            label="Leads"
+            value={totals?.leadsCapturedThisMonth ?? 0}
+            sub="Captured this month"
+            loading={loading}
+          />
+          <DashboardStatCard
+            icon={CalendarDays}
+            label="Scheduled"
+            value={totals?.schedulerScheduled ?? 0}
+            sub={`${totals?.schedulerDrafts ?? 0} drafts`}
+            loading={loading}
+          />
         </div>
       </section>
 
-      <section>
-        <h2 className="font-semibold text-sm mb-3">My Workspaces</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {workspaceCards.map((workspace) => (
-            <div
-              key={workspace.id}
-              className="surface-card p-5 pl-6 transition-colors duration-150"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2 min-w-0">
-                  <StatusDot
-                    status={getWorkspaceIndicatorStatus({
-                      status: workspace.status,
-                      instagramConnected: workspace.instagramConnected
-                    })}
-                  />
-                  <span className="font-semibold truncate">{workspace.handle}</span>
-                </div>
-                <PlanBadge plan={workspace.plan} />
-              </div>
-              <div className="space-y-0 mb-4 text-xs">
-                <div className="card-stat-row"><span className="text-muted-foreground">Next billing</span><span className="text-foreground font-medium">{workspace.nextBilling}</span></div>
-                <div className="card-stat-row"><span className="text-muted-foreground">DMs this month</span><span className="text-foreground font-mono tabular-nums">{workspace.dmsThisMonth.toLocaleString()}</span></div>
-                <div className="card-stat-row"><span className="text-muted-foreground">Leads this month</span><span className="text-foreground font-mono tabular-nums">{workspace.leadsThisMonth.toLocaleString()}</span></div>
-                <div className="card-stat-row"><span className="text-muted-foreground">Link clicks</span><span className="text-foreground font-mono tabular-nums">{workspace.clicksThisMonth.toLocaleString()}</span></div>
-                <div className="card-stat-row"><span className="text-muted-foreground">Active automations</span><span className="text-foreground font-mono tabular-nums">{workspace.activeAutomations.toLocaleString()}</span></div>
-              </div>
-              <div className="card-footer-bar !pt-3 !mt-0 !border-t-0 flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => navigate("/settings")}>Manage</Button>
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => {
-                    setCurrentId(workspace.id);
-                    void refreshAuth();
-                  }}
-                >
-                  Open <ArrowUpRight className="h-3 w-3" />
-                </Button>
-              </div>
-              <div className="mt-2">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="w-full"
-                  disabled={workspaceCards.length <= 1}
-                  onClick={() =>
-                    setWorkspaceToDelete({
-                      id: workspace.id,
-                      handle: workspace.handle
-                    })
-                  }
-                >
-                  Delete Workspace
-                </Button>
-              </div>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => setCreateOpen((prev) => !prev)}
-            className="p-5 rounded-xl border-2 border-dashed border-border/70 hover:border-primary/40 hover:bg-muted/20 transition-colors duration-150 flex flex-col items-center justify-center min-h-[180px] text-muted-foreground hover:text-primary"
-          >
-            <Plus className="h-6 w-6 mb-2" />
-            <span className="text-sm font-medium">Add Workspace</span>
-          </button>
-        </div>
-        {createOpen && (
-          <div className="mt-4 surface-card p-4 space-y-3">
-            <h3 className="font-semibold text-sm">Create Workspace</h3>
-            <Input
-              value={workspaceName}
-              onChange={(event) => setWorkspaceName(event.target.value)}
-              placeholder="Workspace name (optional)"
-              className="bg-input border-border max-w-md"
-              maxLength={80}
-            />
-            <p className="text-xs text-muted-foreground max-w-md">
-              Link Instagram separately in Settings. Only one free workspace is allowed per account.
-            </p>
-            <Button
-              className="w-full sm:w-auto"
-              disabled={createWorkspaceMutation.isPending}
-              onClick={() =>
-                createWorkspaceMutation.mutate(
-                  {
-                    name: workspaceName.trim() || undefined
-                  },
-                  { onError: (error) => toast.error((error as Error).message) }
-                )
-              }
-            >
-              {createWorkspaceMutation.isPending ? "Creating..." : "Create workspace"}
-            </Button>
-          </div>
-        )}
-      </section>
+      <DashboardActivityFeed
+        activities={dashboardQuery.data?.recentActivities ?? []}
+        loading={loading}
+      />
+
+      <DashboardWorkspaceGrid
+        workspaces={workspaceCards}
+        currentId={current.id}
+        onSelect={(id) => {
+          setCurrentId(id);
+          void refreshAuth();
+        }}
+        onDelete={setWorkspaceToDelete}
+        onCreate={(name) =>
+          createWorkspaceMutation.mutate(
+            { name },
+            { onError: (error) => toast.error((error as Error).message) }
+          )
+        }
+        creating={createWorkspaceMutation.isPending}
+        canDelete={workspaceCards.length > 1}
+      />
+
       <AlertDialog open={showLinkPrompt} onOpenChange={setShowLinkPrompt}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>Link Instagram for this workspace?</AlertDialogTitle>
+            <AlertDialogTitle>Link Instagram?</AlertDialogTitle>
             <AlertDialogDescription>
-              This workspace was created successfully. To run automations and workspace features, you need to link an Instagram account from settings.
+              Workspace created. Connect Instagram in Settings to run automations.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Not now</AlertDialogCancel>
-            <AlertDialogAction onClick={() => navigate("/settings")}>Yes, go to settings</AlertDialogAction>
+          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
+            <AlertDialogCancel className="mt-0">Later</AlertDialogCancel>
+            <AlertDialogAction onClick={() => navigate("/settings")}>Go to settings</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
       <AlertDialog open={Boolean(workspaceToDelete)} onOpenChange={(open) => !open && setWorkspaceToDelete(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{workspaceToDelete?.handle}</strong> and all its data, including automations, DMs, leads, links, and team mappings. This action cannot be undone.
+              Permanently delete <strong>{workspaceToDelete?.handle}</strong> and all related data. This
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
             <AlertDialogCancel disabled={deleteWorkspaceMutation.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={!workspaceToDelete || deleteWorkspaceMutation.isPending || workspaceCards.length <= 1}
               onClick={() => {
                 if (!workspaceToDelete) return;
                 deleteWorkspaceMutation.mutate(workspaceToDelete.id, {
-                  onError: (error) => toast.error((error as Error).message)
+                  onError: (error) => toast.error((error as Error).message),
                 });
               }}
             >
-              {deleteWorkspaceMutation.isPending ? "Deleting..." : "Delete workspace"}
+              {deleteWorkspaceMutation.isPending ? "Deleting…" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </DashboardLayout>
-  );
-}
-
-function Stat({
-  icon: Icon,
-  label,
-  value,
-  trend,
-  sub,
-  highlight
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: number;
-  trend?: number;
-  sub?: string;
-  highlight?: boolean;
-}) {
-  const up = (trend ?? 0) >= 0;
-  return (
-    <div className="surface-card p-5 pl-6 flex flex-col">
-      <div className="flex items-start justify-between gap-2 mb-4">
-        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
-        <div className="card-icon-badge">
-          <Icon className="h-4 w-4 text-primary" />
-        </div>
-      </div>
-      <div
-        className={cn(
-          "glass-inset rounded-xl px-3 py-3 flex-1",
-          highlight && "ring-1 ring-primary/20"
-        )}
-      >
-        <div className={`text-2xl lg:text-3xl font-bold tracking-tight tabular-nums ${highlight ? "auth-ig-gradient-text" : "text-foreground"}`}>
-          {(value ?? 0).toLocaleString()}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5 mt-2 text-xs">
-          {trend !== undefined && (
-            <span className={`inline-flex items-center gap-0.5 font-medium rounded-md px-1.5 py-0.5 ${up ? "text-success bg-success/10" : "text-destructive bg-destructive/10"}`}>
-              {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-              {Math.abs(trend)}%
-            </span>
-          )}
-          {sub && <span className="text-muted-foreground">{sub}</span>}
-        </div>
-      </div>
-    </div>
   );
 }

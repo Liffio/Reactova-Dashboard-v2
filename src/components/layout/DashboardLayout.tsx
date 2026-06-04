@@ -344,47 +344,58 @@ export function DashboardLayout({
       <AppSidebar mobileOpen={open} onClose={() => setOpen(false)} />
 
       <div className="relative z-10 flex flex-1 min-w-0 flex-col">
-        <header className="sticky top-0 z-30 glass-header">
-          <div className="flex items-center gap-3 px-3 lg:px-5 py-3.5 lg:py-4">
+        <header className="sticky top-0 z-30 glass-header safe-top">
+          <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 lg:px-6 py-3 sm:py-3.5">
             <button
               type="button"
-              className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-muted/60 transition-colors duration-150"
+              className="lg:hidden flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-muted/50 transition-colors"
               onClick={() => setOpen(true)}
               aria-label="Open menu"
             >
               <Menu className="h-5 w-5" />
             </button>
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg lg:text-xl font-semibold tracking-tight truncate">{title}</h1>
+              <h1 className="text-base sm:text-lg lg:text-xl font-semibold tracking-tight truncate">
+                {title}
+              </h1>
               {subtitle && (
-                <p className="text-xs text-muted-foreground truncate mt-0.5">{subtitle}</p>
+                <p className="text-xs text-muted-foreground truncate mt-0.5 md:hidden">{subtitle}</p>
               )}
             </div>
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full glass-pill">
-              <span className="text-sm text-muted-foreground">{current.handle}</span>
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full glass-pill max-w-[200px]">
+              <span className="text-sm text-muted-foreground truncate">{current.handle}</span>
               <PlanBadge plan={current.plan} />
             </div>
 
             <NotificationPanel open={notificationsOpen} onOpenChange={setNotificationsOpen} />
 
-            <ThemeToggle />
+            <ThemeToggle className="glass-pill border-0 h-10 w-10 shrink-0 hidden sm:flex" />
             {headerActions}
             <div
-              className="auth-ig-ring h-9 w-9 shrink-0 rounded-full p-[2px]"
+              className="auth-ig-ring h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-full p-[2px]"
               title={user?.name ?? "User"}
             >
-              <span className="flex h-full w-full items-center justify-center rounded-full glass-inset text-primary font-semibold text-sm">
+              <span className="flex h-full w-full items-center justify-center rounded-full glass-inset text-primary font-semibold text-xs sm:text-sm">
                 {(user?.name ?? "NA").split(" ").map((n) => n[0]).join("")}
               </span>
             </div>
           </div>
+          <div className="md:hidden px-3 sm:px-4 pb-2.5 flex items-center gap-2">
+            <span className="text-xs text-muted-foreground shrink-0">Workspace</span>
+            <div className="flex items-center gap-2 min-w-0 flex-1 glass-pill px-2.5 py-1">
+              <span className="text-xs font-medium truncate">{current.handle}</span>
+              <PlanBadge plan={current.plan} />
+            </div>
+          </div>
           {actions && (
-            <div className="px-4 lg:px-6 pb-3 flex flex-wrap gap-2 justify-end">{actions}</div>
+            <div className="px-3 sm:px-4 lg:px-6 pb-3 flex flex-col sm:flex-row flex-wrap gap-2 sm:justify-end">
+              {actions}
+            </div>
           )}
         </header>
 
-        <main className="flex-1 px-4 lg:px-6 py-5 lg:py-6 container w-full">
-          <div className="space-y-5 lg:space-y-6">{children}</div>
+        <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-5 lg:py-6 pb-8 safe-bottom">
+          <div className="space-y-4 sm:space-y-5 lg:space-y-6">{children}</div>
         </main>
       </div>
     </div>

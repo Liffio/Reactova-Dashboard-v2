@@ -418,6 +418,30 @@
     border-top: 1px solid hsl(var(--foreground) / 0.08);
   }
 
+  .dashboard-action-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .dashboard-action-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dashboard-action-tile {
+    scroll-snap-align: start;
+  }
+
+  @supports (padding: max(0px)) {
+    .safe-top {
+      padding-top: max(0.75rem, env(safe-area-inset-top));
+    }
+
+    .safe-bottom {
+      padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    }
+  }
+
   .glass-inset {
     background: linear-gradient(
       135deg,

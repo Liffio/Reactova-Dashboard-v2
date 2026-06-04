@@ -289,7 +289,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
         </nav>
 
         <div className="sidebar-footer p-3 border-t border-border/50">
-          <UserAccountMenu variant="profile" />
+          <UserAccountMenu fullWidth />
         </div>
       </aside>
 

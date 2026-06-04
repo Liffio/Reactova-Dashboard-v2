@@ -372,7 +372,7 @@ export function DashboardLayout({
 
             <ThemeToggle className="glass-pill border-0 shrink-0 p-1.5 hidden sm:flex" />
             {headerActions}
-            <UserAccountMenu size="sm" variant="avatar" className="shrink-0" />
+            <UserAccountMenu size="sm" className="shrink-0" />
           </div>
           <div className="md:hidden px-3 sm:px-4 pb-2.5 flex items-center gap-2">
             <span className="text-xs text-muted-foreground shrink-0">Workspace</span>

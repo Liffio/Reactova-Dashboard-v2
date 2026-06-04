@@ -1,55 +1,41 @@
-import { BarChart2, CalendarDays, Link2, Plus, type LucideIcon } from "lucide-react";
+import { BarChart2, CalendarDays, ChevronRight, Link2, Plus, type LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { cn } from "@/lib/utils";
 
 const ACTIONS: Array<{
   label: string;
-  description: string;
   icon: LucideIcon;
   to: string;
-  primary?: boolean;
 }> = [
-  { label: "Automation", description: "Reply to comments & DMs", icon: Plus, to: "/automations", primary: true },
-  { label: "Short link", description: "Track every click", icon: Link2, to: "/short-links" },
-  { label: "Schedule", description: "Plan posts & stories", icon: CalendarDays, to: "/scheduler" },
-  { label: "Analytics", description: "Performance overview", icon: BarChart2, to: "/analytics" },
+  { label: "New automation", icon: Plus, to: "/automations" },
+  { label: "Short links", icon: Link2, to: "/short-links" },
+  { label: "Scheduler", icon: CalendarDays, to: "/scheduler" },
+  { label: "Analytics", icon: BarChart2, to: "/analytics" },
 ];
 
 export function DashboardQuickActions() {
   const navigate = useNavigate();
 
   return (
-    <section aria-label="Quick actions">
-      <h2 className="text-sm font-semibold text-foreground mb-3">Quick actions</h2>
-      <div className="dashboard-action-scroll flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:overflow-visible sm:gap-3">
+    <section className="surface-card overflow-hidden">
+      <div className="dashboard-panel-head">
+        <h3 className="text-sm font-semibold text-foreground">Shortcuts</h3>
+      </div>
+      <nav className="dashboard-shortcuts" aria-label="Quick actions">
         {ACTIONS.map((action) => (
           <button
             key={action.to}
             type="button"
             onClick={() => navigate(action.to)}
-            className={cn(
-              "dashboard-action-tile surface-card flex min-w-[9.5rem] sm:min-w-0 flex-col items-start gap-2 p-4 text-left",
-              "active:scale-[0.98] transition-transform",
-              action.primary && "ring-1 ring-primary/20"
-            )}
+            className="dashboard-shortcut-row"
           >
-            <span
-              className={cn(
-                "flex h-10 w-10 items-center justify-center rounded-xl",
-                action.primary
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "glass-inset text-primary"
-              )}
-            >
-              <action.icon className="h-5 w-5" />
+            <span className="dashboard-shortcut-icon">
+              <action.icon className="h-4 w-4" />
             </span>
-            <span>
-              <span className="block text-sm font-semibold text-foreground">{action.label}</span>
-              <span className="block text-xs text-muted-foreground mt-0.5">{action.description}</span>
-            </span>
+            <span className="flex-1 text-left text-sm font-medium">{action.label}</span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground/60 shrink-0" />
           </button>
         ))}
-      </div>
+      </nav>
     </section>
   );
 }

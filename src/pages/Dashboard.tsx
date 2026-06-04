@@ -1,15 +1,16 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { AlertTriangle, CalendarDays, Link2, Users, Zap } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Layers, Link2, MessageCircle, Users } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { DashboardActivityFeed } from "@/components/dashboard/DashboardActivityFeed";
+import { DashboardHero } from "@/components/dashboard/DashboardHero";
+import { DashboardMetricStrip, type DashboardMetricItem } from "@/components/dashboard/DashboardMetricStrip";
 import { DashboardQuickActions } from "@/components/dashboard/DashboardQuickActions";
-import { DashboardStatCard } from "@/components/dashboard/DashboardStatCard";
-import { DashboardWelcome } from "@/components/dashboard/DashboardWelcome";
 import {
   DashboardWorkspaceGrid,
   type DashboardWorkspaceCardData,
 } from "@/components/dashboard/DashboardWorkspaceGrid";
+import { PageAlert } from "@/components/page/PageAlert";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
 import { useApp, type Workspace } from "@/state/AppContext";
@@ -102,19 +103,51 @@ export default function Dashboard() {
     dashboardQuery.data?.workspaceSummaries ?? []
   );
 
-  const today = Date.now();
-  const billingAlerts = workspaceCards
-    .map((workspace) => {
-      const summary = dashboardQuery.data?.workspaceSummaries.find((w) => w.id === workspace.id);
-      const end = summary?.billingCycleEnd;
-      if (!end) return null;
-      const daysUntilRenewal = Math.ceil(
-        (new Date(end).getTime() - today) / (24 * 60 * 60 * 1000)
-      );
-      return { workspace, daysUntilRenewal };
-    })
-    .filter((item): item is NonNullable<typeof item> => item !== null)
-    .filter((item) => item.daysUntilRenewal >= 0 && item.daysUntilRenewal <= 3);
+  const billingAlert = useMemo(() => {
+    const today = Date.now();
+    const currentSummary = dashboardQuery.data?.workspaceSummaries.find((w) => w.id === current.id);
+    const end = currentSummary?.billingCycleEnd;
+    if (!end) return null;
+    const daysUntilRenewal = Math.ceil((new Date(end).getTime() - today) / (24 * 60 * 60 * 1000));
+    if (daysUntilRenewal < 0 || daysUntilRenewal > 3) return null;
+    return daysUntilRenewal;
+  }, [current.id, dashboardQuery.data?.workspaceSummaries]);
+
+  const metrics: DashboardMetricItem[] = useMemo(
+    () => [
+      {
+        id: "dms",
+        icon: MessageCircle,
+        label: "DMs sent",
+        value: totals?.dmsSentThisMonth ?? 0,
+        trend: totals?.dmsTrendPercent,
+        sub: `Prior: ${(totals?.dmsSentLastMonth ?? 0).toLocaleString()}`,
+      },
+      {
+        id: "clicks",
+        icon: Link2,
+        label: "Link clicks",
+        value: totals?.linkClicksThisMonth ?? 0,
+        trend: totals?.clickTrendPercent,
+        sub: `Prior: ${(totals?.linkClicksLastMonth ?? 0).toLocaleString()}`,
+      },
+      {
+        id: "leads",
+        icon: Users,
+        label: "Leads",
+        value: totals?.leadsCapturedThisMonth ?? 0,
+        sub: "Captured this month",
+      },
+      {
+        id: "automations",
+        icon: Layers,
+        label: "Active flows",
+        value: totals?.activeAutomations ?? 0,
+        sub: `${totals?.totalAutomations ?? 0} total`,
+      },
+    ],
+    [totals]
+  );
 
   const createWorkspaceMutation = useCreateWorkspaceMutation(async (workspaceId) => {
     setCurrentId(workspaceId);
@@ -133,111 +166,56 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout title="Dashboard" subtitle={current.name}>
-      {dashboardQuery.error && (
-        <div
-          role="alert"
-          className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-        >
-          {(dashboardQuery.error as Error).message}
-        </div>
-      )}
+      <div className="dashboard-page space-y-5 sm:space-y-6">
+        {dashboardQuery.error && (
+          <PageAlert>{(dashboardQuery.error as Error).message}</PageAlert>
+        )}
 
-      {billingAlerts.map(({ workspace, daysUntilRenewal }) => (
-        <div
-          key={workspace.id}
-          className="surface-card flex flex-col sm:flex-row sm:items-center gap-3 p-4 pl-5 border-accent/30 bg-accent/5"
-        >
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <AlertTriangle className="h-5 w-5 text-accent shrink-0 mt-0.5" />
-            <p className="text-sm leading-relaxed">
-              <strong className="text-foreground">{workspace.handle}</strong> renews in{" "}
-              {daysUntilRenewal} day{daysUntilRenewal !== 1 ? "s" : ""}.
+        {billingAlert !== null && (
+          <div className="dashboard-billing-banner">
+            <AlertTriangle className="h-4 w-4 text-accent shrink-0" />
+            <p className="text-sm flex-1 min-w-0">
+              Billing renews in <strong>{billingAlert}</strong> day{billingAlert !== 1 ? "s" : ""}.
             </p>
+            <Button variant="outline" size="sm" className="shrink-0 h-8" onClick={() => navigate("/billing")}>
+              Manage billing
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full sm:w-auto h-10 shrink-0"
-            onClick={() => {
-              setCurrentId(workspace.id);
-              void refreshAuth().then(() => navigate("/billing"));
-            }}
-          >
-            Update billing
-          </Button>
+        )}
+
+        <DashboardHero loading={loading} />
+
+        <DashboardMetricStrip metrics={metrics} loading={loading} />
+
+        <div className="dashboard-main-grid">
+          <div className="dashboard-main-primary min-w-0">
+            <DashboardActivityFeed
+              activities={dashboardQuery.data?.recentActivities ?? []}
+              loading={loading}
+            />
+          </div>
+          <aside className="dashboard-main-aside space-y-4 sm:space-y-5">
+            <DashboardQuickActions />
+            <DashboardWorkspaceGrid
+              workspaces={workspaceCards}
+              currentId={current.id}
+              onSelect={(id) => {
+                setCurrentId(id);
+                void refreshAuth();
+              }}
+              onDelete={setWorkspaceToDelete}
+              onCreate={(name) =>
+                createWorkspaceMutation.mutate(
+                  { name },
+                  { onError: (error) => toast.error((error as Error).message) }
+                )
+              }
+              creating={createWorkspaceMutation.isPending}
+              canDelete={workspaceCards.length > 1}
+            />
+          </aside>
         </div>
-      ))}
-
-      <DashboardWelcome loading={loading} />
-
-      <DashboardQuickActions />
-
-      <section aria-label="Key metrics">
-        <h2 className="text-sm font-semibold text-foreground mb-3">This month</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
-          <DashboardStatCard
-            icon={Zap}
-            label="DMs sent"
-            value={totals?.dmsSentThisMonth ?? 0}
-            trend={totals?.dmsTrendPercent}
-            sub={`Last month: ${(totals?.dmsSentLastMonth ?? 0).toLocaleString()}`}
-            highlight
-            loading={loading}
-          />
-          <DashboardStatCard
-            icon={Zap}
-            label="Automations"
-            value={totals?.activeAutomations ?? 0}
-            sub={`${totals?.totalAutomations ?? 0} total`}
-            loading={loading}
-          />
-          <DashboardStatCard
-            icon={Link2}
-            label="Link clicks"
-            value={totals?.linkClicksThisMonth ?? 0}
-            trend={totals?.clickTrendPercent}
-            sub={`Last month: ${(totals?.linkClicksLastMonth ?? 0).toLocaleString()}`}
-            loading={loading}
-          />
-          <DashboardStatCard
-            icon={Users}
-            label="Leads"
-            value={totals?.leadsCapturedThisMonth ?? 0}
-            sub="Captured this month"
-            loading={loading}
-          />
-          <DashboardStatCard
-            icon={CalendarDays}
-            label="Scheduled"
-            value={totals?.schedulerScheduled ?? 0}
-            sub={`${totals?.schedulerDrafts ?? 0} drafts`}
-            loading={loading}
-          />
-        </div>
-      </section>
-
-      <DashboardActivityFeed
-        activities={dashboardQuery.data?.recentActivities ?? []}
-        loading={loading}
-      />
-
-      <DashboardWorkspaceGrid
-        workspaces={workspaceCards}
-        currentId={current.id}
-        onSelect={(id) => {
-          setCurrentId(id);
-          void refreshAuth();
-        }}
-        onDelete={setWorkspaceToDelete}
-        onCreate={(name) =>
-          createWorkspaceMutation.mutate(
-            { name },
-            { onError: (error) => toast.error((error as Error).message) }
-          )
-        }
-        creating={createWorkspaceMutation.isPending}
-        canDelete={workspaceCards.length > 1}
-      />
+      </div>
 
       <LinkInstagramPromptDialog open={showLinkPrompt} onOpenChange={setShowLinkPrompt} />
 

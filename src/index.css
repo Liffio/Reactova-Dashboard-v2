@@ -436,6 +436,73 @@
     min-width: 0;
   }
 
+  .dashboard-page {
+    max-width: 100%;
+  }
+
+  .dashboard-hero {
+    @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4;
+  }
+
+  .dashboard-hero-workspace {
+    @apply flex items-center gap-3 rounded-xl px-3 py-2.5 w-full sm:w-auto sm:max-w-xs;
+  }
+
+  .dashboard-hero-settings {
+    @apply flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors;
+    @apply hover:text-foreground hover:bg-foreground/10;
+  }
+
+  .dashboard-billing-banner {
+    @apply surface-card flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 pl-5;
+    @apply border-accent/25 bg-accent/5;
+  }
+
+  .dashboard-metrics-head {
+    @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 px-4 sm:px-5 py-3 border-b border-border/40;
+  }
+
+  .dashboard-metric-cell {
+    @apply p-4 sm:p-5;
+  }
+
+  .dashboard-panel-head {
+    @apply px-4 sm:px-5 py-3 border-b border-border/40;
+  }
+
+  .dashboard-main-grid {
+    @apply grid grid-cols-1 xl:grid-cols-[1fr_17.5rem] gap-4 sm:gap-5 items-start;
+  }
+
+  .dashboard-shortcuts {
+    @apply py-1;
+  }
+
+  .dashboard-shortcut-row {
+    @apply flex w-full items-center gap-3 px-4 py-3 text-left transition-colors;
+    @apply hover:bg-foreground/[0.04] active:bg-foreground/[0.06];
+  }
+
+  .dashboard-shortcut-row + .dashboard-shortcut-row {
+    border-top: 1px solid hsl(var(--border) / 0.35);
+  }
+
+  .dashboard-shortcut-icon {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg;
+    background: hsl(var(--primary) / 0.1);
+    color: hsl(var(--primary));
+    border: 1px solid hsl(var(--primary) / 0.15);
+  }
+
+  .dashboard-workspace-row {
+    @apply flex items-center gap-3 px-4 py-3 transition-colors;
+    @apply hover:bg-foreground/[0.04] disabled:cursor-default;
+  }
+
+  .dashboard-workspace-row-active {
+    background: hsl(var(--primary) / 0.06);
+  }
+
   .page-toolbar .w-full-mobile {
     @apply w-full sm:w-auto;
   }
@@ -897,25 +964,22 @@
   }
 
   .account-dropdown-panel {
-    max-height: min(70vh, 26rem);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .account-dropdown-header {
-    background: linear-gradient(
-      165deg,
-      hsl(var(--primary) / 0.1) 0%,
-      hsl(var(--card) / 0.35) 50%,
-      transparent 100%
-    );
+    overflow: visible;
   }
 
   .account-dropdown-body {
-    overflow-y: auto;
-    max-height: min(50vh, 18rem);
-    scrollbar-width: thin;
+    overflow: visible;
+  }
+
+  .account-dropdown-panel,
+  .account-dropdown-body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .account-dropdown-panel::-webkit-scrollbar,
+  .account-dropdown-body::-webkit-scrollbar {
+    display: none;
   }
 
   .account-dropdown-section-label {

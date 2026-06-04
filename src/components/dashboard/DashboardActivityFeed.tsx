@@ -13,36 +13,6 @@ function statusFor(activity: Activity) {
   return "active" as const;
 }
 
-function ActivityCard({ activity }: { activity: Activity }) {
-  return (
-    <div className="glass-inset rounded-xl p-4 space-y-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="h-11 w-11 shrink-0 rounded-lg bg-gradient-to-br from-primary/25 to-accent/15" />
-          <div className="min-w-0">
-            <p className="font-semibold text-sm leading-snug line-clamp-2">{activity.title}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {new Date(activity.createdAt).toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-              })}
-            </p>
-          </div>
-        </div>
-        <StatusBadge status={statusFor(activity)} withDot />
-      </div>
-      <div className="flex items-center justify-between text-xs pt-1 border-t border-border/40">
-        <span className="text-muted-foreground">Keyword</span>
-        <span className="font-mono px-2 py-0.5 rounded-md bg-muted/50">{activity.keyword ?? "—"}</span>
-      </div>
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-muted-foreground">DMs sent</span>
-        <span className="font-mono font-semibold tabular-nums">{activity.dmsSentThisMonth.toLocaleString()}</span>
-      </div>
-    </div>
-  );
-}
-
 export function DashboardActivityFeed({
   activities,
   loading,
@@ -52,18 +22,19 @@ export function DashboardActivityFeed({
 }) {
   const navigate = useNavigate();
   const empty = !loading && activities.length === 0;
+  const preview = activities.slice(0, 6);
 
   return (
-    <section className="surface-card overflow-hidden">
-      <div className="card-section-head flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+    <section className="surface-card overflow-hidden min-w-0">
+      <div className="dashboard-panel-head flex-row items-center justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-sm">Recent activity</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Latest automation performance</p>
+          <h3 className="text-sm font-semibold text-foreground">Recent automations</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Latest runs in this workspace</p>
         </div>
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 px-2 self-start sm:self-center text-xs"
+          className="h-8 shrink-0 text-xs text-muted-foreground hover:text-foreground"
           onClick={() => navigate("/automations")}
         >
           View all
@@ -72,68 +43,67 @@ export function DashboardActivityFeed({
       </div>
 
       {loading ? (
-        <div className="p-4 space-y-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+        <div className="p-4 space-y-2">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-11 w-full rounded-lg" />
           ))}
         </div>
       ) : empty ? (
-        <div className="px-4 py-10 sm:py-12 text-center">
-          <p className="text-sm font-medium text-foreground">No activity yet</p>
-          <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
-            Create an automation to start capturing comments and sending DMs.
+        <div className="px-4 py-12 text-center border-t border-border/40">
+          <p className="text-sm font-medium">No automations yet</p>
+          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+            Create your first automation to start replying to comments and sending DMs.
           </p>
           <Button size="sm" className="mt-4" onClick={() => navigate("/automations")}>
             Create automation
           </Button>
         </div>
       ) : (
-        <>
-          <div className="hidden md:block overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th className="px-4 lg:px-5 py-3 font-medium">Post</th>
-                  <th className="px-4 lg:px-5 py-3 font-medium">Keyword</th>
-                  <th className="px-4 lg:px-5 py-3 font-medium">DMs</th>
-                  <th className="px-4 lg:px-5 py-3 font-medium">Status</th>
-                  <th className="px-4 lg:px-5 py-3 font-medium">Date</th>
+        <div className="overflow-x-auto border-t border-border/40">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className="px-4 lg:px-5 py-3">Automation</th>
+                <th className="px-4 lg:px-5 py-3">Keyword</th>
+                <th className="px-4 lg:px-5 py-3 text-right">DMs</th>
+                <th className="px-4 lg:px-5 py-3">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {preview.map((activity) => (
+                <tr
+                  key={activity.id}
+                  className="cursor-pointer hover:bg-primary/[0.04]"
+                  onClick={() => navigate("/automations")}
+                >
+                  <td className="px-4 lg:px-5 py-3">
+                    <p className="font-medium text-sm truncate max-w-[200px] lg:max-w-[280px]">
+                      {activity.title}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {new Date(activity.createdAt).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </p>
+                  </td>
+                  <td className="px-4 lg:px-5 py-3">
+                    <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-muted/60">
+                      {activity.keyword ?? "—"}
+                    </span>
+                  </td>
+                  <td className="px-4 lg:px-5 py-3 text-right font-mono text-sm tabular-nums">
+                    {activity.dmsSentThisMonth.toLocaleString()}
+                  </td>
+                  <td className="px-4 lg:px-5 py-3">
+                    <StatusBadge status={statusFor(activity)} withDot />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {activities.map((activity) => (
-                  <tr key={activity.id}>
-                    <td className="px-4 lg:px-5 py-3.5">
-                      <div className="flex items-center gap-3 min-w-0 max-w-[240px]">
-                        <div className="h-9 w-9 shrink-0 rounded-lg bg-gradient-to-br from-primary/25 to-accent/15" />
-                        <span className="font-medium text-sm truncate">{activity.title}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 lg:px-5 py-3.5">
-                      <span className="px-2 py-0.5 rounded-full bg-muted text-xs font-mono">
-                        {activity.keyword ?? "—"}
-                      </span>
-                    </td>
-                    <td className="px-4 lg:px-5 py-3.5 font-mono tabular-nums text-sm">
-                      {activity.dmsSentThisMonth.toLocaleString()}
-                    </td>
-                    <td className="px-4 lg:px-5 py-3.5">
-                      <StatusBadge status={statusFor(activity)} withDot />
-                    </td>
-                    <td className="px-4 lg:px-5 py-3.5 text-sm text-muted-foreground whitespace-nowrap">
-                      {new Date(activity.createdAt).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="md:hidden p-3 sm:p-4 space-y-3">
-            {activities.map((activity) => (
-              <ActivityCard key={activity.id} activity={activity} />
-            ))}
-          </div>
-        </>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

@@ -150,6 +150,21 @@ export function useSchedulerPlatformAccountsQuery(workspaceId: string) {
   });
 }
 
+export function useDeletePlatformAccountMutation(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (accountId: string) =>
+      apiRequest<void>(`/api/v1/scheduler/platform-accounts/${accountId}`, {
+        method: "DELETE",
+        workspaceId
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["scheduler", "platform-accounts", workspaceId] });
+      void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+    }
+  });
+}
+
 export function useSchedulerAutomationTemplatesQuery(workspaceId: string) {
   return useQuery({
     queryKey: ["scheduler", "automation-templates", workspaceId],

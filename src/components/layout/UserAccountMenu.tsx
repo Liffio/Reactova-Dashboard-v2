@@ -4,13 +4,16 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { useApp } from "@/state/AppContext";
 import { useAccountNavItems, type AccountNavLink } from "@/hooks/useAccountNavItems";
 import { useLogoutMutation } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { ChevronsUpDown } from "lucide-react";
 
 function userInitials(name: string | undefined) {
   return (name ?? "NA")
@@ -31,12 +34,10 @@ function AccountDropdownItem({
 }) {
   const Icon = item.icon;
   return (
-    <DropdownMenuItem asChild className="account-dropdown-item cursor-pointer">
-      <Link to={item.to} onClick={onClose} className="flex w-full items-center gap-2.5">
-        <span className="account-dropdown-icon">
-          <Icon className="h-3.5 w-3.5" />
-        </span>
-        <span>{item.label}</span>
+    <DropdownMenuItem asChild className="cursor-pointer">
+      <Link to={item.to} onClick={onClose} className="flex w-full items-center">
+        <Icon className="mr-2 h-4 w-4" />
+        {item.label}
       </Link>
     </DropdownMenuItem>
   );
@@ -53,55 +54,95 @@ function AccountMenuItems({ onClose }: { onClose: () => void }) {
     navigate("/login");
   };
 
-  const sections = [
-    { title: "Account", items: nav.primary },
-    { title: "Workspace", items: nav.settings },
-    { title: "Programs", items: nav.programs },
-    { title: "Platform admin", items: nav.admin },
+  const sections: { label: string; items: AccountNavLink[] }[] = [
+    { label: "My account", items: nav.primary },
+    { label: "Workspace", items: nav.settings },
+    { label: "Programs", items: nav.programs },
+    { label: "Platform admin", items: nav.admin },
   ].filter((section) => section.items.length > 0);
 
   return (
-    <div className="account-dropdown-body py-1">
+    <>
       {sections.map((section, index) => (
-        <div key={section.title}>
-          {index > 0 && <DropdownMenuSeparator className="account-dropdown-separator" />}
-          <p className="account-dropdown-section-label">{section.title}</p>
+        <div key={section.label}>
+          {index > 0 ? <DropdownMenuSeparator /> : null}
+          <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
+            {section.label}
+          </DropdownMenuLabel>
           {section.items.map((item) => (
             <AccountDropdownItem key={item.id} item={item} onClose={onClose} />
           ))}
         </div>
       ))}
-      {sections.length > 0 && <DropdownMenuSeparator className="account-dropdown-separator" />}
+      {sections.length > 0 ? <DropdownMenuSeparator /> : null}
       <DropdownMenuItem
-        className="account-dropdown-item account-dropdown-item-danger cursor-pointer mx-1.5"
+        className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
         disabled={logoutMutation.isPending}
         onClick={() => void handleLogout()}
       >
-        <span className="account-dropdown-icon account-dropdown-icon-danger">
-          <nav.logout.icon className="h-3.5 w-3.5" />
-        </span>
-        <span>{logoutMutation.isPending ? "Signing out…" : nav.logout.label}</span>
+        <nav.logout.icon className="mr-2 h-4 w-4" />
+        {logoutMutation.isPending ? "Signing out…" : nav.logout.label}
       </DropdownMenuItem>
-    </div>
+    </>
   );
 }
 
 type UserAccountMenuProps = {
   className?: string;
   size?: "sm" | "md";
-  /** Wider hit area for sidebar footer */
+  /** @deprecated Use variant="sidebar" */
   fullWidth?: boolean;
+  variant?: "header" | "sidebar";
 };
 
 export function UserAccountMenu({
   className,
   size = "md",
   fullWidth = false,
+  variant = fullWidth ? "sidebar" : "header",
 }: UserAccountMenuProps) {
   const { user } = useApp();
+  const { isMobile, setOpenMobile } = useSidebar();
   const [open, setOpen] = useState(false);
-  const dim = size === "sm" ? "h-9 w-9 text-xs" : "h-10 w-10 text-sm";
+  const dim = size === "sm" ? "h-8 w-8 text-[11px]" : "h-9 w-9 text-xs";
   const displayName = user?.name?.trim() || "Account";
+  const email = user?.email?.trim();
+
+  const closeMenu = () => {
+    setOpen(false);
+    if (isMobile) setOpenMobile(false);
+  };
+
+  if (variant === "sidebar") {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <DropdownMenu open={open} onOpenChange={setOpen}>
+            <DropdownMenuTrigger asChild>
+              <SidebarMenuButton size="lg" tooltip={displayName}>
+                <span className="liffio-sidebar-avatar tabular-nums">{userInitials(user?.name)}</span>
+                <span className="grid min-w-0 flex-1 text-left leading-tight">
+                  <span className="truncate text-sm font-semibold text-sidebar-foreground">{displayName}</span>
+                  {email ? (
+                    <span className="truncate text-[11px] text-muted-foreground">{email}</span>
+                  ) : null}
+                </span>
+                <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground/60" />
+              </SidebarMenuButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+              side="top"
+              align="end"
+              sideOffset={4}
+            >
+              <AccountMenuItems onClose={closeMenu} />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -109,41 +150,26 @@ export function UserAccountMenu({
         <button
           type="button"
           aria-label="Open account menu"
+          aria-expanded={open}
           className={cn(
-            "group flex items-center gap-2 rounded-xl transition-colors outline-none min-w-0",
-            "focus-visible:ring-2 focus-visible:ring-primary/40",
-            "hover:bg-foreground/5",
-            fullWidth && "w-full px-2 py-2",
+            "group flex items-center gap-2 outline-none min-w-0 transition-colors",
+            "focus-visible:ring-2 focus-visible:ring-ring",
+            "hover:bg-muted/70",
             className
           )}
         >
-          <div className={cn("auth-ig-ring shrink-0 rounded-full p-[2px]", dim)}>
-            <span
-              className={cn(
-                "flex h-full w-full items-center justify-center rounded-full glass-inset text-primary font-semibold",
-                size === "sm" ? "text-xs" : "text-sm"
-              )}
-            >
-              {userInitials(user?.name)}
-            </span>
-          </div>
-          <span
-            className={cn(
-              "text-sm font-medium truncate text-foreground min-w-0",
-              fullWidth ? "flex-1 text-left" : "max-w-[5.5rem] sm:max-w-[8rem]"
-            )}
-          >
-            {displayName}
+         
+          <span className="grid min-w-0 flex-1 text-left leading-tight">
+            <span className="truncate text-sm font-semibold text-sidebar-foreground">{displayName}</span>
+            {email ? (
+              <span className="truncate text-[11px] text-muted-foreground">{email}</span>
+            ) : null}
           </span>
+          <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground/60" />
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent
-        align={fullWidth ? "start" : "end"}
-        side={fullWidth ? "top" : "bottom"}
-        sideOffset={8}
-        className="account-dropdown-panel z-[60] w-52 p-0"
-      >
+      <DropdownMenuContent align="end" sideOffset={8} className="z-[60] w-56">
         <AccountMenuItems onClose={() => setOpen(false)} />
       </DropdownMenuContent>
     </DropdownMenu>

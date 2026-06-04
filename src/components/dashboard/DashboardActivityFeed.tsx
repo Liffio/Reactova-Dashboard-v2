@@ -73,7 +73,7 @@ export function DashboardActivityFeed({
               {preview.map((activity) => (
                 <tr
                   key={activity.id}
-                  className="cursor-pointer hover:bg-primary/[0.04]"
+                  className="cursor-pointer hover:bg-muted/50"
                   onClick={() => navigate("/automations")}
                 >
                   <td className="px-4 lg:px-5 py-3">

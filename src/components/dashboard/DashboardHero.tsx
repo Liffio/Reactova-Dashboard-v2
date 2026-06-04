@@ -2,6 +2,7 @@ import { Instagram, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PlanBadge } from "@/components/PlanBadge";
 import { StatusDot } from "@/components/StatusBadge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getWorkspaceIndicatorStatus } from "@/lib/workspaceIndicator";
 import { useApp } from "@/state/AppContext";
@@ -14,7 +15,7 @@ export function DashboardHero({ loading }: { loading?: boolean }) {
     return (
       <div className="dashboard-hero">
         <Skeleton className="h-7 w-56" />
-        <Skeleton className="h-9 w-40 rounded-full" />
+        <Skeleton className="h-14 w-full max-w-xs rounded-xl" />
       </div>
     );
   }
@@ -29,11 +30,11 @@ export function DashboardHero({ loading }: { loading?: boolean }) {
           Performance overview for <span className="text-foreground font-medium">{current.name}</span>
         </p>
       </div>
-      <div className="dashboard-hero-workspace glass-inset">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
-          <Instagram className="h-4 w-4 text-primary" />
+      <div className="dashboard-hero-workspace flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 w-full sm:w-auto sm:max-w-xs shadow-sm">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/50">
+          <Instagram className="h-4 w-4 text-muted-foreground" />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <StatusDot
               status={getWorkspaceIndicatorStatus({
@@ -43,15 +44,13 @@ export function DashboardHero({ loading }: { loading?: boolean }) {
             />
             <span className="text-sm font-medium truncate">{current.name}</span>
           </div>
-          <PlanBadge plan={current.plan} />
+          <PlanBadge plan={current.plan} className="mt-1" />
         </div>
-        <Link
-          to="/settings"
-          className="dashboard-hero-settings shrink-0"
-          aria-label="Workspace settings"
-        >
-          <Settings className="h-4 w-4" />
-        </Link>
+        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
+          <Link to="/settings" aria-label="Workspace settings">
+            <Settings className="h-4 w-4" />
+          </Link>
+        </Button>
       </div>
     </div>
   );

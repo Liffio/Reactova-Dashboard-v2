@@ -8,7 +8,6 @@ import {
   CheckCheck,
   CheckCircle,
   CreditCard,
-  Menu,
   MessageSquareOff,
   Pause,
   Play,
@@ -22,8 +21,10 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useApp } from "@/state/AppContext";
 import { PlanBadge } from "@/components/PlanBadge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -39,30 +40,29 @@ import {
 import { useAcceptInviteByIdMutation } from "@/hooks/useTeamAccess";
 import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
-import { AppShellBackdrop } from "@/components/layout/AppShellBackdrop";
 import { UserAccountMenu } from "@/components/layout/UserAccountMenu";
 
 // ─── Notification type config ────────────────────────────────────────────────
 
-type TypeConfig = { icon: LucideIcon; bg: string; fg: string };
+type TypeConfig = { icon: LucideIcon };
 
 const TYPE_CONFIG: Record<string, TypeConfig> = {
-  WORKSPACE_INVITE_RECEIVED: { icon: UserPlus,         bg: "bg-primary/10",               fg: "text-primary" },
-  DM_DELIVERY_FAILURE:       { icon: MessageSquareOff, bg: "bg-destructive/10",            fg: "text-destructive" },
-  BILLING_REMINDER:          { icon: CreditCard,       bg: "bg-[hsl(var(--warning)/0.12)]", fg: "text-[hsl(var(--warning))]" },
-  NEW_LEAD_CAPTURED:         { icon: Users,            bg: "bg-[hsl(var(--success)/0.12)]", fg: "text-[hsl(var(--success))]" },
-  WEEKLY_PERFORMANCE_SUMMARY:{ icon: BarChart2,        bg: "bg-[hsl(var(--info)/0.12)]",   fg: "text-[hsl(var(--info))]" },
-  AFFILIATE_COMMISSION_APPROVED: { icon: BadgeCheck,   bg: "bg-[hsl(var(--success)/0.12)]", fg: "text-[hsl(var(--success))]" },
-  INSTAGRAM_DISCONNECTED:    { icon: WifiOff,          bg: "bg-destructive/10",            fg: "text-destructive" },
-  AUTOMATION_CREATED:        { icon: Zap,              bg: "bg-primary/10",               fg: "text-primary" },
-  AUTOMATION_ACTIVATED:      { icon: Play,             bg: "bg-[hsl(var(--success)/0.12)]", fg: "text-[hsl(var(--success))]" },
-  AUTOMATION_PAUSED:         { icon: Pause,            bg: "bg-muted",                    fg: "text-muted-foreground" },
-  AUTOMATION_DELETED:        { icon: Trash2,           bg: "bg-destructive/10",            fg: "text-destructive" },
-  POST_PUBLISHED:            { icon: CheckCircle,      bg: "bg-[hsl(var(--success)/0.12)]", fg: "text-[hsl(var(--success))]" },
-  POST_FAILED:               { icon: XCircle,          bg: "bg-destructive/10",            fg: "text-destructive" },
+  WORKSPACE_INVITE_RECEIVED: { icon: UserPlus },
+  DM_DELIVERY_FAILURE: { icon: MessageSquareOff },
+  BILLING_REMINDER: { icon: CreditCard },
+  NEW_LEAD_CAPTURED: { icon: Users },
+  WEEKLY_PERFORMANCE_SUMMARY: { icon: BarChart2 },
+  AFFILIATE_COMMISSION_APPROVED: { icon: BadgeCheck },
+  INSTAGRAM_DISCONNECTED: { icon: WifiOff },
+  AUTOMATION_CREATED: { icon: Zap },
+  AUTOMATION_ACTIVATED: { icon: Play },
+  AUTOMATION_PAUSED: { icon: Pause },
+  AUTOMATION_DELETED: { icon: Trash2 },
+  POST_PUBLISHED: { icon: CheckCircle },
+  POST_FAILED: { icon: XCircle },
 };
 
-const FALLBACK_CONFIG: TypeConfig = { icon: AlertCircle, bg: "bg-muted", fg: "text-muted-foreground" };
+const FALLBACK_CONFIG: TypeConfig = { icon: AlertCircle };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -109,15 +109,15 @@ function NotificationRow({
     <div
       className={cn(
         "relative flex items-start gap-3 px-4 py-3.5 border-b border-border/50 last:border-b-0 transition-colors",
-        !item.isRead ? "bg-primary/[0.025] dark:bg-primary/[0.05]" : "hover:bg-muted/30"
+        !item.isRead ? "bg-muted/40" : "hover:bg-muted/30"
       )}
     >
       {!item.isRead && (
-        <span className="absolute left-1.5 top-[18px] h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+        <span className="absolute left-1.5 top-[18px] h-1.5 w-1.5 rounded-full bg-foreground/40 shrink-0" />
       )}
 
-      <div className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full", config.bg)}>
-        <Icon className={cn("h-3.5 w-3.5", config.fg)} />
+      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-muted/50">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
       </div>
 
       <div className="flex-1 min-w-0">
@@ -210,28 +210,32 @@ function NotificationPanel({
         <button
           type="button"
           aria-label="Open notifications"
-          className="relative p-2 rounded-lg hover:bg-card transition-colors"
+          className="liffio-topbar-icon-btn relative"
         >
           <Bell className="h-5 w-5 text-muted-foreground" />
           {unreadCount > 0 && (
-            <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+            <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-border bg-foreground px-0.5 text-[9px] font-semibold text-background">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="end" sideOffset={8} className="glass-surface w-[380px] p-0 overflow-hidden rounded-xl border-border/40">
+      <PopoverContent
+        align="end"
+        sideOffset={8}
+        className="w-[380px] p-0 overflow-hidden rounded-xl border border-border bg-popover shadow-md"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2">
             <Bell className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-semibold">Notifications</span>
-            {unreadCount > 0 && (
-              <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+            {unreadCount > 0 ? (
+              <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-medium">
                 {unreadCount}
-              </span>
-            )}
+              </Badge>
+            ) : null}
           </div>
           {unreadCount > 0 && (
             <button
@@ -261,9 +265,9 @@ function NotificationPanel({
               )}
             >
               {t === "all" ? "All" : `Unread${unreadCount > 0 ? ` (${unreadCount})` : ""}`}
-              {tab === t && (
-                <span className="absolute bottom-0 inset-x-4 h-0.5 rounded-full bg-primary" />
-              )}
+              {tab === t ? (
+                <span className="absolute bottom-0 inset-x-4 h-0.5 rounded-full bg-foreground/80" />
+              ) : null}
             </button>
           ))}
         </div>
@@ -336,62 +340,60 @@ export function DashboardLayout({
   children: ReactNode;
 }) {
   const { current } = useApp();
-  const [open, setOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   return (
-    <div className="app-shell min-h-screen flex">
-      <AppShellBackdrop />
-      <AppSidebar mobileOpen={open} onClose={() => setOpen(false)} />
+    <SidebarProvider>
+      <div className="app-shell liffio-shell min-h-screen flex w-full">
+        <AppSidebar />
 
-      <div className="relative z-10 flex flex-1 min-w-0 flex-col">
-        <header className="sticky top-0 z-30 glass-header safe-top">
-          <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 lg:px-6 py-3 sm:py-3.5">
-            <button
-              type="button"
-              className="lg:hidden flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-muted/50 transition-colors"
-              onClick={() => setOpen(true)}
-              aria-label="Open menu"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-base sm:text-lg lg:text-xl font-semibold tracking-tight truncate">
-                {title}
-              </h1>
-              {subtitle && (
+        <SidebarInset className="relative z-10 flex min-w-0 flex-1 flex-col bg-background">
+        <header className="liffio-topbar sticky top-0 z-30 safe-top">
+          <div className="liffio-topbar-inner flex items-center gap-2 sm:gap-3 px-3 sm:px-4 lg:px-6">
+            <SidebarTrigger className="liffio-topbar-icon-btn" />
+            <div className="liffio-topbar-title flex-1 min-w-0">
+              <h1 className="truncate">{title}</h1>
+              {subtitle ? (
                 <p className="text-xs text-muted-foreground truncate mt-0.5 md:hidden">{subtitle}</p>
-              )}
-            </div>
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full glass-pill max-w-[200px]">
-              <span className="text-sm text-muted-foreground truncate">{current.handle}</span>
-              <PlanBadge plan={current.plan} />
+              ) : null}
             </div>
 
-            <NotificationPanel open={notificationsOpen} onOpenChange={setNotificationsOpen} />
+            <div className="liffio-topbar-actions">
+              {/* <div className="liffio-topbar-chip hidden md:flex">
+                <span className="liffio-topbar-chip-label">{current.handle}</span>
+                <PlanBadge plan={current.plan} />
+              </div> */}
 
-            <ThemeToggle className="glass-pill border-0 shrink-0 p-1.5 hidden sm:flex" />
-            {headerActions}
-            <UserAccountMenu size="sm" className="shrink-0" />
-          </div>
-          <div className="md:hidden px-3 sm:px-4 pb-2.5 flex items-center gap-2">
-            <span className="text-xs text-muted-foreground shrink-0">Workspace</span>
-            <div className="flex items-center gap-2 min-w-0 flex-1 glass-pill px-2.5 py-1">
-              <span className="text-xs font-medium truncate">{current.handle}</span>
-              <PlanBadge plan={current.plan} />
+              <NotificationPanel open={notificationsOpen} onOpenChange={setNotificationsOpen} />
+
+              <ThemeToggle className="liffio-topbar-icon-btn hidden sm:inline-flex" />
+              {headerActions}
+              <UserAccountMenu size="sm" variant="header" className="liffio-topbar-user-btn shrink-0" />
             </div>
           </div>
-          {actions && (
-            <div className="px-3 sm:px-4 lg:px-6 pb-3 flex flex-col sm:flex-row flex-wrap gap-2 sm:justify-end">
+
+          <div className="liffio-topbar-mobile-ws md:hidden flex items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">
+              Workspace
+            </span>
+            <div className="liffio-topbar-chip flex min-w-0 flex-1">
+              <span className="truncate text-xs font-medium text-foreground">{current.name}</span>
+              <PlanBadge plan={current.plan} className="shrink-0 scale-[0.92]" />
+            </div>
+          </div>
+
+          {actions ? (
+            <div className="border-t border-border/60 px-3 sm:px-4 lg:px-6 py-3 flex flex-col sm:flex-row flex-wrap gap-2 sm:justify-end">
               {actions}
             </div>
-          )}
+          ) : null}
         </header>
 
         <main className="flex-1 w-full max-w-none px-3 sm:px-4 lg:px-6 py-4 sm:py-5 lg:py-6 pb-8 safe-bottom">
           <div className="page-stack space-y-4 sm:space-y-5 lg:space-y-6">{children}</div>
         </main>
+        </SidebarInset>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }

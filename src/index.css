@@ -46,17 +46,17 @@
   --info: 199 85% 50%;
   --violet: 271 85% 60%;
 
-  /* Sidebar — slightly distinct from page background */
-  --sidebar-background: 240 14% 90%;
-  --sidebar-foreground: 240 22% 15%;
+  /* Sidebar — soft panel, distinct from page */
+  --sidebar-background: 240 20% 97%;
+  --sidebar-foreground: 240 22% 18%;
 
   --sidebar-primary: 248 85% 60%;
   --sidebar-primary-foreground: 0 0% 100%;
 
-  --sidebar-accent: 240 12% 85%;
+  --sidebar-accent: 240 14% 93%;
   --sidebar-accent-foreground: 240 22% 15%;
 
-  --sidebar-border: 240 12% 78%;
+  --sidebar-border: 240 12% 90%;
   --sidebar-ring: 248 85% 60%;
   }
 
@@ -102,13 +102,13 @@
   --info: 199 85% 50%;
   --violet: 271 85% 60%;
 
-  --sidebar-background: 240 14% 90%;
-  --sidebar-foreground: 240 22% 15%;
+  --sidebar-background: 240 20% 97%;
+  --sidebar-foreground: 240 22% 18%;
   --sidebar-primary: 248 85% 60%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 240 12% 85%;
+  --sidebar-accent: 240 14% 93%;
   --sidebar-accent-foreground: 240 22% 15%;
-  --sidebar-border: 240 12% 78%;
+  --sidebar-border: 240 12% 90%;
   --sidebar-ring: 248 85% 60%;
 }
 /* DARK THEME */
@@ -153,13 +153,13 @@
   --info: 199 89% 60%;
   --violet: 271 91% 65%;
 
-  --sidebar-background: 240 18% 14%;
-  --sidebar-foreground: 240 15% 90%;
+  --sidebar-background: 240 18% 12%;
+  --sidebar-foreground: 240 15% 92%;
   --sidebar-primary: 247 88% 70%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 240 18% 22%;
-  --sidebar-accent-foreground: 240 15% 90%;
-  --sidebar-border: 240 16% 25%;
+  --sidebar-accent: 240 16% 18%;
+  --sidebar-accent-foreground: 240 15% 92%;
+  --sidebar-border: 240 14% 20%;
   --sidebar-ring: 247 88% 70%;
 }
 }
@@ -296,84 +296,9 @@
     pointer-events: none;
   }
 
+  /* Minimal panel — matches shadcn Card */
   .surface-card {
-    @apply rounded-xl overflow-hidden;
-    position: relative;
-    isolation: isolate;
-    background:
-      radial-gradient(ellipse 90% 55% at 100% 0%, hsl(248 85% 60% / 0.07), transparent 52%),
-      radial-gradient(ellipse 70% 45% at 0% 100%, hsl(330 85% 60% / 0.05), transparent 48%),
-      linear-gradient(
-        155deg,
-        hsl(var(--card) / 0.68) 0%,
-        hsl(var(--card) / 0.48) 42%,
-        hsl(var(--card) / 0.56) 100%
-      );
-    backdrop-filter: blur(20px) saturate(1.65);
-    -webkit-backdrop-filter: blur(20px) saturate(1.65);
-    border: 1px solid hsl(var(--foreground) / 0.11);
-    box-shadow:
-      0 1px 0 hsl(var(--foreground) / 0.12) inset,
-      0 -1px 0 hsl(var(--foreground) / 0.03) inset,
-      0 10px 36px -12px hsl(var(--foreground) / 0.09),
-      0 2px 12px -4px hsl(248 85% 60% / 0.08);
-    transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
-  }
-
-  .surface-card::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(
-      135deg,
-      hsl(var(--foreground) / 0.2) 0%,
-      hsl(var(--foreground) / 0.04) 38%,
-      hsl(330 85% 60% / 0.18) 54%,
-      hsl(248 85% 60% / 0.14) 72%,
-      hsl(var(--foreground) / 0.06) 100%
-    );
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .surface-card::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 3px;
-    height: 100%;
-    border-radius: inherit 0 0 inherit;
-    background: linear-gradient(
-      180deg,
-      hsl(25 90% 55% / 0.7) 0%,
-      hsl(330 85% 60% / 0.55) 35%,
-      hsl(248 85% 60% / 0.5) 70%,
-      hsl(var(--primary) / 0.35) 100%
-    );
-    opacity: 0.85;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  .surface-card > * {
-    position: relative;
-    z-index: 1;
-  }
-
-  .surface-card:hover {
-    border-color: hsl(var(--primary) / 0.22);
-    transform: translateY(-1px);
-    box-shadow:
-      0 1px 0 hsl(var(--foreground) / 0.14) inset,
-      0 14px 40px -12px hsl(248 85% 60% / 0.12),
-      0 4px 16px -6px hsl(var(--foreground) / 0.1);
+    @apply rounded-xl border border-border bg-card text-card-foreground shadow-sm overflow-hidden;
   }
 
   /* Affiliate earnings calculator — theme-aligned slider on branded card */
@@ -412,13 +337,7 @@
   }
 
   .card-header-bar {
-    @apply flex flex-col space-y-1 px-6 pt-5 pb-4 pl-7;
-    border-bottom: 1px solid hsl(var(--foreground) / 0.08);
-    background: linear-gradient(
-      180deg,
-      hsl(var(--foreground) / 0.05) 0%,
-      hsl(var(--foreground) / 0.01) 100%
-    );
+    @apply flex flex-col space-y-1 border-b border-border px-6 py-4;
   }
 
   .card-section-head {
@@ -485,12 +404,12 @@
 
   .dashboard-hero-settings {
     @apply flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors;
-    @apply hover:text-foreground hover:bg-foreground/80;
+    @apply hover:bg-muted hover:text-foreground;
   }
 
   .dashboard-billing-banner {
-    @apply surface-card flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 pl-5;
-    @apply border-accent/25 bg-accent/5;
+    @apply surface-card flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3;
+    @apply border-border bg-muted/40;
   }
 
   .dashboard-metrics-head {
@@ -523,10 +442,7 @@
   }
 
   .dashboard-shortcut-icon {
-    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg;
-    background: hsl(var(--primary) / 0.1);
-    color: hsl(var(--primary));
-    border: 1px solid hsl(var(--primary) / 0.15);
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/50 text-muted-foreground;
   }
 
   .dashboard-workspace-row {
@@ -535,7 +451,7 @@
   }
 
   .dashboard-workspace-row-active {
-    background: hsl(var(--primary) / 0.06);
+    @apply bg-muted/60;
   }
 
   .page-toolbar .w-full-mobile {
@@ -574,15 +490,7 @@
   }
 
   .glass-inset {
-    background: linear-gradient(
-      135deg,
-      hsl(var(--foreground) / 0.08) 0%,
-      hsl(var(--foreground) / 0.03) 100%
-    );
-    border: 1px solid hsl(var(--foreground) / 0.1);
-    backdrop-filter: blur(14px) saturate(1.5);
-    -webkit-backdrop-filter: blur(14px) saturate(1.5);
-    box-shadow: 0 1px 0 hsl(var(--foreground) / 0.08) inset;
+    @apply rounded-lg border border-border bg-muted/30;
   }
 
   .glass-pill {
@@ -998,76 +906,148 @@
     @apply text-destructive hover:bg-destructive/10 hover:text-destructive;
   }
 
-  .account-dropdown-panel {
-    overflow: visible;
+  /* Liffio shadcn sidebar polish */
+  .liffio-sidebar [data-sidebar="sidebar"] {
+    background: hsl(var(--sidebar-background));
+    border-right: 1px solid hsl(var(--sidebar-border) / 0.85);
   }
 
-  .account-dropdown-body {
-    overflow: visible;
+  .liffio-sidebar [data-sidebar="header"] {
+    @apply gap-0 p-0;
   }
 
-  .account-dropdown-panel,
-  .account-dropdown-body {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  .liffio-sidebar-brand {
+    @apply px-3 pt-4 pb-5;
   }
 
-  .account-dropdown-panel::-webkit-scrollbar,
-  .account-dropdown-body::-webkit-scrollbar {
-    display: none;
+  .liffio-sidebar-header-separator {
+    @apply bg-sidebar-border/80;
   }
 
-  .account-dropdown-section-label {
-    @apply px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/75;
+  .liffio-sidebar-workspace {
+    @apply px-2 pt-2.5 pb-3;
   }
 
-  .account-dropdown-separator {
-    @apply bg-border/50 h-px;
+  .liffio-sidebar-workspace-label {
+    @apply px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70;
   }
 
-  .account-dropdown-item {
-    @apply mx-1.5 text-muted-foreground;
+  /* Liffio dashboard top bar */
+  .liffio-topbar {
+    background: hsl(var(--background));
+    border-bottom: 1px solid hsl(var(--border) / 0.85);
   }
 
-  .account-dropdown-item:focus,
-  .account-dropdown-item[data-highlighted] {
-    @apply text-foreground;
-    background: linear-gradient(
-      90deg,
-      hsl(var(--primary) / 0.14) 0%,
-      hsl(var(--primary) / 0.06) 100%
-    ) !important;
-    box-shadow: inset 2px 0 0 hsl(var(--primary));
+  .liffio-topbar-inner {
+    min-height: 3.5rem;
   }
 
-  .account-dropdown-icon {
-    @apply flex h-7 w-7 shrink-0 items-center justify-center rounded-lg;
-    background: hsl(var(--foreground) / 0.05);
-    border: 1px solid hsl(var(--foreground) / 0.08);
-    color: hsl(var(--primary));
+  .liffio-topbar-title h1 {
+    @apply text-base sm:text-lg font-semibold tracking-tight text-foreground;
   }
 
-  .account-dropdown-item:focus .account-dropdown-icon,
-  .account-dropdown-item[data-highlighted] .account-dropdown-icon {
-    background: hsl(var(--primary) / 0.15);
-    border-color: hsl(var(--primary) / 0.3);
+  .liffio-topbar-icon-btn {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors;
+    @apply hover:bg-muted/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
   }
 
-  .account-dropdown-item-danger {
-    @apply text-destructive;
+  .liffio-topbar-chip {
+    @apply flex max-w-[220px] items-center gap-2 rounded-lg border px-2.5 py-1.5;
+    border-color: hsl(var(--border) / 0.9);
+    background: hsl(var(--muted) / 0.35);
   }
 
-  .account-dropdown-item-danger:focus,
-  .account-dropdown-item-danger[data-highlighted] {
-    @apply text-destructive;
-    background: hsl(var(--destructive) / 0.1) !important;
-    box-shadow: inset 2px 0 0 hsl(var(--destructive));
+  .liffio-topbar-chip-label {
+    @apply truncate text-sm text-muted-foreground;
   }
 
-  .account-dropdown-icon-danger {
-    color: hsl(var(--destructive));
-    border-color: hsl(var(--destructive) / 0.25);
-    background: hsl(var(--destructive) / 0.08);
+  .liffio-topbar-actions {
+    @apply flex shrink-0 items-center gap-0.5 sm:gap-1;
+  }
+
+  .liffio-topbar-user-btn {
+    @apply h-9 gap-2 rounded-lg px-2 hover:bg-muted/70;
+  }
+
+  .liffio-topbar-mobile-ws {
+    @apply border-t border-border/70 bg-muted/20 px-3 py-2 sm:px-4;
+  }
+
+  .liffio-sidebar [data-sidebar="content"] {
+    @apply px-2 py-1;
+  }
+
+  .liffio-sidebar [data-sidebar="footer"] {
+    @apply border-t px-2 py-3;
+    border-color: hsl(var(--sidebar-border) / 0.7);
+    background: hsl(var(--sidebar-background));
+  }
+
+  .liffio-sidebar [data-sidebar="group"] {
+    @apply p-1;
+  }
+
+  .liffio-sidebar [data-sidebar="group-label"] {
+    @apply h-7 px-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70;
+  }
+
+  .liffio-sidebar [data-sidebar="menu"] {
+    @apply gap-0.5;
+  }
+
+  .liffio-sidebar [data-sidebar="menu-button"] {
+    @apply h-9 rounded-lg px-2.5 text-[13px] font-medium text-sidebar-foreground/80 transition-colors;
+  }
+
+  .liffio-sidebar [data-sidebar="menu-button"] svg {
+    @apply size-[18px] opacity-70;
+  }
+
+  .liffio-sidebar [data-sidebar="menu-button"]:hover {
+    @apply bg-sidebar-accent text-sidebar-foreground;
+  }
+
+  .liffio-sidebar [data-sidebar="menu-button"]:hover svg {
+    @apply opacity-100;
+  }
+
+  .liffio-sidebar [data-sidebar="menu-button"][data-active="true"] {
+    @apply bg-sidebar-accent text-sidebar-foreground font-semibold shadow-none;
+  }
+
+  .liffio-sidebar [data-sidebar="menu-button"][data-active="true"] svg {
+    @apply opacity-100 text-primary;
+  }
+
+  .liffio-sidebar [data-sidebar="menu-button"][data-size="lg"] {
+    @apply h-auto gap-2.5 rounded-xl border px-2.5 py-2.5;
+    border-color: hsl(var(--sidebar-border) / 0.9);
+    background: hsl(var(--background) / 0.55);
+  }
+
+  .liffio-sidebar [data-sidebar="menu-button"][data-size="lg"]:hover,
+  .liffio-sidebar [data-sidebar="menu-button"][data-size="lg"][data-state="open"] {
+    @apply bg-sidebar-accent border-sidebar-border;
+  }
+
+  .liffio-sidebar [data-sidebar="menu-sub"] {
+    @apply mx-2 border-sidebar-border/80;
+  }
+
+  .liffio-sidebar [data-sidebar="menu-sub-button"] {
+    @apply h-8 rounded-md text-[13px] text-sidebar-foreground/75;
+  }
+
+  .liffio-sidebar [data-sidebar="menu-sub-button"][data-active="true"] {
+    @apply font-medium text-sidebar-foreground;
+  }
+
+  .liffio-sidebar .liffio-sidebar-avatar {
+    @apply flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-xs font-semibold text-foreground;
+  }
+
+  .liffio-shell {
+    @apply bg-background;
   }
 
   /* Legacy nav-link aliases (if used elsewhere) */

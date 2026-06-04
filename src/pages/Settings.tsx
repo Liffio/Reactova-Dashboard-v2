@@ -633,28 +633,36 @@ function General() {
     onError: (error) => toast.error((error as Error).message)
   });
   const reconnectMutation = useMutation({
-    mutationFn: () =>
-      openMetaOAuthPopup(
+    mutationFn: () => {
+      // If workspace already has Instagram connected, checkConnected would immediately
+      // resolve true (detecting the OLD connection) and close the popup before the user
+      // even reaches Instagram's auth page. Skip it for reconnect and rely on postMessage.
+      const wasAlreadyConnected = resolveInstagramConnected(current);
+      return openMetaOAuthPopup(
         async () => {
           const { url } = await apiRequest<{ url: string }>(buildMetaOAuthStartPath("settings"), {
             workspaceId: current.id,
           });
           return url;
         },
-        {
-          checkConnected: async () => {
-            const workspaces = await apiRequest<Array<{ id: string; instagramConnected?: boolean; onboarding?: Record<string, unknown> }>>(
-              "/api/v1/workspaces",
-              { workspaceId: current.id }
-            );
-            const workspace = workspaces.find((item) => item.id === current.id);
-            return workspace ? resolveInstagramConnected(workspace) : false;
-          },
-        }
-      ),
+        wasAlreadyConnected
+          ? {}
+          : {
+              checkConnected: async () => {
+                const workspaces = await apiRequest<Array<{ id: string; instagramConnected?: boolean; onboarding?: Record<string, unknown> }>>(
+                  "/api/v1/workspaces",
+                  { workspaceId: current.id }
+                );
+                const workspace = workspaces.find((item) => item.id === current.id);
+                return workspace ? resolveInstagramConnected(workspace) : false;
+              },
+            }
+      );
+    },
     onSuccess: async (result) => {
       if (result.meta === "connected") {
         await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+        await queryClient.invalidateQueries({ queryKey: ["scheduler", "platform-accounts", current.id] });
         await refreshAuth();
         toast.success("Instagram connected successfully");
         return;
@@ -676,6 +684,7 @@ function General() {
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      await queryClient.invalidateQueries({ queryKey: ["scheduler", "platform-accounts", current.id] });
       await refreshAuth();
       setUnlinkConfirm(false);
       toast.success("Instagram disconnected for this workspace");

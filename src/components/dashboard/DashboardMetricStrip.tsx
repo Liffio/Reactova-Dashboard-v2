@@ -54,7 +54,7 @@ export function DashboardMetricStrip({
               )}
             >
               <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                <Icon className="h-3.5 w-3.5 text-primary shrink-0" />
+                <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <span className="text-xs font-medium uppercase tracking-wide">{metric.label}</span>
               </div>
               <p className="text-2xl sm:text-3xl font-bold tabular-nums tracking-tight text-foreground">
@@ -65,7 +65,7 @@ export function DashboardMetricStrip({
                   <span
                     className={cn(
                       "inline-flex items-center gap-0.5 text-[11px] font-semibold rounded px-1.5 py-0.5",
-                      up ? "text-success bg-success/10" : "text-destructive bg-destructive/10"
+                      up ? "text-muted-foreground bg-muted" : "text-muted-foreground bg-muted"
                     )}
                   >
                     {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}

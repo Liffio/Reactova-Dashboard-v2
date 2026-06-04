@@ -262,7 +262,7 @@ export function DashboardWorkspaceManagement({
 
               <div className="grid grid-cols-4 gap-2">
                 {METRICS.map(({ key, label }) => (
-                  <div key={key} className="glass-inset rounded-lg px-2 py-2 text-center">
+                  <div key={key} className="rounded-lg border border-border bg-muted/30 px-2 py-2 text-center">
                     <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
                     <p className="text-sm font-semibold tabular-nums mt-0.5">
                       {workspace[key].toLocaleString()}
@@ -276,7 +276,7 @@ export function DashboardWorkspaceManagement({
                   <CalendarDays className="h-3.5 w-3.5" />
                   Billing cycle ends {workspace.nextBilling}
                 </span>
-                {attention && <span className="font-medium text-accent">{attention}</span>}
+                {attention && <span className="font-medium text-muted-foreground">{attention}</span>}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2">

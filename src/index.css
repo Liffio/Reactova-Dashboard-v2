@@ -896,13 +896,13 @@
     @apply text-destructive hover:bg-destructive/10 hover:text-destructive;
   }
 
-  .account-sheet-profile {
-    background: linear-gradient(
-      165deg,
-      hsl(var(--primary) / 0.12) 0%,
-      hsl(var(--card) / 0.4) 55%,
-      transparent 100%
-    );
+  .account-dropdown-content {
+    max-height: min(70vh, 24rem);
+    overflow-y: auto;
+  }
+
+  .account-dropdown-content [role="menuitem"] a {
+    @apply flex w-full items-center gap-2;
   }
 
   /* Legacy nav-link aliases (if used elsewhere) */

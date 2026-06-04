@@ -23,10 +23,7 @@ import { cn } from "@/lib/utils";
 import { useModules } from "@/hooks/useModules";
 import { useCreateWorkspaceMutation } from "@/hooks/useCreateWorkspace";
 import { useAccountNavItems } from "@/hooks/useAccountNavItems";
-import {
-  UserAccountSheet,
-  UserAccountTrigger,
-} from "@/components/layout/UserAccountSheet";
+import { UserAccountMenu } from "@/components/layout/UserAccountMenu";
 import type { AuthorizationModule } from "@/types/auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -118,7 +115,6 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
   const { current, workspaces, setCurrentId, refreshAuth } = useApp();
   const modules = useModules();
   const accountNav = useAccountNavItems();
-  const [accountOpen, setAccountOpen] = useState(false);
   const [wsOpen, setWsOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [showLinkPrompt, setShowLinkPrompt] = useState(false);
@@ -311,11 +307,9 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
         </nav>
 
         <div className="sidebar-footer p-3 border-t border-border/50">
-          <UserAccountTrigger showChevron onClick={() => setAccountOpen(true)} />
+          <UserAccountMenu variant="profile" />
         </div>
       </aside>
-
-      <UserAccountSheet open={accountOpen} onOpenChange={setAccountOpen} />
 
       <LinkInstagramPromptDialog open={showLinkPrompt} onOpenChange={setShowLinkPrompt} />
     </>

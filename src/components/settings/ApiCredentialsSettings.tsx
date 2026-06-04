@@ -38,7 +38,7 @@ import {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="p-5 rounded-xl bg-card border border-border space-y-4">
+    <div className="p-5 surface-card space-y-4">
       <h3 className="font-semibold">{title}</h3>
       {children}
     </div>

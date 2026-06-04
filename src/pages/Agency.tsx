@@ -1,6 +1,9 @@
 ﻿import { useState } from "react";
-import { Plus, Search, ExternalLink, Settings as SettingsIcon, Trash2, Info, Building2 } from "lucide-react";
+import { Plus, Search, ExternalLink, Settings as SettingsIcon, Trash2, Info, Building2, Users, Send, DollarSign, LayoutGrid } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageMetricCard } from "@/components/page/PageMetricCard";
+import { PageTabs } from "@/components/page/PageTabs";
+import { PageToolbar } from "@/components/page/PageToolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,34 +36,51 @@ export default function Agency() {
 
   return (
     <DashboardLayout title="Agency Panel" subtitle="Manage all your client workspaces from one place.">
-      <div className="border-b border-border flex gap-1 -mt-2 overflow-x-auto scrollbar-thin">
-        {[
-          { v: "overview" as const, l: "Overview" },
-          { v: "branding" as const, l: "Branding" },
-          { v: "domain" as const, l: "Domain" },
-          { v: "access" as const, l: "Client Access" },
-        ].map((t) => (
-          <button key={t.v} onClick={() => setTab(t.v)} className={cn("px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap", tab === t.v ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>{t.l}</button>
-        ))}
-      </div>
+      <PageTabs
+        className="-mt-2"
+        tabs={[
+          { id: "overview" as const, label: "Overview" },
+          { id: "branding" as const, label: "Branding" },
+          { id: "domain" as const, label: "Domain" },
+          { id: "access" as const, label: "Client Access" },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
 
       {tab === "overview" && (
         <>
-          <div className="flex justify-end -mt-2">
-            <Button variant="accent" onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Add Client Workspace</Button>
-          </div>
+          <PageToolbar className="-mt-2 sm:justify-end">
+            <Button variant="accent" className="w-full sm:w-auto" onClick={() => setOpen(true)}>
+              <Plus className="h-4 w-4" /> Add Client Workspace
+            </Button>
+          </PageToolbar>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Stat label="Total Client Workspaces" value={total.toString()} sub={`${total} of 30 included · ${additional} additional`} />
-            <Stat label="Total DMs Sent" value={clients.reduce((a, b) => a + b.dmsSentThisMonth, 0).toLocaleString()} sub="this month" />
-            <Stat label="Active Clients" value={clients.filter(c => c.status === "ACTIVE").length.toString()} sub="online" />
-            <Stat label="Monthly Agency Cost" value={`$${299 + additional * 9}`} sub={`$299 base + $${additional * 9} additional`} />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <PageMetricCard icon={LayoutGrid} label="Client workspaces" value={total} sub={`${total} of 30 · ${additional} extra`} />
+            <PageMetricCard
+              icon={Send}
+              label="DMs this month"
+              value={clients.reduce((a, b) => a + b.dmsSentThisMonth, 0)}
+              sub="Across all clients"
+            />
+            <PageMetricCard
+              icon={Users}
+              label="Active clients"
+              value={clients.filter((c) => c.status === "ACTIVE").length}
+            />
+            <PageMetricCard
+              icon={DollarSign}
+              label="Monthly cost"
+              value={`$${299 + additional * 9}`}
+              sub={`$299 + $${additional * 9} extra`}
+            />
           </div>
 
           {dashboardQuery.isLoading && <p className="text-sm text-muted-foreground">Loading agency dashboard...</p>}
           {dashboardQuery.error && <p className="text-sm text-destructive">{(dashboardQuery.error as Error).message}</p>}
 
-          <section className="rounded-xl bg-card border border-border overflow-hidden">
+          <section className="surface-card overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border gap-3">
               <h2 className="font-semibold">Client Workspaces</h2>
               <div className="relative max-w-xs flex-1">
@@ -68,7 +88,53 @@ export default function Agency() {
                 <Input placeholder="Search clients..." className="bg-input border-border pl-9 h-9" />
               </div>
             </div>
-            <div className="overflow-x-auto">
+            <div className="mobile-data-list md:hidden">
+              {clients.map((c) => (
+                <article key={c.id} className="mobile-data-card">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium">{c.handle.replace("@", "")}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{c.handle}</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase bg-muted text-muted-foreground">
+                      {c.plan}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <StatusDot
+                      status={
+                        c.status === "PAYMENT_FAILED"
+                          ? "failed"
+                          : c.status === "PAUSED"
+                            ? "paused"
+                            : c.status === "INSTAGRAM_DISCONNECTED"
+                              ? "disconnected"
+                              : "active"
+                      }
+                    />
+                    <span className="capitalize text-muted-foreground">{c.status.toLowerCase()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{c.dmsSentThisMonth.toLocaleString()} DMs</span>
+                    <span>{c.activeWorkflows} workflows</span>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={async () => {
+                        await switchWorkspaceMutation.mutateAsync(c.id);
+                        setCurrentId(c.id);
+                      }}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-1" /> Open
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-muted-foreground border-b border-border">
@@ -192,19 +258,9 @@ export default function Agency() {
   );
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="p-5 rounded-xl bg-card border border-border">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-2xl font-bold mt-1">{value}</div>
-      {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
-    </div>
-  );
-}
-
 function SettingsCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="p-5 rounded-xl bg-card border border-border space-y-4">
+    <div className="p-5 surface-card space-y-4">
       <h3 className="font-semibold flex items-center gap-2"><Building2 className="h-4 w-4 text-primary" />{title}</h3>
       {children}
     </div>
@@ -214,7 +270,7 @@ function SettingsCard({ title, children }: { title: string; children: React.Reac
 function AddClientModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-md bg-card border border-border rounded-2xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md surface-card rounded-2xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
         <h3 className="font-semibold text-lg">Add Client Workspace</h3>
         <div className="space-y-2"><Label>Client name</Label><Input placeholder="Studio name" className="bg-input border-border" /></div>
         <div className="space-y-2"><Label>Client email (optional)</Label><Input type="email" placeholder="client@email.com" className="bg-input border-border" /></div>

@@ -394,8 +394,8 @@ export function DashboardLayout({
           )}
         </header>
 
-        <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-5 lg:py-6 pb-8 safe-bottom">
-          <div className="space-y-4 sm:space-y-5 lg:space-y-6">{children}</div>
+        <main className="flex-1 w-full max-w-none px-3 sm:px-4 lg:px-6 py-4 sm:py-5 lg:py-6 pb-8 safe-bottom">
+          <div className="page-stack space-y-4 sm:space-y-5 lg:space-y-6">{children}</div>
         </main>
       </div>
     </div>

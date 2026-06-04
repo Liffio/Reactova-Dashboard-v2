@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 type DashboardStatCardProps = {
   icon: LucideIcon;
   label: string;
-  value: number;
+  value: number | string;
   trend?: number | null;
   sub?: string;
   highlight?: boolean;
@@ -56,7 +56,7 @@ export function DashboardStatCard({
             highlight ? "auth-ig-gradient-text" : "text-foreground"
           )}
         >
-          {value.toLocaleString()}
+          {typeof value === "number" ? value.toLocaleString() : value}
         </p>
         {(hasTrend || sub) && (
           <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[11px] sm:text-xs">

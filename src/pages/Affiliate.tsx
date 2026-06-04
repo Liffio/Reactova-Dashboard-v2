@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { DollarSign, Clock, Users, Wallet } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageMetricCard } from "@/components/page/PageMetricCard";
 import { Button } from "@/components/ui/button";
 import { CopyField } from "@/components/CopyButton";
 import { Input } from "@/components/ui/input";
@@ -33,7 +35,7 @@ export default function Affiliate() {
       title="Affiliate Program"
       subtitle="Earn 50% lifetime recurring commission on every referred paying customer."
     >
-      <div className="p-5 rounded-xl bg-card border border-border">
+      <div className="p-5 surface-card">
         <div className="text-xs text-muted-foreground mb-2">Your referral link</div>
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="flex-1">
@@ -64,23 +66,20 @@ export default function Affiliate() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat label="Total Earned" value={`$${(dashboard?.totalEarned ?? 0).toFixed(2)}`} />
-        <Stat
-          label="Available Balance"
-          value={`$${balance.toFixed(2)}`}
-          cls="text-success"
-        />
-        <Stat
-          label="Pending / In Hold"
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <PageMetricCard icon={DollarSign} label="Total earned" value={`$${(dashboard?.totalEarned ?? 0).toFixed(2)}`} loading={isLoading} />
+        <PageMetricCard icon={Wallet} label="Available balance" value={`$${balance.toFixed(2)}`} loading={isLoading} highlight />
+        <PageMetricCard
+          icon={Clock}
+          label="Pending / hold"
           value={`$${(dashboard?.pendingBalance ?? 0).toFixed(2)}`}
-          cls="text-warning"
           sub="20-day hold on new commissions"
+          loading={isLoading}
         />
-        <Stat label="Active Referrals" value={String(dashboard?.activeReferrals ?? 0)} />
+        <PageMetricCard icon={Users} label="Active referrals" value={dashboard?.activeReferrals ?? 0} loading={isLoading} />
       </div>
 
-      <div className="p-5 rounded-xl bg-card border border-border flex flex-wrap items-center justify-between gap-3">
+      <div className="p-5 surface-card flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-sm font-semibold">Withdrawal</div>
           <div className="text-xs text-muted-foreground">
@@ -158,19 +157,9 @@ export default function Affiliate() {
   );
 }
 
-function Stat({ label, value, cls, sub }: { label: string; value: string; cls?: string; sub?: string }) {
-  return (
-    <div className="p-5 rounded-xl bg-card border border-border">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("text-2xl font-bold mt-1", cls)}>{value}</div>
-      {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
-    </div>
-  );
-}
-
 function Table({ title, cols, children }: { title: string; cols: string[]; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl bg-card border border-border overflow-hidden">
+    <section className="surface-card overflow-hidden">
       <div className="px-5 py-4 border-b border-border">
         <h2 className="font-semibold">{title}</h2>
       </div>

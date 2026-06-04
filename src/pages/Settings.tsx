@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Instagram, Trash2, Plus, RefreshCw, ChevronRight, Shield } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageTabs } from "@/components/page/PageTabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -64,23 +65,12 @@ export default function Settings() {
 
   return (
     <DashboardLayout title="Settings" subtitle={`Workspace: ${current.name}`}>
-      <div className="border-b border-border flex gap-1 -mt-2 overflow-x-auto scrollbar-thin">
-        {tabs.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => selectTab(t)}
-            className={cn(
-              "px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
-              tab === t
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+      <PageTabs
+        className="-mt-2"
+        tabs={tabs.map((t) => ({ id: t, label: t }))}
+        value={tab}
+        onChange={selectTab}
+      />
 
       {tab === "General" && <General />}
       {tab === "Billing" && <BillingSettingsTab />}
@@ -102,7 +92,7 @@ export default function Settings() {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="p-5 rounded-xl bg-card border border-border space-y-4">
+    <div className="p-5 surface-card space-y-4">
       <h3 className="font-semibold">{title}</h3>
       {children}
     </div>
@@ -944,7 +934,7 @@ function Team() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-xl bg-card border border-border p-4 space-y-3">
+      <section className="surface-card p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Invite Team Member</h3>
           <span className="text-xs text-muted-foreground">
@@ -1057,7 +1047,7 @@ function Team() {
         )}
       </section>
 
-      <section className="rounded-xl bg-card border border-border overflow-hidden">
+      <section className="surface-card overflow-hidden">
         <table className="w-full text-sm">
           <thead><tr className="text-left text-xs text-muted-foreground border-b border-border">
             <th className="px-5 py-3">Member</th><th className="px-5 py-3">Email</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Permissions</th><th />
@@ -1120,7 +1110,7 @@ function Team() {
         </table>
       </section>
 
-      <section className="rounded-xl bg-card border border-border p-4">
+      <section className="surface-card p-4">
         <h3 className="font-semibold mb-3">Invites</h3>
         <div className="space-y-2 text-sm">
           {(invitesQuery.data ?? []).map((invite) => (

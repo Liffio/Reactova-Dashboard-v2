@@ -653,7 +653,7 @@ export default function EmailTemplates() {
 
       <div className="grid lg:grid-cols-[280px_1fr] gap-4 h-full min-h-[600px]">
         {/* Left: template list */}
-        <aside className="rounded-xl border border-border bg-card p-3 flex flex-col gap-2 overflow-y-auto">
+        <aside className="surface-card p-3 flex flex-col gap-2 overflow-y-auto">
           <input
             className="w-full h-8 px-3 rounded-lg border border-input bg-background text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
             placeholder="Search templates..."
@@ -728,7 +728,7 @@ export default function EmailTemplates() {
         </aside>
 
         {/* Right: detail panel */}
-        <section className="rounded-xl border border-border bg-card p-5 overflow-y-auto">
+        <section className="surface-card p-5 overflow-y-auto">
           {selectedTemplate ? (
             <TemplateDetail key={selectedTemplate.ref} template={selectedTemplate} />
           ) : (

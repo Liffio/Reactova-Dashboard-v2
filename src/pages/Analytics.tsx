@@ -15,6 +15,9 @@ import {
   Clock
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageAlert } from "@/components/page/PageAlert";
+import { PageMetricCard } from "@/components/page/PageMetricCard";
+import { PageTabs } from "@/components/page/PageTabs";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/state/AppContext";
 import { useAnalyticsPageQuery, type AnalyticsApiRange } from "@/hooks/useAnalytics";
@@ -77,41 +80,39 @@ export default function Analytics() {
 
   return (
     <DashboardLayout title="Analytics" subtitle="DMs, short links, bio links, leads, and post performance in one place.">
-      <div className="flex flex-wrap items-center justify-between gap-3 -mt-2">
-        <div className="inline-flex p-1 rounded-lg bg-card border border-border">
-          {ranges.map((r) => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={cn(
-                "px-3 py-1.5 rounded-md text-xs font-medium",
-                range === r ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3 -mt-2">
+        <PageTabs
+          tabs={ranges.map((r) => ({ id: r, label: r }))}
+          value={range}
+          onChange={setRange}
+        />
         {data && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground shrink-0">
             Showing last {data.range === "7d" ? "7" : data.range === "90d" ? "90" : "30"} days
           </p>
         )}
       </div>
 
-      {analyticsQuery.error && (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {(analyticsQuery.error as Error).message}
-        </div>
-      )}
+      {analyticsQuery.error && <PageAlert>{(analyticsQuery.error as Error).message}</PageAlert>}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-        <Stat label="DMs Sent" value={(data?.summary.totalDmsSent ?? 0).toLocaleString()} />
-        <Stat label="DM Delivery Rate" value={`${(data?.summary.dmDeliveryRate ?? 0).toFixed(1)}%`} />
-        <Stat label="Short Link Clicks" value={(data?.summary.totalLinkClicks ?? 0).toLocaleString()} />
-        <Stat label="Bio Link Clicks" value={(data?.summary.bioLinkClicks ?? 0).toLocaleString()} />
-        <Stat label="Leads Captured" value={(data?.summary.leadsCaptured ?? 0).toLocaleString()} />
-        <Stat label="Conversion Rate" value={`${(data?.summary.conversionRate ?? 0).toFixed(1)}%`} highlight />
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+        <PageMetricCard icon={Send} label="DMs sent" value={data?.summary.totalDmsSent ?? 0} loading={analyticsQuery.isLoading} />
+        <PageMetricCard
+          icon={MessageSquare}
+          label="DM delivery rate"
+          value={`${(data?.summary.dmDeliveryRate ?? 0).toFixed(1)}%`}
+          loading={analyticsQuery.isLoading}
+        />
+        <PageMetricCard icon={Link2} label="Short link clicks" value={data?.summary.totalLinkClicks ?? 0} loading={analyticsQuery.isLoading} />
+        <PageMetricCard icon={LayoutTemplate} label="Bio link clicks" value={data?.summary.bioLinkClicks ?? 0} loading={analyticsQuery.isLoading} />
+        <PageMetricCard icon={Users} label="Leads captured" value={data?.summary.leadsCaptured ?? 0} loading={analyticsQuery.isLoading} />
+        <PageMetricCard
+          icon={BarChart2}
+          label="Conversion rate"
+          value={`${(data?.summary.conversionRate ?? 0).toFixed(1)}%`}
+          highlight
+          loading={analyticsQuery.isLoading}
+        />
       </div>
 
       <section className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -166,7 +167,7 @@ export default function Analytics() {
         <MiniStat icon={BarChart2} label="Post engagement (likes)" value={(data?.channels.posts.likes ?? 0).toLocaleString()} />
       </div>
 
-      <section className="rounded-xl bg-card border border-border p-6">
+      <section className="surface-card p-6">
         <div className="mb-5">
           <h2 className="font-semibold">Conversion Attribution</h2>
           <p className="text-xs text-muted-foreground">From comment trigger through link click (sales tracking coming soon)</p>
@@ -187,7 +188,7 @@ export default function Analytics() {
       </section>
 
       <div className="grid lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 p-5 rounded-xl bg-card border border-border">
+        <div className="lg:col-span-3 p-5 surface-card">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <h3 className="font-semibold">{chartLabels[chartMetric]}</h3>
             <div className="inline-flex p-0.5 rounded-md bg-background border border-border">
@@ -208,7 +209,7 @@ export default function Analytics() {
           </div>
           <TimeSeriesChart data={lineData} maxValue={maxLine} />
         </div>
-        <div className="lg:col-span-2 p-5 rounded-xl bg-card border border-border">
+        <div className="lg:col-span-2 p-5 surface-card">
           <h3 className="font-semibold mb-4">Top Performing Keywords</h3>
           <div className="space-y-3">
             {bars.map((b) => (
@@ -230,7 +231,7 @@ export default function Analytics() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <section className="rounded-xl bg-card border border-border overflow-hidden">
+        <section className="surface-card overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
             <h2 className="font-semibold">Top Short Links</h2>
           </div>
@@ -263,7 +264,7 @@ export default function Analytics() {
           </div>
         </section>
 
-        <section className="rounded-xl bg-card border border-border p-5">
+        <section className="surface-card p-5">
           <h2 className="font-semibold mb-4">Post Insights Summary</h2>
           <dl className="grid grid-cols-2 gap-3 text-sm">
             <InsightRow label="Impressions" value={data?.channels.posts.impressions ?? 0} />
@@ -281,7 +282,7 @@ export default function Analytics() {
         </section>
       </div>
 
-      <section className="rounded-xl bg-card border border-border overflow-hidden">
+      <section className="surface-card overflow-hidden">
         <div className="px-5 py-4 border-b border-border flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-semibold">Automation Performance</h2>
           <div className="flex gap-3 text-xs text-muted-foreground">
@@ -379,15 +380,6 @@ function TimeSeriesChart({ data, maxValue }: { data: ChartSeries; maxValue: numb
   );
 }
 
-function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className="p-5 rounded-xl bg-card border border-border">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("text-2xl font-bold mt-1", highlight && "text-primary")}>{value}</div>
-    </div>
-  );
-}
-
 function MiniStat({
   icon: Icon,
   label,
@@ -398,7 +390,7 @@ function MiniStat({
   value: string;
 }) {
   return (
-    <div className="flex items-center gap-3 p-4 rounded-xl bg-card border border-border">
+    <div className="flex items-center gap-3 p-4 surface-card">
       <Icon className="h-5 w-5 text-primary shrink-0" />
       <div>
         <div className="text-xs text-muted-foreground">{label}</div>
@@ -420,7 +412,7 @@ function ChannelCard({
   footer?: string;
 }) {
   return (
-    <div className="p-4 rounded-xl bg-card border border-border">
+    <div className="p-4 surface-card">
       <div className="flex items-center gap-2 mb-3">
         <Icon className="h-4 w-4 text-primary" />
         <h3 className="font-semibold text-sm">{title}</h3>

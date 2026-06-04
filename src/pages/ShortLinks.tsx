@@ -1,5 +1,5 @@
 ﻿import { useMemo, useState } from "react";
-import { Plus, ExternalLink, Trash2, Link2, X } from "lucide-react";
+import { Plus, ExternalLink, Trash2, Link2, X, MousePointerClick, Trophy } from "lucide-react";
 import {
   createColumnHelper,
   flexRender,
@@ -12,6 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CopyButton } from "@/components/CopyButton";
 import { EmptyState } from "@/components/EmptyState";
+import { PageAlert } from "@/components/page/PageAlert";
+import { PageMetricCard } from "@/components/page/PageMetricCard";
+import { PageSection } from "@/components/page/PageSection";
+import { PageToolbar } from "@/components/page/PageToolbar";
 import { useCan } from "@/hooks/useCan";
 import { toast } from "@/components/ui/sonner";
 import { useApp } from "@/state/AppContext";
@@ -140,31 +144,30 @@ export default function ShortLinks() {
 
   return (
     <DashboardLayout title="Short Links" subtitle="Track every link you share.">
-      <div className="flex justify-end -mt-2">
-        <Button variant="accent" onClick={() => setOpen(true)} disabled={!canCreate}>
+      <PageToolbar className="-mt-2 sm:justify-end">
+        <Button variant="accent" className="w-full sm:w-auto" onClick={() => setOpen(true)} disabled={!canCreate}>
           <Plus className="h-4 w-4" /> Create Short Link
         </Button>
-      </div>
+      </PageToolbar>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Stat label="Total Links Created" value={items.length.toString()} />
-        <Stat label="Total Clicks" value={items.reduce((a, b) => a + b.clickCount, 0).toLocaleString()} />
-        <Stat
-          label="Top Performing Link"
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <PageMetricCard icon={Link2} label="Total links" value={items.length} />
+        <PageMetricCard
+          icon={MousePointerClick}
+          label="Total clicks"
+          value={items.reduce((a, b) => a + b.clickCount, 0)}
+        />
+        <PageMetricCard
+          icon={Trophy}
+          label="Top link"
           value={topPerformingLink?.name ?? "—"}
           sub={topPerformingLink ? `${topPerformingLink.clickCount.toLocaleString()} clicks` : "No clicks yet"}
         />
       </div>
 
-      {shortLinksQuery.error && (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {(shortLinksQuery.error as Error).message}
-        </div>
-      )}
+      {shortLinksQuery.error && <PageAlert>{(shortLinksQuery.error as Error).message}</PageAlert>}
       {shortLinksQuery.isLoading && (
-        <div className="rounded-xl border border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-          Loading short links...
-        </div>
+        <div className="surface-card px-4 py-8 text-center text-sm text-muted-foreground">Loading short links...</div>
       )}
 
       {!shortLinksQuery.isLoading && items.length === 0 ? (
@@ -178,8 +181,48 @@ export default function ShortLinks() {
           }}
         />
       ) : (
-        <section className="rounded-xl bg-card border border-border overflow-hidden">
-          <div className="overflow-x-auto">
+        <PageSection title="Your links" noPadding>
+          <div className="mobile-data-list md:hidden">
+            {items.map((row) => (
+              <article key={row.id} className="mobile-data-card">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{row.name}</p>
+                    <p className="font-mono text-xs text-primary truncate mt-0.5">{row.shortUrl}</p>
+                  </div>
+                  <div className="inline-flex gap-1 shrink-0">
+                    <a
+                      className="p-2 rounded-md glass-inset text-muted-foreground hover:text-foreground min-h-10 min-w-10 inline-flex items-center justify-center"
+                      href={row.shortUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                    <button
+                      onClick={() => {
+                        deleteShortLinkMutation.mutate(row.id, {
+                          onError: (error) => toast.error((error as Error).message),
+                          onSuccess: () => toast.success("Short link deleted")
+                        });
+                      }}
+                      className="p-2 rounded-md hover:bg-destructive/15 text-muted-foreground hover:text-destructive disabled:opacity-40 min-h-10 min-w-10 inline-flex items-center justify-center"
+                      disabled={!canDelete || deleteShortLinkMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground truncate">{row.destination}</p>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{row.clickCount.toLocaleString()} clicks</span>
+                  <span>{row.date}</span>
+                </div>
+                <CopyButton value={row.shortUrl} className="w-full justify-center" />
+              </article>
+            ))}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 {table.getHeaderGroups().map((headerGroup) => (
@@ -207,7 +250,7 @@ export default function ShortLinks() {
               </tbody>
             </table>
           </div>
-        </section>
+        </PageSection>
       )}
 
       {open && canCreate && (
@@ -234,16 +277,6 @@ export default function ShortLinks() {
         />
       )}
     </DashboardLayout>
-  );
-}
-
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="p-5 rounded-xl bg-card border border-border">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="text-2xl font-bold mt-1">{value}</div>
-      {sub && <div className="text-xs text-muted-foreground mt-0.5">{sub}</div>}
-    </div>
   );
 }
 
@@ -293,7 +326,7 @@ function CreateModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-md bg-card border border-border rounded-2xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md surface-card rounded-2xl p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-lg">Create Short Link</h3>
           <button onClick={onClose}><X className="h-4 w-4" /></button>

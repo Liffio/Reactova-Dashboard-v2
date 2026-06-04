@@ -50,7 +50,7 @@ export default function RbacMaster() {
 
   return (
     <DashboardLayout title="RBAC Master" subtitle="Manage global roles, permissions, and policy visibility.">
-      <section className="rounded-xl bg-card border border-border p-5 space-y-3">
+      <section className="surface-card p-5 space-y-3">
         <div className="flex items-center gap-2 text-sm">
           <Shield className="h-4 w-4 text-primary" />
           <span>Immutable super admins: {(overviewQuery.data?.superAdmins ?? []).join(", ") || "None configured"}</span>
@@ -58,7 +58,7 @@ export default function RbacMaster() {
       </section>
 
       <section className="grid lg:grid-cols-[260px_1fr] gap-4 mt-5">
-        <div className="rounded-xl bg-card border border-border p-4">
+        <div className="surface-card p-4">
           <h3 className="font-semibold mb-3">Roles</h3>
           <div className="space-y-2">
             {roles.map((role) => (
@@ -78,7 +78,7 @@ export default function RbacMaster() {
           </div>
         </div>
 
-        <div className="rounded-xl bg-card border border-border p-4">
+        <div className="surface-card p-4">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-semibold">Permissions {activeRole ? `for ${activeRole.name}` : ""}</h3>

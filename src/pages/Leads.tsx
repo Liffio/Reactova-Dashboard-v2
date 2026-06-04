@@ -5,6 +5,8 @@ import { useAppSelector } from "@/store/hooks";
 import { apiRequest, API_BASE } from "@/lib/api";
 import { store } from "@/store";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { PageSection } from "@/components/page/PageSection";
+import { PageToolbar } from "@/components/page/PageToolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -134,27 +136,121 @@ export default function Leads() {
       title="Leads"
       subtitle="Users captured when they trigger an automation. DM button clicks are tracked via an instant redirect and shown below."
     >
-      <div className="flex flex-wrap items-center gap-2 -mt-2">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      <PageToolbar className="-mt-2">
+        <div className="relative toolbar-field">
+          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10" />
           <Input
             placeholder="Search username, name, email, keyword..."
-            className="bg-card border-border pl-9"
+            className="pl-9 w-full"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
           />
         </div>
-        <Button variant="outline" onClick={handleSearch}>
+        <Button variant="outline" className="w-full-mobile" onClick={handleSearch}>
           Search
         </Button>
-        <Button variant="outline" onClick={handleExport} disabled={!workspaceId || total === 0}>
+        <Button
+          variant="outline"
+          className="w-full-mobile"
+          onClick={handleExport}
+          disabled={!workspaceId || total === 0}
+        >
           <Download className="h-4 w-4" /> Export CSV
         </Button>
-      </div>
+      </PageToolbar>
 
-      <section className="rounded-xl bg-card border border-border overflow-hidden">
-        <div className="overflow-x-auto">
+      <PageSection
+        title="Captured leads"
+        description="Sorted by most recent activity."
+        noPadding
+        footer={
+          <>
+            <span>
+              {total === 0
+                ? "No leads"
+                : `Showing ${rangeStart}–${rangeEnd} of ${total} leads`}
+            </span>
+            <div className="flex gap-1 justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= pageCount - 1}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </>
+        }
+      >
+        {leadsQuery.isLoading && (
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground md:px-5">Loading leads...</p>
+        )}
+        {!leadsQuery.isLoading && leads.length === 0 && (
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground md:px-5">
+            No leads yet. Leads appear when someone triggers an active automation.
+          </p>
+        )}
+        {!leadsQuery.isLoading && leads.length > 0 && (
+          <div className="mobile-data-list">
+            {leads.map((l) => {
+              const meta = leadMetadata(l.metadata);
+              const linkClickedAt = meta.linkClickedAt;
+              return (
+                <article key={l.id} className="mobile-data-card">
+                  <div className="flex items-center gap-3">
+                    {l.profilePicUrl ? (
+                      <img src={l.profilePicUrl} alt="" className="h-10 w-10 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <UserSvg className="h-10 w-10 rounded-full shrink-0" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono font-medium truncate">{l.igUsername}</p>
+                      {l.displayName && <p className="text-sm truncate">{l.displayName}</p>}
+                      {l.email && <p className="text-xs text-muted-foreground truncate">{l.email}</p>}
+                    </div>
+                    <span
+                      className={cn(
+                        "shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium border",
+                        l.linkClicked
+                          ? "bg-success/15 text-success border-success/30"
+                          : "bg-muted text-muted-foreground border-border"
+                      )}
+                    >
+                      {l.linkClicked ? "Clicked" : "No click"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                    <span className="text-muted-foreground">Keyword</span>
+                    <span className="font-mono text-right">{l.keyword}</span>
+                    <span className="text-muted-foreground">Trigger</span>
+                    <span className="text-right">{triggerLabel(l.triggerType)}</span>
+                    <span className="text-muted-foreground">Automation</span>
+                    <span className="text-right truncate">{l.automationName}</span>
+                    <span className="text-muted-foreground">Last activity</span>
+                    <span className="text-right">{formatDateTime(l.lastInteractionAt)}</span>
+                  </div>
+                  {meta.lastCommentText && (
+                    <p className="text-xs text-muted-foreground line-clamp-2">“{meta.lastCommentText}”</p>
+                  )}
+                  {linkClickedAt && (
+                    <p className="text-[11px] text-muted-foreground">Link clicked {formatDateTime(linkClickedAt)}</p>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-muted-foreground border-b border-border">
@@ -269,32 +365,7 @@ export default function Leads() {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between px-5 py-3 border-t border-border text-xs text-muted-foreground">
-          <span>
-            {total === 0
-              ? "No leads"
-              : `Showing ${rangeStart}–${rangeEnd} of ${total} leads`}
-          </span>
-          <div className="flex gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= pageCount - 1}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </section>
+      </PageSection>
     </DashboardLayout>
   );
 }

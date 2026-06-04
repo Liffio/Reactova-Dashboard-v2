@@ -334,13 +334,13 @@ export default function Automations() {
               </Button>
             </div>
           {automationsQuery.isLoading && (
-            <section className="rounded-xl bg-card border border-border p-6 text-sm text-muted-foreground">
+            <section className="surface-card p-6 text-sm text-muted-foreground">
               Loading automations...
             </section>
           )}
 
           {automationsQuery.isError && (
-            <section className="rounded-xl bg-card border border-destructive/30 p-6 text-sm text-destructive">
+            <section className="surface-card border-destructive/30 p-6 pl-7 text-sm text-destructive">
               {(automationsQuery.error as Error).message}
             </section>
           )}
@@ -356,7 +356,7 @@ export default function Automations() {
               }}
             />
           ) : (
-            <section className="rounded-xl bg-card border border-border overflow-hidden">
+            <section className="surface-card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>

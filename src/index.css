@@ -432,6 +432,35 @@
     scroll-snap-align: start;
   }
 
+  .page-stack > * {
+    min-width: 0;
+  }
+
+  .page-toolbar .w-full-mobile {
+    @apply w-full sm:w-auto;
+  }
+
+  .page-toolbar .toolbar-field {
+    @apply w-full sm:flex-1 sm:min-w-[12rem] sm:max-w-md;
+  }
+
+  .page-tabs {
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+
+  .page-tabs button {
+    scroll-snap-align: start;
+  }
+
+  .mobile-data-list {
+    @apply md:hidden divide-y divide-border/40;
+  }
+
+  .mobile-data-card {
+    @apply p-4 space-y-2.5;
+  }
+
   @supports (padding: max(0px)) {
     .safe-top {
       padding-top: max(0.75rem, env(safe-area-inset-top));

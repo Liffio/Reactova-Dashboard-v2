@@ -12,8 +12,8 @@ interface Props {
 
 export function EmptyState({ icon: Icon, title, description, ctaLabel, onCta, ctaVariant = "accent" }: Props) {
   return (
-    <div className="flex flex-col items-center justify-center text-center py-16 px-6 rounded-xl border border-dashed border-border bg-card/30">
-      <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mb-4">
+    <div className="surface-card flex flex-col items-center justify-center text-center py-12 sm:py-16 px-6 border-dashed">
+      <div className="h-14 w-14 rounded-full glass-inset flex items-center justify-center mb-4">
         <Icon className="h-7 w-7 text-muted-foreground" />
       </div>
       <h3 className="text-lg font-semibold text-foreground">{title}</h3>

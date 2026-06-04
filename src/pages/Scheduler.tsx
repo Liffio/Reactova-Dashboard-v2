@@ -1195,7 +1195,7 @@ export default function Scheduler() {
 
             <TabsContent value="planner" className="mt-4 space-y-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                <div className="inline-flex p-1 rounded-lg bg-card border border-border w-full sm:w-auto">
+                <div className="inline-flex p-1 rounded-lg glass-inset w-full sm:w-auto">
                   {(["calendar", "list"] as const).map((v) => (
                     <button
                       key={v}
@@ -1227,7 +1227,7 @@ export default function Scheduler() {
 
 
               {view === "calendar" ? (
-                <section className="rounded-xl bg-card border border-border p-3 sm:p-5 w-full overflow-hidden">
+                <section className="surface-card p-3 sm:p-5 w-full overflow-hidden">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
                     <h3 className="font-semibold text-foreground">{format(cursorMonth, "MMMM yyyy")}</h3>
                     <div className="flex flex-wrap gap-1">
@@ -1309,7 +1309,7 @@ export default function Scheduler() {
                   )}
                 </section>
               ) : (
-                <section className="rounded-xl bg-card border border-border overflow-hidden w-full">
+                <section className="surface-card overflow-hidden w-full">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm min-w-[600px]">
                       <thead>

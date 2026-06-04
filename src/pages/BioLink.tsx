@@ -1143,7 +1143,7 @@ function resolveAvatarUrl(value: string) {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="p-5 rounded-xl bg-card border border-border">
+    <div className="surface-card p-5 pl-6">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">{title}</h3>
       {children}
     </div>

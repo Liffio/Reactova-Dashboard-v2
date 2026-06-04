@@ -369,7 +369,7 @@ export function DashboardLayout({
 
             <NotificationPanel open={notificationsOpen} onOpenChange={setNotificationsOpen} />
 
-            <ThemeToggle className="glass-pill border-0 h-10 w-10 shrink-0 hidden sm:flex" />
+            <ThemeToggle className="glass-pill border-0 shrink-0 p-1.5 hidden sm:flex" />
             {headerActions}
             <div
               className="auth-ig-ring h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-full p-[2px]"

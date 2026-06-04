@@ -1,14 +1,19 @@
 export const AFFILIATE_CONSENT_VERSION = "1.0";
 
 export const AFFILIATE_COMMISSION_RATE = 0.5;
+export const AFFILIATE_COMMISSION_RATE_PERCENT = 50;
 export const AFFILIATE_REFERRAL_DISCOUNT = 0.1;
 export const AFFILIATE_HOLD_DAYS = 20;
 export const AFFILIATE_MIN_PAYOUT_USD = 50;
 
+/** Default plan used for affiliate earnings estimates (matches billing Starter). */
+export const AFFILIATE_CALCULATOR_PLAN = "STARTER" as const;
+export const AFFILIATE_CALCULATOR_FALLBACK_MONTHLY_USD = 9;
+
 export const AFFILIATE_PLAN_OPTIONS = [
-  { id: "starter", label: "Starter", monthlyUsd: 19 },
-  { id: "pro", label: "Pro", monthlyUsd: 49 },
-  { id: "business", label: "Business", monthlyUsd: 99 },
+  { id: "starter", label: "Starter", monthlyUsd: 9 },
+  { id: "pro", label: "Pro", monthlyUsd: 29 },
+  { id: "business", label: "Business", monthlyUsd: 79 },
   { id: "agency", label: "Agency", monthlyUsd: 299 },
 ] as const;
 

@@ -40,6 +40,7 @@ import { useAcceptInviteByIdMutation } from "@/hooks/useTeamAccess";
 import { toast } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 import { AppShellBackdrop } from "@/components/layout/AppShellBackdrop";
+import { UserAccountMenuButton } from "@/components/layout/UserAccountSheet";
 
 // ─── Notification type config ────────────────────────────────────────────────
 
@@ -334,7 +335,7 @@ export function DashboardLayout({
   headerActions?: ReactNode;
   children: ReactNode;
 }) {
-  const { current, user } = useApp();
+  const { current } = useApp();
   const [open, setOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
@@ -371,14 +372,7 @@ export function DashboardLayout({
 
             <ThemeToggle className="glass-pill border-0 shrink-0 p-1.5 hidden sm:flex" />
             {headerActions}
-            <div
-              className="auth-ig-ring h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-full p-[2px]"
-              title={user?.name ?? "User"}
-            >
-              <span className="flex h-full w-full items-center justify-center rounded-full glass-inset text-primary font-semibold text-xs sm:text-sm">
-                {(user?.name ?? "NA").split(" ").map((n) => n[0]).join("")}
-              </span>
-            </div>
+            <UserAccountMenuButton size="sm" className="shrink-0" />
           </div>
           <div className="md:hidden px-3 sm:px-4 pb-2.5 flex items-center gap-2">
             <span className="text-xs text-muted-foreground shrink-0">Workspace</span>

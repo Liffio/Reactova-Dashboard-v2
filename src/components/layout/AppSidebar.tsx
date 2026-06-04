@@ -1,8 +1,17 @@
 import { useMemo, useState, type ComponentType } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
-  Home, Zap, Link2, CalendarDays, LayoutTemplate, BarChart2, Users,
-  Gift, Settings, LogOut, ChevronDown, Plus, Building2, Check, Shield, CreditCard, Mail,
+  Home,
+  Zap,
+  Link2,
+  CalendarDays,
+  LayoutTemplate,
+  BarChart2,
+  Users,
+  Building2,
+  ChevronDown,
+  Plus,
+  Check,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { PlanBadge } from "@/components/PlanBadge";
@@ -12,10 +21,13 @@ import { resolveInstagramConnected } from "@/lib/workspaceInstagram";
 import { useApp } from "@/state/AppContext";
 import { cn } from "@/lib/utils";
 import { useModules } from "@/hooks/useModules";
-import { useLogoutMutation } from "@/hooks/useAuth";
 import { useCreateWorkspaceMutation } from "@/hooks/useCreateWorkspace";
+import { useAccountNavItems } from "@/hooks/useAccountNavItems";
+import {
+  UserAccountSheet,
+  UserAccountTrigger,
+} from "@/components/layout/UserAccountSheet";
 import type { AuthorizationModule } from "@/types/auth";
-import { useAppSelector } from "@/store/hooks";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
@@ -41,11 +53,7 @@ const navigationByModule: Record<
     action?: string;
   }>
 > = {
-  workspace: [
-    { to: "/dashboard", icon: Home, label: "Dashboard", section: "main", order: 1, action: "read" },
-    { to: "/billing", icon: CreditCard, label: "Billing", section: "general", order: 0, action: "read" },
-    { to: "/settings", icon: Settings, label: "Settings", section: "general", order: 1, action: "read" }
-  ],
+  workspace: [{ to: "/dashboard", icon: Home, label: "Dashboard", section: "main", order: 1, action: "read" }],
   automation: [
     { to: "/automations", icon: Zap, label: "Automations", section: "main", order: 2, action: "read" },
     { to: "/scheduler", icon: CalendarDays, label: "Posts & Scheduler", section: "main", order: 3, action: "read" }
@@ -54,7 +62,6 @@ const navigationByModule: Record<
   biolink: [{ to: "/bio-link", icon: LayoutTemplate, label: "Bio Link", section: "main", order: 5, action: "read" }],
   analytics: [{ to: "/analytics", icon: BarChart2, label: "Analytics", section: "main", order: 6, action: "read" }],
   lead: [{ to: "/leads-captured", icon: Users, label: "Leads", section: "main", order: 7, action: "read" }],
-  affiliate: [{ to: "/affiliate", icon: Gift, label: "Affiliate Program", section: "general", order: 2, action: "read" }],
   agency: [{ to: "/agency", icon: Building2, label: "Agency Panel", section: "main", order: 8, action: "read" }]
 };
 
@@ -83,21 +90,44 @@ function SidebarNavLink({
     <NavLink
       to={item.to}
       onClick={onClose}
-      className={({ isActive }) =>
-        cn("nav-link", isActive && "nav-link-active")
-      }
+      className={({ isActive }) => cn("sidebar-nav-link", isActive && "sidebar-nav-link-active")}
     >
-      <item.icon className="h-4 w-4 shrink-0" />
-      <span>{item.label}</span>
+      <span className="sidebar-nav-icon">
+        <item.icon className="h-4 w-4" />
+      </span>
+      <span className="truncate">{item.label}</span>
+    </NavLink>
+  );
+}
+
+function SidebarAccountLink({
+  to,
+  label,
+  icon: Icon,
+  onClose,
+}: {
+  to: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  onClose: () => void;
+}) {
+  return (
+    <NavLink
+      to={to}
+      onClick={onClose}
+      className={({ isActive }) => cn("sidebar-account-link", isActive && "sidebar-account-link-active")}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0 opacity-70" />
+      <span className="truncate">{label}</span>
     </NavLink>
   );
 }
 
 export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
-  const { user, current, workspaces, setCurrentId, refreshAuth } = useApp();
+  const { current, workspaces, setCurrentId, refreshAuth } = useApp();
   const modules = useModules();
-  const isPlatformSuperAdmin = useAppSelector((state) => state.auth.isPlatformSuperAdmin);
-  const logoutMutation = useLogoutMutation();
+  const accountNav = useAccountNavItems();
+  const [accountOpen, setAccountOpen] = useState(false);
   const [wsOpen, setWsOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [showLinkPrompt, setShowLinkPrompt] = useState(false);
@@ -120,34 +150,8 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
     const moduleEntries = navigationByModule[module.key] ?? [];
     return moduleEntries.filter((entry) => !entry.action || hasAction(module, entry.action));
   });
-  const platformAdminNavigation = useMemo(() => {
-    if (!isPlatformSuperAdmin) {
-      return [];
-    }
-    return [
-      {
-        to: "/rbac-master",
-        icon: Shield,
-        label: "RBAC Master",
-        section: "general" as const,
-        order: 999,
-        action: undefined as string | undefined
-      },
-      {
-        to: "/admin/email-templates",
-        icon: Mail,
-        label: "Email Templates",
-        section: "general" as const,
-        order: 1000,
-        action: undefined as string | undefined
-      }
-    ];
-  }, [isPlatformSuperAdmin]);
   const mainNavigation = sortByOrder(visibleNavigation.filter((item) => item.section === "main"));
-  const generalNavigation = sortByOrder([
-    ...visibleNavigation.filter((item) => item.section === "general"),
-    ...platformAdminNavigation
-  ]);
+  const generalNavigation = sortByOrder(visibleNavigation.filter((item) => item.section === "general"));
 
   return (
     <>
@@ -161,36 +165,44 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
 
       <aside
         className={cn(
-          "fixed lg:sticky top-0 left-0 z-50 h-screen w-[17.5rem] shrink-0 flex flex-col",
-          "glass-sidebar border-r",
+          "sidebar-shell fixed lg:sticky top-0 left-0 z-50 h-screen w-[18rem] shrink-0 flex flex-col",
+          "glass-sidebar border-r border-border/50",
           "transition-transform duration-200 ease-out will-change-transform",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <div className="px-4 py-5 border-b border-border/50">
+        <div className="sidebar-brand px-4 pt-5 pb-4">
           <Logo />
         </div>
 
-        <div className="px-3 py-3 relative">
+        <div className="px-3 pb-2 relative">
+          <p className="sidebar-section-label px-1">Workspace</p>
           <button
             type="button"
             onClick={() => setWsOpen((v) => !v)}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg glass-surface hover:border-primary/30 transition-all duration-200"
-          >            <StatusDot
+            className="sidebar-workspace-trigger w-full"
+          >
+            <StatusDot
               status={getWorkspaceIndicatorStatus({
                 status: current.status,
-                instagramConnected: resolveInstagramConnected(current)
+                instagramConnected: resolveInstagramConnected(current),
               })}
             />
             <div className="flex-1 text-left min-w-0">
-              <div className="text-sm font-medium truncate">{current.name}</div>
+              <div className="text-sm font-semibold truncate">{current.name}</div>
+              <div className="text-[11px] text-muted-foreground truncate">{current.handle}</div>
             </div>
             <PlanBadge plan={current.plan} />
-            <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", wsOpen && "rotate-180")} />
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0",
+                wsOpen && "rotate-180"
+              )}
+            />
           </button>
 
           {wsOpen && (
-            <div className="absolute left-3 right-3 mt-1.5 glass-surface rounded-lg z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute left-3 right-3 mt-1.5 sidebar-workspace-dropdown z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
               {workspaces.map((w) => (
                 <button
                   key={w.id}
@@ -251,41 +263,71 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 scrollbar-thin">
-          <p className="sidebar-section-label">Menu</p>
-          {mainNavigation.map((item) => (
-            <SidebarNavLink key={item.to} item={item} onClose={onClose} />
-          ))}
+        <nav className="flex-1 overflow-y-auto px-3 py-1 space-y-4 scrollbar-thin">
+          <div>
+            <p className="sidebar-section-label">Product</p>
+            <div className="space-y-0.5">
+              {mainNavigation.map((item) => (
+                <SidebarNavLink key={item.to} item={item} onClose={onClose} />
+              ))}
+            </div>
+          </div>
 
-          <p className="sidebar-section-label mt-4">General</p>
-          {generalNavigation.map((item) => (
-            <SidebarNavLink key={item.to} item={item} onClose={onClose} />
-          ))}
+          {generalNavigation.length > 0 && (
+            <div>
+              <p className="sidebar-section-label">Admin tools</p>
+              <div className="space-y-0.5">
+                {generalNavigation.map((item) => (
+                  <SidebarNavLink key={item.to} item={item} onClose={onClose} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {accountNav.all.length > 0 && (
+            <div>
+              <p className="sidebar-section-label">Account</p>
+              <div className="space-y-0.5">
+                {accountNav.account.map((item) => (
+                  <SidebarAccountLink
+                    key={item.id}
+                    to={item.to}
+                    label={item.label}
+                    icon={item.icon}
+                    onClose={onClose}
+                  />
+                ))}
+                {accountNav.programs.map((item) => (
+                  <SidebarAccountLink
+                    key={item.id}
+                    to={item.to}
+                    label={item.label}
+                    icon={item.icon}
+                    onClose={onClose}
+                  />
+                ))}
+                {accountNav.admin.map((item) => (
+                  <SidebarAccountLink
+                    key={item.id}
+                    to={item.to}
+                    label={item.label}
+                    icon={item.icon}
+                    onClose={onClose}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </nav>
 
-        <div className="p-3 border-t border-border/60">
-          <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
-            <div className="h-9 w-9 shrink-0 rounded-full bg-primary/15 text-primary flex items-center justify-center font-semibold text-sm">
-              {(user?.name ?? "NA").split(" ").map((n) => n[0]).join("")}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.name ?? "Unknown User"}</p>
-              <p className="text-xs text-muted-foreground truncate">{user?.email ?? "-"}</p>
-            </div>
-            <button
-              type="button"
-              title="Sign out"
-              onClick={async () => {
-                await logoutMutation.mutateAsync();
-                navigate("/login");
-              }}
-              className="shrink-0 p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors duration-150"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
+        <div className="sidebar-footer p-3 border-t border-border/50">
+          <UserAccountTrigger showChevron onClick={() => setAccountOpen(true)} />
         </div>
-      </aside>      <AlertDialog open={showLinkPrompt} onOpenChange={setShowLinkPrompt}>
+      </aside>
+
+      <UserAccountSheet open={accountOpen} onOpenChange={setAccountOpen} />
+
+      <AlertDialog open={showLinkPrompt} onOpenChange={setShowLinkPrompt}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Link Instagram for this workspace?</AlertDialogTitle>

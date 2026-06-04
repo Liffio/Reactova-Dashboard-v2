@@ -604,14 +604,7 @@
   }
 
   .auth-ig-ring {
-    background: linear-gradient(
-      135deg,
-      #f0caa1,
-      #f7b49c,
-      #f197a5,
-      #f7a6c6,
-      #faa2de
-    );
+ 
   }
 
   .auth-glass-panel {
@@ -795,34 +788,130 @@
       0 0 0 3px hsl(var(--primary) / 0.18);
   }
 
-  .sidebar-section-label {
-    @apply px-3 pt-1 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/80;
+  .sidebar-shell {
+    box-shadow:
+      1px 0 0 hsl(var(--foreground) / 0.05) inset,
+      8px 0 40px -12px hsl(var(--foreground) / 0.12);
   }
 
-  .nav-link {
-    @apply relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200;
+  .sidebar-brand {
+    border-bottom: 1px solid hsl(var(--foreground) / 0.06);
+    background: linear-gradient(180deg, hsl(var(--primary) / 0.06) 0%, transparent 100%);
+  }
+
+  .sidebar-workspace-trigger {
+    @apply flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all duration-200;
+    background: hsl(var(--card) / 0.45);
+    border: 1px solid hsl(var(--foreground) / 0.1);
+    backdrop-filter: blur(12px) saturate(1.4);
+    -webkit-backdrop-filter: blur(12px) saturate(1.4);
+    box-shadow: 0 1px 0 hsl(var(--foreground) / 0.08) inset;
+  }
+
+  .sidebar-workspace-trigger:hover {
+    border-color: hsl(var(--primary) / 0.35);
+    background: hsl(var(--primary) / 0.08);
+  }
+
+  .sidebar-workspace-dropdown {
+    background: hsl(var(--card) / 0.92);
+    border: 1px solid hsl(var(--foreground) / 0.12);
+    border-radius: 0.75rem;
+    backdrop-filter: blur(20px) saturate(1.6);
+    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+    box-shadow:
+      0 1px 0 hsl(var(--foreground) / 0.08) inset,
+      0 16px 40px -12px hsl(var(--foreground) / 0.2);
+  }
+
+  .sidebar-footer {
+    background: linear-gradient(0deg, hsl(var(--primary) / 0.05) 0%, transparent 100%);
+  }
+
+  .sidebar-section-label {
+    @apply px-1 pt-0.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/75;
+  }
+
+  .sidebar-nav-link {
+    @apply relative flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-all duration-200;
     @apply text-muted-foreground hover:text-foreground;
   }
 
-  .nav-link-active {
-    @apply text-primary font-medium;
+  .sidebar-nav-icon {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors;
+    background: hsl(var(--foreground) / 0.04);
+    border: 1px solid hsl(var(--foreground) / 0.06);
+  }
+
+  .sidebar-nav-link-active {
+    @apply text-primary;
     background: linear-gradient(
       90deg,
-      hsl(var(--primary) / 0.18) 0%,
-      hsl(var(--primary) / 0.08) 100%
+      hsl(var(--primary) / 0.2) 0%,
+      hsl(var(--primary) / 0.06) 100%
     );
-    border: 1px solid hsl(var(--primary) / 0.22);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid hsl(var(--primary) / 0.24);
     box-shadow:
       inset 3px 0 0 hsl(var(--primary)),
       0 1px 0 hsl(var(--foreground) / 0.06) inset;
   }
 
-  .nav-link:hover {
-    background: hsl(var(--foreground) / 0.06);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+  .sidebar-nav-link-active .sidebar-nav-icon {
+    background: hsl(var(--primary) / 0.2);
+    border-color: hsl(var(--primary) / 0.35);
+    color: hsl(var(--primary));
+  }
+
+  .sidebar-nav-link:hover:not(.sidebar-nav-link-active) {
+    background: hsl(var(--foreground) / 0.05);
+  }
+
+  .sidebar-nav-link:hover:not(.sidebar-nav-link-active) .sidebar-nav-icon {
+    border-color: hsl(var(--primary) / 0.2);
+  }
+
+  .sidebar-account-link {
+    @apply flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors;
+    @apply text-muted-foreground hover:text-foreground hover:bg-foreground/5;
+  }
+
+  .sidebar-account-link-active {
+    @apply text-primary bg-primary/10;
+  }
+
+  .account-menu-section-label {
+    @apply px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80;
+  }
+
+  .account-menu-link {
+    @apply flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-colors;
+    @apply text-foreground/90 hover:bg-foreground/5;
+  }
+
+  .account-menu-link-active {
+    @apply bg-primary/10 text-primary;
+  }
+
+  .account-menu-link-danger {
+    @apply text-destructive hover:bg-destructive/10 hover:text-destructive;
+  }
+
+  .account-sheet-profile {
+    background: linear-gradient(
+      165deg,
+      hsl(var(--primary) / 0.12) 0%,
+      hsl(var(--card) / 0.4) 55%,
+      transparent 100%
+    );
+  }
+
+  /* Legacy nav-link aliases (if used elsewhere) */
+  .nav-link {
+    @apply sidebar-nav-link;
+  }
+
+  .nav-link-active {
+    @apply sidebar-nav-link-active;
   }
 
   .data-table {

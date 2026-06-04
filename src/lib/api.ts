@@ -81,6 +81,7 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
 
   const res = await fetch(`${API_BASE}${path}`, {
     method,
+    cache: "no-store",
     credentials: isAnonymousPublicRead ? "omit" : "include",
     headers: {
       ...(usesJsonBody ? { "Content-Type": "application/json" } : {}),
@@ -108,6 +109,7 @@ export async function apiUploadRequest<T>(path: string, formData: FormData, conf
 
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
+    cache: "no-store",
     credentials: "include",
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

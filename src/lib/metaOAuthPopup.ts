@@ -10,6 +10,9 @@ export type MetaOAuthResult = {
   meta: "connected" | "error";
   reason?: string;
   step?: number;
+  /** Workspace that received the Instagram connection (from OAuth state). */
+  workspaceId?: string;
+  igHandle?: string | null;
 };
 
 type MetaOAuthMessage = {
@@ -18,6 +21,8 @@ type MetaOAuthMessage = {
 };
 
 export type OpenMetaOAuthPopupOptions = {
+  /** Workspace id encoded in OAuth state — used when postMessage omits workspaceId. */
+  oauthWorkspaceId?: string;
   /** Polls workspace connection while popup is open (fallback when postMessage/opener fails). */
   checkConnected?: () => Promise<boolean>;
   /** Confirms DB persistence after OAuth success (postMessage path). Defaults to checkConnected. */
@@ -154,7 +159,11 @@ export function openMetaOAuthPopup(
       if (!isTrustedOAuthMessage(data)) {
         return;
       }
-      void settleAfterVerification(data.payload);
+      const payload = data.payload;
+      if (payload.meta === "connected" && !payload.workspaceId && options.oauthWorkspaceId) {
+        payload.workspaceId = options.oauthWorkspaceId;
+      }
+      void settleAfterVerification(payload);
     };
 
     const connectionPollId = window.setInterval(() => {
@@ -163,7 +172,7 @@ export function openMetaOAuthPopup(
       }
       void options.checkConnected().then((connected) => {
         if (connected) {
-          void settleAfterVerification({ meta: "connected", step: 3 });
+          void settleAfterVerification({ meta: "connected", step: 3, workspaceId: options.oauthWorkspaceId });
         }
       });
     }, 800);
@@ -180,7 +189,11 @@ export function openMetaOAuthPopup(
           try {
             const connected = await options.checkConnected();
             if (connected) {
-              await settleAfterVerification({ meta: "connected", step: 3 });
+              await settleAfterVerification({
+                meta: "connected",
+                step: 3,
+                workspaceId: options.oauthWorkspaceId
+              });
               return;
             }
           } catch {

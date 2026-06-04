@@ -13,7 +13,8 @@ import { useAppSelector } from "@/store/hooks";
 import { CopyButton, CopyField } from "@/components/CopyButton";
 import { StatusDot } from "@/components/StatusBadge";
 import { getWorkspaceIndicatorStatus } from "@/lib/workspaceIndicator";
-import { resolveInstagramConnected } from "@/lib/workspaceInstagram";
+import { isWorkspaceInstagramConnected, resolveInstagramConnected } from "@/lib/workspaceInstagram";
+import { applyInstagramOAuthSuccess } from "@/lib/metaOAuthSuccess";
 import { ApiCredentialsSettings } from "@/components/settings/ApiCredentialsSettings";
 import { InstagramMusicSessionSettings } from "@/components/settings/InstagramMusicSessionSettings";
 import { BillingContent } from "@/pages/Billing";
@@ -604,9 +605,23 @@ function General() {
     }
 
     if (meta === "connected") {
-      void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-      void refreshAuth();
-      toast.success("Instagram connected successfully");
+      const workspaceId = params.get("workspaceId") ?? undefined;
+      const igHandle = params.get("igHandle");
+      void applyInstagramOAuthSuccess(
+        queryClient,
+        { setCurrentId, refreshAuth },
+        { meta: "connected", workspaceId, igHandle }
+      ).then((applied) => {
+        if (!applied.applied) {
+          toast.error(
+            "Instagram authorized but this workspace did not update. Switch workspace in the sidebar and check which one is linked."
+          );
+          return;
+        }
+        toast.success(
+          igHandle ? `Instagram connected as ${igHandle}` : "Instagram connected successfully"
+        );
+      });
     } else if (meta === "error") {
       const reason = decodeURIComponent(params.get("reason") ?? "");
       toast.error(reason ? `Instagram connection failed: ${reason.replace(/_/g, " ")}` : "Instagram connection failed");
@@ -617,7 +632,7 @@ function General() {
     params.delete("step");
     const next = params.toString();
     navigate(next ? `/settings?${next}` : "/settings?tab=General", { replace: true });
-  }, [navigate, queryClient, refreshAuth]);
+  }, [navigate, queryClient, refreshAuth, setCurrentId]);
 
   const renameWorkspaceMutation = useMutation({
     mutationFn: async (displayName: string) =>
@@ -632,43 +647,45 @@ function General() {
     },
     onError: (error) => toast.error((error as Error).message)
   });
-  const checkWorkspaceInstagramConnected = async () => {
-    const workspaces = await apiRequest<
-      Array<{ id: string; instagramConnected?: boolean; onboarding?: Record<string, unknown> }>
-    >("/api/v1/workspaces", { workspaceId: current.id });
-    const workspace = workspaces.find((item) => item.id === current.id);
-    return workspace ? resolveInstagramConnected(workspace) : false;
-  };
-
   const reconnectMutation = useMutation({
     mutationFn: () => {
+      const oauthWorkspaceId = current.id;
       const wasAlreadyConnected = resolveInstagramConnected(current);
       let authorizeUrlReady = false;
       return openMetaOAuthPopup(
         async () => {
           const { url } = await apiRequest<{ url: string }>(buildMetaOAuthStartPath("settings"), {
-            workspaceId: current.id,
+            workspaceId: oauthWorkspaceId,
           });
           authorizeUrlReady = true;
           return url;
         },
         {
+          oauthWorkspaceId,
           checkConnected: async () => {
             if (!authorizeUrlReady || wasAlreadyConnected) {
               return false;
             }
-            return checkWorkspaceInstagramConnected();
+            return isWorkspaceInstagramConnected(oauthWorkspaceId);
           },
-          verifyConnected: checkWorkspaceInstagramConnected,
+          verifyConnected: () => isWorkspaceInstagramConnected(oauthWorkspaceId),
         }
       );
     },
     onSuccess: async (result) => {
       if (result.meta === "connected") {
-        await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-        await queryClient.invalidateQueries({ queryKey: ["scheduler", "platform-accounts", current.id] });
-        await refreshAuth();
-        toast.success("Instagram connected successfully");
+        const applied = await applyInstagramOAuthSuccess(queryClient, { setCurrentId, refreshAuth }, result);
+        if (!applied.applied) {
+          toast.error(
+            "Instagram authorized but this workspace did not update. Switch workspace in the sidebar and check which one is linked."
+          );
+          return;
+        }
+        toast.success(
+          result.igHandle
+            ? `Instagram connected as ${result.igHandle}`
+            : "Instagram connected successfully"
+        );
         return;
       }
       const reason = result.reason ?? "token_exchange_failed";

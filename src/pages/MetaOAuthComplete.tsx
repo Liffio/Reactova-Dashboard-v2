@@ -5,10 +5,9 @@ import { Instagram } from "lucide-react";
 import { toast } from "sonner";
 import { META_OAUTH_MESSAGE_TYPE, type MetaOAuthResult } from "@/lib/metaOAuthPopup";
 import { AppShellBackdrop } from "@/components/layout/AppShellBackdrop";
-import { apiRequest } from "@/lib/api";
-import { resolveInstagramConnected } from "@/lib/workspaceInstagram";
 import { useApp } from "@/state/AppContext";
-import { useAppSelector } from "@/store/hooks";
+import { applyInstagramOAuthSuccess } from "@/lib/metaOAuthSuccess";
+import { isWorkspaceInstagramConnected } from "@/lib/workspaceInstagram";
 
 function parseResult(searchParams: URLSearchParams): MetaOAuthResult {
   const meta = searchParams.get("meta");
@@ -26,9 +25,7 @@ export default function MetaOAuthComplete() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const { current, refreshAuth } = useApp();
-  const authWorkspaceId = useAppSelector((state) => state.auth.workspaceId);
-  const workspaceId = current.id || authWorkspaceId || "";
+  const { setCurrentId, refreshAuth } = useApp();
 
   useEffect(() => {
     let cancelled = false;
@@ -36,53 +33,56 @@ export default function MetaOAuthComplete() {
     const run = async () => {
       const result = parseResult(searchParams);
       const returnTo = searchParams.get("returnTo") === "settings" ? "settings" : "onboarding";
+      const workspaceId = searchParams.get("workspaceId") ?? undefined;
+      const igHandle = searchParams.get("igHandle");
+      const enriched: MetaOAuthResult =
+        result.meta === "connected"
+          ? { ...result, workspaceId, igHandle }
+          : result;
 
       if (window.opener && !window.opener.closed) {
-        window.opener.postMessage({ type: META_OAUTH_MESSAGE_TYPE, payload: result }, window.location.origin);
+        window.opener.postMessage(
+          { type: META_OAUTH_MESSAGE_TYPE, payload: enriched },
+          window.location.origin
+        );
         window.close();
         return;
       }
 
-      if (result.meta === "connected") {
-        const deadline = Date.now() + 12_000;
-        let persisted = false;
-        while (!cancelled && Date.now() < deadline) {
-          const workspaces = await apiRequest<
-            Array<{ id: string; instagramConnected?: boolean; onboarding?: Record<string, unknown> }>
-          >("/api/v1/workspaces", { workspaceId });
-          const workspace = workspaces.find((item) => item.id === workspaceId);
-          if (workspace && resolveInstagramConnected(workspace)) {
-            persisted = true;
-            break;
-          }
-          await new Promise((resolve) => window.setTimeout(resolve, 500));
-        }
-        if (!persisted) {
-          const reason = encodeURIComponent("connection_not_persisted");
-          navigate(
-            returnTo === "settings"
-              ? `/settings?meta=error&reason=${reason}`
-              : `/onboarding?meta=error&reason=${reason}`,
-            { replace: true }
-          );
+      if (enriched.meta === "connected") {
+        const applied = await applyInstagramOAuthSuccess(
+          queryClient,
+          { setCurrentId, refreshAuth },
+          enriched
+        );
+        if (cancelled) {
           return;
         }
-        await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-        await refreshAuth();
-        toast.success("Instagram connected successfully");
-      }
-
-      if (cancelled) {
-        return;
-      }
-
-      if (result.meta === "connected") {
-        const step = result.step ?? 3;
+        if (!applied.applied && workspaceId) {
+          const persisted = await isWorkspaceInstagramConnected(workspaceId);
+          if (!persisted) {
+            const reason = encodeURIComponent("connection_not_persisted");
+            navigate(
+              returnTo === "settings"
+                ? `/settings?meta=error&reason=${reason}`
+                : `/onboarding?meta=error&reason=${reason}`,
+              { replace: true }
+            );
+            return;
+          }
+        }
+        toast.success(
+          igHandle ? `Instagram connected as ${igHandle}` : "Instagram connected successfully"
+        );
         if (returnTo === "settings") {
           navigate("/settings?tab=General", { replace: true });
         } else {
-          navigate(`/onboarding?meta=connected&step=${step}`, { replace: true });
+          navigate(`/onboarding?meta=connected&step=${enriched.step ?? 3}`, { replace: true });
         }
+        return;
+      }
+
+      if (cancelled) {
         return;
       }
 
@@ -98,7 +98,7 @@ export default function MetaOAuthComplete() {
     return () => {
       cancelled = true;
     };
-  }, [navigate, queryClient, refreshAuth, searchParams, workspaceId]);
+  }, [navigate, queryClient, refreshAuth, searchParams, setCurrentId]);
 
   return (
     <div className="app-shell relative min-h-screen flex flex-col items-center justify-center gap-3 p-6">

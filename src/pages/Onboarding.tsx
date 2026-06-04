@@ -16,7 +16,9 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/api";
 import { openMetaOAuthPopup, buildMetaOAuthStartPath } from "@/lib/metaOAuthPopup";
-import { resolveInstagramConnected } from "@/lib/workspaceInstagram";
+import { isWorkspaceInstagramConnected, resolveInstagramConnected } from "@/lib/workspaceInstagram";
+import { applyInstagramOAuthSuccess } from "@/lib/metaOAuthSuccess";
+import { useApp } from "@/state/AppContext";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setAuthMe } from "@/store/authSlice";
 import type { AuthMePayload } from "@/types/auth";
@@ -101,6 +103,7 @@ export default function Onboarding() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const dispatch = useAppDispatch();
+  const { setCurrentId, refreshAuth } = useApp();
   const workspaceIdFromStore = useAppSelector((s) => s.auth.workspaceId);
   const isOnboarded = useAppSelector((s) => s.auth.isOnboarded);
   const emailVerified = useAppSelector((s) => s.auth.emailVerified);
@@ -136,43 +139,39 @@ export default function Onboarding() {
   });
 
   const startMetaOAuth = useMutation({
-    mutationFn: () =>
-      openMetaOAuthPopup(
+    mutationFn: async () => {
+      const oauthWorkspaceId = await resolveWorkspaceId();
+      return openMetaOAuthPopup(
         async () => {
-          const workspaceId = await resolveWorkspaceId();
           const { url } = await apiRequest<{ url: string }>(buildMetaOAuthStartPath("onboarding"), {
-            workspaceId,
+            workspaceId: oauthWorkspaceId,
           });
           return url;
         },
         {
-          checkConnected: async () => {
-            const workspaceId = await resolveWorkspaceId();
-            const workspaces = await apiRequest<Array<{ id: string; instagramConnected?: boolean; onboarding?: Record<string, unknown> }>>(
-              "/api/v1/workspaces",
-              { workspaceId }
-            );
-            const workspace = workspaces.find((item) => item.id === workspaceId);
-            return workspace ? resolveInstagramConnected(workspace) : false;
-          },
-          verifyConnected: async () => {
-            const workspaceId = await resolveWorkspaceId();
-            const workspaces = await apiRequest<Array<{ id: string; instagramConnected?: boolean; onboarding?: Record<string, unknown> }>>(
-              "/api/v1/workspaces",
-              { workspaceId }
-            );
-            const workspace = workspaces.find((item) => item.id === workspaceId);
-            return workspace ? resolveInstagramConnected(workspace) : false;
-          },
+          oauthWorkspaceId,
+          checkConnected: () => isWorkspaceInstagramConnected(oauthWorkspaceId),
+          verifyConnected: () => isWorkspaceInstagramConnected(oauthWorkspaceId),
         }
-      ),
-    onSuccess: (result) => {
+      );
+    },
+    onSuccess: async (result) => {
       if (result.meta === "connected") {
+        const applied = await applyInstagramOAuthSuccess(queryClient, { setCurrentId, refreshAuth }, result);
+        if (!applied.applied) {
+          setIgError({ reason: "connection_not_persisted" });
+          setStep(2);
+          toast.error("Instagram authorized but this workspace did not update. Try again or pick the correct workspace.");
+          return;
+        }
         setIgConnected(true);
         setIgError(null);
         setStep(3);
-        void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-        toast.success("Instagram connected successfully");
+        toast.success(
+          result.igHandle
+            ? `Instagram connected as ${result.igHandle}`
+            : "Instagram connected successfully"
+        );
         return;
       }
       const reason = result.reason ?? "token_exchange_failed";
@@ -218,13 +217,33 @@ export default function Onboarding() {
     const meta = searchParams.get("meta");
 
     if (meta === "connected") {
-      setIgConnected(true);
-      setIgError(null);
-      const stepParam = Number(searchParams.get("step"));
-      const nextStep = Number.isFinite(stepParam) ? Math.min(Math.max(stepParam, 1), 3) : 3;
-      setStep((prev) => Math.max(prev, nextStep));
-      void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-      toast.success("Instagram connected successfully");
+      const workspaceId = searchParams.get("workspaceId") ?? undefined;
+      const igHandle = searchParams.get("igHandle");
+      void applyInstagramOAuthSuccess(
+        queryClient,
+        { setCurrentId, refreshAuth },
+        {
+          meta: "connected",
+          step: Number(searchParams.get("step")) || 3,
+          workspaceId,
+          igHandle
+        }
+      ).then((applied) => {
+        if (!applied.applied) {
+          setIgError({ reason: "connection_not_persisted" });
+          setStep(2);
+          toast.error("Instagram authorized but this workspace did not update.");
+          return;
+        }
+        setIgConnected(true);
+        setIgError(null);
+        const stepParam = Number(searchParams.get("step"));
+        const nextStep = Number.isFinite(stepParam) ? Math.min(Math.max(stepParam, 1), 3) : 3;
+        setStep((prev) => Math.max(prev, nextStep));
+        toast.success(
+          igHandle ? `Instagram connected as ${igHandle}` : "Instagram connected successfully"
+        );
+      });
     }
 
     if (meta === "error") {

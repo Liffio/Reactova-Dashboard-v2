@@ -376,6 +376,41 @@
       0 4px 16px -6px hsl(var(--foreground) / 0.1);
   }
 
+  /* Affiliate earnings calculator — theme-aligned slider on branded card */
+  .affiliate-earnings-slider [data-orientation="horizontal"] > span:first-of-type {
+    height: 0.625rem;
+    border-radius: 9999px;
+    background: hsl(var(--secondary));
+    border: 1px solid hsl(var(--border) / 0.7);
+  }
+
+  .affiliate-earnings-slider [data-orientation="horizontal"] > span:first-of-type > span {
+    border-radius: 9999px;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--primary)) 0%,
+      hsl(var(--violet)) 100%
+    );
+  }
+
+  .affiliate-earnings-slider [data-orientation="horizontal"] > span[role="slider"] {
+    height: 1.25rem;
+    width: 1.25rem;
+    border-width: 2px;
+    border-color: hsl(var(--primary));
+    background: hsl(var(--background));
+    box-shadow:
+      0 0 0 4px hsl(var(--primary) / 0.2),
+      0 2px 8px hsl(var(--foreground) / 0.1);
+  }
+
+  .affiliate-earnings-slider [data-orientation="horizontal"] > span[role="slider"]:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 4px hsl(var(--primary) / 0.3),
+      0 0 0 6px hsl(var(--ring) / 0.4);
+  }
+
   .card-header-bar {
     @apply flex flex-col space-y-1 px-6 pt-5 pb-4 pl-7;
     border-bottom: 1px solid hsl(var(--foreground) / 0.08);

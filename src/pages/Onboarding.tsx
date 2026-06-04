@@ -167,6 +167,10 @@ export default function Onboarding() {
         return;
       }
       const reason = result.reason ?? "token_exchange_failed";
+      if (reason === "user_canceled") {
+        // User deliberately closed the Meta popup — no error to show
+        return;
+      }
       setIgError({ reason });
       setStep(2);
       toast.error(IG_ERRORS[reason]?.title ?? "Instagram connection failed");
@@ -216,20 +220,22 @@ export default function Onboarding() {
 
     if (meta === "error") {
       const reason = decodeURIComponent(searchParams.get("reason") ?? "");
-      setIgError({ reason });
-      setStep((prev) => (prev < 2 ? 2 : prev));
+      if (reason !== "user_canceled") {
+        setIgError({ reason });
+        setStep((prev) => (prev < 2 ? 2 : prev));
 
-      if (reason === "no_instagram_business_account") {
-        resolveWorkspaceId()
-          .then((wid) =>
-            apiRequest<Array<{ id: string; metadata?: Record<string, unknown> }>>("/api/v1/workspaces").then((ws) => {
-              const diag = ws.find((w) => w.id === wid)?.metadata?.lastOAuthDiagnostic as
-                | MetaOAuthDiagnostic
-                | undefined;
-              if (diag) setIgError({ reason, diagnostic: diag });
-            })
-          )
-          .catch(() => {});
+        if (reason === "no_instagram_business_account") {
+          resolveWorkspaceId()
+            .then((wid) =>
+              apiRequest<Array<{ id: string; metadata?: Record<string, unknown> }>>("/api/v1/workspaces").then((ws) => {
+                const diag = ws.find((w) => w.id === wid)?.metadata?.lastOAuthDiagnostic as
+                  | MetaOAuthDiagnostic
+                  | undefined;
+                if (diag) setIgError({ reason, diagnostic: diag });
+              })
+            )
+            .catch(() => {});
+        }
       }
     }
 

@@ -70,7 +70,10 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
   const state = store.getState();
   const token = config.token === null ? null : (config.token ?? state.auth.accessToken);
   const method = config.method ?? "GET";
-  const isAnonymousPublicRead = token === null && method === "GET" && path.startsWith("/api/v1/public/");
+  const isPublicGet =
+    method === "GET" &&
+    (path.startsWith("/api/v1/public/") || path.startsWith("/api/v1/marketing/"));
+  const isAnonymousPublicRead = token === null && isPublicGet;
 
   const hasExplicitBody = config.body !== undefined && config.body !== null;
   const usesJsonBody = hasExplicitBody || (method !== "GET" && method !== "HEAD");

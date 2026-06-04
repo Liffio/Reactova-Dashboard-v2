@@ -162,7 +162,7 @@ export function openMetaOAuthPopup(
             // ignore
           }
         }
-        fail(new Error("Instagram login was cancelled."));
+        settle({ meta: "error", reason: "user_canceled" });
       }, 600);
     }, 400);
 

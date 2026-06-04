@@ -660,6 +660,10 @@ function General() {
         return;
       }
       const reason = result.reason ?? "token_exchange_failed";
+      if (reason === "user_canceled") {
+        // User deliberately closed the Meta popup — no error to show
+        return;
+      }
       toast.error(`Instagram connection failed: ${reason.replace(/_/g, " ")}`);
     },
     onError: (error) => toast.error((error as Error).message)

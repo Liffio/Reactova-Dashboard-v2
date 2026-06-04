@@ -65,13 +65,6 @@ export default function ConfirmEmail() {
     return () => clearTimeout(timer);
   }, [resendIn]);
 
-  useEffect(() => {
-    if (!accessToken || emailVerified || initialSendDone.current) return;
-    initialSendDone.current = true;
-    resendMutation.mutate();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, emailVerified]);
-
   const handleVerified = () => {
     const pendingPlan = localStorage.getItem("pending_plan");
     if (pendingPlan && PAID_PLANS.includes(pendingPlan)) {
@@ -82,6 +75,21 @@ export default function ConfirmEmail() {
     if (pendingPlan) localStorage.removeItem("pending_plan");
     navigate(isOnboarded ? (redirectTo || "/dashboard") : "/onboarding", { replace: true });
   };
+
+  // If email becomes verified while we're here (e.g. auth-me corrects state), navigate away.
+  useEffect(() => {
+    if (emailVerified && accessToken) {
+      handleVerified();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailVerified]);
+
+  useEffect(() => {
+    if (!accessToken || emailVerified || initialSendDone.current) return;
+    initialSendDone.current = true;
+    resendMutation.mutate();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, emailVerified]);
 
   useEffect(() => {
     if (otp.length !== 6) return;

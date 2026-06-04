@@ -173,9 +173,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch(setAuthMe(authMeQuery.data));
       if (authMeQuery.data.workspaceId) {
         persistActiveWorkspaceId(authMeQuery.data.workspaceId, authMeQuery.data.user.id);
-        setCurrentIdState((prev) =>
-          prev === authMeQuery.data.workspaceId ? prev : authMeQuery.data.workspaceId
-        );
+        // Only sync currentId when the server-side workspace differs from what we requested.
+        // This handles the case where the server falls back to a different workspace
+        // (e.g. user lost access). Skipping this when the response matches the requested
+        // workspace avoids a race-condition bounce from stale-closure refetches.
+        if (authMeQuery.data.workspaceId !== selectedWorkspaceId) {
+          setCurrentIdState((prev) =>
+            prev === authMeQuery.data.workspaceId ? prev : authMeQuery.data.workspaceId
+          );
+        }
       }
       return;
     }
@@ -184,7 +190,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch(clearAuthSession());
       clearStoredActiveWorkspaceId(authUser?.id);
     }
-  }, [authMeQuery.data, authMeQuery.error, dispatch, authUser?.id]);
+  }, [authMeQuery.data, authMeQuery.error, dispatch, authUser?.id, selectedWorkspaceId]);
 
   const current = useMemo(
     () =>
@@ -237,9 +243,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [authUser?.id, persistActiveWorkspace, queryClient]
   );
 
+  // Invalidate all auth-me entries rather than calling authMeQuery.refetch() directly.
+  // refetch() captures authMeQuery at render time — if called right after setCurrentId(),
+  // it still points at the old workspace before React has re-rendered, causing the old
+  // workspace's response to overwrite the new workspace selection via setCurrentIdState.
   const refreshAuth = useCallback(async () => {
-    await authMeQuery.refetch();
-  }, [authMeQuery]);
+    await queryClient.invalidateQueries({ queryKey: ["auth-me"] });
+  }, [queryClient]);
 
   const signIn = useCallback(async () => {
     return;

@@ -67,7 +67,9 @@ const authSlice = createSlice({
       state.modules = action.payload?.modules ?? [];
       state.isPlatformSuperAdmin = action.payload?.isPlatformSuperAdmin ?? false;
       state.isOnboarded = action.payload?.isOnboarded ?? false;
-      state.emailVerified = action.payload?.emailVerified ?? false;
+      // Preserve current value when the payload omits emailVerified (e.g. workspace switch)
+      // rather than defaulting to false and triggering a spurious confirm-email redirect.
+      state.emailVerified = action.payload?.emailVerified ?? state.emailVerified;
       state.mfaEnabled = action.payload?.mfaEnabled ?? state.mfaEnabled;
       state.mfaEmailOtpEnabled = action.payload?.mfaEmailOtpEnabled ?? state.mfaEmailOtpEnabled;
       state.mfaSmsOtpEnabled = action.payload?.mfaSmsOtpEnabled ?? state.mfaSmsOtpEnabled;

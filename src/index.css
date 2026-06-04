@@ -896,13 +896,79 @@
     @apply text-destructive hover:bg-destructive/10 hover:text-destructive;
   }
 
-  .account-dropdown-content {
-    max-height: min(70vh, 24rem);
-    overflow-y: auto;
+  .account-dropdown-panel {
+    max-height: min(70vh, 26rem);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
-  .account-dropdown-content [role="menuitem"] a {
-    @apply flex w-full items-center gap-2;
+  .account-dropdown-header {
+    background: linear-gradient(
+      165deg,
+      hsl(var(--primary) / 0.1) 0%,
+      hsl(var(--card) / 0.35) 50%,
+      transparent 100%
+    );
+  }
+
+  .account-dropdown-body {
+    overflow-y: auto;
+    max-height: min(50vh, 18rem);
+    scrollbar-width: thin;
+  }
+
+  .account-dropdown-section-label {
+    @apply px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/75;
+  }
+
+  .account-dropdown-separator {
+    @apply bg-border/50 h-px;
+  }
+
+  .account-dropdown-item {
+    @apply mx-1.5 text-muted-foreground;
+  }
+
+  .account-dropdown-item:focus,
+  .account-dropdown-item[data-highlighted] {
+    @apply text-foreground;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--primary) / 0.14) 0%,
+      hsl(var(--primary) / 0.06) 100%
+    ) !important;
+    box-shadow: inset 2px 0 0 hsl(var(--primary));
+  }
+
+  .account-dropdown-icon {
+    @apply flex h-7 w-7 shrink-0 items-center justify-center rounded-lg;
+    background: hsl(var(--foreground) / 0.05);
+    border: 1px solid hsl(var(--foreground) / 0.08);
+    color: hsl(var(--primary));
+  }
+
+  .account-dropdown-item:focus .account-dropdown-icon,
+  .account-dropdown-item[data-highlighted] .account-dropdown-icon {
+    background: hsl(var(--primary) / 0.15);
+    border-color: hsl(var(--primary) / 0.3);
+  }
+
+  .account-dropdown-item-danger {
+    @apply text-destructive;
+  }
+
+  .account-dropdown-item-danger:focus,
+  .account-dropdown-item-danger[data-highlighted] {
+    @apply text-destructive;
+    background: hsl(var(--destructive) / 0.1) !important;
+    box-shadow: inset 2px 0 0 hsl(var(--destructive));
+  }
+
+  .account-dropdown-icon-danger {
+    color: hsl(var(--destructive));
+    border-color: hsl(var(--destructive) / 0.25);
+    background: hsl(var(--destructive) / 0.08);
   }
 
   /* Legacy nav-link aliases (if used elsewhere) */

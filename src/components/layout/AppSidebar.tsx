@@ -270,29 +270,11 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
             </div>
           )}
 
-          {accountNav.all.length > 0 && (
+          {accountNav.sidebar.length > 0 && (
             <div>
               <p className="sidebar-section-label">Account</p>
               <div className="space-y-0.5">
-                {accountNav.account.map((item) => (
-                  <SidebarAccountLink
-                    key={item.id}
-                    to={item.to}
-                    label={item.label}
-                    icon={item.icon}
-                    onClose={onClose}
-                  />
-                ))}
-                {accountNav.programs.map((item) => (
-                  <SidebarAccountLink
-                    key={item.id}
-                    to={item.to}
-                    label={item.label}
-                    icon={item.icon}
-                    onClose={onClose}
-                  />
-                ))}
-                {accountNav.admin.map((item) => (
+                {accountNav.sidebar.map((item) => (
                   <SidebarAccountLink
                     key={item.id}
                     to={item.to}

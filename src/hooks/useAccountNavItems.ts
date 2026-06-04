@@ -15,12 +15,14 @@ import { useAppSelector } from "@/store/hooks";
 import { useModules } from "@/hooks/useModules";
 import type { AuthorizationModule } from "@/types/auth";
 
+export type AccountNavSection = "primary" | "settings" | "programs" | "admin";
+
 export type AccountNavLink = {
   id: string;
   label: string;
   to: string;
   icon: ComponentType<{ className?: string }>;
-  section: "workspace" | "account" | "programs" | "admin";
+  section: AccountNavSection;
 };
 
 const hasAction = (module: AuthorizationModule, action: string) => module.actions.includes(action);
@@ -35,23 +37,23 @@ export function useAccountNavItems() {
 
     if (workspace && hasAction(workspace, "read")) {
       links.push(
-        { id: "settings", label: "Settings", to: "/settings", icon: Settings, section: "account" },
-        { id: "billing", label: "Billing", to: "/billing", icon: CreditCard, section: "account" },
+        { id: "settings", label: "Settings", to: "/settings", icon: Settings, section: "primary" },
+        { id: "billing", label: "Billing", to: "/billing", icon: CreditCard, section: "primary" },
         {
           id: "notifications",
           label: "Notifications",
           to: "/settings?tab=Notifications",
           icon: Bell,
-          section: "account",
+          section: "settings",
         },
-        { id: "team", label: "Team & invites", to: "/settings?tab=Team", icon: Users, section: "account" },
-        { id: "api", label: "API credentials", to: "/settings?tab=API", icon: KeyRound, section: "account" },
+        { id: "team", label: "Team & invites", to: "/settings?tab=Team", icon: Users, section: "settings" },
+        { id: "api", label: "API credentials", to: "/settings?tab=API", icon: KeyRound, section: "settings" },
         {
           id: "security",
           label: "Security",
           to: "/settings?tab=Security",
           icon: Shield,
-          section: "account",
+          section: "settings",
         }
       );
     }
@@ -97,12 +99,14 @@ export function useAccountNavItems() {
       );
     }
 
-    const bySection = (section: AccountNavLink["section"]) =>
-      links.filter((item) => item.section === section);
+    const bySection = (section: AccountNavSection) => links.filter((item) => item.section === section);
 
     return {
       all: links,
-      account: bySection("account"),
+      /** Sidebar Account section: Settings + Billing only */
+      sidebar: bySection("primary"),
+      primary: bySection("primary"),
+      settings: bySection("settings"),
       programs: bySection("programs"),
       admin: bySection("admin"),
       logout: { id: "logout", label: "Sign out", icon: LogOut } as const,

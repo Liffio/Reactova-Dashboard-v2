@@ -5,7 +5,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -34,12 +33,29 @@ function AccountDropdownItem({
 }) {
   const Icon = item.icon;
   return (
-    <DropdownMenuItem asChild className="cursor-pointer gap-2 rounded-lg">
-      <Link to={item.to} onClick={onClose}>
-        <Icon className="h-4 w-4 shrink-0 opacity-80" />
+    <DropdownMenuItem asChild className="account-dropdown-item cursor-pointer">
+      <Link to={item.to} onClick={onClose} className="flex w-full items-center gap-2.5">
+        <span className="account-dropdown-icon">
+          <Icon className="h-3.5 w-3.5" />
+        </span>
         <span>{item.label}</span>
       </Link>
     </DropdownMenuItem>
+  );
+}
+
+function AccountDropdownSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="py-1">
+      <p className="account-dropdown-section-label">{title}</p>
+      {children}
+    </div>
   );
 }
 
@@ -54,50 +70,80 @@ function AccountMenuItems({ onClose }: { onClose: () => void }) {
     navigate("/login");
   };
 
-  const hasLinks = nav.all.length > 0;
+  const hasMenu =
+    nav.primary.length > 0 ||
+    nav.settings.length > 0 ||
+    nav.programs.length > 0 ||
+    nav.admin.length > 0;
 
   return (
-    <>
-      {hasLinks && (
+    <div className="account-dropdown-body py-1">
+      {hasMenu && (
         <>
-          {nav.account.map((item) => (
-            <AccountDropdownItem key={item.id} item={item} onClose={onClose} />
-          ))}
+          {nav.primary.length > 0 && (
+            <AccountDropdownSection title="Account">
+              {nav.primary.map((item) => (
+                <AccountDropdownItem key={item.id} item={item} onClose={onClose} />
+              ))}
+            </AccountDropdownSection>
+          )}
+
+          {nav.settings.length > 0 && (
+            <>
+              <DropdownMenuSeparator className="account-dropdown-separator" />
+              <AccountDropdownSection title="Workspace">
+                {nav.settings.map((item) => (
+                  <AccountDropdownItem key={item.id} item={item} onClose={onClose} />
+                ))}
+              </AccountDropdownSection>
+            </>
+          )}
+
           {nav.programs.length > 0 && (
             <>
-              <DropdownMenuSeparator className="bg-border/60" />
-              {nav.programs.map((item) => (
-                <AccountDropdownItem key={item.id} item={item} onClose={onClose} />
-              ))}
+              <DropdownMenuSeparator className="account-dropdown-separator" />
+              <AccountDropdownSection title="Programs">
+                {nav.programs.map((item) => (
+                  <AccountDropdownItem key={item.id} item={item} onClose={onClose} />
+                ))}
+              </AccountDropdownSection>
             </>
           )}
+
           {nav.admin.length > 0 && (
             <>
-              <DropdownMenuSeparator className="bg-border/60" />
-              {nav.admin.map((item) => (
-                <AccountDropdownItem key={item.id} item={item} onClose={onClose} />
-              ))}
+              <DropdownMenuSeparator className="account-dropdown-separator" />
+              <AccountDropdownSection title="Platform admin">
+                {nav.admin.map((item) => (
+                  <AccountDropdownItem key={item.id} item={item} onClose={onClose} />
+                ))}
+              </AccountDropdownSection>
             </>
           )}
-          <DropdownMenuSeparator className="bg-border/60" />
+
+          <DropdownMenuSeparator className="account-dropdown-separator" />
         </>
       )}
-      <DropdownMenuItem
-        className="cursor-pointer gap-2 rounded-lg text-destructive focus:text-destructive focus:bg-destructive/10"
-        disabled={logoutMutation.isPending}
-        onClick={() => void handleLogout()}
-      >
-        <nav.logout.icon className="h-4 w-4 shrink-0" />
-        <span>{logoutMutation.isPending ? "Signing out…" : nav.logout.label}</span>
-      </DropdownMenuItem>
-    </>
+
+      <div className="px-1 pb-1">
+        <DropdownMenuItem
+          className="account-dropdown-item account-dropdown-item-danger cursor-pointer"
+          disabled={logoutMutation.isPending}
+          onClick={() => void handleLogout()}
+        >
+          <span className="account-dropdown-icon account-dropdown-icon-danger">
+            <nav.logout.icon className="h-3.5 w-3.5" />
+          </span>
+          <span>{logoutMutation.isPending ? "Signing out…" : nav.logout.label}</span>
+        </DropdownMenuItem>
+      </div>
+    </div>
   );
 }
 
 type UserAccountMenuProps = {
   className?: string;
   size?: "sm" | "md";
-  /** Avatar-only (header) or full profile row (sidebar footer) */
   variant?: "avatar" | "profile";
 };
 
@@ -150,9 +196,9 @@ export function UserAccountMenu({
         align={isProfile ? "start" : "end"}
         side={isProfile ? "top" : "bottom"}
         sideOffset={8}
-        className="glass-surface account-dropdown-content z-[60] w-56 sm:w-60 p-1.5 border-border/50"
+        className="account-dropdown-panel z-[60] w-56 sm:w-64 p-0"
       >
-        <DropdownMenuLabel className="px-2 py-2 font-normal">
+        <div className="account-dropdown-header px-3 py-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="auth-ig-ring h-10 w-10 shrink-0 rounded-full p-[2px]">
               <span className="flex h-full w-full items-center justify-center rounded-full glass-inset text-primary font-semibold text-sm">
@@ -168,13 +214,12 @@ export function UserAccountMenu({
               </div>
             </div>
           </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator className="bg-border/60" />
+        </div>
+        <DropdownMenuSeparator className="account-dropdown-separator m-0" />
         <AccountMenuItems onClose={() => setOpen(false)} />
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-/** @deprecated Use UserAccountMenu — kept for existing imports */
 export const UserAccountMenuButton = UserAccountMenu;

@@ -7,9 +7,9 @@ import { DashboardHero } from "@/components/dashboard/DashboardHero";
 import { DashboardMetricStrip, type DashboardMetricItem } from "@/components/dashboard/DashboardMetricStrip";
 import { DashboardQuickActions } from "@/components/dashboard/DashboardQuickActions";
 import {
-  DashboardWorkspaceGrid,
+  DashboardWorkspaceManagement,
   type DashboardWorkspaceCardData,
-} from "@/components/dashboard/DashboardWorkspaceGrid";
+} from "@/components/dashboard/DashboardWorkspaceManagement";
 import { PageAlert } from "@/components/page/PageAlert";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/sonner";
@@ -66,6 +66,7 @@ const mergeDashboardWorkspaces = (
               : "disconnected"
         : workspace.status,
       instagramConnected: summary?.instagramConnected ?? workspace.instagramConnected,
+      billingCycleEnd,
       nextBilling: billingCycleEnd ? formatBillingDate(billingCycleEnd) : workspace.nextBilling,
       dmsThisMonth: summary?.dmsThisMonth ?? workspace.dmsThisMonth ?? 0,
       leadsThisMonth: summary?.leadsThisMonth ?? workspace.leadsThisMonth ?? 0,
@@ -156,6 +157,12 @@ export default function Dashboard() {
     toast.success("Workspace created");
   });
 
+  const openWorkspaceContext = async (workspaceId: string, path: "/settings" | "/billing") => {
+    setCurrentId(workspaceId);
+    await refreshAuth();
+    navigate(path);
+  };
+
   const deleteWorkspaceMutation = useDeleteWorkspaceMutation(async (deletedWorkspaceId) => {
     const nextWorkspace = workspaceCards.find((workspace) => workspace.id !== deletedWorkspaceId);
     setCurrentId(nextWorkspace?.id ?? "");
@@ -196,25 +203,28 @@ export default function Dashboard() {
           </div>
           <aside className="dashboard-main-aside space-y-4 sm:space-y-5">
             <DashboardQuickActions />
-            <DashboardWorkspaceGrid
-              workspaces={workspaceCards}
-              currentId={current.id}
-              onSelect={(id) => {
-                setCurrentId(id);
-                void refreshAuth();
-              }}
-              onDelete={setWorkspaceToDelete}
-              onCreate={(name) =>
-                createWorkspaceMutation.mutate(
-                  { name },
-                  { onError: (error) => toast.error((error as Error).message) }
-                )
-              }
-              creating={createWorkspaceMutation.isPending}
-              canDelete={workspaceCards.length > 1}
-            />
           </aside>
         </div>
+
+        <DashboardWorkspaceManagement
+          workspaces={workspaceCards}
+          currentId={current.id}
+          onSelect={(id) => {
+            setCurrentId(id);
+            void refreshAuth();
+          }}
+          onOpenSettings={(id) => void openWorkspaceContext(id, "/settings")}
+          onOpenBilling={(id) => void openWorkspaceContext(id, "/billing")}
+          onDelete={setWorkspaceToDelete}
+          onCreate={(name) =>
+            createWorkspaceMutation.mutate(
+              { name },
+              { onError: (error) => toast.error((error as Error).message) }
+            )
+          }
+          creating={createWorkspaceMutation.isPending}
+          canDelete={workspaceCards.length > 1}
+        />
       </div>
 
       <LinkInstagramPromptDialog open={showLinkPrompt} onOpenChange={setShowLinkPrompt} />

@@ -12,6 +12,9 @@ export type AffiliateProfile = {
   availableBalance: number;
   lifetimePaid: number;
   isSuspended: boolean;
+  programConsentAt: string | null;
+  programConsentVersion: string | null;
+  hasProgramConsent: boolean;
 };
 
 export type AffiliateDashboard = {
@@ -41,34 +44,64 @@ export type AffiliateDashboard = {
 export function useAffiliateProfile() {
   return useQuery({
     queryKey: ["affiliate", "profile"],
-    queryFn: () => apiRequest<AffiliateProfile>("/api/v1/affiliate/profile")
+    queryFn: () => apiRequest<AffiliateProfile>("/api/v1/affiliate/profile"),
+  });
+}
+
+function useAffiliateConsentEnabled() {
+  const { data: profile } = useAffiliateProfile();
+  return Boolean(profile?.hasProgramConsent);
+}
+
+export function useAcceptAffiliateProgramConsent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      version: string;
+      acceptedTerms: true;
+      acceptedCommissionPolicy: true;
+      acceptedPayoutPolicy: true;
+    }) =>
+      apiRequest<AffiliateProfile>("/api/v1/affiliate/program-consent", {
+        method: "POST",
+        body,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["affiliate"] });
+    },
   });
 }
 
 export function useAffiliateLinks() {
+  const enabled = useAffiliateConsentEnabled();
   return useQuery({
     queryKey: ["affiliate", "links"],
+    enabled,
     queryFn: () =>
       apiRequest<{
         randomLink: string;
         customLink: string | null;
         shortRandomLink: string;
         shortCustomLink: string | null;
-      }>("/api/v1/affiliate/links")
+      }>("/api/v1/affiliate/links"),
   });
 }
 
 export function useAffiliateDashboard() {
+  const enabled = useAffiliateConsentEnabled();
   return useQuery({
     queryKey: ["affiliate", "dashboard"],
+    enabled,
     queryFn: () => apiRequest<AffiliateDashboard>("/api/v1/affiliate/dashboard"),
-    refetchInterval: 60_000
+    refetchInterval: enabled ? 60_000 : false,
   });
 }
 
 export function useAffiliateReferrals() {
+  const enabled = useAffiliateConsentEnabled();
   return useQuery({
     queryKey: ["affiliate", "referrals"],
+    enabled,
     queryFn: () =>
       apiRequest<
         Array<{
@@ -78,17 +111,19 @@ export function useAffiliateReferrals() {
           attributedAt: string;
           workspaces: Array<{ plan: string; isEligible: boolean }>;
         }>
-      >("/api/v1/affiliate/referrals")
+      >("/api/v1/affiliate/referrals"),
   });
 }
 
 export function useAffiliatePayouts() {
+  const enabled = useAffiliateConsentEnabled();
   return useQuery({
     queryKey: ["affiliate", "payouts"],
+    enabled,
     queryFn: () =>
       apiRequest<
         Array<{ id: string; amount: number; status: string; method: string; requestedAt: string }>
-      >("/api/v1/affiliate/payouts")
+      >("/api/v1/affiliate/payouts"),
   });
 }
 

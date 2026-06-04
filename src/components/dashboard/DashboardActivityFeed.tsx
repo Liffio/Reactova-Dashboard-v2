@@ -25,7 +25,7 @@ export function DashboardActivityFeed({
   const preview = activities.slice(0, 6);
 
   return (
-    <section className="surface-card overflow-hidden min-w-0">
+    <section className="surface-card overflow-hidden min-w-0 h-full">
       <div className="dashboard-panel-head flex-row items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Recent automations</h3>

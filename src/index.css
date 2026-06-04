@@ -450,7 +450,7 @@
 
   .dashboard-hero-settings {
     @apply flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors;
-    @apply hover:text-foreground hover:bg-foreground/10;
+    @apply hover:text-foreground hover:bg-foreground/80;
   }
 
   .dashboard-billing-banner {

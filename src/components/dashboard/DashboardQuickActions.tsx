@@ -16,7 +16,7 @@ export function DashboardQuickActions() {
   const navigate = useNavigate();
 
   return (
-    <section className="surface-card overflow-hidden">
+    <section className="surface-card overflow-hidden h-full">
       <div className="dashboard-panel-head">
         <h3 className="text-sm font-semibold text-foreground">Shortcuts</h3>
       </div>

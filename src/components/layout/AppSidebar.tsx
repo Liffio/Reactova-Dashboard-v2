@@ -161,8 +161,7 @@ export function AppSidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClo
           <Logo />
         </div>
 
-        <div className="px-3 pb-2 relative">
-          <p className="sidebar-section-label px-1">Workspace</p>
+        <div className="px-3 my-4 pb-2 relative">
           <button
             type="button"
             onClick={() => setWsOpen((v) => !v)}

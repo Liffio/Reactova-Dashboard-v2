@@ -58,6 +58,7 @@ const Ctx = createContext<AppCtx | null>(null);
 const defaultWorkspace: Workspace = {
   id: "default",
   handle: "@workspace",
+  igHandle: null,
   name: "Workspace",
   plan: "Free",
   status: "active",

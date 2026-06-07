@@ -76,7 +76,7 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
   const isAnonymousPublicRead = token === null && isPublicGet;
 
   const hasExplicitBody = config.body !== undefined && config.body !== null;
-  const usesJsonBody = hasExplicitBody || (method !== "GET" && method !== "HEAD");
+  const usesJsonBody = hasExplicitBody || method !== "GET";
   const jsonBody = hasExplicitBody ? config.body : usesJsonBody ? {} : undefined;
 
   const res = await fetch(`${API_BASE}${path}`, {

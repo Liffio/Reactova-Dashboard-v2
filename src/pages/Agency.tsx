@@ -45,7 +45,7 @@ export default function Agency() {
           { id: "access" as const, label: "Client Access" },
         ]}
         value={tab}
-        onChange={setTab}
+        onChange={(value) => setTab(value)}
       />
 
       {tab === "overview" && (

@@ -1,0 +1,819 @@
+import { useEffect, useRef, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  ArrowLeft,
+  Check,
+  CloudOff,
+  Cloudy,
+  Hash,
+  Link2,
+  Loader2,
+  MessageSquare,
+  Plus,
+  RotateCcw,
+  Send,
+  ShieldCheck,
+  Trash2,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { PageHeader } from "@/components/dashboard/page-header";
+import { ProtectedRoute } from "@/components/auth/guards";
+import { InstagramRequired } from "@/components/auth/instagram-required";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import {
+  createAutomation,
+  getAutomationWizardData,
+  type CreateAutomationInput,
+} from "@/lib/api/automations-api";
+import { useAutosave } from "@/hooks/use-autosave";
+import { useApp } from "@/state/app-context";
+
+export const Route = createFileRoute("/_app/automations/new")({
+  head: () => ({ meta: [{ title: "New automation — Liffio" }] }),
+  component: AutomationBuilderRoute,
+});
+
+function AutomationBuilderRoute() {
+  return (
+    <ProtectedRoute module="automation" action="create">
+      <InstagramRequired feature="Automations">
+        <AutomationBuilder />
+      </InstagramRequired>
+    </ProtectedRoute>
+  );
+}
+
+type PostScope = "specific" | "any" | "next";
+
+type FollowUpDraft = {
+  id: string;
+  delayMinutes: number;
+  message: string;
+};
+
+type BuilderForm = {
+  name: string;
+  postScope: PostScope;
+  postId: string | null;
+  anyComment: boolean;
+  keywords: string[];
+  dmMessage: string;
+  hasButton: boolean;
+  dmButtonLabel: string;
+  dmButtonUrl: string;
+  autoReply: boolean;
+  replyMessages: string[];
+  followBeforeDm: boolean;
+  followUps: FollowUpDraft[];
+};
+
+const DELAY_OPTIONS: Array<{ label: string; minutes: number }> = [
+  { label: "1 hour", minutes: 60 },
+  { label: "6 hours", minutes: 360 },
+  { label: "1 day", minutes: 1440 },
+  { label: "3 days", minutes: 4320 },
+  { label: "7 days", minutes: 10080 },
+];
+
+const defaultForm: BuilderForm = {
+  name: "New automation",
+  postScope: "any",
+  postId: null,
+  anyComment: false,
+  keywords: ["GUIDE"],
+  dmMessage: "Hi there! Appreciate your comment 🙌 Here's the link you asked for ⬇️",
+  hasButton: true,
+  dmButtonLabel: "Open link",
+  dmButtonUrl: "https://",
+  autoReply: true,
+  replyMessages: ["Sent! Check your DMs 💌", "On its way to your inbox ✨"],
+  followBeforeDm: false,
+  followUps: [],
+};
+
+function AutomationBuilder() {
+  const navigate = useNavigate();
+  const { current } = useApp();
+  const workspaceId = current.id;
+
+  const [form, setForm] = useState<BuilderForm>(defaultForm);
+  const [kwInput, setKwInput] = useState("");
+  const [restoredBannerDismissed, setRestoredBannerDismissed] = useState(false);
+  const firstChangeRef = useRef(false);
+
+  const autosave = useAutosave<BuilderForm>({
+    workspaceId,
+    module: "automation",
+    draftKey: "new",
+  });
+
+  const wizardData = useQuery({
+    queryKey: ["automation-wizard-data", workspaceId],
+    queryFn: () => getAutomationWizardData(workspaceId),
+    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    retry: false,
+  });
+
+  const update = (patch: Partial<BuilderForm>) => {
+    firstChangeRef.current = true;
+    setForm((prev) => {
+      const next = { ...prev, ...patch };
+      autosave.schedule(next);
+      return next;
+    });
+  };
+
+  // Offer to restore an existing DB draft once it loads (before any edits).
+  const restoreDraft = () => {
+    if (autosave.draft) {
+      setForm({ ...defaultForm, ...autosave.draft.payload });
+      setRestoredBannerDismissed(true);
+      toast.success("Draft restored");
+    }
+  };
+
+  const discardDraft = async () => {
+    setRestoredBannerDismissed(true);
+    await autosave.clear();
+    toast.success("Draft discarded");
+  };
+
+  const showRestoreBanner =
+    autosave.draftLoaded &&
+    autosave.draft !== null &&
+    !restoredBannerDismissed &&
+    !firstChangeRef.current;
+
+  const buildPayload = (status: "ACTIVE" | "DRAFT"): CreateAutomationInput => ({
+    name: form.name.trim() || "Untitled automation",
+    keywords: form.anyComment ? [] : form.keywords.map((k) => k.trim()).filter(Boolean),
+    excludedKeywords: [],
+    anyComment: form.anyComment,
+    postScope: form.postScope,
+    postId: form.postScope === "specific" ? form.postId : null,
+    dmMessage: form.dmMessage.trim(),
+    autoReply: form.autoReply,
+    replyMessages: form.autoReply
+      ? form.replyMessages.map((r) => r.trim()).filter(Boolean)
+      : [],
+    dmButtonLabel: form.hasButton ? form.dmButtonLabel.trim() || undefined : undefined,
+    dmButtonUrl: form.hasButton ? form.dmButtonUrl.trim() || undefined : undefined,
+    followBeforeDm: form.followBeforeDm,
+    followUps: form.followUps
+      .filter((f) => f.message.trim())
+      .map((f, i) => ({ delayMinutes: f.delayMinutes, message: f.message.trim(), order: i })),
+    status,
+  });
+
+  const publishMutation = useMutation({
+    mutationFn: (status: "ACTIVE" | "DRAFT") => createAutomation(workspaceId, buildPayload(status)),
+    onSuccess: async (_, status) => {
+      await autosave.clear();
+      toast.success(status === "ACTIVE" ? `"${form.name}" is live` : `"${form.name}" saved as draft`);
+      void navigate({ to: "/automations" });
+    },
+    onError: (error) => toast.error((error as Error).message),
+  });
+
+  const validate = (): string | null => {
+    if (!form.dmMessage.trim()) return "Write the DM message first.";
+    if (!form.anyComment && form.keywords.filter((k) => k.trim()).length === 0)
+      return "Add at least one keyword, or switch to any comment.";
+    if (form.postScope === "specific" && !form.postId)
+      return "Pick the post this automation listens on.";
+    return null;
+  };
+
+  const submit = (status: "ACTIVE" | "DRAFT") => {
+    const error = validate();
+    if (error && status === "ACTIVE") {
+      toast.error(error);
+      return;
+    }
+    publishMutation.mutate(status);
+  };
+
+  const addKeyword = () => {
+    const v = kwInput.trim().toUpperCase();
+    if (!v) return;
+    if (form.keywords.includes(v)) {
+      toast.error(`"${v}" is already added`);
+      return;
+    }
+    update({ keywords: [...form.keywords, v] });
+    setKwInput("");
+  };
+
+  useEffect(() => {
+    if (form.postScope === "specific" && !form.postId && wizardData.data?.media?.length) {
+      update({ postId: wizardData.data.media[0].id });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.postScope, wizardData.data?.media]);
+
+  const autosaveBadge =
+    autosave.status === "saving" || autosave.status === "pending" ? (
+      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Loader2 className="h-3 w-3 animate-spin" /> Saving draft…
+      </span>
+    ) : autosave.status === "saved" ? (
+      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Cloudy className="h-3 w-3" /> Draft saved to cloud
+      </span>
+    ) : autosave.status === "error" ? (
+      <span className="inline-flex items-center gap-1.5 text-xs text-destructive">
+        <CloudOff className="h-3 w-3" /> Autosave failed — retrying on next change
+      </span>
+    ) : null;
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Automations"
+        title="New automation"
+        description="Comment triggers a DM — autosaved to your workspace as you type."
+        actions={
+          <>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/automations">
+                <ArrowLeft className="h-4 w-4" /> Back
+              </Link>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => submit("DRAFT")}
+              disabled={publishMutation.isPending}
+            >
+              <Check className="h-4 w-4" /> Save as draft
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => submit("ACTIVE")}
+              disabled={publishMutation.isPending}
+              className="bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
+            >
+              {publishMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              {publishMutation.isPending ? "Publishing…" : "Publish"}
+            </Button>
+          </>
+        }
+      />
+
+      <div className="flex min-h-5 items-center gap-3 px-4 pt-4 text-xs sm:px-6 md:px-10">
+        {autosaveBadge}
+      </div>
+
+      {showRestoreBanner && (
+        <div className="mx-4 mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm sm:mx-6 md:mx-10">
+          <RotateCcw className="h-4 w-4 shrink-0 text-primary" />
+          <span className="flex-1">
+            You have an unsaved draft from{" "}
+            {new Date(autosave.draft!.updatedAt).toLocaleString(undefined, {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            . Restore it?
+          </span>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={restoreDraft}>
+              Restore draft
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => void discardDraft()}>
+              Discard
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-6 p-4 sm:p-6 md:p-10 lg:grid-cols-[1fr_360px]">
+        <div className="space-y-6">
+          {/* Basics */}
+          <section className="rounded-2xl border bg-card p-5 shadow-soft">
+            <div className="space-y-1.5">
+              <Label htmlFor="name">Automation name</Label>
+              <Input
+                id="name"
+                value={form.name}
+                onChange={(e) => update({ name: e.target.value.slice(0, 120) })}
+              />
+            </div>
+          </section>
+
+          {/* Trigger */}
+          <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-soft">
+            <SectionTitle
+              icon={MessageSquare}
+              title="Trigger"
+              subtitle="Which comments start this automation?"
+            />
+            <div className="inline-flex w-full rounded-lg border bg-background p-1">
+              {(
+                [
+                  { v: "any", l: "All posts" },
+                  { v: "next", l: "Next post only" },
+                  { v: "specific", l: "Pick a post" },
+                ] as Array<{ v: PostScope; l: string }>
+              ).map((o) => (
+                <button
+                  key={o.v}
+                  type="button"
+                  onClick={() => update({ postScope: o.v })}
+                  className={cn(
+                    "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                    form.postScope === o.v
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {o.l}
+                </button>
+              ))}
+            </div>
+
+            {form.postScope === "specific" && (
+              <>
+                {wizardData.isLoading && (
+                  <p className="text-xs text-muted-foreground">Loading your Instagram posts…</p>
+                )}
+                {wizardData.isError && (
+                  <p className="text-xs text-destructive">
+                    {(wizardData.error as Error).message}
+                  </p>
+                )}
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                  {(wizardData.data?.media ?? []).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => update({ postId: item.id })}
+                      className={cn(
+                        "relative aspect-square overflow-hidden rounded-lg border-2 bg-muted transition-all",
+                        form.postId === item.id
+                          ? "border-primary"
+                          : "border-border hover:border-muted-foreground/50"
+                      )}
+                    >
+                      {item.thumbnailUrl ? (
+                        <img
+                          src={item.thumbnailUrl}
+                          alt={item.caption || "Instagram media"}
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10" />
+                      )}
+                      {form.postId === item.id && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-primary/25">
+                          <Check className="h-5 w-5 text-white" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <Separator />
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Trigger on any comment</p>
+                <p className="text-xs text-muted-foreground">
+                  Skip keyword matching — every comment receives the DM.
+                </p>
+              </div>
+              <Switch
+                checked={form.anyComment}
+                onCheckedChange={(v) => update({ anyComment: v })}
+              />
+            </div>
+
+            {!form.anyComment && (
+              <div className="space-y-2">
+                <Label>Keywords</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {form.keywords.map((k) => (
+                    <span
+                      key={k}
+                      className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 font-mono text-xs"
+                    >
+                      <Hash className="h-3 w-3 text-primary" /> {k}
+                      <button
+                        type="button"
+                        onClick={() => update({ keywords: form.keywords.filter((x) => x !== k) })}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={kwInput}
+                      onChange={(e) => setKwInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addKeyword();
+                        }
+                      }}
+                      placeholder="Add keyword…"
+                      className="h-8 w-40"
+                    />
+                    <Button size="sm" variant="outline" type="button" onClick={addKeyword}>
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Not case-sensitive. The comment must contain the keyword.
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* Public reply */}
+          <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-soft">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Auto-reply on the post</p>
+                <p className="text-xs text-muted-foreground">
+                  Reply publicly — rotates between variations to look natural.
+                </p>
+              </div>
+              <Switch checked={form.autoReply} onCheckedChange={(v) => update({ autoReply: v })} />
+            </div>
+            {form.autoReply && (
+              <div className="space-y-2.5">
+                {form.replyMessages.map((r, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <Textarea
+                      value={r}
+                      onChange={(e) => {
+                        const next = [...form.replyMessages];
+                        next[i] = e.target.value.slice(0, 140);
+                        update({ replyMessages: next });
+                      }}
+                      maxLength={140}
+                      rows={2}
+                      className="resize-none"
+                      placeholder={`Reply variation ${i + 1}`}
+                    />
+                    <button
+                      type="button"
+                      className="mt-2 rounded p-1 text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        update({ replyMessages: form.replyMessages.filter((_, j) => j !== i) })
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="border-dashed"
+                  onClick={() => update({ replyMessages: [...form.replyMessages, ""] })}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add variation
+                </Button>
+              </div>
+            )}
+          </section>
+
+          {/* DM message */}
+          <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-soft">
+            <SectionTitle
+              icon={Send}
+              title="DM message"
+              subtitle="Sent automatically when the trigger fires."
+            />
+            <div className="space-y-1.5">
+              <Textarea
+                value={form.dmMessage}
+                onChange={(e) => update({ dmMessage: e.target.value.slice(0, 900) })}
+                rows={4}
+                placeholder="Hi there! Here's the resource you asked for…"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground">
+                  Use {"{{name}}"} {"{{username}}"} {"{{keyword}}"} as variables
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {form.dmMessage.length}/900
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Button link</p>
+                <p className="text-xs text-muted-foreground">
+                  Attach a tappable button under the DM.
+                </p>
+              </div>
+              <Switch checked={form.hasButton} onCheckedChange={(v) => update({ hasButton: v })} />
+            </div>
+            {form.hasButton && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Button label</Label>
+                  <Input
+                    value={form.dmButtonLabel}
+                    onChange={(e) => update({ dmButtonLabel: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Button URL</Label>
+                  <Input
+                    value={form.dmButtonUrl}
+                    onChange={(e) => update({ dmButtonUrl: e.target.value })}
+                    placeholder="https://yourlink.com"
+                  />
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Follow gate + follow-ups */}
+          <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-soft">
+            <SectionTitle
+              icon={ShieldCheck}
+              title="Audience growth"
+              subtitle="Ask for a follow first, then re-engage automatically."
+            />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Ask to follow before DM</p>
+                <p className="text-xs text-muted-foreground">
+                  The link is delivered after they follow your account.
+                </p>
+              </div>
+              <Switch
+                checked={form.followBeforeDm}
+                onCheckedChange={(v) => update({ followBeforeDm: v })}
+              />
+            </div>
+
+            <Separator />
+
+            <div>
+              <p className="text-sm font-medium">Follow-up sequence</p>
+              <p className="text-xs text-muted-foreground">
+                Up to 10 timed follow-up DMs after the first message.
+              </p>
+            </div>
+            <div className="space-y-3">
+              {form.followUps.map((f, i) => (
+                <div key={f.id} className="rounded-xl border bg-background p-3.5">
+                  <div className="mb-2.5 flex items-center gap-2">
+                    <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+                      Step {i + 1}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">Wait</span>
+                    <Select
+                      value={String(f.delayMinutes)}
+                      onValueChange={(v) => {
+                        const next = form.followUps.map((x) =>
+                          x.id === f.id ? { ...x, delayMinutes: Number(v) } : x
+                        );
+                        update({ followUps: next });
+                      }}
+                    >
+                      <SelectTrigger className="h-7 w-32 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DELAY_OPTIONS.map((d) => (
+                          <SelectItem key={d.minutes} value={String(d.minutes)}>
+                            {d.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        update({ followUps: form.followUps.filter((x) => x.id !== f.id) })
+                      }
+                      className="ml-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <Textarea
+                    value={f.message}
+                    onChange={(e) => {
+                      const next = form.followUps.map((x) =>
+                        x.id === f.id ? { ...x, message: e.target.value.slice(0, 2000) } : x
+                      );
+                      update({ followUps: next });
+                    }}
+                    rows={2}
+                    placeholder="Type your follow-up message…"
+                  />
+                </div>
+              ))}
+              {form.followUps.length < 10 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-dashed"
+                  onClick={() =>
+                    update({
+                      followUps: [
+                        ...form.followUps,
+                        { id: `f${Date.now()}`, delayMinutes: 1440, message: "" },
+                      ],
+                    })
+                  }
+                >
+                  <Plus className="h-4 w-4" /> Add follow-up step
+                </Button>
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* Live DM preview */}
+        <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start">
+          <DmPreview
+            username={wizardData.data?.profile.username ?? current.igHandle ?? "yourbrand"}
+            keyword={form.anyComment ? "any comment" : (form.keywords[0] ?? "KEYWORD")}
+            message={form.dmMessage}
+            buttonLabel={form.hasButton ? form.dmButtonLabel : ""}
+            buttonUrl={form.hasButton ? form.dmButtonUrl : ""}
+            autoReply={form.autoReply ? (form.replyMessages[0] ?? "") : ""}
+            followBeforeDm={form.followBeforeDm}
+            followUps={form.followUps}
+          />
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function SectionTitle({
+  icon: Icon,
+  title,
+  subtitle,
+}: {
+  icon: typeof MessageSquare;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand-gradient text-primary-foreground shadow-glow">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div>
+        <h2 className="font-display text-lg font-semibold leading-tight">{title}</h2>
+        <p className="text-xs text-muted-foreground">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
+function DmPreview({
+  username,
+  keyword,
+  message,
+  buttonLabel,
+  buttonUrl,
+  autoReply,
+  followBeforeDm,
+  followUps,
+}: {
+  username: string;
+  keyword: string;
+  message: string;
+  buttonLabel: string;
+  buttonUrl: string;
+  autoReply: string;
+  followBeforeDm: boolean;
+  followUps: FollowUpDraft[];
+}) {
+  const handle = username.replace(/^@/, "");
+  const delayLabel = (minutes: number) =>
+    DELAY_OPTIONS.find((d) => d.minutes === minutes)?.label ?? `${minutes} min`;
+
+  return (
+    <div className="overflow-hidden rounded-[32px] border bg-gradient-to-b from-muted to-background p-2.5 shadow-soft">
+      <div className="overflow-hidden rounded-[26px] bg-card">
+        <div className="flex items-center justify-between px-5 pb-1 pt-3 text-[10px] font-semibold text-muted-foreground">
+          <span>9:41</span>
+          <span className="tracking-widest">●●● 5G</span>
+        </div>
+        <div className="flex items-center gap-3 border-b px-4 py-2.5">
+          <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+          <div className="h-8 w-8 rounded-full bg-brand-gradient ring-2 ring-background" />
+          <div className="leading-tight">
+            <div className="text-sm font-semibold">{handle}</div>
+            <div className="text-[10px] text-muted-foreground">Active now · via Liffio</div>
+          </div>
+        </div>
+
+        <div className="max-h-[540px] space-y-2.5 overflow-y-auto bg-gradient-to-b from-background to-card/40 px-3 py-4">
+          <div className="mx-auto max-w-[88%] overflow-hidden rounded-2xl border bg-card">
+            <div className="border-b px-3 py-1.5 text-[10px] font-semibold">{handle}</div>
+            <div className="grid h-20 place-items-center bg-gradient-to-br from-primary/10 via-muted to-accent/30">
+              <MessageSquare className="h-5 w-5 text-primary/70" />
+            </div>
+            <div className="border-t bg-muted/40 px-3 py-1.5 text-[10px] text-muted-foreground">
+              <span className="font-semibold text-foreground">Nora</span> commented:{" "}
+              <span className="rounded bg-primary/10 px-1 font-mono text-primary">{keyword}</span>
+            </div>
+          </div>
+
+          {autoReply && (
+            <div className="flex justify-start">
+              <span className="max-w-[80%] rounded-full bg-muted px-2.5 py-1 text-[10px] text-muted-foreground">
+                Public reply: "{autoReply}"
+              </span>
+            </div>
+          )}
+
+          {followBeforeDm && (
+            <Bubble>
+              Follow @{handle} first so I can DM you — tap Follow, then come back 💌
+            </Bubble>
+          )}
+
+          <Bubble>
+            {message || <span className="italic opacity-70">Your DM message appears here…</span>}
+          </Bubble>
+
+          {(buttonLabel || buttonUrl) && (
+            <div className="flex justify-end">
+              <div className="max-w-[80%] overflow-hidden rounded-2xl border bg-card shadow-sm">
+                <div className="flex items-center justify-center bg-muted/60 px-4 py-4">
+                  <Link2 className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="border-t px-3 py-2">
+                  <div className="text-[11px] font-medium leading-tight">
+                    {buttonLabel || "Button label"}
+                  </div>
+                  <div className="truncate text-[10px] text-muted-foreground">
+                    {buttonUrl || "https://your-link.com"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {followUps.map((f, i) => (
+            <div key={f.id} className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1 bg-border" />
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  +{delayLabel(f.delayMinutes)} · step {i + 1}
+                </span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <Bubble>
+                {f.message || <span className="italic opacity-70">Follow-up #{i + 1} message…</span>}
+              </Bubble>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Bubble({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[80%] rounded-2xl bg-brand-gradient px-3.5 py-2 text-xs leading-relaxed text-primary-foreground shadow-sm">
+        {children}
+      </div>
+    </div>
+  );
+}

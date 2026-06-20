@@ -223,7 +223,7 @@ function GeneralSettings() {
 }
 
 function InstagramSettings() {
-  const { current, refreshAuth } = useApp();
+  const { current, refreshAuth, setCurrentId } = useApp();
   const workspaceId = current.id;
   const queryClient = useQueryClient();
   const [unlinkOpen, setUnlinkOpen] = useState(false);
@@ -256,12 +256,19 @@ function InstagramSettings() {
             ? undefined
             : () => isWorkspaceInstagramConnected(workspaceId),
           verifyConnected: () => isWorkspaceInstagramConnected(workspaceId),
+          // Backend may connect Instagram to a different workspace than the one
+          // that initiated OAuth — use the workspace from the result for verification.
+          verifyConnectedForWorkspace: (wid) => isWorkspaceInstagramConnected(wid),
         }
       );
       if (result.meta === "connected") {
         toast.success(
           result.igHandle ? `Connected as @${result.igHandle}` : "Instagram connected"
         );
+        // Switch to whichever workspace actually received the connection
+        if (result.workspaceId && result.workspaceId !== workspaceId) {
+          setCurrentId(result.workspaceId);
+        }
         void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
         void refreshAuth();
       } else if (result.reason && result.reason !== "user_canceled") {

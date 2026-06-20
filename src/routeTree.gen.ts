@@ -19,6 +19,7 @@ import { Route as AcceptInviteRouteImport } from './routes/accept-invite'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LeadsCapturedSlugRouteImport } from './routes/leads-captured.$slug'
+import { Route as AuthHandoffRouteImport } from './routes/auth.handoff'
 import { Route as AppTeamRouteImport } from './routes/_app/team'
 import { Route as AppShortLinksRouteImport } from './routes/_app/short-links'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
@@ -85,6 +86,11 @@ const IndexRoute = IndexRouteImport.update({
 const LeadsCapturedSlugRoute = LeadsCapturedSlugRouteImport.update({
   id: '/leads-captured/$slug',
   path: '/leads-captured/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthHandoffRoute = AuthHandoffRouteImport.update({
+  id: '/auth/handoff',
+  path: '/auth/handoff',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppTeamRoute = AppTeamRouteImport.update({
@@ -200,6 +206,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRoute
   '/short-links': typeof AppShortLinksRoute
   '/team': typeof AppTeamRoute
+  '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/automations/new': typeof AppAutomationsNewRoute
@@ -229,6 +236,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsRoute
   '/short-links': typeof AppShortLinksRoute
   '/team': typeof AppTeamRoute
+  '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/automations/new': typeof AppAutomationsNewRoute
@@ -260,6 +268,7 @@ export interface FileRoutesById {
   '/_app/settings': typeof AppSettingsRoute
   '/_app/short-links': typeof AppShortLinksRoute
   '/_app/team': typeof AppTeamRoute
+  '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/_app/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/_app/automations/new': typeof AppAutomationsNewRoute
@@ -291,6 +300,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/short-links'
     | '/team'
+    | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/admin/email-templates'
     | '/automations/new'
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/short-links'
     | '/team'
+    | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/admin/email-templates'
     | '/automations/new'
@@ -350,6 +361,7 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_app/short-links'
     | '/_app/team'
+    | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/_app/admin/email-templates'
     | '/_app/automations/new'
@@ -368,6 +380,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
   RegisterRoute: typeof RegisterRoute
+  AuthHandoffRoute: typeof AuthHandoffRoute
   LeadsCapturedSlugRoute: typeof LeadsCapturedSlugRoute
   AuthGoogleCompleteRoute: typeof AuthGoogleCompleteRoute
   OauthMetaCompleteRoute: typeof OauthMetaCompleteRoute
@@ -443,6 +456,13 @@ declare module '@tanstack/react-router' {
       path: '/leads-captured/$slug'
       fullPath: '/leads-captured/$slug'
       preLoaderRoute: typeof LeadsCapturedSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/handoff': {
+      id: '/auth/handoff'
+      path: '/auth/handoff'
+      fullPath: '/auth/handoff'
+      preLoaderRoute: typeof AuthHandoffRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/team': {
@@ -624,6 +644,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
   RegisterRoute: RegisterRoute,
+  AuthHandoffRoute: AuthHandoffRoute,
   LeadsCapturedSlugRoute: LeadsCapturedSlugRoute,
   AuthGoogleCompleteRoute: AuthGoogleCompleteRoute,
   OauthMetaCompleteRoute: OauthMetaCompleteRoute,

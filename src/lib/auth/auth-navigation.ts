@@ -1,5 +1,8 @@
 export const AFFILIATE_PROGRAM_PATH = "/affiliate";
 
+const LIFFIO_ORIGIN: string =
+  (import.meta.env.VITE_LIFFIO_URL as string | undefined) ?? "https://liffio.com";
+
 export function isAffiliateProgramRedirect(path: string | null | undefined): boolean {
   if (!path) {
     return false;
@@ -54,10 +57,24 @@ export const postAuthLandingPath = (
   return target;
 };
 
+/** Returns the liffio.com login URL with return path encoded. */
 export function loginPathWithRedirect(returnTo: string): string {
-  const pathname = returnTo.split("?")[0];
-  if (AUTH_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
-    return "/login";
-  }
-  return `/login?redirect=${encodeURIComponent(returnTo)}`;
+  return `${LIFFIO_ORIGIN}/login?redirect=${encodeURIComponent(returnTo)}`;
+}
+
+/** Returns the liffio.com register URL. */
+export function registerUrl(redirect?: string): string {
+  const base = `${LIFFIO_ORIGIN}/register`;
+  return redirect ? `${base}?redirect=${encodeURIComponent(redirect)}` : base;
+}
+
+/** Returns the liffio.com onboarding URL, passing the current token so liffio.com can pick it up. */
+export function onboardingUrl(token: string): string {
+  return `${LIFFIO_ORIGIN}/onboarding?token=${encodeURIComponent(token)}`;
+}
+
+/** Returns the liffio.com confirm-email URL, passing the token. */
+export function confirmEmailUrl(token: string, redirectPath?: string): string {
+  const base = `${LIFFIO_ORIGIN}/confirm-email?token=${encodeURIComponent(token)}`;
+  return redirectPath ? `${base}&redirect=${encodeURIComponent(redirectPath)}` : base;
 }

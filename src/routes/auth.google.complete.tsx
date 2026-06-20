@@ -1,8 +1,14 @@
+/**
+ * Google OAuth callback handler.
+ * When the Google OAuth flow is initiated from liffio.com, the backend redirects
+ * to liffio.com/auth/google/complete. This route handles the rare case where
+ * the OAuth was initiated directly from app.liffio.com (e.g., deep link).
+ */
 import { useEffect } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { getAuthMe } from "@/lib/api/auth-api";
-import { postAuthLandingPath, sanitizeAuthRedirect } from "@/lib/auth/auth-navigation";
+import { sanitizeAuthRedirect } from "@/lib/auth/auth-navigation";
 import { authStore } from "@/lib/auth/auth-store";
 
 type GoogleCompleteSearch = {
@@ -28,7 +34,7 @@ function GoogleAuthComplete() {
     const redirectTo = search.redirect ? sanitizeAuthRedirect(search.redirect) : "/dashboard";
 
     if (!token) {
-      void navigate({ to: "/login", search: { error: "google_failed" }, replace: true });
+      window.location.replace("/login?error=google_failed");
       return;
     }
 
@@ -36,16 +42,11 @@ function GoogleAuthComplete() {
       authStore.setSession({ accessToken: token });
       const authMe = await getAuthMe({ token });
       authStore.setAuthMe(authMe);
-      const { emailVerified, isOnboarded } = authStore.getState();
-      void navigate({
-        to: postAuthLandingPath({ emailVerified, isOnboarded }, redirectTo),
-        replace: true,
-      });
+      // Go directly to dashboard (email verified via Google, onboarding handled by liffio.com)
+      void navigate({ to: redirectTo as never, replace: true });
     };
 
-    finish().catch(() =>
-      navigate({ to: "/login", search: { error: "google_failed" }, replace: true })
-    );
+    finish().catch(() => { window.location.replace("/login?error=google_failed"); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

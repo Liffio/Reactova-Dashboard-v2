@@ -2,13 +2,18 @@
  * Client-side route guards. The app is SSR'd signed-out, so every guard
  * waits for the client mount (when localStorage hydrates the auth store)
  * before deciding to redirect — this avoids hydration mismatches and
- * spurious bounces to /login.
+ * spurious bounces to liffio.com/login.
  */
 import { useEffect, useState, type ReactNode } from "react";
-import { Navigate, useRouterState } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthState } from "@/lib/auth/auth-store";
-import { isAffiliateProgramRedirect, loginPathWithRedirect } from "@/lib/auth/auth-navigation";
+import {
+  isAffiliateProgramRedirect,
+  loginPathWithRedirect,
+  onboardingUrl,
+  confirmEmailUrl,
+} from "@/lib/auth/auth-navigation";
 
 export function useMounted(): boolean {
   const [mounted, setMounted] = useState(false);
@@ -54,11 +59,9 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
   const skipOnboardingForBilling = location.pathname === "/billings";
 
   if (!token) {
-    // If already on /login (or another auth page), don't redirect — avoids
-    // the exponential-encode loop where the guard fires while the router is
-    // still on the /login URL during a logout transition.
-    if (location.pathname === "/login") return null;
-    return <Navigate to={loginPathWithRedirect(returnTo)} replace />;
+    // Redirect to liffio.com/login with the return path
+    window.location.href = loginPathWithRedirect(returnTo);
+    return <FullPageSpinner />;
   }
 
   if (!user) {
@@ -67,19 +70,21 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
   }
 
   if (!emailVerified) {
-    const confirmEmail =
-      returnTo !== "/"
-        ? `/confirm-email?redirect=${encodeURIComponent(returnTo)}`
-        : "/confirm-email";
-    return <Navigate to={confirmEmail} replace />;
+    // Pass token so liffio.com can restore the session
+    window.location.href = confirmEmailUrl(token, returnTo !== "/" ? returnTo : undefined);
+    return <FullPageSpinner />;
   }
 
   if (!isOnboarded && !skipOnboardingForAffiliate && !skipOnboardingForBilling) {
-    return <Navigate to="/onboarding" replace />;
+    // Pass token so liffio.com can restore the session for onboarding
+    window.location.href = onboardingUrl(token);
+    return <FullPageSpinner />;
   }
 
   if (module && !permissions.includes(`${module}:${action}`)) {
-    return <Navigate to="/dashboard" replace />;
+    // Permission denied — navigate to dashboard within the app
+    window.location.href = "/dashboard";
+    return <FullPageSpinner />;
   }
 
   return <>{children}</>;
@@ -92,9 +97,9 @@ export function VerifiedRoute({ children }: { children: ReactNode }) {
   const emailVerified = useAuthState((s) => s.emailVerified);
 
   if (!mounted) return <FullPageSpinner />;
-  if (!token) return <Navigate to="/login" replace />;
+  if (!token) { window.location.href = loginPathWithRedirect("/"); return <FullPageSpinner />; }
   if (!user) return <FullPageSpinner />;
-  if (!emailVerified) return <Navigate to="/confirm-email" replace />;
+  if (!emailVerified) { window.location.href = confirmEmailUrl(token); return <FullPageSpinner />; }
   return <>{children}</>;
 }
 
@@ -104,7 +109,7 @@ export function AuthOnlyRoute({ children }: { children: ReactNode }) {
   const user = useAuthState((s) => s.user);
 
   if (!mounted) return <FullPageSpinner />;
-  if (!token) return <Navigate to="/login" replace />;
+  if (!token) { window.location.href = loginPathWithRedirect("/"); return <FullPageSpinner />; }
   if (!user) return <FullPageSpinner />;
   return <>{children}</>;
 }
@@ -116,8 +121,8 @@ export function PlatformAdminRoute({ children }: { children: ReactNode }) {
   const isPlatformSuperAdmin = useAuthState((s) => s.isPlatformSuperAdmin);
 
   if (!mounted) return <FullPageSpinner />;
-  if (!token) return <Navigate to="/login" replace />;
+  if (!token) { window.location.href = loginPathWithRedirect("/"); return <FullPageSpinner />; }
   if (!user) return <FullPageSpinner />;
-  if (!isPlatformSuperAdmin) return <Navigate to="/dashboard" replace />;
+  if (!isPlatformSuperAdmin) { window.location.href = "/dashboard"; return <FullPageSpinner />; }
   return <>{children}</>;
 }

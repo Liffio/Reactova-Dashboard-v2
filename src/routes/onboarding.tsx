@@ -208,6 +208,9 @@ function Onboarding() {
           oauthWorkspaceId,
           checkConnected: () => isWorkspaceInstagramConnected(oauthWorkspaceId),
           verifyConnected: () => isWorkspaceInstagramConnected(oauthWorkspaceId),
+          // Backend may connect Instagram to a different workspace than the one
+          // that initiated OAuth — use the workspace from the result for verification.
+          verifyConnectedForWorkspace: (wid) => isWorkspaceInstagramConnected(wid),
         }
       );
     },

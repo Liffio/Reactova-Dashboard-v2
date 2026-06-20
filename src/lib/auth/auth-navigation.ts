@@ -15,12 +15,19 @@ export function isAffiliateProgramRedirect(path: string | null | undefined): boo
   }
 }
 
-/** Only allow same-origin relative paths (prevents open redirects). */
+const AUTH_ONLY_PATHS = ["/login", "/register", "/forgot-password", "/confirm-email"];
+
+/** Only allow same-origin relative paths (prevents open redirects and redirect loops). */
 export function sanitizeAuthRedirect(
   path: string | null | undefined,
   fallback = "/dashboard"
 ): string {
   if (!path || !path.startsWith("/") || path.startsWith("//")) {
+    return fallback;
+  }
+  // Never redirect back to auth-only pages — causes infinite loops
+  const pathname = path.split("?")[0];
+  if (AUTH_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
     return fallback;
   }
   return path;
@@ -48,5 +55,9 @@ export const postAuthLandingPath = (
 };
 
 export function loginPathWithRedirect(returnTo: string): string {
+  const pathname = returnTo.split("?")[0];
+  if (AUTH_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+    return "/login";
+  }
   return `/login?redirect=${encodeURIComponent(returnTo)}`;
 }

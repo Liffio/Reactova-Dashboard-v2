@@ -54,6 +54,10 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
   const skipOnboardingForBilling = location.pathname === "/billings";
 
   if (!token) {
+    // If already on /login (or another auth page), don't redirect — avoids
+    // the exponential-encode loop where the guard fires while the router is
+    // still on the /login URL during a logout transition.
+    if (location.pathname === "/login") return null;
     return <Navigate to={loginPathWithRedirect(returnTo)} replace />;
   }
 

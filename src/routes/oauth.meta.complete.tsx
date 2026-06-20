@@ -8,6 +8,9 @@ import { META_OAUTH_MESSAGE_TYPE, META_OAUTH_BC_CHANNEL, type MetaOAuthResult } 
 import { isWorkspaceInstagramConnected } from "@/lib/api/integrations-api";
 import { useApp } from "@/state/app-context";
 
+const log = (...args: unknown[]) => console.log("[meta-oauth:complete]", ...args);
+const warn = (...args: unknown[]) => console.warn("[meta-oauth:complete]", ...args);
+
 type MetaCompleteSearch = {
   meta?: string;
   reason?: string;
@@ -50,6 +53,14 @@ function MetaOAuthComplete() {
     let cancelled = false;
 
     const run = async () => {
+      log("MetaOAuthComplete mounted", {
+        search,
+        isPopup: Boolean(window.opener),
+        openerClosed: window.opener ? window.opener.closed : "N/A",
+        origin: window.location.origin,
+        href: window.location.href,
+      });
+
       const result = parseResult(search);
       const returnTo = search.returnTo === "settings" ? "settings" : "onboarding";
       const workspaceId = search.workspaceId;
@@ -57,7 +68,11 @@ function MetaOAuthComplete() {
       const enriched: MetaOAuthResult =
         result.meta === "connected" ? { ...result, workspaceId, igHandle } : result;
 
+      log("parsed result:", JSON.stringify(enriched), "returnTo:", returnTo);
+
+      // --- PATH 1: opener is alive (postMessage) ---
       if (window.opener && !window.opener.closed) {
+        log("window.opener is alive — sending postMessage and closing popup");
         window.opener.postMessage(
           { type: META_OAUTH_MESSAGE_TYPE, payload: enriched },
           window.location.origin
@@ -66,28 +81,42 @@ function MetaOAuthComplete() {
         return;
       }
 
-      // No opener — Instagram severed it via COOP. Broadcast to the main window
-      // via BroadcastChannel (both tabs share the same origin).
+      // --- PATH 2: no opener (Instagram COOP) — BroadcastChannel ---
+      log("window.opener is null/closed (expected: Instagram COOP severs it) — using BroadcastChannel");
       try {
         if (typeof BroadcastChannel !== "undefined") {
           const bc = new BroadcastChannel(META_OAUTH_BC_CHANNEL);
-          bc.postMessage({ type: META_OAUTH_MESSAGE_TYPE, payload: enriched });
+          const msg = { type: META_OAUTH_MESSAGE_TYPE, payload: enriched };
+          log("broadcasting on channel:", META_OAUTH_BC_CHANNEL, JSON.stringify(msg));
+          bc.postMessage(msg);
           bc.close();
+          log("BroadcastChannel message sent and channel closed");
+        } else {
+          warn("BroadcastChannel not available — main window will not receive message");
         }
-      } catch {
-        // ignore — fall through to direct navigation below
+      } catch (e) {
+        warn("BroadcastChannel broadcast failed:", e);
       }
 
+      // --- PATH 3: no-popup fallback (direct navigation in same tab) ---
       if (enriched.meta === "connected") {
         if (workspaceId) {
+          log("switching active workspace to:", workspaceId);
           setCurrentId(workspaceId);
         }
+        log("invalidating workspaces query cache");
         await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
 
         if (workspaceId) {
+          log("verifying Instagram connection for workspace:", workspaceId);
           const persisted = await isWorkspaceInstagramConnected(workspaceId);
-          if (cancelled) return;
+          log("isWorkspaceInstagramConnected result:", persisted, "for workspaceId:", workspaceId);
+          if (cancelled) {
+            log("cancelled before navigation — aborting");
+            return;
+          }
           if (!persisted) {
+            warn("connection_not_persisted: isWorkspaceInstagramConnected returned false for", workspaceId);
             const reason = "connection_not_persisted";
             void navigate({
               to: returnTo === "settings" ? "/settings" : "/onboarding",
@@ -97,12 +126,14 @@ function MetaOAuthComplete() {
             return;
           }
         }
+        log("refreshing auth");
         await refreshAuth();
         if (cancelled) return;
 
         toast.success(
           igHandle ? `Instagram connected as ${igHandle}` : "Instagram connected successfully"
         );
+        log("navigating to:", returnTo);
         if (returnTo === "settings") {
           void navigate({ to: "/settings", replace: true });
         } else {
@@ -118,6 +149,7 @@ function MetaOAuthComplete() {
       if (cancelled) return;
 
       const reason = result.reason ?? "token_exchange_failed";
+      warn("OAuth completed with error, reason:", reason, "navigating to:", returnTo);
       void navigate({
         to: returnTo === "settings" ? "/settings" : "/onboarding",
         search: { meta: "error", reason },

@@ -47,6 +47,7 @@ import {
 } from "@/lib/api/team-api";
 import { useApp } from "@/state/app-context";
 import { useAuthState } from "@/lib/auth/auth-store";
+import { LIMITS, emailError, duplicateAliasError } from "@/lib/validation";
 
 export const Route = createFileRoute("/_app/team")({
   head: () => ({ meta: [{ title: "Team — Liffio" }] }),
@@ -309,6 +310,10 @@ function TeamPage() {
         onOpenChange={setInviteOpen}
         isPending={inviteMutation.isPending}
         onSubmit={(email) => inviteMutation.mutate(email)}
+        existingEmails={[
+          ...members.map((m) => m.user.email),
+          ...invites.filter((i) => i.status === "PENDING").map((i) => i.email),
+        ]}
       />
 
       <AlertDialog
@@ -343,17 +348,20 @@ function InviteDialog({
   onOpenChange,
   isPending,
   onSubmit,
+  existingEmails = [],
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   isPending: boolean;
   onSubmit: (email: string) => void;
+  existingEmails?: string[];
 }) {
   const [email, setEmail] = useState("");
+  const error = email ? (emailError(email) || duplicateAliasError(email, existingEmails)) : null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (error) return;
     onSubmit(email.trim());
     setEmail("");
   };
@@ -372,15 +380,18 @@ function InviteDialog({
               type="email"
               placeholder="colleague@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value.slice(0, LIMITS.email.max))}
+              maxLength={LIMITS.email.max}
+              aria-invalid={Boolean(error)}
               required
             />
+            {error && <p className="text-xs text-destructive">{error}</p>}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending || Boolean(error)}>
               {isPending ? "Sending…" : "Send invite"}
             </Button>
           </DialogFooter>

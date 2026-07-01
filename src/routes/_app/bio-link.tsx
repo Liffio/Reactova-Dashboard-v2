@@ -70,6 +70,7 @@ import {
   type BioLinkSocialItem,
 } from "@/lib/api/biolink-api";
 import { useApp } from "@/state/app-context";
+import { LIMITS, lengthError, urlError } from "@/lib/validation";
 
 export const Route = createFileRoute("/_app/bio-link")({
   head: () => ({ meta: [{ title: "Bio Link — Liffio" }] }),
@@ -606,12 +607,12 @@ function ProfileSection({ draft, set }: {
     <div className="grid gap-3.5 sm:grid-cols-2">
       <div className="space-y-1.5">
         <Label className="text-xs">Display name</Label>
-        <Input value={draft.displayName} onChange={(e) => set("displayName", e.target.value)} maxLength={60} placeholder="Your name" className="h-9" />
+        <Input value={draft.displayName} onChange={(e) => set("displayName", e.target.value.slice(0, LIMITS.displayName.max))} maxLength={LIMITS.displayName.max} placeholder="Your name" className="h-9" />
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Avatar URL</Label>
         <div className="flex items-center gap-2">
-          <Input type="url" placeholder="https://…/avatar.jpg" value={draft.avatarUrl} onChange={(e) => set("avatarUrl", e.target.value)} className="h-9" />
+          <Input type="url" placeholder="https://…/avatar.jpg" value={draft.avatarUrl} onChange={(e) => set("avatarUrl", e.target.value.slice(0, LIMITS.url.max))} maxLength={LIMITS.url.max} className="h-9" />
           {draft.avatarUrl && isValidUrl(draft.avatarUrl) && (
             <img src={draft.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover border shrink-0" />
           )}
@@ -619,22 +620,26 @@ function ProfileSection({ draft, set }: {
       </div>
       <div className="space-y-1.5 sm:col-span-2">
         <Label className="text-xs flex items-center justify-between">
-          Bio <span className="text-muted-foreground font-normal">{draft.bio.length}/160</span>
+          Bio <span className="text-muted-foreground font-normal">{draft.bio.length}/{LIMITS.bioLinkBio.max}</span>
         </Label>
         <textarea
           className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
           rows={2}
           placeholder="A short bio…"
           value={draft.bio}
-          onChange={(e) => set("bio", e.target.value.slice(0, 160))}
+          maxLength={LIMITS.bioLinkBio.max}
+          onChange={(e) => set("bio", e.target.value.slice(0, LIMITS.bioLinkBio.max))}
         />
       </div>
       <div className="space-y-1.5 sm:col-span-2">
         <Label className="text-xs">Slug (URL)</Label>
         <div className="flex items-center rounded-lg border bg-background overflow-hidden">
           <span className="px-3 text-xs text-muted-foreground border-r py-2.5 bg-muted/30 shrink-0 whitespace-nowrap">bio.liffio.com/</span>
-          <Input value={draft.slug} onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))} placeholder="your-brand" maxLength={40} className="border-0 bg-transparent focus-visible:ring-0 h-9 text-sm" />
+          <Input value={draft.slug} onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, LIMITS.bioLinkSlug.max))} placeholder="your-brand" maxLength={LIMITS.bioLinkSlug.max} className="border-0 bg-transparent focus-visible:ring-0 h-9 text-sm" />
         </div>
+        {draft.slug && draft.slug.length < LIMITS.bioLinkSlug.min && (
+          <p className="text-[11px] text-destructive">Slug must be at least {LIMITS.bioLinkSlug.min} characters.</p>
+        )}
         <p className="text-[11px] text-muted-foreground font-mono">{publicUrl}</p>
       </div>
     </div>
@@ -1099,6 +1104,9 @@ function LinkDialog({ open, onOpenChange, title, initialTitle = "", initialUrl =
   const [url, setUrl] = useState(initialUrl);
   useEffect(() => { setLinkTitle(initialTitle); setUrl(initialUrl); }, [initialTitle, initialUrl, open]);
 
+  const titleErr = linkTitle ? lengthError(linkTitle, "Title", LIMITS.linkTitle) : null;
+  const urlErr = url ? urlError(url, { required: true, max: LIMITS.url.max }) : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
@@ -1106,16 +1114,21 @@ function LinkDialog({ open, onOpenChange, title, initialTitle = "", initialUrl =
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Title</Label>
-            <Input placeholder="My awesome link" value={linkTitle} onChange={(e) => setLinkTitle(e.target.value)} />
+            <Input placeholder="My awesome link" value={linkTitle} onChange={(e) => setLinkTitle(e.target.value.slice(0, LIMITS.linkTitle.max))} maxLength={LIMITS.linkTitle.max} />
+            {titleErr && <p className="text-xs text-destructive">{titleErr}</p>}
           </div>
           <div className="space-y-2">
             <Label>URL</Label>
-            <Input type="url" placeholder="https://example.com" value={url} onChange={(e) => setUrl(e.target.value)} />
+            <Input type="url" placeholder="https://example.com" value={url} onChange={(e) => setUrl(e.target.value.slice(0, LIMITS.url.max))} maxLength={LIMITS.url.max} />
+            {urlErr && <p className="text-xs text-destructive">{urlErr}</p>}
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button disabled={isPending || !linkTitle.trim() || !url.trim()} onClick={() => onSubmit({ title: linkTitle.trim(), url: url.trim() })}>
+          <Button
+            disabled={isPending || Boolean(lengthError(linkTitle, "Title", LIMITS.linkTitle)) || Boolean(urlError(url, { required: true, max: LIMITS.url.max }))}
+            onClick={() => onSubmit({ title: linkTitle.trim(), url: url.trim() })}
+          >
             {isPending ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>
@@ -1172,20 +1185,23 @@ function SocialDialog({ open, onOpenChange, title, initial, isPending, onSubmit 
           <div className="h-px bg-border" />
           <div className="space-y-2">
             <Label>Label</Label>
-            <Input placeholder="Instagram" value={label} onChange={(e) => setLabel(e.target.value)} />
+            <Input placeholder="Instagram" value={label} onChange={(e) => setLabel(e.target.value.slice(0, LIMITS.socialLabel.max))} maxLength={LIMITS.socialLabel.max} />
           </div>
           <div className="space-y-2">
             <Label>URL</Label>
-            <Input type="url" placeholder="https://instagram.com/handle" value={url} onChange={(e) => setUrl(e.target.value)} />
+            <Input type="url" placeholder="https://instagram.com/handle" value={url} onChange={(e) => setUrl(e.target.value.slice(0, LIMITS.url.max))} maxLength={LIMITS.url.max} />
+            {url && urlError(url, { required: true, max: LIMITS.url.max }) && (
+              <p className="text-xs text-destructive">{urlError(url, { required: true, max: LIMITS.url.max })}</p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Emoji</Label>
-              <Input placeholder="📸" value={emoji} onChange={(e) => setEmoji(e.target.value)} />
+              <Input placeholder="📸" value={emoji} onChange={(e) => setEmoji(e.target.value.slice(0, 8))} maxLength={8} />
             </div>
             <div className="space-y-2">
               <Label>Icon key</Label>
-              <Input placeholder="instagram" value={icon} onChange={(e) => setIcon(e.target.value)} />
+              <Input placeholder="instagram" value={icon} onChange={(e) => setIcon(e.target.value.slice(0, 30))} maxLength={30} />
             </div>
           </div>
           {platform === "instagram" && (
@@ -1204,7 +1220,10 @@ function SocialDialog({ open, onOpenChange, title, initial, isPending, onSubmit 
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button disabled={isPending || !label.trim() || !url.trim()} onClick={() => onSubmit({ label: label.trim(), url: url.trim(), platform, mode, icon: icon || undefined, emoji: emoji || undefined })}>
+          <Button
+            disabled={isPending || Boolean(lengthError(label, "Label", LIMITS.socialLabel)) || Boolean(urlError(url, { required: true, max: LIMITS.url.max }))}
+            onClick={() => onSubmit({ label: label.trim(), url: url.trim(), platform, mode, icon: icon || undefined, emoji: emoji || undefined })}
+          >
             {isPending ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>

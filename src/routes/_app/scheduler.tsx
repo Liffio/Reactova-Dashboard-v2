@@ -63,6 +63,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LIMITS, urlError } from "@/lib/validation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1670,8 +1671,10 @@ function SchedulerPage() {
                     )}
                     <div className="flex gap-2">
                       <Input
+                        type="url"
                         value={carouselUrlDraft}
-                        onChange={(e) => setCarouselUrlDraft(e.target.value)}
+                        onChange={(e) => setCarouselUrlDraft(e.target.value.slice(0, LIMITS.url.max))}
+                        maxLength={LIMITS.url.max}
                         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCarouselUrl(); } }}
                         placeholder="Add HTTPS image URL"
                         disabled={form.carouselMediaUrls.length >= CAROUSEL_MEDIA_MAX}
@@ -1692,10 +1695,15 @@ function SchedulerPage() {
                   <div className="space-y-1">
                     <Label>Primary media URL (optional if you uploaded)</Label>
                     <Input
+                      type="url"
                       value={form.primaryMediaUrl}
-                      onChange={(e) => setForm((f) => ({ ...f, primaryMediaUrl: e.target.value }))}
+                      onChange={(e) => setForm((f) => ({ ...f, primaryMediaUrl: e.target.value.slice(0, LIMITS.url.max) }))}
+                      maxLength={LIMITS.url.max}
                       placeholder="https://…"
                     />
+                    {form.primaryMediaUrl && urlError(form.primaryMediaUrl) && (
+                      <p className="text-xs text-destructive">{urlError(form.primaryMediaUrl)}</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1706,11 +1714,11 @@ function SchedulerPage() {
                 <textarea
                   className="w-full min-h-24 max-h-60 resize-y rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   value={form.caption}
-                  onChange={(e) => setForm((f) => ({ ...f, caption: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, caption: e.target.value.slice(0, LIMITS.postCaption.max) }))}
                   placeholder="Write your caption…"
-                  maxLength={2200}
+                  maxLength={LIMITS.postCaption.max}
                 />
-                <p className="text-right text-xs text-muted-foreground">{form.caption.length}/2200</p>
+                <p className="text-right text-xs text-muted-foreground">{form.caption.length}/{LIMITS.postCaption.max}</p>
               </div>
 
               {/* Hashtags */}
@@ -1718,7 +1726,8 @@ function SchedulerPage() {
                 <Label>Hashtags (space or comma separated)</Label>
                 <Input
                   value={form.hashtags}
-                  onChange={(e) => setForm((f) => ({ ...f, hashtags: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({ ...f, hashtags: e.target.value.slice(0, LIMITS.genericNote.max) }))}
+                  maxLength={LIMITS.genericNote.max}
                   placeholder="#test #test2"
                 />
               </div>
@@ -1748,7 +1757,8 @@ function SchedulerPage() {
                     <Input
                       placeholder="Search music…"
                       value={musicQuery}
-                      onChange={(e) => setMusicQuery(e.target.value)}
+                      onChange={(e) => setMusicQuery(e.target.value.slice(0, LIMITS.genericName.max))}
+                      maxLength={LIMITS.genericName.max}
                     />
                     {musicQuery.length >= 2 && (
                       <div className="max-h-40 overflow-y-auto rounded-lg border divide-y text-sm">
@@ -1807,7 +1817,8 @@ function SchedulerPage() {
                       <Label>Automation name</Label>
                       <Input
                         value={form.automationName}
-                        onChange={(e) => setForm((f) => ({ ...f, automationName: e.target.value }))}
+                        onChange={(e) => setForm((f) => ({ ...f, automationName: e.target.value.slice(0, LIMITS.automationName.max) }))}
+                        maxLength={LIMITS.automationName.max}
                         placeholder="Automation for this post"
                       />
                     </div>
@@ -1829,7 +1840,8 @@ function SchedulerPage() {
                         <Input
                           value={form.automationKeywordDraft}
                           disabled={form.automationAnyComment}
-                          onChange={(e) => setForm((f) => ({ ...f, automationKeywordDraft: e.target.value }))}
+                          onChange={(e) => setForm((f) => ({ ...f, automationKeywordDraft: e.target.value.slice(0, LIMITS.keyword.max) }))}
+                          maxLength={LIMITS.keyword.max}
                           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addKeyword(); } }}
                           placeholder="GUIDE"
                         />
@@ -1874,8 +1886,10 @@ function SchedulerPage() {
                       <div className="space-y-1">
                         <Label>DM button URL</Label>
                         <Input
+                          type="url"
                           value={form.automationButtonUrl}
-                          onChange={(e) => setForm((f) => ({ ...f, automationButtonUrl: e.target.value }))}
+                          onChange={(e) => setForm((f) => ({ ...f, automationButtonUrl: e.target.value.slice(0, LIMITS.buttonUrl.max) }))}
+                          maxLength={LIMITS.buttonUrl.max}
                           placeholder="https://..."
                         />
                       </div>

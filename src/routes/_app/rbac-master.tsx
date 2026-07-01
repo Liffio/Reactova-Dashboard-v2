@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { getRbacOverview, grantPlan, updateRolePermissions } from "@/lib/api/admin-rbac-api";
+import { LIMITS } from "@/lib/validation";
 
 export const Route = createFileRoute("/_app/rbac-master")({
   head: () => ({ meta: [{ title: "RBAC Master — Admin" }] }),
@@ -95,7 +96,8 @@ function RbacMasterPage() {
                     placeholder="Search roles…"
                     className="pl-9"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => setSearch(e.target.value.slice(0, LIMITS.genericName.max))}
+                    maxLength={LIMITS.genericName.max}
                   />
                 </div>
               </div>
@@ -327,7 +329,8 @@ function GrantPlanDialog({
             <Input
               placeholder="ws_..."
               value={workspaceId}
-              onChange={(e) => setWorkspaceId(e.target.value)}
+              onChange={(e) => setWorkspaceId(e.target.value.slice(0, LIMITS.genericName.max))}
+              maxLength={LIMITS.genericName.max}
             />
           </div>
           <div className="space-y-2">
@@ -349,7 +352,8 @@ function GrantPlanDialog({
             <Input
               placeholder="Reason for grant…"
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => setNote(e.target.value.slice(0, LIMITS.genericNote.max))}
+              maxLength={LIMITS.genericNote.max}
             />
           </div>
         </div>

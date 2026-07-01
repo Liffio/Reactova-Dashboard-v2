@@ -42,6 +42,7 @@ import {
   syncEmailTemplateBrevo,
   type EmailTemplateEntry,
 } from "@/lib/api/admin-email-templates-api";
+import { LIMITS, lengthError } from "@/lib/validation";
 
 export const Route = createFileRoute("/_app/admin/email-templates")({
   head: () => ({ meta: [{ title: "Email Templates — Admin" }] }),
@@ -362,7 +363,8 @@ function TemplateEditorDialog({ template, onClose, onSuccess }: { template: Emai
             <TabsContent value="code">
               <textarea
                 value={html}
-                onChange={(e) => setHtml(e.target.value)}
+                onChange={(e) => setHtml(e.target.value.slice(0, LIMITS.emailBody.max))}
+                maxLength={LIMITS.emailBody.max}
                 className="w-full h-80 rounded-lg border bg-muted/20 font-mono text-xs p-3 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder="<!DOCTYPE html>..."
                 spellCheck={false}
@@ -430,19 +432,38 @@ function CreateTemplateDialog({ onClose, onSuccess }: { onClose: () => void; onS
     onError: (e) => toast.error((e as Error).message),
   });
 
+  const labelErr = label ? lengthError(label, "Label", LIMITS.genericName) : null;
+  const subjectErr = subject ? lengthError(subject, "Subject", LIMITS.emailSubject) : null;
+  const slugErr = slug ? lengthError(slug, "Slug", LIMITS.shortLinkSlug) : null;
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>New email template</DialogTitle></DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-2"><Label>Label</Label><Input placeholder="My Custom Template" value={label} onChange={(e) => setLabel(e.target.value)} /></div>
-          <div className="space-y-2"><Label>Subject</Label><Input placeholder="Subject line" value={subject} onChange={(e) => setSubject(e.target.value)} /></div>
-          <div className="space-y-2"><Label>Slug (optional)</Label><Input placeholder="my-template" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))} /></div>
-          <div className="space-y-2"><Label>Variables (comma-separated)</Label><Input placeholder="name, email, link" value={variables} onChange={(e) => setVariables(e.target.value)} /></div>
+          <div className="space-y-2">
+            <Label>Label</Label>
+            <Input placeholder="My Custom Template" value={label} onChange={(e) => setLabel(e.target.value.slice(0, LIMITS.genericName.max))} maxLength={LIMITS.genericName.max} />
+            {labelErr && <p className="text-xs text-destructive">{labelErr}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label>Subject</Label>
+            <Input placeholder="Subject line" value={subject} onChange={(e) => setSubject(e.target.value.slice(0, LIMITS.emailSubject.max))} maxLength={LIMITS.emailSubject.max} />
+            {subjectErr && <p className="text-xs text-destructive">{subjectErr}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label>Slug (optional)</Label>
+            <Input placeholder="my-template" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, LIMITS.shortLinkSlug.max))} maxLength={LIMITS.shortLinkSlug.max} />
+            {slugErr && <p className="text-xs text-destructive">{slugErr}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label>Variables (comma-separated)</Label>
+            <Input placeholder="name, email, link" value={variables} onChange={(e) => setVariables(e.target.value.slice(0, LIMITS.genericNote.max))} maxLength={LIMITS.genericNote.max} />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button disabled={createMutation.isPending || !label.trim() || !subject.trim()} onClick={() => createMutation.mutate()}>
+          <Button disabled={createMutation.isPending || !label.trim() || !subject.trim() || Boolean(labelErr) || Boolean(subjectErr) || Boolean(slugErr)} onClick={() => createMutation.mutate()}>
             {createMutation.isPending ? "Creating…" : "Create template"}
           </Button>
         </DialogFooter>

@@ -30,6 +30,7 @@ import {
 import { createShortLink, deleteShortLink, listShortLinks, type ShortLinkItem } from "@/lib/api/shortlinks-api";
 import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
+import { LIMITS, lengthError, urlError } from "@/lib/validation";
 
 export const Route = createFileRoute("/_app/short-links")({
   head: () => ({ meta: [{ title: "Short Links — Liffio" }] }),
@@ -236,9 +237,13 @@ function CreateLinkDialog({
   const [destination, setDestination] = useState("");
   const [slug, setSlug] = useState("");
 
+  const nameErr = name ? lengthError(name, "Name", LIMITS.genericName) : null;
+  const destErr = destination ? urlError(destination, { required: true, max: LIMITS.shortLinkDestination.max }) : null;
+  const slugErr = slug ? lengthError(slug, "Slug", LIMITS.shortLinkSlug) : null;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !destination.trim()) return;
+    if (!name.trim() || !destination.trim() || nameErr || destErr || slugErr) return;
     onSubmit({ name: name.trim(), destination: destination.trim(), slug: slug.trim() || undefined });
     setName("");
     setDestination("");
@@ -258,9 +263,12 @@ function CreateLinkDialog({
               id="link-name"
               placeholder="My product link"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value.slice(0, LIMITS.genericName.max))}
+              maxLength={LIMITS.genericName.max}
+              aria-invalid={Boolean(nameErr)}
               required
             />
+            {nameErr && <p className="text-xs text-destructive">{nameErr}</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor="link-dest">Destination URL</Label>
@@ -269,9 +277,12 @@ function CreateLinkDialog({
               type="url"
               placeholder="https://example.com/product"
               value={destination}
-              onChange={(e) => setDestination(e.target.value)}
+              onChange={(e) => setDestination(e.target.value.slice(0, LIMITS.shortLinkDestination.max))}
+              maxLength={LIMITS.shortLinkDestination.max}
+              aria-invalid={Boolean(destErr)}
               required
             />
+            {destErr && <p className="text-xs text-destructive">{destErr}</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor="link-slug">
@@ -282,14 +293,17 @@ function CreateLinkDialog({
               id="link-slug"
               placeholder="my-product"
               value={slug}
-              onChange={(e) => setSlug(e.target.value)}
+              onChange={(e) => setSlug(e.target.value.slice(0, LIMITS.shortLinkSlug.max))}
+              maxLength={LIMITS.shortLinkSlug.max}
+              aria-invalid={Boolean(slugErr)}
             />
+            {slugErr && <p className="text-xs text-destructive">{slugErr}</p>}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending || Boolean(nameErr) || Boolean(destErr) || Boolean(slugErr)}>
               {isPending ? "Creating…" : "Create link"}
             </Button>
           </DialogFooter>

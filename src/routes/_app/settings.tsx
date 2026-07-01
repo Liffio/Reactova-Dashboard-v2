@@ -60,6 +60,7 @@ import { listNotifications, updateNotificationPreference } from "@/lib/api/notif
 import {
   listTeamMembers, listTeamInvites, getTeamOptions, createTeamInvite, revokeTeamInvite, removeTeamMember, updateTeamMember,
 } from "@/lib/api/team-api";
+import { LIMITS, emailError, lengthError, duplicateAliasError } from "@/lib/validation";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings — Liffio" }] }),
@@ -133,8 +134,10 @@ function GeneralSettings() {
     setDisplayName(current.name);
   }, [current.name]);
 
+  const nameError = lengthError(displayName, "Workspace name", LIMITS.workspaceName);
+
   const saveMutation = useMutation({
-    mutationFn: () => updateWorkspace(workspaceId, { displayName }),
+    mutationFn: () => updateWorkspace(workspaceId, { displayName: displayName.trim() }),
     onSuccess: () => {
       toast.success("Workspace name saved");
       void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
@@ -164,9 +167,14 @@ function GeneralSettings() {
             <Input
               id="ws-name"
               value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              maxLength={80}
+              onChange={(e) => setDisplayName(e.target.value.slice(0, LIMITS.workspaceName.max))}
+              maxLength={LIMITS.workspaceName.max}
+              aria-invalid={Boolean(nameError)}
             />
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-destructive">{nameError && displayName !== current.name ? nameError : ""}</span>
+              <span className="text-muted-foreground">{displayName.length}/{LIMITS.workspaceName.max}</span>
+            </div>
           </div>
           <div className="space-y-1">
             <Label className="text-muted-foreground">Workspace ID</Label>
@@ -191,7 +199,7 @@ function GeneralSettings() {
         <div className="mt-6 flex justify-end">
           <Button
             size="sm"
-            disabled={saveMutation.isPending || displayName === current.name}
+            disabled={saveMutation.isPending || displayName === current.name || Boolean(nameError)}
             onClick={() => saveMutation.mutate()}
           >
             {saveMutation.isPending ? "Saving…" : "Save changes"}
@@ -489,14 +497,16 @@ function ApiCredentialsSettings() {
             <Input
               placeholder="My integration"
               value={newKeyName}
-              onChange={(e) => setNewKeyName(e.target.value)}
+              onChange={(e) => setNewKeyName(e.target.value.slice(0, LIMITS.apiKeyName.max))}
+              maxLength={LIMITS.apiKeyName.max}
             />
+            <p className="text-xs text-muted-foreground text-right">{newKeyName.length}/{LIMITS.apiKeyName.max}</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
             <Button
-              disabled={createMutation.isPending || !newKeyName.trim()}
-              onClick={() => createMutation.mutate(newKeyName)}
+              disabled={createMutation.isPending || Boolean(lengthError(newKeyName, "Key name", LIMITS.apiKeyName))}
+              onClick={() => createMutation.mutate(newKeyName.trim())}
             >
               {createMutation.isPending ? "Creating…" : "Create key"}
             </Button>
@@ -596,6 +606,12 @@ function TeamSettings() {
   const memberCount = membersQuery.data?.length ?? 0;
   const atLimit = memberCount >= memberLimit;
 
+  const existingEmails = [
+    ...(membersQuery.data ?? []).map((m) => m.user.email),
+    ...(invitesQuery.data ?? []).filter((i) => i.status === "PENDING").map((i) => i.email),
+  ];
+  const inviteEmailError = email ? (emailError(email) || duplicateAliasError(email, existingEmails)) : null;
+
   const invalidate = () => {
     void Promise.all([
       membersQuery.refetch(),
@@ -604,7 +620,7 @@ function TeamSettings() {
   };
 
   const createInviteMutation = useMutation({
-    mutationFn: () => createTeamInvite(workspaceId, { email, roleKey, moduleAccess: [], permissionKeys: [], policyKeys: [] }),
+    mutationFn: () => createTeamInvite(workspaceId, { email: email.trim(), roleKey, moduleAccess: [], permissionKeys: [], policyKeys: [] }),
     onSuccess: (data) => {
       if (data.emailSent) toast.success(`Invitation sent to ${email}`);
       else if (data.inAppNotified) toast.success(`Invite created for ${email} — they were notified in-app`);
@@ -651,14 +667,25 @@ function TeamSettings() {
           </div>
         )}
         <div className="flex gap-2">
-          <Input placeholder="member@company.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={atLimit} className="flex-1" />
+          <Input
+            type="email"
+            placeholder="member@company.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value.slice(0, LIMITS.email.max))}
+            maxLength={LIMITS.email.max}
+            disabled={atLimit}
+            className="flex-1"
+          />
           <select value={roleKey} onChange={(e) => setRoleKey(e.target.value)} className="h-9 rounded-md border bg-background px-3 text-sm" disabled={atLimit}>
             {(optionsQuery.data?.roles ?? []).map((r) => <option key={r.key} value={r.key}>{r.name}</option>)}
           </select>
-          <Button size="sm" disabled={!email || createInviteMutation.isPending || atLimit} onClick={() => createInviteMutation.mutate()}>
+          <Button size="sm" disabled={Boolean(inviteEmailError) || createInviteMutation.isPending || atLimit} onClick={() => createInviteMutation.mutate()}>
             <Plus className="h-4 w-4" /> Invite
           </Button>
         </div>
+        {inviteEmailError && (
+          <p className="text-xs text-destructive">{inviteEmailError}</p>
+        )}
       </div>
 
       {/* Members */}
@@ -869,7 +896,7 @@ function AuthenticatorPanel({ variant, onBack }: { variant: "2fa" | "mfa"; onBac
             <p className="text-sm text-success">An authenticator is linked to your account.</p>
             <div className="space-y-1.5">
               <Label>Account password</Label>
-              <Input type="password" value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} autoComplete="current-password" />
+              <Input type="password" value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} maxLength={LIMITS.password.max} autoComplete="current-password" />
             </div>
             <div className="space-y-1.5">
               <Label>6-digit authenticator code</Label>
@@ -957,7 +984,7 @@ function SecurityConsent({ onBack }: { onBack: () => void }) {
           <p className="text-xs text-muted-foreground">Clears only the stored acknowledgment timestamp. Does not turn off an active authenticator.</p>
           <div className="space-y-1.5 max-w-sm">
             <Label>Account password</Label>
-            <Input type="password" value={revokePassword} onChange={(e) => setRevokePassword(e.target.value)} autoComplete="current-password" />
+            <Input type="password" value={revokePassword} onChange={(e) => setRevokePassword(e.target.value)} maxLength={LIMITS.password.max} autoComplete="current-password" />
           </div>
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
             <input type="checkbox" checked={revokeConfirm} onChange={(e) => setRevokeConfirm(e.target.checked)} /> I want to delete this consent record.
@@ -1004,7 +1031,7 @@ function DeleteAuthenticator({ onBack }: { onBack: () => void }) {
           <div className="space-y-3 max-w-md">
             <div className="space-y-1.5">
               <Label>Account password</Label>
-              <Input type="password" value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} autoComplete="current-password" />
+              <Input type="password" value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} maxLength={LIMITS.password.max} autoComplete="current-password" />
             </div>
             <div className="space-y-1.5">
               <Label>6-digit code from authenticator</Label>

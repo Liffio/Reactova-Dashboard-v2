@@ -44,6 +44,7 @@ import {
 } from "@/lib/api/automations-api";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useApp } from "@/state/app-context";
+import { LIMITS, urlError, lengthError } from "@/lib/validation";
 
 export const Route = createFileRoute("/_app/automations/new")({
   head: () => ({ meta: [{ title: "New automation — Liffio" }] }),
@@ -193,11 +194,23 @@ function AutomationBuilder() {
   });
 
   const validate = (): string | null => {
+    const nameErr = lengthError(form.name, "Automation name", LIMITS.automationName);
+    if (nameErr) return nameErr;
     if (!form.dmMessage.trim()) return "Write the DM message first.";
+    if (form.dmMessage.length > LIMITS.dmMessage.max)
+      return `DM message must be ${LIMITS.dmMessage.max} characters or fewer.`;
     if (!form.anyComment && form.keywords.filter((k) => k.trim()).length === 0)
       return "Add at least one keyword, or switch to any comment.";
     if (form.postScope === "specific" && !form.postId)
       return "Pick the post this automation listens on.";
+    if (form.hasButton) {
+      const labelErr = form.dmButtonLabel.trim()
+        ? lengthError(form.dmButtonLabel, "Button label", { max: LIMITS.buttonLabel.max })
+        : null;
+      if (labelErr) return labelErr;
+      const btnUrlErr = urlError(form.dmButtonUrl, { max: LIMITS.buttonUrl.max });
+      if (btnUrlErr) return btnUrlErr;
+    }
     return null;
   };
 
@@ -318,7 +331,8 @@ function AutomationBuilder() {
               <Input
                 id="name"
                 value={form.name}
-                onChange={(e) => update({ name: e.target.value.slice(0, 120) })}
+                onChange={(e) => update({ name: e.target.value.slice(0, LIMITS.automationName.max) })}
+                maxLength={LIMITS.automationName.max}
               />
             </div>
           </section>
@@ -434,13 +448,14 @@ function AutomationBuilder() {
                   <div className="flex items-center gap-2">
                     <Input
                       value={kwInput}
-                      onChange={(e) => setKwInput(e.target.value)}
+                      onChange={(e) => setKwInput(e.target.value.slice(0, LIMITS.keyword.max))}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
                           addKeyword();
                         }
                       }}
+                      maxLength={LIMITS.keyword.max}
                       placeholder="Add keyword…"
                       className="h-8 w-40"
                     />
@@ -517,7 +532,8 @@ function AutomationBuilder() {
             <div className="space-y-1.5">
               <Textarea
                 value={form.dmMessage}
-                onChange={(e) => update({ dmMessage: e.target.value.slice(0, 900) })}
+                onChange={(e) => update({ dmMessage: e.target.value.slice(0, LIMITS.dmMessage.max) })}
+                maxLength={LIMITS.dmMessage.max}
                 rows={4}
                 placeholder="Hi there! Here's the resource you asked for…"
               />
@@ -546,16 +562,22 @@ function AutomationBuilder() {
                   <Label>Button label</Label>
                   <Input
                     value={form.dmButtonLabel}
-                    onChange={(e) => update({ dmButtonLabel: e.target.value })}
+                    onChange={(e) => update({ dmButtonLabel: e.target.value.slice(0, LIMITS.buttonLabel.max) })}
+                    maxLength={LIMITS.buttonLabel.max}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Button URL</Label>
                   <Input
+                    type="url"
                     value={form.dmButtonUrl}
-                    onChange={(e) => update({ dmButtonUrl: e.target.value })}
+                    onChange={(e) => update({ dmButtonUrl: e.target.value.slice(0, LIMITS.buttonUrl.max) })}
+                    maxLength={LIMITS.buttonUrl.max}
                     placeholder="https://yourlink.com"
                   />
+                  {form.dmButtonUrl && urlError(form.dmButtonUrl, { max: LIMITS.buttonUrl.max }) && (
+                    <p className="text-[11px] text-destructive">{urlError(form.dmButtonUrl, { max: LIMITS.buttonUrl.max })}</p>
+                  )}
                 </div>
               </div>
             )}
@@ -631,10 +653,11 @@ function AutomationBuilder() {
                     value={f.message}
                     onChange={(e) => {
                       const next = form.followUps.map((x) =>
-                        x.id === f.id ? { ...x, message: e.target.value.slice(0, 2000) } : x
+                        x.id === f.id ? { ...x, message: e.target.value.slice(0, LIMITS.followUpMessage.max) } : x
                       );
                       update({ followUps: next });
                     }}
+                    maxLength={LIMITS.followUpMessage.max}
                     rows={2}
                     placeholder="Type your follow-up message…"
                   />

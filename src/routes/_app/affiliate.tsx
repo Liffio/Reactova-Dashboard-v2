@@ -38,6 +38,7 @@ import {
   requestAffiliatePayout,
   setCustomAffiliateCode,
 } from "@/lib/api/affiliate-api";
+import { LIMITS } from "@/lib/validation";
 
 export const Route = createFileRoute("/_app/affiliate")({
   head: () => ({ meta: [{ title: "Affiliate Program — Liffio" }] }),
@@ -487,7 +488,8 @@ function PayoutDialog({
             <Input
               placeholder="Account number, email, etc."
               value={details}
-              onChange={(e) => setDetails(e.target.value)}
+              onChange={(e) => setDetails(e.target.value.slice(0, LIMITS.genericNote.max))}
+              maxLength={LIMITS.genericNote.max}
             />
           </div>
         </div>

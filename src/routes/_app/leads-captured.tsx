@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { exportLeadsCsv, listLeads } from "@/lib/api/leads-api";
 import { useApp } from "@/state/app-context";
+import { LIMITS } from "@/lib/validation";
 
 export const Route = createFileRoute("/_app/leads-captured")({
   head: () => ({ meta: [{ title: "Leads Captured — Liffio" }] }),
@@ -95,7 +96,8 @@ function LeadsPage() {
             placeholder="Search by username or email…"
             className="pl-9"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value.slice(0, LIMITS.genericName.max))}
+            maxLength={LIMITS.genericName.max}
           />
         </div>
 

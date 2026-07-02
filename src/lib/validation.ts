@@ -3,7 +3,7 @@
 // does not change the maxLength prop on the input, both must be updated together.
 
 export const LIMITS = {
-  workspaceName: { min: 2, max: 80 },
+  workspaceName: { min: 2, max: 20 },
   displayName: { min: 1, max: 15 },
   email: { max: 254 },
   password: { min: 8, max: 128 },

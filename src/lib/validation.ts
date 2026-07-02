@@ -4,7 +4,7 @@
 
 export const LIMITS = {
   workspaceName: { min: 2, max: 80 },
-  displayName: { min: 1, max: 60 },
+  displayName: { min: 1, max: 15 },
   email: { max: 254 },
   password: { min: 8, max: 128 },
   apiKeyName: { min: 2, max: 60 },

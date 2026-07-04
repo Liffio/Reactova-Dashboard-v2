@@ -152,6 +152,11 @@ export const apiUri = {
     kycSubmit: `${V1}/affiliate/kyc/submit`,
   },
 
+  creators: {
+    apply: `${V1}/creators/apply`,
+    status: `${V1}/creators/status`,
+  },
+
   agency: {
     brandByDomain: `${V1}/agency/brand/by-domain`,
     masterDashboard: `${V1}/agency/master-dashboard`,
@@ -227,6 +232,16 @@ export const apiUri = {
       kycQueue: `${V1}/admin/affiliate/kyc/queue`,
       kycApprove: (submissionId: string) => `${V1}/admin/affiliate/kyc/${submissionId}/approve`,
       kycReject: (submissionId: string) => `${V1}/admin/affiliate/kyc/${submissionId}/reject`,
+    },
+    creators: {
+      applications: (status?: string) =>
+        `${V1}/creators-admin/applications${status ? `?status=${encodeURIComponent(status)}` : ""}`,
+      approve: (id: string) => `${V1}/creators-admin/applications/${id}/approve`,
+      reject: (id: string) => `${V1}/creators-admin/applications/${id}/reject`,
+      members: (status?: string) =>
+        `${V1}/creators-admin/members${status ? `?status=${encodeURIComponent(status)}` : ""}`,
+      sendNotice: (id: string) => `${V1}/creators-admin/members/${id}/send-notice`,
+      remove: (id: string) => `${V1}/creators-admin/members/${id}/remove`,
     },
   },
 

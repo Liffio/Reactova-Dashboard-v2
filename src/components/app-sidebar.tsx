@@ -17,6 +17,8 @@ import {
   Mail,
   Handshake,
   BookOpen,
+  Sparkles,
+  ClipboardCheck,
 } from "lucide-react";
 
 import {
@@ -73,6 +75,7 @@ const nav: Array<{ group: string; items: NavItem[] }> = [
       { title: "Team", url: "/team", icon: UsersRound, module: "workspace" },
       { title: "Billing", url: "/billings", icon: CreditCard, module: "workspace" },
       { title: "Affiliate", url: "/affiliate", icon: Gift, module: "affiliate" },
+      { title: "Creator Program", url: "/creators-program", icon: Sparkles, module: "workspace" },
       { title: "Agency", url: "/agency", icon: Building2, module: "agency" },
       { title: "API docs", url: "/api-docs", icon: BookOpen, module: "workspace" },
       { title: "Settings", url: "/settings", icon: Settings, module: "workspace" },
@@ -87,6 +90,7 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
       { title: "RBAC master", url: "/rbac-master", icon: ShieldCheck },
       { title: "Email templates", url: "/admin/email-templates", icon: Mail },
       { title: "Affiliates", url: "/admin/affiliates", icon: Handshake },
+      { title: "Creator Applications", url: "/admin/creators", icon: ClipboardCheck },
     ],
   },
 ];

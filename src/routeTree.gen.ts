@@ -27,6 +27,7 @@ import { Route as AppSchedulerRouteImport } from './routes/_app/scheduler'
 import { Route as AppRbacMasterRouteImport } from './routes/_app/rbac-master'
 import { Route as AppLeadsCapturedRouteImport } from './routes/_app/leads-captured'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
+import { Route as AppCreatorsProgramRouteImport } from './routes/_app/creators-program'
 import { Route as AppBioLinkRouteImport } from './routes/_app/bio-link'
 import { Route as AppBillingsRouteImport } from './routes/_app/billings'
 import { Route as AppApiDocsRouteImport } from './routes/_app/api-docs'
@@ -38,6 +39,7 @@ import { Route as OauthMetaCompleteRouteImport } from './routes/oauth.meta.compl
 import { Route as AuthGoogleCompleteRouteImport } from './routes/auth.google.complete'
 import { Route as AppAutomationsNewRouteImport } from './routes/_app/automations.new'
 import { Route as AppAdminEmailTemplatesRouteImport } from './routes/_app/admin.email-templates'
+import { Route as AppAdminCreatorsRouteImport } from './routes/_app/admin.creators'
 import { Route as AppAdminAffiliatesRouteImport } from './routes/_app/admin.affiliates'
 
 const RegisterRoute = RegisterRouteImport.update({
@@ -129,6 +131,11 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
+const AppCreatorsProgramRoute = AppCreatorsProgramRouteImport.update({
+  id: '/creators-program',
+  path: '/creators-program',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppBioLinkRoute = AppBioLinkRouteImport.update({
   id: '/bio-link',
   path: '/bio-link',
@@ -184,6 +191,11 @@ const AppAdminEmailTemplatesRoute = AppAdminEmailTemplatesRouteImport.update({
   path: '/admin/email-templates',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminCreatorsRoute = AppAdminCreatorsRouteImport.update({
+  id: '/admin/creators',
+  path: '/admin/creators',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAdminAffiliatesRoute = AppAdminAffiliatesRouteImport.update({
   id: '/admin/affiliates',
   path: '/admin/affiliates',
@@ -205,6 +217,7 @@ export interface FileRoutesByFullPath {
   '/api-docs': typeof AppApiDocsRoute
   '/billings': typeof AppBillingsRoute
   '/bio-link': typeof AppBioLinkRoute
+  '/creators-program': typeof AppCreatorsProgramRoute
   '/dashboard': typeof AppDashboardRoute
   '/leads-captured': typeof AppLeadsCapturedRoute
   '/rbac-master': typeof AppRbacMasterRoute
@@ -215,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
+  '/admin/creators': typeof AppAdminCreatorsRoute
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/automations/new': typeof AppAutomationsNewRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
@@ -236,6 +250,7 @@ export interface FileRoutesByTo {
   '/api-docs': typeof AppApiDocsRoute
   '/billings': typeof AppBillingsRoute
   '/bio-link': typeof AppBioLinkRoute
+  '/creators-program': typeof AppCreatorsProgramRoute
   '/dashboard': typeof AppDashboardRoute
   '/leads-captured': typeof AppLeadsCapturedRoute
   '/rbac-master': typeof AppRbacMasterRoute
@@ -246,6 +261,7 @@ export interface FileRoutesByTo {
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
+  '/admin/creators': typeof AppAdminCreatorsRoute
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/automations/new': typeof AppAutomationsNewRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
@@ -269,6 +285,7 @@ export interface FileRoutesById {
   '/_app/api-docs': typeof AppApiDocsRoute
   '/_app/billings': typeof AppBillingsRoute
   '/_app/bio-link': typeof AppBioLinkRoute
+  '/_app/creators-program': typeof AppCreatorsProgramRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/leads-captured': typeof AppLeadsCapturedRoute
   '/_app/rbac-master': typeof AppRbacMasterRoute
@@ -279,6 +296,7 @@ export interface FileRoutesById {
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/_app/admin/affiliates': typeof AppAdminAffiliatesRoute
+  '/_app/admin/creators': typeof AppAdminCreatorsRoute
   '/_app/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/_app/automations/new': typeof AppAutomationsNewRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
@@ -302,6 +320,7 @@ export interface FileRouteTypes {
     | '/api-docs'
     | '/billings'
     | '/bio-link'
+    | '/creators-program'
     | '/dashboard'
     | '/leads-captured'
     | '/rbac-master'
@@ -312,6 +331,7 @@ export interface FileRouteTypes {
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
+    | '/admin/creators'
     | '/admin/email-templates'
     | '/automations/new'
     | '/auth/google/complete'
@@ -333,6 +353,7 @@ export interface FileRouteTypes {
     | '/api-docs'
     | '/billings'
     | '/bio-link'
+    | '/creators-program'
     | '/dashboard'
     | '/leads-captured'
     | '/rbac-master'
@@ -343,6 +364,7 @@ export interface FileRouteTypes {
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
+    | '/admin/creators'
     | '/admin/email-templates'
     | '/automations/new'
     | '/auth/google/complete'
@@ -365,6 +387,7 @@ export interface FileRouteTypes {
     | '/_app/api-docs'
     | '/_app/billings'
     | '/_app/bio-link'
+    | '/_app/creators-program'
     | '/_app/dashboard'
     | '/_app/leads-captured'
     | '/_app/rbac-master'
@@ -375,6 +398,7 @@ export interface FileRouteTypes {
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/_app/admin/affiliates'
+    | '/_app/admin/creators'
     | '/_app/admin/email-templates'
     | '/_app/automations/new'
     | '/auth/google/complete'
@@ -526,6 +550,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/creators-program': {
+      id: '/_app/creators-program'
+      path: '/creators-program'
+      fullPath: '/creators-program'
+      preLoaderRoute: typeof AppCreatorsProgramRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/bio-link': {
       id: '/_app/bio-link'
       path: '/bio-link'
@@ -603,6 +634,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminEmailTemplatesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/creators': {
+      id: '/_app/admin/creators'
+      path: '/admin/creators'
+      fullPath: '/admin/creators'
+      preLoaderRoute: typeof AppAdminCreatorsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/admin/affiliates': {
       id: '/_app/admin/affiliates'
       path: '/admin/affiliates'
@@ -620,6 +658,7 @@ interface AppRouteChildren {
   AppApiDocsRoute: typeof AppApiDocsRoute
   AppBillingsRoute: typeof AppBillingsRoute
   AppBioLinkRoute: typeof AppBioLinkRoute
+  AppCreatorsProgramRoute: typeof AppCreatorsProgramRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppLeadsCapturedRoute: typeof AppLeadsCapturedRoute
   AppRbacMasterRoute: typeof AppRbacMasterRoute
@@ -628,6 +667,7 @@ interface AppRouteChildren {
   AppShortLinksRoute: typeof AppShortLinksRoute
   AppTeamRoute: typeof AppTeamRoute
   AppAdminAffiliatesRoute: typeof AppAdminAffiliatesRoute
+  AppAdminCreatorsRoute: typeof AppAdminCreatorsRoute
   AppAdminEmailTemplatesRoute: typeof AppAdminEmailTemplatesRoute
   AppAutomationsNewRoute: typeof AppAutomationsNewRoute
   AppAutomationsIndexRoute: typeof AppAutomationsIndexRoute
@@ -640,6 +680,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppApiDocsRoute: AppApiDocsRoute,
   AppBillingsRoute: AppBillingsRoute,
   AppBioLinkRoute: AppBioLinkRoute,
+  AppCreatorsProgramRoute: AppCreatorsProgramRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppLeadsCapturedRoute: AppLeadsCapturedRoute,
   AppRbacMasterRoute: AppRbacMasterRoute,
@@ -648,6 +689,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppShortLinksRoute: AppShortLinksRoute,
   AppTeamRoute: AppTeamRoute,
   AppAdminAffiliatesRoute: AppAdminAffiliatesRoute,
+  AppAdminCreatorsRoute: AppAdminCreatorsRoute,
   AppAdminEmailTemplatesRoute: AppAdminEmailTemplatesRoute,
   AppAutomationsNewRoute: AppAutomationsNewRoute,
   AppAutomationsIndexRoute: AppAutomationsIndexRoute,

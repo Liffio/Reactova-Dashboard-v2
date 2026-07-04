@@ -71,6 +71,7 @@ import {
 } from "@/lib/api/biolink-api";
 import { useApp } from "@/state/app-context";
 import { LIMITS, lengthError, urlError } from "@/lib/validation";
+import { getCreatorProgramStatus } from "@/lib/api/creator-program-api";
 
 export const Route = createFileRoute("/_app/bio-link")({
   head: () => ({ meta: [{ title: "Bio Link — Liffio" }] }),
@@ -264,6 +265,12 @@ function BioLinkPage() {
     enabled: Boolean(workspaceId) && workspaceId !== "default",
   });
 
+  const creatorProgramStatusQuery = useQuery({
+    queryKey: ["creator-program-status"],
+    queryFn: getCreatorProgramStatus,
+  });
+  const isCreatorProgramMember = creatorProgramStatusQuery.data?.state === "member";
+
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ["biolink", workspaceId] });
 
   const profile = bioQuery.data;
@@ -374,6 +381,13 @@ function BioLinkPage() {
             <StatCard label="Links" value={String(links.length)} icon={Link2} />
             <StatCard label="Top link" value={analytics?.links[0]?.title ?? "—"} icon={MousePointerClick} hint={analytics?.links[0] ? `${analytics.links[0].clicks} clicks` : undefined} />
           </motion.div>
+
+          {isCreatorProgramMember && (
+            <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-xs text-primary">
+              As a Creator Program member, the "Powered by @Liffio" badge must stay visible on this page —
+              it can't be hidden while your membership is active.
+            </div>
+          )}
 
           {/* Profile */}
           <SectionCard title="Profile" icon={User} delay={0.05}>

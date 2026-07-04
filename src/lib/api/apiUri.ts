@@ -148,6 +148,8 @@ export const apiUri = {
     payoutsRequest: `${V1}/affiliate/payouts/request`,
     validateCode: (code: string) => `${V1}/affiliate/validate-code/${encodeURIComponent(code)}`,
     summary: `${V1}/affiliate/summary`,
+    kycStatus: `${V1}/affiliate/kyc/status`,
+    kycSubmit: `${V1}/affiliate/kyc/submit`,
   },
 
   agency: {
@@ -222,6 +224,9 @@ export const apiUri = {
       byId: (affiliateId: string) => `${V1}/admin/affiliate/${affiliateId}`,
       suspend: (affiliateId: string) => `${V1}/admin/affiliate/${affiliateId}/suspend`,
       unsuspend: (affiliateId: string) => `${V1}/admin/affiliate/${affiliateId}/unsuspend`,
+      kycQueue: `${V1}/admin/affiliate/kyc/queue`,
+      kycApprove: (submissionId: string) => `${V1}/admin/affiliate/kyc/${submissionId}/approve`,
+      kycReject: (submissionId: string) => `${V1}/admin/affiliate/kyc/${submissionId}/reject`,
     },
   },
 

@@ -38,6 +38,7 @@ import { Route as OauthMetaCompleteRouteImport } from './routes/oauth.meta.compl
 import { Route as AuthGoogleCompleteRouteImport } from './routes/auth.google.complete'
 import { Route as AppAutomationsNewRouteImport } from './routes/_app/automations.new'
 import { Route as AppAdminEmailTemplatesRouteImport } from './routes/_app/admin.email-templates'
+import { Route as AppAdminAffiliatesRouteImport } from './routes/_app/admin.affiliates'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -183,6 +184,11 @@ const AppAdminEmailTemplatesRoute = AppAdminEmailTemplatesRouteImport.update({
   path: '/admin/email-templates',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminAffiliatesRoute = AppAdminAffiliatesRouteImport.update({
+  id: '/admin/affiliates',
+  path: '/admin/affiliates',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -208,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/team': typeof AppTeamRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
+  '/admin/affiliates': typeof AppAdminAffiliatesRoute
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/automations/new': typeof AppAutomationsNewRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
@@ -238,6 +245,7 @@ export interface FileRoutesByTo {
   '/team': typeof AppTeamRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
+  '/admin/affiliates': typeof AppAdminAffiliatesRoute
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/automations/new': typeof AppAutomationsNewRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
@@ -270,6 +278,7 @@ export interface FileRoutesById {
   '/_app/team': typeof AppTeamRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
+  '/_app/admin/affiliates': typeof AppAdminAffiliatesRoute
   '/_app/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/_app/automations/new': typeof AppAutomationsNewRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
@@ -302,6 +311,7 @@ export interface FileRouteTypes {
     | '/team'
     | '/auth/handoff'
     | '/leads-captured/$slug'
+    | '/admin/affiliates'
     | '/admin/email-templates'
     | '/automations/new'
     | '/auth/google/complete'
@@ -332,6 +342,7 @@ export interface FileRouteTypes {
     | '/team'
     | '/auth/handoff'
     | '/leads-captured/$slug'
+    | '/admin/affiliates'
     | '/admin/email-templates'
     | '/automations/new'
     | '/auth/google/complete'
@@ -363,6 +374,7 @@ export interface FileRouteTypes {
     | '/_app/team'
     | '/auth/handoff'
     | '/leads-captured/$slug'
+    | '/_app/admin/affiliates'
     | '/_app/admin/email-templates'
     | '/_app/automations/new'
     | '/auth/google/complete'
@@ -591,6 +603,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminEmailTemplatesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/affiliates': {
+      id: '/_app/admin/affiliates'
+      path: '/admin/affiliates'
+      fullPath: '/admin/affiliates'
+      preLoaderRoute: typeof AppAdminAffiliatesRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -608,6 +627,7 @@ interface AppRouteChildren {
   AppSettingsRoute: typeof AppSettingsRoute
   AppShortLinksRoute: typeof AppShortLinksRoute
   AppTeamRoute: typeof AppTeamRoute
+  AppAdminAffiliatesRoute: typeof AppAdminAffiliatesRoute
   AppAdminEmailTemplatesRoute: typeof AppAdminEmailTemplatesRoute
   AppAutomationsNewRoute: typeof AppAutomationsNewRoute
   AppAutomationsIndexRoute: typeof AppAutomationsIndexRoute
@@ -627,6 +647,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsRoute: AppSettingsRoute,
   AppShortLinksRoute: AppShortLinksRoute,
   AppTeamRoute: AppTeamRoute,
+  AppAdminAffiliatesRoute: AppAdminAffiliatesRoute,
   AppAdminEmailTemplatesRoute: AppAdminEmailTemplatesRoute,
   AppAutomationsNewRoute: AppAutomationsNewRoute,
   AppAutomationsIndexRoute: AppAutomationsIndexRoute,

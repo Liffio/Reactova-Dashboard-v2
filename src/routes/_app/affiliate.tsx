@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { AffiliateOnboarding } from "@/components/affiliate/affiliate-onboarding";
 import { AffiliateConsentDialog } from "@/components/affiliate/affiliate-consent-dialog";
+import { AffiliateKycPanel } from "@/components/affiliate/affiliate-kyc-panel";
 import {
   getAffiliateDashboard,
   getAffiliateLinks,
@@ -228,6 +229,7 @@ function AffiliatePage() {
             <TabsTrigger value="referrals">Referrals</TabsTrigger>
             <TabsTrigger value="commissions">Commissions</TabsTrigger>
             <TabsTrigger value="payouts">Payouts</TabsTrigger>
+            <TabsTrigger value="verification">Verification</TabsTrigger>
           </TabsList>
 
           <TabsContent value="referrals">
@@ -357,6 +359,10 @@ function AffiliatePage() {
                 </table>
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="verification">
+            <AffiliateKycPanel />
           </TabsContent>
         </Tabs>
       </div>

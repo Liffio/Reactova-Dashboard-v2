@@ -106,3 +106,31 @@ export function suspendAdminAffiliate(affiliateId: string, reason?: string) {
 export function unsuspendAdminAffiliate(affiliateId: string) {
   return apiRequest<unknown>(apiUri.admin.affiliate.unsuspend(affiliateId), { method: "POST" });
 }
+
+export type AdminKycSubmission = {
+  id: string;
+  affiliateProfileId: string;
+  affiliate: { id: string; user?: { email?: string; name?: string } } | null;
+  tier: "L1" | "L2" | "L3";
+  status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  documents: Array<{ type: string; fileUrl: string; uploadedAt: string }>;
+  submittedAt: string;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+};
+
+export function listAdminKycQueue(status?: string) {
+  const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiRequest<AdminKycSubmission[]>(`${apiUri.admin.affiliate.kycQueue}${suffix}`);
+}
+
+export function approveAdminKyc(submissionId: string) {
+  return apiRequest<unknown>(apiUri.admin.affiliate.kycApprove(submissionId), { method: "POST" });
+}
+
+export function rejectAdminKyc(submissionId: string, reason: string) {
+  return apiRequest<unknown>(apiUri.admin.affiliate.kycReject(submissionId), {
+    method: "POST",
+    body: { reason },
+  });
+}

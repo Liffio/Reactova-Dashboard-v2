@@ -1,5 +1,20 @@
 import { apiUri } from "./apiUri";
-import { apiRequest } from "./http";
+import { apiRequest, apiUploadRequest } from "./http";
+
+export type KycTier = "L1" | "L2" | "L3";
+export type KycSubmissionStatus = "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+
+export type KycStatusResponse = {
+  kycStatus: string | null;
+  latestSubmission: {
+    id: string;
+    tier: KycTier;
+    status: KycSubmissionStatus;
+    submittedAt: string;
+    reviewedAt: string | null;
+    rejectionReason: string | null;
+  } | null;
+};
 
 export type AffiliateProfile = {
   id: string;
@@ -113,6 +128,29 @@ export function requestAffiliatePayout(body: {
   payoutDetails: Record<string, string>;
 }) {
   return apiRequest<unknown>(apiUri.affiliate.payoutsRequest, { method: "POST", body });
+}
+
+export function getAffiliateKycSubmissionStatus() {
+  return apiRequest<KycStatusResponse>(apiUri.affiliate.kycStatus);
+}
+
+export function submitAffiliateKyc(input: {
+  tier: KycTier;
+  panNumber?: string;
+  pan?: File;
+  aadhaar?: File;
+  bankAccount?: File;
+}) {
+  const formData = new FormData();
+  formData.set("tier", input.tier);
+  if (input.panNumber) formData.set("panNumber", input.panNumber);
+  if (input.pan) formData.set("pan", input.pan);
+  if (input.aadhaar) formData.set("aadhaar", input.aadhaar);
+  if (input.bankAccount) formData.set("bankAccount", input.bankAccount);
+  return apiUploadRequest<{ id: string; tier: KycTier; status: KycSubmissionStatus; submittedAt: string }>(
+    apiUri.affiliate.kycSubmit,
+    formData
+  );
 }
 
 export function validateAffiliateCode(code: string) {

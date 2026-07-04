@@ -279,7 +279,7 @@ function DashboardPage() {
                       </p>
                     </div>
                     <div className="hidden text-right text-xs tabular-nums sm:block">
-                      <div className="font-semibold">{formatNum(a.dmsSentThisMonth)}</div>
+                      <div className="font-display text-sm font-semibold">{formatNum(a.dmsSentThisMonth)}</div>
                       <div className="text-muted-foreground">DMs this month</div>
                     </div>
                   </motion.li>

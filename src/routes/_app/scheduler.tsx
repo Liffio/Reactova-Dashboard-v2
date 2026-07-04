@@ -1455,7 +1455,7 @@ function SchedulerPage() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
-                        <div className="text-2xl font-bold">{s.value}</div>
+                        <div className="font-display text-2xl font-bold">{s.value}</div>
                       </CardContent>
                     </Card>
                   ))}

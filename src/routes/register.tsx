@@ -1,12 +1,13 @@
 import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 
-type RegisterSearch = { redirect?: string; plan?: string };
+type RegisterSearch = { redirect?: string; plan?: string; ref?: string };
 
 export const Route = createFileRoute("/register")({
   validateSearch: (search: Record<string, unknown>): RegisterSearch => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
     plan: typeof search.plan === "string" ? search.plan : undefined,
+    ref: typeof search.ref === "string" ? search.ref : undefined,
   }),
   head: () => ({ meta: [{ title: "Create account — Liffio" }] }),
   component: RegisterRedirect,
@@ -20,6 +21,7 @@ function RegisterRedirect() {
     const params = new URLSearchParams();
     if (search.redirect) params.set("redirect", search.redirect);
     if (search.plan) params.set("plan", search.plan);
+    if (search.ref) params.set("ref", search.ref);
     const qs = params.toString();
     window.location.replace(qs ? `${base}?${qs}` : base);
   }, [search]);

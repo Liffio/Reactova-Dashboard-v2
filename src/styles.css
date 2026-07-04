@@ -284,3 +284,34 @@
 @utility animate-fade-in-up {
   animation: fade-in-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+/* ─── Affiliate earnings calculator slider ───────────────────── */
+.affiliate-earnings-slider [data-orientation="horizontal"] > span:first-of-type {
+  height: 0.625rem;
+  border-radius: 9999px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+}
+
+.affiliate-earnings-slider [data-orientation="horizontal"] > span:first-of-type > span {
+  border-radius: 9999px;
+  background-image: var(--gradient-brand);
+}
+
+.affiliate-earnings-slider [data-orientation="horizontal"] > span[role="slider"] {
+  height: 1.25rem;
+  width: 1.25rem;
+  border-width: 2px;
+  border-color: var(--primary);
+  background: var(--background);
+  box-shadow:
+    0 0 0 4px oklch(from var(--primary) l c h / 0.2),
+    0 2px 8px oklch(from var(--foreground) l c h / 0.1);
+}
+
+.affiliate-earnings-slider [data-orientation="horizontal"] > span[role="slider"]:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 4px oklch(from var(--primary) l c h / 0.3),
+    0 0 0 6px oklch(from var(--ring) l c h / 0.4);
+}

@@ -153,7 +153,7 @@ function LeadsPage() {
                             </Avatar>
                             <div className="min-w-0">
                               <p className="truncate font-medium">
-                                {lead.igUsername ? `@${lead.igUsername}` : lead.displayName ?? "—"}
+                                {lead.igUsername ? `${lead.igUsername}` : lead.displayName ?? "—"}
                               </p>
                               {lead.email && (
                                 <p className="truncate text-xs text-muted-foreground">{lead.email}</p>
@@ -162,7 +162,7 @@ function LeadsPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3.5 hidden sm:table-cell">
-                          <span className="truncate text-xs text-muted-foreground max-w-[140px] block">
+                          <span className="truncate text-xs text-muted-foreground max-w-35 block">
                             {lead.automationName}
                           </span>
                         </td>

@@ -2,10 +2,8 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Check,
   Copy,
   DollarSign,
-  Gift,
   TrendingUp,
   Users,
   Wallet,
@@ -28,8 +26,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { AffiliateOnboarding } from "@/components/affiliate/affiliate-onboarding";
+import { AffiliateConsentDialog } from "@/components/affiliate/affiliate-consent-dialog";
 import {
-  acceptAffiliateProgramConsent,
   getAffiliateDashboard,
   getAffiliateLinks,
   getAffiliateProfile,
@@ -65,6 +64,7 @@ function AffiliatePage() {
   const queryClient = useQueryClient();
   const [payoutOpen, setPayoutOpen] = useState(false);
   const [customCodeOpen, setCustomCodeOpen] = useState(false);
+  const [consentOpen, setConsentOpen] = useState(false);
 
   const profileQuery = useQuery({
     queryKey: ["affiliate-profile"],
@@ -95,21 +95,6 @@ function AffiliatePage() {
     enabled: profileQuery.data?.hasProgramConsent === true,
   });
 
-  const consentMutation = useMutation({
-    mutationFn: () =>
-      acceptAffiliateProgramConsent({
-        version: "1.0",
-        acceptedTerms: true,
-        acceptedCommissionPolicy: true,
-        acceptedPayoutPolicy: true,
-      }),
-    onSuccess: () => {
-      toast.success("Welcome to the affiliate program!");
-      void queryClient.invalidateQueries({ queryKey: ["affiliate-profile"] });
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
-
   const profile = profileQuery.data;
   const dash = dashboardQuery.data;
   const links = linksQuery.data;
@@ -127,40 +112,19 @@ function AffiliatePage() {
   if (!hasConsent) {
     return (
       <div>
-        <PageHeader eyebrow="Account" title="Affiliate Program" description="Earn 30% recurring commission for every customer you refer." />
-        <div className="p-4 sm:p-10 max-w-lg">
-          <div className="rounded-2xl border bg-card p-8 shadow-soft text-center">
-            <Gift className="mx-auto h-10 w-10 text-primary" />
-            <h2 className="mt-4 font-display text-xl font-bold">Join the affiliate program</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Earn 30% recurring commission on every customer you refer. Get paid monthly via bank
-              transfer or PayPal.
-            </p>
-            <ul className="mt-6 space-y-2 text-left text-sm">
-              {[
-                "30% recurring commission",
-                "Monthly payouts",
-                "Real-time dashboard",
-                "Custom referral link",
-              ].map((f) => (
-                <li key={f} className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-success" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-            <Button
-              className="mt-8 w-full bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
-              disabled={consentMutation.isPending}
-              onClick={() => consentMutation.mutate()}
-            >
-              {consentMutation.isPending ? "Joining…" : "Join now — it's free"}
-            </Button>
-            <p className="mt-3 text-[11px] text-muted-foreground">
-              By joining you agree to the affiliate program terms and commission policy.
-            </p>
-          </div>
+        <PageHeader
+          eyebrow="Account"
+          title="Affiliate Program"
+          description="Earn 50% recurring commission for every customer you refer."
+        />
+        <div className="p-4 sm:p-6 md:p-10">
+          <AffiliateOnboarding onGetStarted={() => setConsentOpen(true)} />
         </div>
+        <AffiliateConsentDialog
+          open={consentOpen}
+          onOpenChange={setConsentOpen}
+          onAccepted={() => void queryClient.invalidateQueries({ queryKey: ["affiliate-profile"] })}
+        />
       </div>
     );
   }

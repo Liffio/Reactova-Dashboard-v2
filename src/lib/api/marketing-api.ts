@@ -16,8 +16,22 @@ export function getMarketingPlans() {
   return apiRequest<{ plans: MarketingPlan[] }>(apiUri.marketing.plans, { token: null });
 }
 
-export function getAffiliateCalculatorConfig() {
-  return apiRequest<Record<string, unknown>>(apiUri.marketing.affiliateCalculatorConfig, {
+export type AffiliateCalculatorConfig = {
+  region: "global" | "india";
+  currency: "USD" | "INR";
+  currencyLabel: string;
+  countryCode: string | null;
+  regionSource: "profile" | "ip" | "default";
+  planName: string;
+  planMonthly: number;
+  monthlyCommissionPerReferral: number;
+  commissionRate: number;
+  commissionRatePercent: number;
+};
+
+export function getAffiliateCalculatorConfig(countryCode?: string) {
+  const query = countryCode ? `?countryCode=${encodeURIComponent(countryCode)}` : "";
+  return apiRequest<AffiliateCalculatorConfig>(`${apiUri.marketing.affiliateCalculatorConfig}${query}`, {
     token: null,
   });
 }

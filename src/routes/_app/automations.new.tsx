@@ -15,7 +15,6 @@ import {
   Send,
   ShieldCheck,
   Trash2,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -29,6 +28,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Select,
   SelectContent,
@@ -69,18 +74,23 @@ type FollowUpDraft = {
   message: string;
 };
 
+type TriggerBlock = {
+  id: string;
+  keyword: string;
+  autoReply: boolean;
+  replyMessage: string;
+  dmMessage: string;
+  hasButton: boolean;
+  dmButtonLabel: string;
+  dmButtonUrl: string;
+};
+
 type BuilderForm = {
   name: string;
   postScope: PostScope;
   postId: string | null;
   anyComment: boolean;
-  keywords: string[];
-  dmMessage: string;
-  hasButton: boolean;
-  dmButtonLabel: string;
-  dmButtonUrl: string;
-  autoReply: boolean;
-  replyMessages: string[];
+  triggerBlocks: TriggerBlock[];
   followBeforeDm: boolean;
   followUps: FollowUpDraft[];
 };
@@ -93,18 +103,39 @@ const DELAY_OPTIONS: Array<{ label: string; minutes: number }> = [
   { label: "7 days", minutes: 10080 },
 ];
 
+const MAX_TRIGGER_BLOCKS = 20;
+
+let triggerBlockSeq = 0;
+function createTriggerBlock(overrides: Partial<TriggerBlock> = {}): TriggerBlock {
+  triggerBlockSeq += 1;
+  return {
+    id: `tb-${Date.now()}-${triggerBlockSeq}`,
+    keyword: "",
+    autoReply: true,
+    replyMessage: "",
+    dmMessage: "",
+    hasButton: false,
+    dmButtonLabel: "",
+    dmButtonUrl: "",
+    ...overrides,
+  };
+}
+
 const defaultForm: BuilderForm = {
   name: "New automation",
   postScope: "any",
   postId: null,
   anyComment: false,
-  keywords: ["GUIDE"],
-  dmMessage: "Hi there! Appreciate your comment 🙌 Here's the link you asked for ⬇️",
-  hasButton: true,
-  dmButtonLabel: "Open link",
-  dmButtonUrl: "https://",
-  autoReply: true,
-  replyMessages: ["Sent! Check your DMs 💌", "On its way to your inbox ✨"],
+  triggerBlocks: [
+    createTriggerBlock({
+      keyword: "GUIDE",
+      replyMessage: "Sent! Check your DMs 💌",
+      dmMessage: "Hi there! Appreciate your comment 🙌 Here's the link you asked for ⬇️",
+      hasButton: true,
+      dmButtonLabel: "Open link",
+      dmButtonUrl: "https://",
+    }),
+  ],
   followBeforeDm: false,
   followUps: [],
 };
@@ -115,7 +146,9 @@ function AutomationBuilder() {
   const workspaceId = current.id;
 
   const [form, setForm] = useState<BuilderForm>(defaultForm);
-  const [kwInput, setKwInput] = useState("");
+  const [expandedBlockIds, setExpandedBlockIds] = useState<string[]>(
+    defaultForm.triggerBlocks.map((b) => b.id)
+  );
   const [restoredBannerDismissed, setRestoredBannerDismissed] = useState(false);
   const firstChangeRef = useRef(false);
 
@@ -144,7 +177,9 @@ function AutomationBuilder() {
   // Offer to restore an existing DB draft once it loads (before any edits).
   const restoreDraft = () => {
     if (autosave.draft) {
-      setForm({ ...defaultForm, ...autosave.draft.payload });
+      const restored = { ...defaultForm, ...autosave.draft.payload };
+      setForm(restored);
+      setExpandedBlockIds(restored.triggerBlocks.map((b) => b.id));
       setRestoredBannerDismissed(true);
       toast.success("Draft restored");
     }
@@ -162,26 +197,40 @@ function AutomationBuilder() {
     !restoredBannerDismissed &&
     !firstChangeRef.current;
 
-  const buildPayload = (status: "ACTIVE" | "DRAFT"): CreateAutomationInput => ({
-    name: form.name.trim() || "Untitled automation",
-    keywords: form.anyComment ? [] : form.keywords.map((k) => k.trim()).filter(Boolean),
-    excludedKeywords: [],
-    anyComment: form.anyComment,
-    postScope: form.postScope,
-    postId: form.postScope === "specific" ? form.postId : null,
-    dmMessage: form.dmMessage.trim(),
-    autoReply: form.autoReply,
-    replyMessages: form.autoReply
-      ? form.replyMessages.map((r) => r.trim()).filter(Boolean)
-      : [],
-    dmButtonLabel: form.hasButton ? form.dmButtonLabel.trim() || undefined : undefined,
-    dmButtonUrl: form.hasButton ? form.dmButtonUrl.trim() || undefined : undefined,
-    followBeforeDm: form.followBeforeDm,
-    followUps: form.followUps
-      .filter((f) => f.message.trim())
-      .map((f, i) => ({ delayMinutes: f.delayMinutes, message: f.message.trim(), order: i })),
-    status,
-  });
+  const buildPayload = (status: "ACTIVE" | "DRAFT"): CreateAutomationInput => {
+    const normalizedBlocks = form.triggerBlocks.map((block) => ({
+      ...block,
+      keyword: form.anyComment ? "" : block.keyword.trim().toUpperCase(),
+    }));
+    const primary = normalizedBlocks[0];
+    return {
+      name: form.name.trim() || "Untitled automation",
+      keywords: form.anyComment ? [] : normalizedBlocks.map((b) => b.keyword).filter(Boolean),
+      excludedKeywords: [],
+      anyComment: form.anyComment,
+      postScope: form.postScope,
+      postId: form.postScope === "specific" ? form.postId : null,
+      dmMessage: primary.dmMessage.trim(),
+      autoReply: primary.autoReply,
+      replyMessages: primary.autoReply && primary.replyMessage.trim() ? [primary.replyMessage.trim()] : [],
+      dmButtonLabel: primary.hasButton ? primary.dmButtonLabel.trim() || undefined : undefined,
+      dmButtonUrl: primary.hasButton ? primary.dmButtonUrl.trim() || undefined : undefined,
+      followBeforeDm: form.followBeforeDm,
+      followUps: form.followUps
+        .filter((f) => f.message.trim())
+        .map((f, i) => ({ delayMinutes: f.delayMinutes, message: f.message.trim(), order: i })),
+      triggerBlocks: normalizedBlocks.map((block) => ({
+        id: block.id,
+        keyword: block.keyword,
+        autoReply: block.autoReply,
+        replyMessage: block.replyMessage.trim(),
+        dmMessage: block.dmMessage.trim(),
+        dmButtonLabel: block.hasButton ? block.dmButtonLabel.trim() || undefined : undefined,
+        dmButtonUrl: block.hasButton ? block.dmButtonUrl.trim() || undefined : undefined,
+      })),
+      status,
+    };
+  };
 
   const publishMutation = useMutation({
     mutationFn: (status: "ACTIVE" | "DRAFT") => createAutomation(workspaceId, buildPayload(status)),
@@ -196,20 +245,32 @@ function AutomationBuilder() {
   const validate = (): string | null => {
     const nameErr = lengthError(form.name, "Automation name", LIMITS.automationName);
     if (nameErr) return nameErr;
-    if (!form.dmMessage.trim()) return "Write the DM message first.";
-    if (form.dmMessage.length > LIMITS.dmMessage.max)
-      return `DM message must be ${LIMITS.dmMessage.max} characters or fewer.`;
-    if (!form.anyComment && form.keywords.filter((k) => k.trim()).length === 0)
-      return "Add at least one keyword, or switch to any comment.";
     if (form.postScope === "specific" && !form.postId)
       return "Pick the post this automation listens on.";
-    if (form.hasButton) {
-      const labelErr = form.dmButtonLabel.trim()
-        ? lengthError(form.dmButtonLabel, "Button label", { max: LIMITS.buttonLabel.max })
-        : null;
-      if (labelErr) return labelErr;
-      const btnUrlErr = urlError(form.dmButtonUrl, { max: LIMITS.buttonUrl.max });
-      if (btnUrlErr) return btnUrlErr;
+    if (!form.anyComment) {
+      if (form.triggerBlocks.length === 0) return "Add at least one keyword trigger.";
+      const seen = new Set<string>();
+      for (const [i, block] of form.triggerBlocks.entries()) {
+        const kw = block.keyword.trim();
+        if (!kw) return `Keyword trigger ${i + 1} needs a trigger word.`;
+        const upper = kw.toUpperCase();
+        if (seen.has(upper)) return `"${upper}" is used more than once — keywords must be unique.`;
+        seen.add(upper);
+      }
+    }
+    for (const [i, block] of form.triggerBlocks.entries()) {
+      const label = form.anyComment ? "DM message" : `Keyword trigger ${i + 1}`;
+      if (!block.dmMessage.trim()) return `${label}: write the DM message first.`;
+      if (block.dmMessage.length > LIMITS.dmMessage.max)
+        return `${label}: DM message must be ${LIMITS.dmMessage.max} characters or fewer.`;
+      if (block.hasButton) {
+        const labelErr = block.dmButtonLabel.trim()
+          ? lengthError(block.dmButtonLabel, "Button label", { max: LIMITS.buttonLabel.max })
+          : null;
+        if (labelErr) return `${label}: ${labelErr}`;
+        const btnUrlErr = urlError(block.dmButtonUrl, { max: LIMITS.buttonUrl.max });
+        if (btnUrlErr) return `${label}: ${btnUrlErr}`;
+      }
     }
     return null;
   };
@@ -223,15 +284,36 @@ function AutomationBuilder() {
     publishMutation.mutate(status);
   };
 
-  const addKeyword = () => {
-    const v = kwInput.trim().toUpperCase();
-    if (!v) return;
-    if (form.keywords.includes(v)) {
-      toast.error(`"${v}" is already added`);
+  const setAnyComment = (checked: boolean) => {
+    if (checked) {
+      const kept = { ...form.triggerBlocks[0], keyword: "" };
+      update({ anyComment: true, triggerBlocks: [kept] });
+      setExpandedBlockIds([kept.id]);
       return;
     }
-    update({ keywords: [...form.keywords, v] });
-    setKwInput("");
+    update({ anyComment: false });
+  };
+
+  const addTriggerBlock = () => {
+    if (form.triggerBlocks.length >= MAX_TRIGGER_BLOCKS) {
+      toast.error(`Up to ${MAX_TRIGGER_BLOCKS} keyword triggers per automation.`);
+      return;
+    }
+    const block = createTriggerBlock();
+    update({ triggerBlocks: [...form.triggerBlocks, block] });
+    setExpandedBlockIds((ids) => [...ids, block.id]);
+  };
+
+  const removeTriggerBlock = (id: string) => {
+    if (form.triggerBlocks.length <= 1) return;
+    update({ triggerBlocks: form.triggerBlocks.filter((b) => b.id !== id) });
+    setExpandedBlockIds((ids) => ids.filter((x) => x !== id));
+  };
+
+  const updateTriggerBlock = (id: string, patch: Partial<TriggerBlock>) => {
+    update({
+      triggerBlocks: form.triggerBlocks.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+    });
   };
 
   useEffect(() => {
@@ -420,166 +502,89 @@ function AutomationBuilder() {
                   Skip keyword matching — every comment receives the DM.
                 </p>
               </div>
-              <Switch
-                checked={form.anyComment}
-                onCheckedChange={(v) => update({ anyComment: v })}
-              />
+              <Switch checked={form.anyComment} onCheckedChange={setAnyComment} />
             </div>
-
-            {!form.anyComment && (
-              <div className="space-y-2">
-                <Label>Keywords</Label>
-                <div className="flex flex-wrap items-center gap-2">
-                  {form.keywords.map((k) => (
-                    <span
-                      key={k}
-                      className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 font-mono text-xs"
-                    >
-                      <Hash className="h-3 w-3 text-primary" /> {k}
-                      <button
-                        type="button"
-                        onClick={() => update({ keywords: form.keywords.filter((x) => x !== k) })}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={kwInput}
-                      onChange={(e) => setKwInput(e.target.value.slice(0, LIMITS.keyword.max))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          addKeyword();
-                        }
-                      }}
-                      maxLength={LIMITS.keyword.max}
-                      placeholder="Add keyword…"
-                      className="h-8 w-40"
-                    />
-                    <Button size="sm" variant="outline" type="button" onClick={addKeyword}>
-                      <Plus className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Not case-sensitive. The comment must contain the keyword.
-                </p>
-              </div>
-            )}
           </section>
 
-          {/* Public reply */}
+          {/* Keyword triggers */}
           <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-soft">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Auto-reply on the post</p>
-                <p className="text-xs text-muted-foreground">
-                  Reply publicly — rotates between variations to look natural.
-                </p>
-              </div>
-              <Switch checked={form.autoReply} onCheckedChange={(v) => update({ autoReply: v })} />
-            </div>
-            {form.autoReply && (
-              <div className="space-y-2.5">
-                {form.replyMessages.map((r, i) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <Textarea
-                      value={r}
-                      onChange={(e) => {
-                        const next = [...form.replyMessages];
-                        next[i] = e.target.value.slice(0, 140);
-                        update({ replyMessages: next });
-                      }}
-                      maxLength={140}
-                      rows={2}
-                      className="resize-none"
-                      placeholder={`Reply variation ${i + 1}`}
-                    />
-                    <button
-                      type="button"
-                      className="mt-2 rounded p-1 text-muted-foreground hover:text-destructive"
-                      onClick={() =>
-                        update({ replyMessages: form.replyMessages.filter((_, j) => j !== i) })
-                      }
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+            <div className="flex items-center justify-between gap-3">
+              <SectionTitle
+                icon={Hash}
+                title={form.anyComment ? "Reply & DM" : "Keyword triggers"}
+                subtitle={
+                  form.anyComment
+                    ? "Every comment gets this reply and DM."
+                    : "Each keyword gets its own reply, DM message, and button."
+                }
+              />
+              {!form.anyComment && (
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="border-dashed"
-                  onClick={() => update({ replyMessages: [...form.replyMessages, ""] })}
+                  className="shrink-0 border-dashed"
+                  onClick={addTriggerBlock}
                 >
-                  <Plus className="h-3.5 w-3.5" /> Add variation
+                  <Plus className="h-3.5 w-3.5" /> Add keyword
                 </Button>
-              </div>
-            )}
-          </section>
-
-          {/* DM message */}
-          <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-soft">
-            <SectionTitle
-              icon={Send}
-              title="DM message"
-              subtitle="Sent automatically when the trigger fires."
-            />
-            <div className="space-y-1.5">
-              <Textarea
-                value={form.dmMessage}
-                onChange={(e) => update({ dmMessage: e.target.value.slice(0, LIMITS.dmMessage.max) })}
-                maxLength={LIMITS.dmMessage.max}
-                rows={4}
-                placeholder="Hi there! Here's the resource you asked for…"
-              />
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-muted-foreground">
-                  Use {"{{name}}"} {"{{username}}"} {"{{keyword}}"} as variables
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {form.dmMessage.length}/900
-                </span>
-              </div>
+              )}
             </div>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Button link</p>
-                <p className="text-xs text-muted-foreground">
-                  Attach a tappable button under the DM.
-                </p>
+            {form.anyComment ? (
+              <div className="rounded-xl border bg-background p-4">
+                <TriggerBlockFields
+                  block={form.triggerBlocks[0]}
+                  showKeywordStep={false}
+                  onChange={(patch) => updateTriggerBlock(form.triggerBlocks[0].id, patch)}
+                />
               </div>
-              <Switch checked={form.hasButton} onCheckedChange={(v) => update({ hasButton: v })} />
-            </div>
-            {form.hasButton && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label>Button label</Label>
-                  <Input
-                    value={form.dmButtonLabel}
-                    onChange={(e) => update({ dmButtonLabel: e.target.value.slice(0, LIMITS.buttonLabel.max) })}
-                    maxLength={LIMITS.buttonLabel.max}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Button URL</Label>
-                  <Input
-                    type="url"
-                    value={form.dmButtonUrl}
-                    onChange={(e) => update({ dmButtonUrl: e.target.value.slice(0, LIMITS.buttonUrl.max) })}
-                    maxLength={LIMITS.buttonUrl.max}
-                    placeholder="https://yourlink.com"
-                  />
-                  {form.dmButtonUrl && urlError(form.dmButtonUrl, { max: LIMITS.buttonUrl.max }) && (
-                    <p className="text-[11px] text-destructive">{urlError(form.dmButtonUrl, { max: LIMITS.buttonUrl.max })}</p>
-                  )}
-                </div>
-              </div>
+            ) : (
+              <Accordion
+                type="multiple"
+                value={expandedBlockIds}
+                onValueChange={setExpandedBlockIds}
+                className="space-y-3"
+              >
+                {form.triggerBlocks.map((block, i) => (
+                  <AccordionItem
+                    key={block.id}
+                    value={block.id}
+                    className="rounded-xl border bg-background px-3.5"
+                  >
+                    <div className="flex items-center gap-2">
+                      <AccordionTrigger className="py-3.5 hover:no-underline">
+                        <span className="inline-flex items-center gap-2 text-left">
+                          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-gradient px-1.5 text-[11px] font-semibold text-primary-foreground shadow-glow">
+                            {i + 1}
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 font-mono text-xs">
+                            <Hash className="h-3 w-3 text-primary" />
+                            {block.keyword || "New keyword"}
+                          </span>
+                        </span>
+                      </AccordionTrigger>
+                      {form.triggerBlocks.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeTriggerBlock(block.id)}
+                          className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+                          aria-label="Remove keyword trigger"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    <AccordionContent>
+                      <TriggerBlockFields
+                        block={block}
+                        showKeywordStep
+                        onChange={(patch) => updateTriggerBlock(block.id, patch)}
+                      />
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
             )}
           </section>
 
@@ -688,16 +693,151 @@ function AutomationBuilder() {
         <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start">
           <DmPreview
             username={wizardData.data?.profile.username ?? current.igHandle ?? "yourbrand"}
-            keyword={form.anyComment ? "any comment" : (form.keywords[0] ?? "KEYWORD")}
-            message={form.dmMessage}
-            buttonLabel={form.hasButton ? form.dmButtonLabel : ""}
-            buttonUrl={form.hasButton ? form.dmButtonUrl : ""}
-            autoReply={form.autoReply ? (form.replyMessages[0] ?? "") : ""}
+            keyword={form.anyComment ? "any comment" : (form.triggerBlocks[0]?.keyword || "KEYWORD")}
+            message={form.triggerBlocks[0]?.dmMessage ?? ""}
+            buttonLabel={form.triggerBlocks[0]?.hasButton ? form.triggerBlocks[0].dmButtonLabel : ""}
+            buttonUrl={form.triggerBlocks[0]?.hasButton ? form.triggerBlocks[0].dmButtonUrl : ""}
+            autoReply={form.triggerBlocks[0]?.autoReply ? form.triggerBlocks[0].replyMessage : ""}
             followBeforeDm={form.followBeforeDm}
             followUps={form.followUps}
           />
         </aside>
       </div>
+    </div>
+  );
+}
+
+function TimelineStep({
+  index,
+  title,
+  last,
+  children,
+}: {
+  index: number;
+  title: string;
+  last?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex gap-3">
+      <div className="flex flex-col items-center">
+        <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-gradient text-[11px] font-semibold text-primary-foreground shadow-glow">
+          {index}
+        </div>
+        {!last && <div className="w-px flex-1 bg-border" />}
+      </div>
+      <div className={cn("flex-1 space-y-2", !last && "pb-5")}>
+        <p className="text-xs font-semibold text-muted-foreground">{title}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function TriggerBlockFields({
+  block,
+  showKeywordStep,
+  onChange,
+}: {
+  block: TriggerBlock;
+  showKeywordStep: boolean;
+  onChange: (patch: Partial<TriggerBlock>) => void;
+}) {
+  let step = 1;
+  const keywordStepIndex = showKeywordStep ? step++ : 0;
+  const messageStepIndex = step++;
+  const buttonStepIndex = step++;
+
+  return (
+    <div>
+      {showKeywordStep && (
+        <TimelineStep index={keywordStepIndex} title="Trigger keyword">
+          <Input
+            value={block.keyword}
+            onChange={(e) =>
+              onChange({ keyword: e.target.value.slice(0, LIMITS.keyword.max).toUpperCase() })
+            }
+            maxLength={LIMITS.keyword.max}
+            placeholder="e.g. GUIDE"
+            className="font-mono uppercase"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Not case-sensitive. The comment must contain this word.
+          </p>
+        </TimelineStep>
+      )}
+
+      <TimelineStep index={messageStepIndex} title="Reply & DM message">
+        <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
+          <span className="text-xs font-medium">Public auto-reply on the comment</span>
+          <Switch checked={block.autoReply} onCheckedChange={(v) => onChange({ autoReply: v })} />
+        </div>
+        {block.autoReply && (
+          <Textarea
+            value={block.replyMessage}
+            onChange={(e) =>
+              onChange({ replyMessage: e.target.value.slice(0, LIMITS.replyMessage.max) })
+            }
+            maxLength={LIMITS.replyMessage.max}
+            rows={2}
+            className="resize-none"
+            placeholder="Sent! Check your DMs 💌"
+          />
+        )}
+        <Textarea
+          value={block.dmMessage}
+          onChange={(e) => onChange({ dmMessage: e.target.value.slice(0, LIMITS.dmMessage.max) })}
+          maxLength={LIMITS.dmMessage.max}
+          rows={4}
+          placeholder="Hi there! Here's the resource you asked for…"
+        />
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-muted-foreground">
+            Use {"{{name}}"} {"{{username}}"} {"{{keyword}}"} as variables
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            {block.dmMessage.length}/{LIMITS.dmMessage.max}
+          </span>
+        </div>
+      </TimelineStep>
+
+      <TimelineStep index={buttonStepIndex} title="Button (optional)" last>
+        <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
+          <span className="text-xs font-medium">Attach a tappable button under the DM</span>
+          <Switch checked={block.hasButton} onCheckedChange={(v) => onChange({ hasButton: v })} />
+        </div>
+        {block.hasButton && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Button label</Label>
+              <Input
+                value={block.dmButtonLabel}
+                onChange={(e) =>
+                  onChange({ dmButtonLabel: e.target.value.slice(0, LIMITS.buttonLabel.max) })
+                }
+                maxLength={LIMITS.buttonLabel.max}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Button URL</Label>
+              <Input
+                type="url"
+                value={block.dmButtonUrl}
+                onChange={(e) =>
+                  onChange({ dmButtonUrl: e.target.value.slice(0, LIMITS.buttonUrl.max) })
+                }
+                maxLength={LIMITS.buttonUrl.max}
+                placeholder="https://yourlink.com"
+              />
+              {block.dmButtonUrl && urlError(block.dmButtonUrl, { max: LIMITS.buttonUrl.max }) && (
+                <p className="text-[11px] text-destructive">
+                  {urlError(block.dmButtonUrl, { max: LIMITS.buttonUrl.max })}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </TimelineStep>
     </div>
   );
 }

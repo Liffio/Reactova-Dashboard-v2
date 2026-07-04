@@ -568,7 +568,7 @@ function AutomationBuilder() {
                         <button
                           type="button"
                           onClick={() => removeTriggerBlock(block.id)}
-                          className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+                          className="shrink-0 rounded-md p-1.5 text-[crimson] transition-colors hover:bg-[crimson]/10"
                           aria-label="Remove keyword trigger"
                         >
                           <Trash2 className="h-4 w-4" />

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { useMounted } from "@/components/auth/guards";
-import { postAuthLandingPath } from "@/lib/auth/auth-navigation";
+import { postAuthLandingPath, loginPathWithRedirect } from "@/lib/auth/auth-navigation";
 import { useAuthState } from "@/lib/auth/auth-store";
 
 export const Route = createFileRoute("/")({
@@ -22,7 +22,7 @@ function IndexRedirect() {
   useEffect(() => {
     if (!mounted) return;
     if (!token) {
-      void navigate({ to: "/login", replace: true });
+      window.location.replace(loginPathWithRedirect("/"));
       return;
     }
     // Wait for auth/me before deciding between confirm-email/onboarding/dashboard.

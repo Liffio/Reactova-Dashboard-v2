@@ -51,10 +51,28 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
             sleep 3
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000)
+            HTML=$(curl -s -w '\n%{http_code}' http://127.0.0.1:3000/)
+            STATUS=$(echo "$HTML" | tail -1)
+            BODY=$(echo "$HTML" | sed '$d')
             if [ "$STATUS" != "200" ]; then
-              echo "Health check failed — HTTP $STATUS"
+              echo "Health check failed — HTTP $STATUS on /"
               pm2 logs liffio-dashboard --lines 30 --nostream
               exit 1
             fi
-            echo "Health check passed — HTTP $STATUS"
+            echo "Root check passed — HTTP $STATUS"
+
+            # The root page returning 200 isn't enough: a stale in-memory SSR
+            # bundle can still reference asset hashes a fresh build just deleted
+            # from disk. Verify at least one referenced asset actually resolves.
+            ASSET=$(echo "$BODY" | grep -oE '/assets/[A-Za-z0-9_.-]+\.(js|css)' | head -1)
+            if [ -z "$ASSET" ]; then
+              echo "Health check failed — no asset reference found in / response"
+              exit 1
+            fi
+            ASSET_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:3000$ASSET")
+            if [ "$ASSET_STATUS" != "200" ]; then
+              echo "Health check failed — HTTP $ASSET_STATUS on $ASSET (stale build reference?)"
+              pm2 logs liffio-dashboard --lines 30 --nostream
+              exit 1
+            fi
+            echo "Asset check passed — $ASSET returned $ASSET_STATUS"

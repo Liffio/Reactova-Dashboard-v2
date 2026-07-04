@@ -7,7 +7,7 @@ import { useEffect } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { getAuthMe } from "@/lib/api/auth-api";
-import { sanitizeAuthRedirect } from "@/lib/auth/auth-navigation";
+import { sanitizeAuthRedirect, loginPathWithRedirect } from "@/lib/auth/auth-navigation";
 import { authStore } from "@/lib/auth/auth-store";
 
 type HandoffSearch = {
@@ -43,7 +43,7 @@ function AuthHandoff() {
     const redirectTo = sanitizeAuthRedirect(search.redirect ?? null);
 
     if (!token) {
-      void navigate({ to: "/login" as never, replace: true });
+      window.location.replace(loginPathWithRedirect("/"));
       return;
     }
 
@@ -54,7 +54,7 @@ function AuthHandoff() {
       void navigate({ to: redirectTo as never, replace: true });
     };
 
-    finish().catch(() => navigate({ to: "/login" as never, replace: true }));
+    finish().catch(() => { window.location.replace(loginPathWithRedirect("/")); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

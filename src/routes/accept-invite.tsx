@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { AuthShell } from "@/components/auth/auth-shell";
 import { useMounted } from "@/components/auth/guards";
+import { loginPathWithRedirect } from "@/lib/auth/auth-navigation";
 import { Button } from "@/components/ui/button";
 import { acceptInviteByToken, getInvitePreview } from "@/lib/api/auth-api";
 import { useAuthState } from "@/lib/auth/auth-store";
@@ -47,13 +48,11 @@ function AcceptInvitePage() {
 
   useEffect(() => {
     if (mounted && !isLoggedIn && token) {
-      void navigate({
-        to: "/login",
-        search: { redirect: `/accept-invite?token=${encodeURIComponent(token)}` },
-        replace: true,
-      });
+      window.location.replace(
+        loginPathWithRedirect(`/accept-invite?token=${encodeURIComponent(token)}`)
+      );
     }
-  }, [mounted, isLoggedIn, token, navigate]);
+  }, [mounted, isLoggedIn, token]);
 
   const onAccept = async () => {
     if (!token) return;

@@ -25,6 +25,7 @@ import {
   markAllInboxRead,
   markInboxRead,
 } from "@/lib/api/auth-api";
+import { loginPathWithRedirect } from "@/lib/auth/auth-navigation";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { useApp } from "@/state/app-context";
 
@@ -248,7 +249,7 @@ function TopBar() {
               className="cursor-pointer text-destructive focus:text-destructive"
               onClick={() =>
                 logoutMutation.mutate(undefined, {
-                  onSettled: () => void navigate({ to: "/login" }),
+                  onSettled: () => { window.location.replace(loginPathWithRedirect("/")); },
                 })
               }
             >

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { authStore } from "@/lib/auth/auth-store";
-import { onboardingUrl } from "@/lib/auth/auth-navigation";
+import { onboardingUrl, loginPathWithRedirect } from "@/lib/auth/auth-navigation";
 
 type OnboardingSearch = { meta?: string; reason?: string; step?: number };
 
@@ -16,13 +16,20 @@ export const Route = createFileRoute("/onboarding")({
 });
 
 function OnboardingRedirect() {
+  const search = Route.useSearch();
+
   useEffect(() => {
     const { accessToken } = authStore.getState();
     if (!accessToken) {
-      window.location.replace("https://liffio.com/login");
+      window.location.replace(loginPathWithRedirect("/onboarding"));
       return;
     }
-    window.location.replace(onboardingUrl(accessToken));
+    let url = onboardingUrl(accessToken);
+    if (search.meta) url += `&meta=${encodeURIComponent(search.meta)}`;
+    if (search.reason) url += `&reason=${encodeURIComponent(search.reason)}`;
+    if (search.step) url += `&step=${search.step}`;
+    window.location.replace(url);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

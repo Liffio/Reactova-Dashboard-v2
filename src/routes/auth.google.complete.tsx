@@ -14,12 +14,14 @@ import { authStore } from "@/lib/auth/auth-store";
 type GoogleCompleteSearch = {
   token?: string;
   redirect?: string;
+  expiresAt?: number;
 };
 
 export const Route = createFileRoute("/auth/google/complete")({
   validateSearch: (search: Record<string, unknown>): GoogleCompleteSearch => ({
     token: typeof search.token === "string" ? search.token : undefined,
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
+    expiresAt: typeof search.expiresAt === "string" ? Number(search.expiresAt) : undefined,
   }),
   head: () => ({ meta: [{ title: "Signing in — Liffio" }] }),
   component: GoogleAuthComplete,
@@ -39,7 +41,10 @@ function GoogleAuthComplete() {
     }
 
     const finish = async () => {
-      authStore.setSession({ accessToken: token });
+      authStore.setSession({
+        accessToken: token,
+        accessTokenExpiresAt: Number.isFinite(search.expiresAt) ? (search.expiresAt as number) : null,
+      });
       const authMe = await getAuthMe({ token });
       authStore.setAuthMe(authMe);
       // Go directly to dashboard (email verified via Google, onboarding handled by liffio.com)

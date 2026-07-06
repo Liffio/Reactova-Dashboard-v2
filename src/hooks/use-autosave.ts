@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deleteDraft, getDraft, saveDraft, type DraftDto } from "@/lib/api/drafts-api";
+import { registerAutosaveFlush } from "@/lib/autosave-registry";
 
 export type AutosaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 
@@ -116,6 +117,10 @@ export function useAutosave<TPayload extends Record<string, unknown>>(
     },
     []
   );
+
+  // Let the session watcher force-flush this form's latest snapshot before a
+  // forced logout (session expiry), independent of the debounce timer.
+  useEffect(() => registerAutosaveFlush(flush), [flush]);
 
   return { status, draft, draftLoaded, schedule, flush, clear };
 }

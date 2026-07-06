@@ -4,6 +4,7 @@
  * never hardcode an endpoint or fetch a third-party host directly.
  */
 import { authStore } from "@/lib/auth/auth-store";
+import { SESSION_EXPIRED_EVENT } from "@/lib/session-events";
 
 export const API_BASE: string =
   import.meta.env.VITE_API_URL ||
@@ -23,6 +24,16 @@ export function resolveApiAssetUrl(pathOrUrl: string | null | undefined): string
     return `${apiBase}${trimmed}`;
   }
   return null;
+}
+
+/** Thrown on any non-ok response; `code` carries the backend's machine-readable error code, if any. */
+export class ApiError extends Error {
+  code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+  }
 }
 
 /** Human-readable message from `{ error: ... }` JSON (string, Zod flatten, etc.). */
@@ -96,7 +107,11 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
 
   if (!res.ok) {
     const payload = await res.json().catch(() => ({}));
-    throw new Error(formatApiErrorBody(payload));
+    const code = (payload as { code?: string })?.code;
+    if (res.status === 401 && code === "TOKEN_EXPIRED") {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+    }
+    throw new ApiError(formatApiErrorBody(payload), code);
   }
 
   if (res.status === 204) {

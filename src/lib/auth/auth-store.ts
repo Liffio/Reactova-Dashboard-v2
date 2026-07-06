@@ -37,6 +37,8 @@ export type AuthorizationPayload = Omit<AuthMePayload, "user">;
 
 export type AuthState = {
   accessToken: string | null;
+  /** Epoch ms when the access token expires, or null if unknown (e.g. legacy session). */
+  accessTokenExpiresAt: number | null;
   user: AuthUser | null;
   workspaceId: string | null;
   role: string | null;
@@ -52,11 +54,20 @@ export type AuthState = {
 };
 
 const TOKEN_STORAGE_KEY = "liffio_access_token";
+const TOKEN_EXPIRES_STORAGE_KEY = "liffio_access_token_expires_at";
 
 const isBrowser = typeof window !== "undefined";
 
+function readStoredExpiresAt(): number | null {
+  if (!isBrowser) return null;
+  const raw = localStorage.getItem(TOKEN_EXPIRES_STORAGE_KEY);
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 const initialState: AuthState = {
   accessToken: isBrowser ? localStorage.getItem(TOKEN_STORAGE_KEY) : null,
+  accessTokenExpiresAt: readStoredExpiresAt(),
   user: null,
   workspaceId: null,
   role: null,
@@ -87,11 +98,22 @@ export const authStore = {
     return () => listeners.delete(listener);
   },
 
-  setSession({ accessToken }: { accessToken: string }) {
+  setSession({
+    accessToken,
+    accessTokenExpiresAt = null,
+  }: {
+    accessToken: string;
+    accessTokenExpiresAt?: number | null;
+  }) {
     if (isBrowser) {
       localStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
+      if (accessTokenExpiresAt) {
+        localStorage.setItem(TOKEN_EXPIRES_STORAGE_KEY, String(accessTokenExpiresAt));
+      } else {
+        localStorage.removeItem(TOKEN_EXPIRES_STORAGE_KEY);
+      }
     }
-    setState({ ...state, accessToken });
+    setState({ ...state, accessToken, accessTokenExpiresAt });
   },
 
   setAuthMe(payload: AuthMePayload) {
@@ -134,8 +156,9 @@ export const authStore = {
   clear() {
     if (isBrowser) {
       localStorage.removeItem(TOKEN_STORAGE_KEY);
+      localStorage.removeItem(TOKEN_EXPIRES_STORAGE_KEY);
     }
-    setState({ ...initialState, accessToken: null });
+    setState({ ...initialState, accessToken: null, accessTokenExpiresAt: null });
   },
 };
 

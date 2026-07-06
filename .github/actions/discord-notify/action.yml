@@ -1,0 +1,144 @@
+name: Discord workflow result
+description: Post GitHub Actions success, failure, or cancelled status to Discord
+
+inputs:
+  webhook_url:
+    description: Discord webhook URL
+    required: false
+    default: ""
+  alert_role_id:
+    description: Discord role ID to mention on failure
+    required: false
+    default: ""
+  app_label:
+    description: e.g. Backend or Frontend
+    required: true
+  validate_result:
+    description: Result of the validate job
+    required: true
+  deploy_result:
+    description: Result of the deploy job
+    required: true
+  branch:
+    description: Git branch name
+    required: true
+  actor:
+    description: GitHub actor who triggered the run
+    required: true
+  run_url:
+    description: Link to the workflow run
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Determine outcome
+      id: outcome
+      shell: bash
+      env:
+        APP: ${{ inputs.app_label }}
+        VALIDATE: ${{ inputs.validate_result }}
+        DEPLOY: ${{ inputs.deploy_result }}
+      run: |
+        if [ "$VALIDATE" = "success" ] && [ "$DEPLOY" = "success" ]; then
+          echo "title=✅ ${APP} deploy succeeded" >> "$GITHUB_OUTPUT"
+          echo "color=3066993" >> "$GITHUB_OUTPUT"
+          echo "summary=Validation and production deploy completed successfully." >> "$GITHUB_OUTPUT"
+          echo "outcome=success" >> "$GITHUB_OUTPUT"
+        elif [ "$VALIDATE" = "cancelled" ] || [ "$DEPLOY" = "cancelled" ]; then
+          echo "title=⚪ ${APP} deploy cancelled" >> "$GITHUB_OUTPUT"
+          echo "color=9807270" >> "$GITHUB_OUTPUT"
+          echo "summary=Workflow was cancelled (often due to a newer deploy starting)." >> "$GITHUB_OUTPUT"
+          echo "outcome=cancelled" >> "$GITHUB_OUTPUT"
+        elif [ "$VALIDATE" != "success" ]; then
+          echo "title=❌ ${APP} CI validation failed" >> "$GITHUB_OUTPUT"
+          echo "color=15158332" >> "$GITHUB_OUTPUT"
+          echo "summary=Typecheck, build, tests, or migrations failed. Production deploy did not run." >> "$GITHUB_OUTPUT"
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+        elif [ "$DEPLOY" != "success" ]; then
+          echo "title=❌ ${APP} production deploy failed" >> "$GITHUB_OUTPUT"
+          echo "color=15158332" >> "$GITHUB_OUTPUT"
+          echo "summary=CI passed but SSH deploy, migrations, or server restart failed." >> "$GITHUB_OUTPUT"
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+        else
+          echo "title=❌ ${APP} workflow failed" >> "$GITHUB_OUTPUT"
+          echo "color=15158332" >> "$GITHUB_OUTPUT"
+          echo "summary=Unexpected workflow state. Check GitHub Actions logs." >> "$GITHUB_OUTPUT"
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+        fi
+
+        status_icon() {
+          case "$1" in
+            success) echo "✅ success" ;;
+            failure) echo "❌ failure" ;;
+            cancelled) echo "⚪ cancelled" ;;
+            skipped) echo "⏭️ skipped" ;;
+            *) echo "$1" ;;
+          esac
+        }
+
+        echo "validate_display=$(status_icon "$VALIDATE")" >> "$GITHUB_OUTPUT"
+        echo "deploy_display=$(status_icon "$DEPLOY")" >> "$GITHUB_OUTPUT"
+
+    - name: Post to Discord
+      shell: bash
+      env:
+        WEBHOOK: ${{ inputs.webhook_url }}
+        ROLE_ID: ${{ inputs.alert_role_id }}
+        TITLE: ${{ steps.outcome.outputs.title }}
+        COLOR: ${{ steps.outcome.outputs.color }}
+        SUMMARY: ${{ steps.outcome.outputs.summary }}
+        VALIDATE: ${{ steps.outcome.outputs.validate_display }}
+        DEPLOY: ${{ steps.outcome.outputs.deploy_display }}
+        BRANCH: ${{ inputs.branch }}
+        ACTOR: ${{ inputs.actor }}
+        RUN_URL: ${{ inputs.run_url }}
+        OUTCOME: ${{ steps.outcome.outputs.outcome }}
+      run: |
+        if [ -z "$WEBHOOK" ]; then
+          echo "No Discord webhook configured — skipping"
+          exit 0
+        fi
+
+        MENTION=""
+        if [ "$OUTCOME" = "failure" ] && [ -n "$ROLE_ID" ]; then
+          MENTION="<@&${ROLE_ID}>"
+        fi
+
+        HTTP_CODE=$(curl -s -o /tmp/discord-response.txt -w "%{http_code}" \
+          -H "Content-Type: application/json" \
+          -d "$(jq -n \
+            --arg content "$MENTION" \
+            --arg title "$TITLE" \
+            --arg description "$SUMMARY" \
+            --argjson color "$COLOR" \
+            --arg validate "$VALIDATE" \
+            --arg deploy "$DEPLOY" \
+            --arg branch "$BRANCH" \
+            --arg actor "$ACTOR" \
+            --arg run "$RUN_URL" \
+            '{
+              content: (if $content == "" then null else $content end),
+              embeds: [{
+                title: $title,
+                description: $description,
+                color: $color,
+                fields: [
+                  { name: "Branch", value: $branch, inline: true },
+                  { name: "Triggered by", value: $actor, inline: true },
+                  { name: "Validate", value: $validate, inline: true },
+                  { name: "Deploy", value: $deploy, inline: true },
+                  { name: "Logs", value: $run }
+                ],
+                timestamp: (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
+              }]
+            }')" \
+          "$WEBHOOK")
+
+        if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+          echo "Discord returned HTTP $HTTP_CODE"
+          cat /tmp/discord-response.txt || true
+          exit 0
+        fi
+
+        echo "Posted to Discord (HTTP $HTTP_CODE)"

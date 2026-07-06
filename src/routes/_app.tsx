@@ -19,6 +19,7 @@ import { PageTransition } from "@/components/page-transition";
 import { useTheme } from "@/state/theme-store";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLogoutMutation } from "@/hooks/use-auth";
+import { useSessionWatcher } from "@/hooks/use-session-watcher";
 import {
   acceptInviteById,
   getInbox,
@@ -265,6 +266,7 @@ function TopBar() {
 
 function AppLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useSessionWatcher();
 
   return (
     <ProtectedRoute>

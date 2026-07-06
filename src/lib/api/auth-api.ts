@@ -4,7 +4,14 @@ import type { AuthMePayload, AuthorizationPayload } from "@/lib/auth/auth-store"
 
 export type LoginSuccess = {
   accessToken: string;
+  accessTokenExpiresAt: number | null;
   user: { id: string; email: string; name: string };
+  authorization: AuthorizationPayload;
+};
+
+export type RefreshSuccess = {
+  accessToken: string;
+  accessTokenExpiresAt: number | null;
   authorization: AuthorizationPayload;
 };
 
@@ -50,6 +57,11 @@ export function register(input: RegisterInput) {
 
 export function logout() {
   return apiRequest<void>(apiUri.auth.logout, { method: "POST" });
+}
+
+/** Rotates the httpOnly refresh cookie and mints a fresh access token. */
+export function refreshAccessToken() {
+  return apiRequest<RefreshSuccess>(apiUri.auth.refresh, { method: "POST", token: null });
 }
 
 export function getAuthMe(options: { token?: string; workspaceId?: string } = {}) {

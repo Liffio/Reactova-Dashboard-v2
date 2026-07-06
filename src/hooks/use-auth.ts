@@ -32,7 +32,10 @@ export function useAuth() {
 }
 
 async function applyLoginSuccess(payload: LoginSuccess) {
-  authStore.setSession({ accessToken: payload.accessToken });
+  authStore.setSession({
+    accessToken: payload.accessToken,
+    accessTokenExpiresAt: payload.accessTokenExpiresAt,
+  });
   const authMe = await getAuthMe({ token: payload.accessToken });
   authStore.setAuthMe(authMe);
 }
@@ -53,7 +56,10 @@ export function useMfaLoginVerifyMutation() {
   return useMutation({
     mutationFn: mfaLoginVerify,
     onSuccess: async (payload) => {
-      authStore.setSession({ accessToken: payload.accessToken });
+      authStore.setSession({
+        accessToken: payload.accessToken,
+        accessTokenExpiresAt: payload.accessTokenExpiresAt,
+      });
       authStore.setAuthorization(payload.authorization);
       const authMe = await getAuthMe({ token: payload.accessToken });
       authStore.setAuthMe(authMe);
@@ -77,7 +83,10 @@ export function useRegisterMutation() {
   return useMutation({
     mutationFn: (input: RegisterInput) => register(input),
     onSuccess: async (payload) => {
-      authStore.setSession({ accessToken: payload.accessToken });
+      authStore.setSession({
+        accessToken: payload.accessToken,
+        accessTokenExpiresAt: payload.accessTokenExpiresAt,
+      });
       const authMe = await getAuthMe({ token: payload.accessToken });
       authStore.setAuthMe(authMe);
       if (payload.authorization) {

@@ -36,6 +36,41 @@ export class ApiError extends Error {
   }
 }
 
+/** Friendly, non-technical message shown when the network/server is unreachable after retries. */
+export const NETWORK_ERROR_MESSAGE =
+  "We couldn't reach Liffio right now. Please check your connection and try again in a moment.";
+
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 500;
+
+const RETRYABLE_STATUSES = new Set([502, 503, 504]);
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Retries on network failure or a gateway-level (502/503/504) response, up to `MAX_RETRIES` times. */
+async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(url, init);
+      if (RETRYABLE_STATUSES.has(res.status) && attempt < MAX_RETRIES) {
+        await delay(RETRY_DELAY_MS * (attempt + 1));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastError = err;
+      if (attempt < MAX_RETRIES) {
+        await delay(RETRY_DELAY_MS * (attempt + 1));
+        continue;
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Network request failed");
+}
+
 /** Human-readable message from `{ error: ... }` JSON (string, Zod flatten, etc.). */
 export function formatApiErrorBody(payload: unknown): string {
   if (!payload || typeof payload !== "object") {
@@ -93,22 +128,38 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
   const usesJsonBody = hasExplicitBody || method !== "GET";
   const jsonBody = hasExplicitBody ? config.body : usesJsonBody ? {} : undefined;
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    cache: "no-store",
-    credentials: isAnonymousPublicRead ? "omit" : "include",
-    headers: {
-      ...(usesJsonBody ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(config.workspaceId ? { "x-workspace-id": config.workspaceId } : {}),
-    },
-    ...(jsonBody !== undefined ? { body: JSON.stringify(jsonBody) } : {}),
-  });
+  let res: Response;
+  try {
+    res = await fetchWithRetry(`${API_BASE}${path}`, {
+      method,
+      cache: "no-store",
+      credentials: isAnonymousPublicRead ? "omit" : "include",
+      headers: {
+        ...(usesJsonBody ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(config.workspaceId ? { "x-workspace-id": config.workspaceId } : {}),
+      },
+      ...(jsonBody !== undefined ? { body: JSON.stringify(jsonBody) } : {}),
+    });
+  } catch {
+    // Network never reached the server after retries — fail gracefully, no technical detail.
+    throw new ApiError(NETWORK_ERROR_MESSAGE, "NETWORK_ERROR");
+  }
 
   if (!res.ok) {
+    if (RETRYABLE_STATUSES.has(res.status)) {
+      throw new ApiError(NETWORK_ERROR_MESSAGE, "SERVER_UNAVAILABLE");
+    }
     const payload = await res.json().catch(() => ({}));
     const code = (payload as { code?: string })?.code;
-    if (res.status === 401 && code === "TOKEN_EXPIRED") {
+    // Any "you're not properly authenticated" code — not just an expired token —
+    // needs the same silent-refresh-then-logout recovery. Otherwise a stale/invalid
+    // token (e.g. after a JWT secret rotation, or corrupted localStorage) leaves
+    // queries 401ing forever with nothing to clear the session or redirect to login.
+    const isAuthFailure =
+      res.status === 401 &&
+      (code === "TOKEN_EXPIRED" || code === "TOKEN_INVALID" || code === "NO_TOKEN");
+    if (isAuthFailure && token) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
     throw new ApiError(formatApiErrorBody(payload), code);
@@ -128,20 +179,29 @@ export async function apiUploadRequest<T>(
 ): Promise<T> {
   const token = config.token ?? authStore.getState().accessToken;
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    cache: "no-store",
-    credentials: "include",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(config.workspaceId ? { "x-workspace-id": config.workspaceId } : {}),
-    },
-    body: formData,
-  });
+  let res: Response;
+  try {
+    // Uploads aren't retried automatically (a partially-sent file isn't safe to resend blindly).
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      cache: "no-store",
+      credentials: "include",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(config.workspaceId ? { "x-workspace-id": config.workspaceId } : {}),
+      },
+      body: formData,
+    });
+  } catch {
+    throw new ApiError(NETWORK_ERROR_MESSAGE, "NETWORK_ERROR");
+  }
 
   if (!res.ok) {
+    if (RETRYABLE_STATUSES.has(res.status)) {
+      throw new ApiError(NETWORK_ERROR_MESSAGE, "SERVER_UNAVAILABLE");
+    }
     const payload = await res.json().catch(() => ({}));
-    throw new Error(formatApiErrorBody(payload));
+    throw new ApiError(formatApiErrorBody(payload));
   }
   return (await res.json()) as T;
 }

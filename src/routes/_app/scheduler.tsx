@@ -98,7 +98,11 @@ import { HashtagAssist } from "@/components/lyra/hashtag-assist";
 import { ContentIdeas } from "@/components/lyra/content-ideas";
 import { MediaAnalyze } from "@/components/lyra/media-analyze";
 import { InsightsCard } from "@/components/lyra/insights-card";
-import { InsightSummary, InsightPointList } from "@/components/lyra/insight-content";
+import {
+  InsightSummary,
+  InsightPointList,
+  AnalyticsHighlight,
+} from "@/components/lyra/insight-content";
 import { useLyraInsights } from "@/hooks/use-lyra-insights";
 
 export const Route = createFileRoute("/_app/scheduler")({
@@ -1575,7 +1579,17 @@ function SchedulerPage() {
               renderBody={(data) => (
                 <>
                   <InsightSummary text={data.summary} />
-                  <InsightPointList tone="insight" items={data.insights} />
+                  <InsightPointList
+                    tone="insight"
+                    items={data.insights}
+                    renderItem={(item) => (
+                      <AnalyticsHighlight
+                        finding={item.finding}
+                        metric={item.metric}
+                        severity={item.severity}
+                      />
+                    )}
+                  />
                   <InsightPointList tone="recommendation" items={data.recommendations} />
                 </>
               )}

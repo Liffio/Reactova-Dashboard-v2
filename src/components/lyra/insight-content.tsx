@@ -47,24 +47,26 @@ export function AnalyticsHighlight({
   severity,
 }: {
   finding: string;
-  metric: string;
-  severity: string;
+  metric?: string | null;
+  severity?: string | null;
 }) {
   const badgeClass =
-    SEVERITY_BADGE_CLASS[severity.toLowerCase()] ?? "bg-muted text-muted-foreground";
+    SEVERITY_BADGE_CLASS[severity?.toLowerCase() ?? ""] ?? "bg-muted text-muted-foreground";
   return (
     <span className="flex flex-1 flex-wrap items-center justify-between gap-2">
       <span>{finding}</span>
       <span className="flex shrink-0 items-center gap-1.5">
-        <span className="text-xs font-medium text-muted-foreground">{metric}</span>
-        <span
-          className={cn(
-            "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-            badgeClass,
-          )}
-        >
-          {severity}
-        </span>
+        {metric && <span className="text-xs font-medium text-muted-foreground">{metric}</span>}
+        {severity && (
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+              badgeClass,
+            )}
+          >
+            {severity}
+          </span>
+        )}
       </span>
     </span>
   );

@@ -92,7 +92,11 @@ export type LyraTaskMap = {
   suggestion: { input: LyraSuggestionInput; output: { suggestions: string[] } };
   insight: {
     input: LyraInsightInput;
-    output: { summary: string; insights: string[]; recommendations: string[] };
+    output: {
+      summary: string;
+      insights: LyraAnalyticsHighlight[];
+      recommendations: string[];
+    };
   };
   analytics: {
     input: LyraAnalyticsInput;

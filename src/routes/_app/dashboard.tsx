@@ -26,7 +26,11 @@ import { useApp } from "@/state/app-context";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { toast } from "sonner";
 import { InsightsCard } from "@/components/lyra/insights-card";
-import { InsightSummary, InsightPointList } from "@/components/lyra/insight-content";
+import {
+  InsightSummary,
+  InsightPointList,
+  AnalyticsHighlight,
+} from "@/components/lyra/insight-content";
 import { useLyraInsights } from "@/hooks/use-lyra-insights";
 
 export const Route = createFileRoute("/_app/dashboard")({
@@ -239,7 +243,17 @@ function DashboardPage() {
             renderBody={(data) => (
               <>
                 <InsightSummary text={data.summary} />
-                <InsightPointList tone="insight" items={data.insights} />
+                <InsightPointList
+                  tone="insight"
+                  items={data.insights}
+                  renderItem={(item) => (
+                    <AnalyticsHighlight
+                      finding={item.finding}
+                      metric={item.metric}
+                      severity={item.severity}
+                    />
+                  )}
+                />
                 <InsightPointList tone="recommendation" items={data.recommendations} />
               </>
             )}

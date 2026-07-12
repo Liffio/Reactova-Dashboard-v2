@@ -71,6 +71,12 @@ export type LyraInsightInput = {
 };
 export type LyraAnalyticsInput = { period?: "weekly" | "monthly" };
 export type LyraAnalyticsHighlight = { finding: string; metric: string; severity: string };
+export type LyraRecommendation = {
+  action: string;
+  rationale: string;
+  priority: string;
+  expectedImpact: string;
+};
 export type LyraVisionInput = { images: string[]; focus?: string };
 export type LyraOcrInput = { images: string[]; focus?: string };
 export type LyraImageSummaryInput = { images: string[] };
@@ -95,7 +101,7 @@ export type LyraTaskMap = {
     output: {
       summary: string;
       insights: LyraAnalyticsHighlight[];
-      recommendations: string[];
+      recommendations: LyraRecommendation[];
     };
   };
   analytics: {

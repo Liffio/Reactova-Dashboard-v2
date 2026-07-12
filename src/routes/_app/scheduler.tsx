@@ -102,6 +102,7 @@ import {
   InsightSummary,
   InsightPointList,
   AnalyticsHighlight,
+  RecommendationItem,
 } from "@/components/lyra/insight-content";
 import { useLyraInsights } from "@/hooks/use-lyra-insights";
 
@@ -1590,7 +1591,18 @@ function SchedulerPage() {
                       />
                     )}
                   />
-                  <InsightPointList tone="recommendation" items={data.recommendations} />
+                  <InsightPointList
+                    tone="recommendation"
+                    items={data.recommendations}
+                    renderItem={(item) => (
+                      <RecommendationItem
+                        action={item.action}
+                        rationale={item.rationale}
+                        priority={item.priority}
+                        expectedImpact={item.expectedImpact}
+                      />
+                    )}
+                  />
                 </>
               )}
             />

@@ -72,6 +72,46 @@ export function AnalyticsHighlight({
   );
 }
 
+/** An action/rationale/priority/expectedImpact recommendation, from the insight task. */
+export function RecommendationItem({
+  action,
+  rationale,
+  priority,
+  expectedImpact,
+}: {
+  action: string;
+  rationale?: string | null;
+  priority?: string | null;
+  expectedImpact?: string | null;
+}) {
+  const badgeClass =
+    SEVERITY_BADGE_CLASS[priority?.toLowerCase() ?? ""] ?? "bg-muted text-muted-foreground";
+  return (
+    <span className="flex flex-1 flex-col gap-1">
+      <span className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium">{action}</span>
+        {priority && (
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+              badgeClass,
+            )}
+          >
+            {priority}
+          </span>
+        )}
+      </span>
+      {rationale && <span className="text-xs text-muted-foreground">{rationale}</span>}
+      {expectedImpact && (
+        <span className="text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">Impact: </span>
+          {expectedImpact}
+        </span>
+      )}
+    </span>
+  );
+}
+
 export type InsightTone = "insight" | "recommendation" | "highlight";
 
 const TONE_CONFIG: Record<

@@ -19,6 +19,7 @@ import { themeInitScript, getStoredTheme } from "@/lib/theme";
 import { initThemeStore } from "@/state/theme-store";
 import { PublicBioLinkApp } from "@/components/public/public-bio-link";
 import { ShortLinkRedirect } from "@/components/public/short-link-redirect";
+import { BetaBanner } from "@/components/beta-banner";
 
 const host = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
 const isBioDomain = host === "bio.liffio.com" || host.startsWith("bio.liffio.");
@@ -161,6 +162,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AppProvider>
+          <BetaBanner />
           <RouteProgress />
           <Outlet />
           <Toaster />

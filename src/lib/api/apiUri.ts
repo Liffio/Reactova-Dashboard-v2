@@ -256,4 +256,8 @@ export const apiUri = {
     shortlink: (slug: string) => `${V1}/public/shortlinks/${encodeURIComponent(slug)}`,
     leadsCaptured: (slug: string) => `${V1}/public/leads-captured/${encodeURIComponent(slug)}`,
   },
+
+  liffio: {
+    lyra: `${V1}/liffio/Lyra`,
+  },
 } as const;

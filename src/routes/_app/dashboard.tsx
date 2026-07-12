@@ -25,6 +25,9 @@ import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { toast } from "sonner";
+import { InsightsCard } from "@/components/lyra/insights-card";
+import { InsightSummary, InsightPointList } from "@/components/lyra/insight-content";
+import { useLyraInsights } from "@/hooks/use-lyra-insights";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({
@@ -71,7 +74,7 @@ function DashboardPage() {
             ? undefined
             : () => isWorkspaceInstagramConnected(workspaceId),
           verifyConnected: () => isWorkspaceInstagramConnected(workspaceId),
-        }
+        },
       );
       if (result.meta === "connected") {
         toast.success(result.igHandle ? `Connected as @${result.igHandle}` : "Instagram connected");
@@ -97,6 +100,13 @@ function DashboardPage() {
     queryKey: ["dashboard", workspaceId],
     queryFn: () => getDashboard(workspaceId),
     enabled: hasRealWorkspace,
+  });
+
+  const insights = useLyraInsights({
+    task: "insight",
+    workspaceId,
+    input: { focus: "business_insights" },
+    queryKeyExtra: ["dashboard"],
   });
 
   const data = dashboardQuery.data;
@@ -196,7 +206,9 @@ function DashboardPage() {
                 <StatCard
                   label="Link clicks"
                   value={formatNum(totals?.linkClicksThisMonth ?? 0)}
-                  delta={totals?.clickTrendPercent != null ? totals.clickTrendPercent / 100 : undefined}
+                  delta={
+                    totals?.clickTrendPercent != null ? totals.clickTrendPercent / 100 : undefined
+                  }
                   icon={MousePointerClick}
                   hint="vs. last month"
                 />
@@ -204,6 +216,35 @@ function DashboardPage() {
             </>
           )}
         </motion.section>
+
+        <motion.div variants={staggerItem} initial="hidden" animate="show">
+          <InsightsCard
+            title="AI Insights"
+            data={insights.data}
+            isLoading={insights.isLoading}
+            isRefreshing={insights.isRefreshing}
+            isResyncing={insights.isResyncing}
+            refreshError={insights.refreshError}
+            resyncError={insights.resyncError}
+            refreshCooldownUntil={insights.refreshCooldownUntil}
+            resyncCooldownUntil={insights.resyncCooldownUntil}
+            lastUpdatedAt={insights.lastUpdatedAt}
+            loadingStartedAt={insights.loadingStartedAt}
+            resyncStartedAt={insights.resyncStartedAt}
+            onRefresh={() => void insights.refresh()}
+            onResync={() => void insights.resync()}
+            onCancelRefresh={insights.cancelRefresh}
+            onCancelResync={insights.cancelResync}
+            className="shadow-soft"
+            renderBody={(data) => (
+              <>
+                <InsightSummary text={data.summary} />
+                <InsightPointList tone="insight" items={data.insights} />
+                <InsightPointList tone="recommendation" items={data.recommendations} />
+              </>
+            )}
+          />
+        </motion.div>
 
         <motion.section
           variants={staggerContainer}
@@ -279,7 +320,9 @@ function DashboardPage() {
                       </p>
                     </div>
                     <div className="hidden text-right text-xs tabular-nums sm:block">
-                      <div className="font-display text-sm font-semibold">{formatNum(a.dmsSentThisMonth)}</div>
+                      <div className="font-display text-sm font-semibold">
+                        {formatNum(a.dmsSentThisMonth)}
+                      </div>
                       <div className="text-muted-foreground">DMs this month</div>
                     </div>
                   </motion.li>
@@ -289,7 +332,10 @@ function DashboardPage() {
           </motion.div>
 
           <div className="space-y-6">
-            <motion.div variants={staggerItem} className="rounded-2xl border bg-card p-6 shadow-soft">
+            <motion.div
+              variants={staggerItem}
+              className="rounded-2xl border bg-card p-6 shadow-soft"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="font-display text-lg font-semibold">Workspaces</h2>
                 <Sparkles className="h-4 w-4 text-primary" />
@@ -330,7 +376,10 @@ function DashboardPage() {
               </ul>
             </motion.div>
 
-            <motion.div variants={staggerItem} className="rounded-2xl border bg-card p-6 shadow-soft">
+            <motion.div
+              variants={staggerItem}
+              className="rounded-2xl border bg-card p-6 shadow-soft"
+            >
               <h2 className="mb-4 font-display text-lg font-semibold">Scheduler</h2>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>

@@ -93,6 +93,13 @@ import {
 } from "@/lib/api/scheduler-api";
 import { useApp } from "@/state/app-context";
 import { cn } from "@/lib/utils";
+import { CaptionAssist } from "@/components/lyra/caption-assist";
+import { HashtagAssist } from "@/components/lyra/hashtag-assist";
+import { ContentIdeas } from "@/components/lyra/content-ideas";
+import { MediaAnalyze } from "@/components/lyra/media-analyze";
+import { InsightsCard } from "@/components/lyra/insights-card";
+import { InsightSummary, InsightPointList } from "@/components/lyra/insight-content";
+import { useLyraInsights } from "@/hooks/use-lyra-insights";
 
 export const Route = createFileRoute("/_app/scheduler")({
   head: () => ({ meta: [{ title: "Scheduler — Liffio" }] }),
@@ -159,10 +166,14 @@ function parseHashtagTokens(raw: string): string[] {
 
 function statusBorderClass(status: string): string {
   switch (status) {
-    case "SCHEDULED": return "border-l-primary";
-    case "PUBLISHED": return "border-l-success";
-    case "FAILED": return "border-l-destructive";
-    default: return "border-l-border";
+    case "SCHEDULED":
+      return "border-l-primary";
+    case "PUBLISHED":
+      return "border-l-success";
+    case "FAILED":
+      return "border-l-destructive";
+    default:
+      return "border-l-border";
   }
 }
 
@@ -228,16 +239,12 @@ function InstagramPreviewAvatar({
     <div
       className={cn(
         "rounded-full bg-gradient-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] p-[2px]",
-        className
+        className,
       )}
     >
       <div className="h-full w-full overflow-hidden rounded-full bg-background">
         {profilePictureUrl ? (
-          <img
-            src={profilePictureUrl}
-            alt={username}
-            className="h-full w-full object-cover"
-          />
+          <img src={profilePictureUrl} alt={username} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-muted to-background text-xs font-bold text-foreground">
             {initial}
@@ -284,7 +291,7 @@ function SchedulerPreviewVideo({
         video.pause();
         setIsPlaying(false);
       },
-      { threshold: 0.35 }
+      { threshold: 0.35 },
     );
     observer.observe(container);
     return () => observer.disconnect();
@@ -347,7 +354,11 @@ function InstagramPreviewMedia({
 }) {
   if (hasMedia) {
     return isSchedulerHostedVideoUrl(media) ? (
-      <SchedulerPreviewVideo src={media} className={className} autoplayWhenVisible={autoplayWhenVisible} />
+      <SchedulerPreviewVideo
+        src={media}
+        className={className}
+        autoplayWhenVisible={autoplayWhenVisible}
+      />
     ) : (
       <img
         src={media}
@@ -387,7 +398,7 @@ function IgStylePostPreview({
   const handle = username.replace(/^@/, "").trim() || "yourbrand";
   const carouselMedia = useMemo(
     () => (mediaUrls ?? []).map((url) => url.trim()).filter(Boolean),
-    [mediaUrls]
+    [mediaUrls],
   );
   const carouselSlides = useMemo(
     () =>
@@ -398,7 +409,7 @@ function IgStylePostPreview({
             ? [mediaUrl.trim()]
             : []
         : [],
-    [carouselMedia, mediaUrl, type]
+    [carouselMedia, mediaUrl, type],
   );
   const [activeCarouselIndex, setActiveCarouselIndex] = useState(0);
 
@@ -408,8 +419,7 @@ function IgStylePostPreview({
     }
   }, [activeCarouselIndex, carouselSlides.length]);
 
-  const media =
-    type === "CAROUSEL" ? carouselSlides[activeCarouselIndex] ?? "" : mediaUrl.trim();
+  const media = type === "CAROUSEL" ? (carouselSlides[activeCarouselIndex] ?? "") : mediaUrl.trim();
   const hasMedia = media.length > 0;
   const carouselCount = carouselSlides.length;
   const hasCaption = caption.trim().length > 0;
@@ -425,7 +435,10 @@ function IgStylePostPreview({
           : "Feed post";
 
   const goToSlide = (nextIndex: number) => {
-    if (carouselSlides.length === 0) { setActiveCarouselIndex(0); return; }
+    if (carouselSlides.length === 0) {
+      setActiveCarouselIndex(0);
+      return;
+    }
     setActiveCarouselIndex((nextIndex + carouselSlides.length) % carouselSlides.length);
   };
 
@@ -445,16 +458,26 @@ function IgStylePostPreview({
               <div className="h-0.5 flex-1 rounded-full bg-white/35" />
             </div>
             <div className="flex items-center gap-2">
-              <InstagramPreviewAvatar username={handle} profilePictureUrl={profilePictureUrl} className="h-8 w-8 shrink-0" />
+              <InstagramPreviewAvatar
+                username={handle}
+                profilePictureUrl={profilePictureUrl}
+                className="h-8 w-8 shrink-0"
+              />
               <span className="text-xs font-semibold">{handle}</span>
               <MoreHorizontal className="ml-auto h-4 w-4 text-white/90" />
             </div>
           </div>
           <div className="absolute bottom-5 left-4 right-4 space-y-2">
             <div className="rounded-2xl bg-black/30 p-3 backdrop-blur-sm">
-              {hasCaption ? <p className="text-sm font-medium leading-relaxed">{captionText}</p> : null}
-              {hasTags ? <p className="text-sm font-medium text-white/90">{hashtagTokens.join(" ")}</p> : null}
-              {!hasCaption && !hasTags ? <p className="text-sm text-white/80">Story text preview</p> : null}
+              {hasCaption ? (
+                <p className="text-sm font-medium leading-relaxed">{captionText}</p>
+              ) : null}
+              {hasTags ? (
+                <p className="text-sm font-medium text-white/90">{hashtagTokens.join(" ")}</p>
+              ) : null}
+              {!hasCaption && !hasTags ? (
+                <p className="text-sm text-white/80">Story text preview</p>
+              ) : null}
             </div>
             <div className="rounded-full border border-white/35 px-4 py-2 text-xs text-white/85">
               Send message
@@ -484,7 +507,11 @@ function IgStylePostPreview({
           </div>
           <div className="absolute bottom-5 left-4 right-16 space-y-2">
             <div className="flex items-center gap-2">
-              <InstagramPreviewAvatar username={handle} profilePictureUrl={profilePictureUrl} className="h-8 w-8 shrink-0" />
+              <InstagramPreviewAvatar
+                username={handle}
+                profilePictureUrl={profilePictureUrl}
+                className="h-8 w-8 shrink-0"
+              />
               <span className="text-sm font-semibold">{handle}</span>
               <span className="rounded-md border border-white/45 px-2 py-0.5 text-[11px] font-semibold">
                 Follow
@@ -505,7 +532,11 @@ function IgStylePostPreview({
             <MessageCircle className="h-7 w-7 stroke-[1.7]" />
             <Send className="h-6 w-6 -rotate-12 stroke-[1.7]" />
             <Bookmark className="h-7 w-7 stroke-[1.7]" />
-            <InstagramPreviewAvatar username={handle} profilePictureUrl={profilePictureUrl} className="h-8 w-8" />
+            <InstagramPreviewAvatar
+              username={handle}
+              profilePictureUrl={profilePictureUrl}
+              className="h-8 w-8"
+            />
           </div>
         </div>
       </div>
@@ -515,7 +546,11 @@ function IgStylePostPreview({
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden shadow-lg max-w-[min(100%,400px)] w-full mx-auto">
       <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border">
-        <InstagramPreviewAvatar username={handle} profilePictureUrl={profilePictureUrl} className="h-9 w-9 shrink-0" />
+        <InstagramPreviewAvatar
+          username={handle}
+          profilePictureUrl={profilePictureUrl}
+          className="h-9 w-9 shrink-0"
+        />
         <span className="text-sm font-semibold tracking-tight">{handle}</span>
         <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           {previewLabel}
@@ -537,7 +572,8 @@ function IgStylePostPreview({
           <>
             <div className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-black/65 px-2 py-1 text-[11px] font-semibold text-white">
               <Images className="h-3.5 w-3.5" />
-              {Math.min(activeCarouselIndex + 1, Math.max(carouselCount, 1))}/{Math.max(carouselCount, 2)}
+              {Math.min(activeCarouselIndex + 1, Math.max(carouselCount, 1))}/
+              {Math.max(carouselCount, 2)}
             </div>
             {carouselCount > 1 ? (
               <>
@@ -567,9 +603,11 @@ function IgStylePostPreview({
                   className={cn(
                     "h-1.5 rounded-full transition-all",
                     index === activeCarouselIndex ? "w-4 bg-primary" : "w-1.5 bg-white/80",
-                    index >= carouselCount ? "cursor-default opacity-60" : "hover:bg-white"
+                    index >= carouselCount ? "cursor-default opacity-60" : "hover:bg-white",
                   )}
-                  onClick={() => { if (index < carouselCount) goToSlide(index); }}
+                  onClick={() => {
+                    if (index < carouselCount) goToSlide(index);
+                  }}
                   aria-label={`Show carousel image ${index + 1}`}
                 />
               ))}
@@ -592,7 +630,10 @@ function IgStylePostPreview({
       <div className="px-3 pb-3 text-sm leading-relaxed">
         <span className="font-semibold text-foreground">{handle}</span>
         {hasCaption ? (
-          <> <span className="text-foreground whitespace-pre-wrap break-words">{captionText}</span></>
+          <>
+            {" "}
+            <span className="text-foreground whitespace-pre-wrap break-words">{captionText}</span>
+          </>
         ) : null}
         {hasCaption && hasTags ? <br /> : null}
         {hasTags ? (
@@ -601,7 +642,10 @@ function IgStylePostPreview({
           </span>
         ) : null}
         {!hasCaption && !hasTags ? (
-          <> <span className="text-muted-foreground italic font-normal">Write a caption…</span></>
+          <>
+            {" "}
+            <span className="text-muted-foreground italic font-normal">Write a caption…</span>
+          </>
         ) : null}
       </div>
     </div>
@@ -686,7 +730,11 @@ function SchedulerPostDetailFields({ post: dp }: { post: ScheduledPost }) {
                 rel="noreferrer"
                 className="relative aspect-square overflow-hidden rounded-md border border-border bg-muted"
               >
-                <img src={url} alt={`Carousel image ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
+                <img
+                  src={url}
+                  alt={`Carousel image ${index + 1}`}
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
                 <span className="absolute left-1.5 top-1.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                   {index + 1}
                 </span>
@@ -776,7 +824,9 @@ function SchedulerPage() {
   const [mainTab, setMainTab] = useState<"planner" | "analytics">("planner");
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [cursorMonth, setCursorMonth] = useState(() => startOfMonth(new Date()));
-  const [sortBy, setSortBy] = useState<"impressions" | "engagement" | "likes" | "comments" | "saves">("impressions");
+  const [sortBy, setSortBy] = useState<
+    "impressions" | "engagement" | "likes" | "comments" | "saves"
+  >("impressions");
   const [composeOpen, setComposeOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailPostId, setDetailPostId] = useState<string | null>(null);
@@ -786,6 +836,14 @@ function SchedulerPage() {
   const [carouselUrlDraft, setCarouselUrlDraft] = useState("");
   const [musicQuery, setMusicQuery] = useState("");
   const [uploadingMedia, setUploadingMedia] = useState(false);
+
+  const attachedImageUrls = useMemo(() => {
+    const urls =
+      form.carouselMediaUrls.length > 0
+        ? form.carouselMediaUrls
+        : [form.primaryMediaUrl].filter(Boolean);
+    return urls.map((u) => u.trim()).filter((u) => u && !isLikelyVideoUrl(u));
+  }, [form.primaryMediaUrl, form.carouselMediaUrls]);
 
   const monthStart = startOfMonth(cursorMonth);
   const monthEnd = endOfMonth(cursorMonth);
@@ -820,6 +878,13 @@ function SchedulerPage() {
     queryKey: ["scheduler-analytics-posts", workspaceId, sortBy],
     queryFn: () => getSchedulerAnalyticsPosts(workspaceId, sortBy),
     enabled: Boolean(workspaceId) && workspaceId !== "default",
+  });
+
+  const insights = useLyraInsights({
+    task: "insight",
+    workspaceId,
+    input: { focus: "growth_analysis" },
+    queryKeyExtra: ["scheduler"],
   });
 
   const detailQuery = useQuery({
@@ -886,7 +951,10 @@ function SchedulerPage() {
   const calendarDays = useMemo(() => {
     const pad = monthStart.getDay();
     const leading: Array<Date | null> = Array.from({ length: pad }, () => null);
-    return [...leading, ...eachDayOfInterval({ start: monthStart, end: monthEnd })] as Array<Date | null>;
+    return [
+      ...leading,
+      ...eachDayOfInterval({ start: monthStart, end: monthEnd }),
+    ] as Array<Date | null>;
   }, [monthStart, monthEnd]);
 
   const calendarPosts = calendarQuery.data?.posts ?? [];
@@ -896,7 +964,10 @@ function SchedulerPage() {
       accountsQuery.data?.accounts?.find((a) => a.platformKey.toLowerCase() === "instagram") ??
       accountsQuery.data?.accounts?.[0];
     return {
-      handle: acc?.platformUsername?.trim().replace(/^@/, "") || current.igHandle?.replace(/^@/, "") || "yourbrand",
+      handle:
+        acc?.platformUsername?.trim().replace(/^@/, "") ||
+        current.igHandle?.replace(/^@/, "") ||
+        "yourbrand",
       profilePictureUrl: acc?.profilePictureUrl ?? null,
     };
   }, [accountsQuery.data?.accounts, current.igHandle]);
@@ -908,7 +979,7 @@ function SchedulerPage() {
 
   const heatCell = (day: number, hour: number) => {
     const found = overviewQuery.data?.bestTimeToPost.find(
-      (c) => c.dayOfWeek === day && c.hour === hour
+      (c) => c.dayOfWeek === day && c.hour === hour,
     );
     const intensity = found ? Math.min(1, found.avgEngagement / heatMax) : 0;
     const heatClass =
@@ -939,9 +1010,18 @@ function SchedulerPage() {
             : f.primaryMediaUrl.trim()
               ? [f.primaryMediaUrl.trim()]
               : [];
-        return { ...f, type: nextType, carouselMediaUrls: seedUrls.slice(0, CAROUSEL_MEDIA_MAX), primaryMediaUrl: seedUrls[0] ?? "" };
+        return {
+          ...f,
+          type: nextType,
+          carouselMediaUrls: seedUrls.slice(0, CAROUSEL_MEDIA_MAX),
+          primaryMediaUrl: seedUrls[0] ?? "",
+        };
       }
-      return { ...f, type: nextType, primaryMediaUrl: f.primaryMediaUrl || f.carouselMediaUrls[0] || "" };
+      return {
+        ...f,
+        type: nextType,
+        primaryMediaUrl: f.primaryMediaUrl || f.carouselMediaUrls[0] || "",
+      };
     });
   };
 
@@ -955,39 +1035,59 @@ function SchedulerPage() {
       toast.error("Select one file for this post type. Carousel supports multiple images.");
       return;
     }
-    if (postType === "CAROUSEL" && form.carouselMediaUrls.length + files.length > CAROUSEL_MEDIA_MAX) {
+    if (
+      postType === "CAROUSEL" &&
+      form.carouselMediaUrls.length + files.length > CAROUSEL_MEDIA_MAX
+    ) {
       toast.error(`Carousel supports up to ${CAROUSEL_MEDIA_MAX} images.`);
       return;
     }
     for (const file of files) {
       const isImage = SCHEDULER_POST_MEDIA_MIME_TYPES.includes(
-        file.type as (typeof SCHEDULER_POST_MEDIA_MIME_TYPES)[number]
+        file.type as (typeof SCHEDULER_POST_MEDIA_MIME_TYPES)[number],
       );
       const isVideo = SCHEDULER_REEL_VIDEO_MIME_TYPES.includes(
-        file.type as (typeof SCHEDULER_REEL_VIDEO_MIME_TYPES)[number]
+        file.type as (typeof SCHEDULER_REEL_VIDEO_MIME_TYPES)[number],
       );
       if (postType === "CAROUSEL") {
-        if (!isImage) { toast.error("Carousel posts only support images."); return; }
+        if (!isImage) {
+          toast.error("Carousel posts only support images.");
+          return;
+        }
         if (file.size > SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES) {
-          toast.error(`Images must be at most ${Math.round(SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`);
+          toast.error(
+            `Images must be at most ${Math.round(SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`,
+          );
           return;
         }
         continue;
       }
       if (postType === "REEL") {
-        if (!isImage && !isVideo) { toast.error("Reels: use MP4 or MOV video, or JPEG/PNG/WebP/GIF."); return; }
+        if (!isImage && !isVideo) {
+          toast.error("Reels: use MP4 or MOV video, or JPEG/PNG/WebP/GIF.");
+          return;
+        }
         if (isImage && file.size > SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES) {
-          toast.error(`Images must be at most ${Math.round(SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`);
+          toast.error(
+            `Images must be at most ${Math.round(SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`,
+          );
           return;
         }
         if (isVideo && file.size > SCHEDULER_REEL_VIDEO_CLIENT_MAX_BYTES) {
-          toast.error(`Video must be at most ${Math.round(SCHEDULER_REEL_VIDEO_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`);
+          toast.error(
+            `Video must be at most ${Math.round(SCHEDULER_REEL_VIDEO_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`,
+          );
           return;
         }
       } else {
-        if (!isImage) { toast.error("This post type only supports images. Select Reel for MP4/MOV."); return; }
+        if (!isImage) {
+          toast.error("This post type only supports images. Select Reel for MP4/MOV.");
+          return;
+        }
         if (file.size > SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES) {
-          toast.error(`Image must be at most ${Math.round(SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`);
+          toast.error(
+            `Image must be at most ${Math.round(SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`,
+          );
           return;
         }
       }
@@ -1000,7 +1100,10 @@ function SchedulerPage() {
       }
       setForm((f) => {
         if (postType === "CAROUSEL") {
-          const nextUrls = [...f.carouselMediaUrls, ...uploaded.map((item) => item.primaryMediaUrl)].slice(0, CAROUSEL_MEDIA_MAX);
+          const nextUrls = [
+            ...f.carouselMediaUrls,
+            ...uploaded.map((item) => item.primaryMediaUrl),
+          ].slice(0, CAROUSEL_MEDIA_MAX);
           return { ...f, carouselMediaUrls: nextUrls, primaryMediaUrl: nextUrls[0] ?? "" };
         }
         return { ...f, primaryMediaUrl: uploaded[0]?.primaryMediaUrl ?? f.primaryMediaUrl };
@@ -1008,9 +1111,13 @@ function SchedulerPage() {
       toast.success(
         postType === "CAROUSEL"
           ? `${uploaded.length} image${uploaded.length === 1 ? "" : "s"} added`
-          : files.some((file) => SCHEDULER_REEL_VIDEO_MIME_TYPES.includes(file.type as (typeof SCHEDULER_REEL_VIDEO_MIME_TYPES)[number]))
+          : files.some((file) =>
+                SCHEDULER_REEL_VIDEO_MIME_TYPES.includes(
+                  file.type as (typeof SCHEDULER_REEL_VIDEO_MIME_TYPES)[number],
+                ),
+              )
             ? "Video uploaded"
-            : "Image uploaded"
+            : "Image uploaded",
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
@@ -1023,8 +1130,14 @@ function SchedulerPage() {
     const url = carouselUrlDraft.trim();
     if (!url) return;
     try {
-      if (new URL(url).protocol !== "https:") { toast.error("Carousel image URLs must use HTTPS."); return; }
-    } catch { toast.error("Enter a valid image URL."); return; }
+      if (new URL(url).protocol !== "https:") {
+        toast.error("Carousel image URLs must use HTTPS.");
+        return;
+      }
+    } catch {
+      toast.error("Enter a valid image URL.");
+      return;
+    }
     setForm((f) => {
       if (f.carouselMediaUrls.includes(url)) return f;
       const nextUrls = [...f.carouselMediaUrls, url].slice(0, CAROUSEL_MEDIA_MAX);
@@ -1075,9 +1188,7 @@ function SchedulerPage() {
         ? form.carouselMediaUrls.map((url) => url.trim()).filter(Boolean)
         : [];
     const primaryMediaUrl =
-      form.type === "CAROUSEL"
-        ? carouselMediaUrls[0] ?? ""
-        : form.primaryMediaUrl.trim();
+      form.type === "CAROUSEL" ? (carouselMediaUrls[0] ?? "") : form.primaryMediaUrl.trim();
 
     const body: Record<string, unknown> = {
       type: form.type,
@@ -1122,7 +1233,9 @@ function SchedulerPage() {
         dmMessage: form.automationDmMessage.trim(),
         autoReply: form.automationAutoReply,
         replyMessages,
-        dmButtonLabel: form.automationButtonUrl.trim() ? form.automationButtonLabel.trim() || undefined : undefined,
+        dmButtonLabel: form.automationButtonUrl.trim()
+          ? form.automationButtonLabel.trim() || undefined
+          : undefined,
         dmButtonUrl: form.automationButtonUrl.trim() || undefined,
       };
     }
@@ -1176,13 +1289,17 @@ function SchedulerPage() {
                       "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                       view === v
                         ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     {v === "calendar" ? (
-                      <><CalendarDays className="h-3.5 w-3.5" /> Calendar</>
+                      <>
+                        <CalendarDays className="h-3.5 w-3.5" /> Calendar
+                      </>
                     ) : (
-                      <><List className="h-3.5 w-3.5" /> List</>
+                      <>
+                        <List className="h-3.5 w-3.5" /> List
+                      </>
                     )}
                   </button>
                 ))}
@@ -1243,19 +1360,24 @@ function SchedulerPage() {
                               "min-h-20 sm:min-h-24 rounded-lg border p-1 sm:p-2 transition-colors",
                               inMonth
                                 ? "bg-background hover:border-primary/40"
-                                : "bg-muted/30 opacity-60"
+                                : "bg-muted/30 opacity-60",
                             )}
                           >
-                            <div className="text-[11px] text-muted-foreground">{format(day, "d")}</div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {format(day, "d")}
+                            </div>
                             <div className="mt-1 space-y-0.5 overflow-hidden">
                               {dayPosts.map((p) => (
                                 <button
                                   key={p.id}
                                   type="button"
-                                  onClick={() => { setDetailPostId(p.id); setDetailOpen(true); }}
+                                  onClick={() => {
+                                    setDetailPostId(p.id);
+                                    setDetailOpen(true);
+                                  }}
                                   className={cn(
                                     "flex items-center gap-1.5 w-full min-w-0 rounded border border-l-2 px-1 py-1 text-left text-xs hover:bg-muted/40 transition-colors",
-                                    statusBorderClass(p.status)
+                                    statusBorderClass(p.status),
                                   )}
                                 >
                                   <SchedulerMediaThumb
@@ -1291,85 +1413,93 @@ function SchedulerPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {listQuery.isLoading ? (
-                        Array.from({ length: 5 }).map((_, i) => (
-                          <tr key={i} className="border-b">
-                            <td colSpan={6} className="px-4 py-3">
-                              <Skeleton className="h-10 w-full" />
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        (listQuery.data?.posts ?? []).map((p) => (
-                          <tr
-                            key={p.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => { setDetailPostId(p.id); setDetailOpen(true); }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
+                      {listQuery.isLoading
+                        ? Array.from({ length: 5 }).map((_, i) => (
+                            <tr key={i} className="border-b">
+                              <td colSpan={6} className="px-4 py-3">
+                                <Skeleton className="h-10 w-full" />
+                              </td>
+                            </tr>
+                          ))
+                        : (listQuery.data?.posts ?? []).map((p) => (
+                            <tr
+                              key={p.id}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => {
                                 setDetailPostId(p.id);
                                 setDetailOpen(true);
-                              }
-                            }}
-                            className="border-b last:border-0 cursor-pointer hover:bg-muted/30"
-                          >
-                            <td className="px-4 py-3">
-                              <SchedulerMediaThumb
-                                url={p.thumbnailUrl}
-                                className="h-10 w-10"
-                                imgClassName="h-10 w-10 rounded-md"
-                              />
-                            </td>
-                            <td className="px-4 py-3 max-w-xs">
-                              <div className="font-medium line-clamp-2">{p.caption ?? "—"}</div>
-                            </td>
-                            <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{p.type}</td>
-                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
-                              {p.scheduledAt
-                                ? format(new Date(p.scheduledAt), "MMM d, HH:mm")
-                                : p.publishedAt
-                                  ? format(new Date(p.publishedAt), "MMM d, HH:mm")
-                                  : "—"}
-                            </td>
-                            <td className="px-4 py-3">
-                              <Badge variant="outline" className={cn("text-xs", statusStyles[p.status] ?? "")}>
-                                {p.status.toLowerCase().replace(/_/g, " ")}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-3 text-right space-x-1 whitespace-nowrap">
-                              {canPublishNow(p) && (
-                                <Button
-                                  size="sm"
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  setDetailPostId(p.id);
+                                  setDetailOpen(true);
+                                }
+                              }}
+                              className="border-b last:border-0 cursor-pointer hover:bg-muted/30"
+                            >
+                              <td className="px-4 py-3">
+                                <SchedulerMediaThumb
+                                  url={p.thumbnailUrl}
+                                  className="h-10 w-10"
+                                  imgClassName="h-10 w-10 rounded-md"
+                                />
+                              </td>
+                              <td className="px-4 py-3 max-w-xs">
+                                <div className="font-medium line-clamp-2">{p.caption ?? "—"}</div>
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
+                                {p.type}
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
+                                {p.scheduledAt
+                                  ? format(new Date(p.scheduledAt), "MMM d, HH:mm")
+                                  : p.publishedAt
+                                    ? format(new Date(p.publishedAt), "MMM d, HH:mm")
+                                    : "—"}
+                              </td>
+                              <td className="px-4 py-3">
+                                <Badge
                                   variant="outline"
-                                  disabled={publishNowMutation.isPending}
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    await publishNowMutation.mutateAsync(p.id);
-                                  }}
+                                  className={cn("text-xs", statusStyles[p.status] ?? "")}
                                 >
-                                  Publish now
-                                </Button>
-                              )}
-                              {(p.status === "SCHEDULED" || p.status === "DRAFT" || p.status === "FAILED") && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="text-destructive hover:bg-destructive/10"
-                                  disabled={cancelMutation.isPending}
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    await cancelMutation.mutateAsync(p.id);
-                                  }}
-                                >
-                                  Cancel
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      )}
+                                  {p.status.toLowerCase().replace(/_/g, " ")}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-3 text-right space-x-1 whitespace-nowrap">
+                                {canPublishNow(p) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={publishNowMutation.isPending}
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      await publishNowMutation.mutateAsync(p.id);
+                                    }}
+                                  >
+                                    Publish now
+                                  </Button>
+                                )}
+                                {(p.status === "SCHEDULED" ||
+                                  p.status === "DRAFT" ||
+                                  p.status === "FAILED") && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-destructive hover:bg-destructive/10"
+                                    disabled={cancelMutation.isPending}
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      await cancelMutation.mutateAsync(p.id);
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
                       {!listQuery.isLoading && (listQuery.data?.posts.length ?? 0) === 0 && (
                         <tr>
                           <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
@@ -1425,6 +1555,32 @@ function SchedulerPage() {
               </div>
             </div>
 
+            <InsightsCard
+              title="AI Insights"
+              data={insights.data}
+              isLoading={insights.isLoading}
+              isRefreshing={insights.isRefreshing}
+              isResyncing={insights.isResyncing}
+              refreshError={insights.refreshError}
+              resyncError={insights.resyncError}
+              refreshCooldownUntil={insights.refreshCooldownUntil}
+              resyncCooldownUntil={insights.resyncCooldownUntil}
+              lastUpdatedAt={insights.lastUpdatedAt}
+              loadingStartedAt={insights.loadingStartedAt}
+              resyncStartedAt={insights.resyncStartedAt}
+              onRefresh={() => void insights.refresh()}
+              onResync={() => void insights.resync()}
+              onCancelRefresh={insights.cancelRefresh}
+              onCancelResync={insights.cancelResync}
+              renderBody={(data) => (
+                <>
+                  <InsightSummary text={data.summary} />
+                  <InsightPointList tone="insight" items={data.insights} />
+                  <InsightPointList tone="recommendation" items={data.recommendations} />
+                </>
+              )}
+            />
+
             {overviewQuery.isLoading ? (
               <div className="flex justify-center py-16 text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />
@@ -1472,8 +1628,16 @@ function SchedulerPage() {
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={overviewQuery.data?.dailySeries ?? []}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                          <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                          <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={40} />
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fontSize: 11 }}
+                            stroke="hsl(var(--muted-foreground))"
+                          />
+                          <YAxis
+                            tick={{ fontSize: 11 }}
+                            stroke="hsl(var(--muted-foreground))"
+                            width={40}
+                          />
                           <Tooltip
                             contentStyle={{
                               background: "hsl(var(--card))",
@@ -1481,9 +1645,30 @@ function SchedulerPage() {
                               borderRadius: 8,
                             }}
                           />
-                          <Line type="monotone" dataKey="impressions" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Impressions" />
-                          <Line type="monotone" dataKey="reach" stroke="hsl(var(--accent))" strokeWidth={2} dot={false} name="Reach" />
-                          <Line type="monotone" dataKey="likes" stroke="hsl(var(--success))" strokeWidth={2} dot={false} name="Likes" />
+                          <Line
+                            type="monotone"
+                            dataKey="impressions"
+                            stroke="hsl(var(--primary))"
+                            strokeWidth={2}
+                            dot={false}
+                            name="Impressions"
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="reach"
+                            stroke="hsl(var(--accent))"
+                            strokeWidth={2}
+                            dot={false}
+                            name="Reach"
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="likes"
+                            stroke="hsl(var(--success))"
+                            strokeWidth={2}
+                            dot={false}
+                            name="Likes"
+                          />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
@@ -1492,19 +1677,28 @@ function SchedulerPage() {
 
                 <Card className="shadow-soft">
                   <CardHeader className="p-4 sm:p-6">
-                    <CardTitle className="text-sm font-semibold">Engagement by hour (UTC)</CardTitle>
+                    <CardTitle className="text-sm font-semibold">
+                      Engagement by hour (UTC)
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 sm:p-6 pt-0 overflow-x-auto">
                     <div className="inline-flex flex-col gap-1 min-w-max">
                       <div className="grid grid-cols-[2rem_repeat(7,minmax(0,1fr))] gap-1 text-[10px] text-muted-foreground">
                         <div />
                         {WEEK_LABELS.map((d) => (
-                          <div key={d} className="text-center">{d}</div>
+                          <div key={d} className="text-center">
+                            {d}
+                          </div>
                         ))}
                       </div>
                       {Array.from({ length: 24 }, (_, hour) => (
-                        <div key={hour} className="grid grid-cols-[2rem_repeat(7,minmax(0,1fr))] gap-1 items-center">
-                          <div className="text-[10px] text-muted-foreground text-right pr-1">{hour}</div>
+                        <div
+                          key={hour}
+                          className="grid grid-cols-[2rem_repeat(7,minmax(0,1fr))] gap-1 items-center"
+                        >
+                          <div className="text-[10px] text-muted-foreground text-right pr-1">
+                            {hour}
+                          </div>
                           {WEEK_LABELS.map((_, dayIdx) => heatCell(dayIdx, hour))}
                         </div>
                       ))}
@@ -1522,7 +1716,9 @@ function SchedulerPage() {
                         <thead>
                           <tr className="border-b text-left text-xs text-muted-foreground">
                             <th className="px-4 py-3 font-medium">Caption</th>
-                            <th className="px-4 py-3 font-medium hidden md:table-cell">Published</th>
+                            <th className="px-4 py-3 font-medium hidden md:table-cell">
+                              Published
+                            </th>
                             <th className="px-4 py-3 font-medium">Impr.</th>
                             <th className="px-4 py-3 font-medium hidden sm:table-cell">Reach</th>
                             <th className="px-4 py-3 font-medium">Likes</th>
@@ -1531,26 +1727,45 @@ function SchedulerPage() {
                         </thead>
                         <tbody>
                           {(analyticsPostsQuery.data?.posts ?? []).map((row) => (
-                            <tr key={String(row.id)} className="border-b last:border-0 hover:bg-muted/30">
-                              <td className="px-4 py-3 line-clamp-2 max-w-xs">{String(row.caption ?? "—")}</td>
-                              <td className="px-4 py-3 text-muted-foreground hidden md:table-cell whitespace-nowrap">
-                                {row.publishedAt ? format(new Date(String(row.publishedAt)), "MMM d, yyyy") : "—"}
+                            <tr
+                              key={String(row.id)}
+                              className="border-b last:border-0 hover:bg-muted/30"
+                            >
+                              <td className="px-4 py-3 line-clamp-2 max-w-xs">
+                                {String(row.caption ?? "—")}
                               </td>
-                              <td className="px-4 py-3 font-mono text-xs">{row.impressions != null ? String(row.impressions) : "—"}</td>
-                              <td className="px-4 py-3 font-mono text-xs hidden sm:table-cell">{row.reach != null ? String(row.reach) : "—"}</td>
-                              <td className="px-4 py-3 font-mono text-xs">{row.likes != null ? String(row.likes) : "—"}</td>
+                              <td className="px-4 py-3 text-muted-foreground hidden md:table-cell whitespace-nowrap">
+                                {row.publishedAt
+                                  ? format(new Date(String(row.publishedAt)), "MMM d, yyyy")
+                                  : "—"}
+                              </td>
+                              <td className="px-4 py-3 font-mono text-xs">
+                                {row.impressions != null ? String(row.impressions) : "—"}
+                              </td>
+                              <td className="px-4 py-3 font-mono text-xs hidden sm:table-cell">
+                                {row.reach != null ? String(row.reach) : "—"}
+                              </td>
+                              <td className="px-4 py-3 font-mono text-xs">
+                                {row.likes != null ? String(row.likes) : "—"}
+                              </td>
                               <td className="px-4 py-3 font-mono text-xs hidden lg:table-cell">
-                                {row.engagementRate != null ? Number(row.engagementRate).toFixed(1) : "—"}
+                                {row.engagementRate != null
+                                  ? Number(row.engagementRate).toFixed(1)
+                                  : "—"}
                               </td>
                             </tr>
                           ))}
-                          {!analyticsPostsQuery.isLoading && (analyticsPostsQuery.data?.posts.length ?? 0) === 0 && (
-                            <tr>
-                              <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                                Run a sync to load analytics for your Instagram posts.
-                              </td>
-                            </tr>
-                          )}
+                          {!analyticsPostsQuery.isLoading &&
+                            (analyticsPostsQuery.data?.posts.length ?? 0) === 0 && (
+                              <tr>
+                                <td
+                                  colSpan={6}
+                                  className="px-4 py-10 text-center text-muted-foreground"
+                                >
+                                  Run a sync to load analytics for your Instagram posts.
+                                </td>
+                              </tr>
+                            )}
                         </tbody>
                       </table>
                     </div>
@@ -1591,7 +1806,10 @@ function SchedulerPage() {
               {/* Post type */}
               <div className="space-y-1">
                 <Label>Type</Label>
-                <Select value={form.type} onValueChange={(v) => onChangePostType(v as ScheduledPostType)}>
+                <Select
+                  value={form.type}
+                  onValueChange={(v) => onChangePostType(v as ScheduledPostType)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -1610,24 +1828,44 @@ function SchedulerPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Input
                     type="file"
-                    accept={form.type === "REEL" ? SCHEDULER_MEDIA_ACCEPT_REEL : SCHEDULER_MEDIA_ACCEPT_FEED}
+                    accept={
+                      form.type === "REEL"
+                        ? SCHEDULER_MEDIA_ACCEPT_REEL
+                        : SCHEDULER_MEDIA_ACCEPT_FEED
+                    }
                     multiple={form.type === "CAROUSEL"}
                     className="cursor-pointer"
                     disabled={uploadingMedia}
                     onChange={(e) => void onPickMediaFile(e)}
                   />
-                  {uploadingMedia && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                  {uploadingMedia && (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
                   {(form.primaryMediaUrl || form.carouselMediaUrls.length > 0) && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       className="text-muted-foreground"
-                      onClick={() => setForm((f) => ({ ...f, primaryMediaUrl: "", carouselMediaUrls: [] }))}
+                      onClick={() =>
+                        setForm((f) => ({ ...f, primaryMediaUrl: "", carouselMediaUrls: [] }))
+                      }
                     >
                       Clear media
                     </Button>
                   )}
+                  <MediaAnalyze
+                    imageUrls={attachedImageUrls}
+                    onInsertIntoCaption={(text) =>
+                      setForm((f) => ({
+                        ...f,
+                        caption: (f.caption.trim() ? `${f.caption.trim()}\n\n${text}` : text).slice(
+                          0,
+                          LIMITS.postCaption.max,
+                        ),
+                      }))
+                    }
+                  />
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {form.type === "REEL"
@@ -1652,7 +1890,11 @@ function SchedulerPage() {
                             key={`${url}-${index}`}
                             className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
                           >
-                            <img src={url} alt={`Carousel ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" />
+                            <img
+                              src={url}
+                              alt={`Carousel ${index + 1}`}
+                              className="absolute inset-0 h-full w-full object-cover"
+                            />
                             <span className="absolute left-1.5 top-1.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                               {index + 1}
                             </span>
@@ -1667,15 +1909,24 @@ function SchedulerPage() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-muted-foreground">Upload or add at least 2 images.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Upload or add at least 2 images.
+                      </p>
                     )}
                     <div className="flex gap-2">
                       <Input
                         type="url"
                         value={carouselUrlDraft}
-                        onChange={(e) => setCarouselUrlDraft(e.target.value.slice(0, LIMITS.url.max))}
+                        onChange={(e) =>
+                          setCarouselUrlDraft(e.target.value.slice(0, LIMITS.url.max))
+                        }
                         maxLength={LIMITS.url.max}
-                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCarouselUrl(); } }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addCarouselUrl();
+                          }
+                        }}
                         placeholder="Add HTTPS image URL"
                         disabled={form.carouselMediaUrls.length >= CAROUSEL_MEDIA_MAX}
                       />
@@ -1697,7 +1948,12 @@ function SchedulerPage() {
                     <Input
                       type="url"
                       value={form.primaryMediaUrl}
-                      onChange={(e) => setForm((f) => ({ ...f, primaryMediaUrl: e.target.value.slice(0, LIMITS.url.max) }))}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          primaryMediaUrl: e.target.value.slice(0, LIMITS.url.max),
+                        }))
+                      }
                       maxLength={LIMITS.url.max}
                       placeholder="https://…"
                     />
@@ -1710,23 +1966,61 @@ function SchedulerPage() {
 
               {/* Caption */}
               <div className="space-y-1">
-                <Label>Caption</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Caption</Label>
+                  <div className="flex items-center gap-1">
+                    <ContentIdeas
+                      caption={form.caption}
+                      onInsert={(next) =>
+                        setForm((f) => ({ ...f, caption: next.slice(0, LIMITS.postCaption.max) }))
+                      }
+                    />
+                    <CaptionAssist
+                      caption={form.caption}
+                      mediaUrls={attachedImageUrls}
+                      onApply={(next) =>
+                        setForm((f) => ({ ...f, caption: next.slice(0, LIMITS.postCaption.max) }))
+                      }
+                    />
+                  </div>
+                </div>
                 <textarea
                   className="w-full min-h-24 max-h-60 resize-y rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   value={form.caption}
-                  onChange={(e) => setForm((f) => ({ ...f, caption: e.target.value.slice(0, LIMITS.postCaption.max) }))}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      caption: e.target.value.slice(0, LIMITS.postCaption.max),
+                    }))
+                  }
                   placeholder="Write your caption…"
                   maxLength={LIMITS.postCaption.max}
                 />
-                <p className="text-right text-xs text-muted-foreground">{form.caption.length}/{LIMITS.postCaption.max}</p>
+                <p className="text-right text-xs text-muted-foreground">
+                  {form.caption.length}/{LIMITS.postCaption.max}
+                </p>
               </div>
 
               {/* Hashtags */}
               <div className="space-y-1">
-                <Label>Hashtags (space or comma separated)</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Hashtags (space or comma separated)</Label>
+                  <HashtagAssist
+                    caption={form.caption}
+                    hashtags={form.hashtags}
+                    onApply={(next) =>
+                      setForm((f) => ({ ...f, hashtags: next.slice(0, LIMITS.genericNote.max) }))
+                    }
+                  />
+                </div>
                 <Input
                   value={form.hashtags}
-                  onChange={(e) => setForm((f) => ({ ...f, hashtags: e.target.value.slice(0, LIMITS.genericNote.max) }))}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      hashtags: e.target.value.slice(0, LIMITS.genericNote.max),
+                    }))
+                  }
                   maxLength={LIMITS.genericNote.max}
                   placeholder="#test #test2"
                 />
@@ -1757,7 +2051,9 @@ function SchedulerPage() {
                     <Input
                       placeholder="Search music…"
                       value={musicQuery}
-                      onChange={(e) => setMusicQuery(e.target.value.slice(0, LIMITS.genericName.max))}
+                      onChange={(e) =>
+                        setMusicQuery(e.target.value.slice(0, LIMITS.genericName.max))
+                      }
                       maxLength={LIMITS.genericName.max}
                     />
                     {musicQuery.length >= 2 && (
@@ -1772,15 +2068,19 @@ function SchedulerPage() {
                             key={track.id}
                             type="button"
                             className="w-full text-left px-3 py-2 hover:bg-muted/50"
-                            onClick={() => { setSelectedMusic(track); setMusicQuery(""); }}
+                            onClick={() => {
+                              setSelectedMusic(track);
+                              setMusicQuery("");
+                            }}
                           >
                             <p className="font-medium truncate">{track.title}</p>
                             <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
                           </button>
                         ))}
-                        {!musicSearchQuery.isLoading && (musicSearchQuery.data?.tracks.length ?? 0) === 0 && (
-                          <p className="px-3 py-2 text-muted-foreground text-xs">No results</p>
-                        )}
+                        {!musicSearchQuery.isLoading &&
+                          (musicSearchQuery.data?.tracks.length ?? 0) === 0 && (
+                            <p className="px-3 py-2 text-muted-foreground text-xs">No results</p>
+                          )}
                       </div>
                     )}
                   </div>
@@ -1790,7 +2090,9 @@ function SchedulerPage() {
                     <Label className="text-sm">Share to feed</Label>
                     <Switch
                       checked={form.shareToFeed}
-                      onCheckedChange={(checked) => setForm((f) => ({ ...f, shareToFeed: checked }))}
+                      onCheckedChange={(checked) =>
+                        setForm((f) => ({ ...f, shareToFeed: checked }))
+                      }
                     />
                   </div>
                 )}
@@ -1807,7 +2109,9 @@ function SchedulerPage() {
                   </div>
                   <Switch
                     checked={form.automationEnabled}
-                    onCheckedChange={(checked) => setForm((f) => ({ ...f, automationEnabled: checked }))}
+                    onCheckedChange={(checked) =>
+                      setForm((f) => ({ ...f, automationEnabled: checked }))
+                    }
                   />
                 </div>
 
@@ -1817,7 +2121,12 @@ function SchedulerPage() {
                       <Label>Automation name</Label>
                       <Input
                         value={form.automationName}
-                        onChange={(e) => setForm((f) => ({ ...f, automationName: e.target.value.slice(0, LIMITS.automationName.max) }))}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            automationName: e.target.value.slice(0, LIMITS.automationName.max),
+                          }))
+                        }
                         maxLength={LIMITS.automationName.max}
                         placeholder="Automation for this post"
                       />
@@ -1830,7 +2139,9 @@ function SchedulerPage() {
                       </div>
                       <Switch
                         checked={form.automationAnyComment}
-                        onCheckedChange={(checked) => setForm((f) => ({ ...f, automationAnyComment: checked }))}
+                        onCheckedChange={(checked) =>
+                          setForm((f) => ({ ...f, automationAnyComment: checked }))
+                        }
                       />
                     </div>
 
@@ -1840,18 +2151,36 @@ function SchedulerPage() {
                         <Input
                           value={form.automationKeywordDraft}
                           disabled={form.automationAnyComment}
-                          onChange={(e) => setForm((f) => ({ ...f, automationKeywordDraft: e.target.value.slice(0, LIMITS.keyword.max) }))}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              automationKeywordDraft: e.target.value.slice(0, LIMITS.keyword.max),
+                            }))
+                          }
                           maxLength={LIMITS.keyword.max}
-                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addKeyword(); } }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addKeyword();
+                            }
+                          }}
                           placeholder="GUIDE"
                         />
-                        <Button type="button" variant="outline" disabled={form.automationAnyComment} onClick={addKeyword}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={form.automationAnyComment}
+                          onClick={addKeyword}
+                        >
                           Add
                         </Button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {form.automationKeywords.map((keyword) => (
-                          <span key={keyword} className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs">
+                          <span
+                            key={keyword}
+                            className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs"
+                          >
                             {keyword}
                             <button type="button" onClick={() => removeKeyword(keyword)}>
                               <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
@@ -1866,7 +2195,12 @@ function SchedulerPage() {
                       <textarea
                         className="w-full min-h-20 max-h-44 resize-y rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                         value={form.automationDmMessage}
-                        onChange={(e) => setForm((f) => ({ ...f, automationDmMessage: e.target.value.slice(0, 900) }))}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            automationDmMessage: e.target.value.slice(0, 900),
+                          }))
+                        }
                         placeholder="Hi there! Here's your link…"
                       />
                       <p className="text-[11px] text-muted-foreground text-right">
@@ -1879,7 +2213,12 @@ function SchedulerPage() {
                         <Label>DM button label</Label>
                         <Input
                           value={form.automationButtonLabel}
-                          onChange={(e) => setForm((f) => ({ ...f, automationButtonLabel: e.target.value.slice(0, 20) }))}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              automationButtonLabel: e.target.value.slice(0, 20),
+                            }))
+                          }
                           placeholder="Open Link"
                         />
                       </div>
@@ -1888,7 +2227,12 @@ function SchedulerPage() {
                         <Input
                           type="url"
                           value={form.automationButtonUrl}
-                          onChange={(e) => setForm((f) => ({ ...f, automationButtonUrl: e.target.value.slice(0, LIMITS.buttonUrl.max) }))}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              automationButtonUrl: e.target.value.slice(0, LIMITS.buttonUrl.max),
+                            }))
+                          }
                           maxLength={LIMITS.buttonUrl.max}
                           placeholder="https://..."
                         />
@@ -1903,7 +2247,9 @@ function SchedulerPage() {
                         </div>
                         <Switch
                           checked={form.automationAutoReply}
-                          onCheckedChange={(checked) => setForm((f) => ({ ...f, automationAutoReply: checked }))}
+                          onCheckedChange={(checked) =>
+                            setForm((f) => ({ ...f, automationAutoReply: checked }))
+                          }
                         />
                       </div>
                       {form.automationAutoReply && (
@@ -1925,7 +2271,9 @@ function SchedulerPage() {
                                 onClick={() =>
                                   setForm((f) => ({
                                     ...f,
-                                    automationReplyMessages: f.automationReplyMessages.filter((_, i) => i !== index),
+                                    automationReplyMessages: f.automationReplyMessages.filter(
+                                      (_, i) => i !== index,
+                                    ),
                                   }))
                                 }
                               >
@@ -1955,7 +2303,12 @@ function SchedulerPage() {
 
               {/* Schedule + timezone */}
               <div className="space-y-1">
-                <Label>Schedule date & time <span className="text-xs text-muted-foreground">(leave blank to save as draft)</span></Label>
+                <Label>
+                  Schedule date & time{" "}
+                  <span className="text-xs text-muted-foreground">
+                    (leave blank to save as draft)
+                  </span>
+                </Label>
                 <Input
                   type="datetime-local"
                   value={form.scheduleLocal}
@@ -1965,13 +2318,18 @@ function SchedulerPage() {
               </div>
               <div className="space-y-1">
                 <Label>Timezone</Label>
-                <Select value={form.timezone} onValueChange={(tz) => setForm((f) => ({ ...f, timezone: tz }))}>
+                <Select
+                  value={form.timezone}
+                  onValueChange={(tz) => setForm((f) => ({ ...f, timezone: tz }))}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {TIMEZONES.map((tz) => (
-                      <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+                      <SelectItem key={tz} value={tz}>
+                        {tz}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -2027,7 +2385,11 @@ function SchedulerPage() {
                   type={detailQuery.data.post.type}
                   username={previewIgAccount.handle}
                   profilePictureUrl={previewIgAccount.profilePictureUrl}
-                  mediaUrl={detailQuery.data.post.primaryMediaUrl ?? detailQuery.data.post.thumbnailUrl ?? ""}
+                  mediaUrl={
+                    detailQuery.data.post.primaryMediaUrl ??
+                    detailQuery.data.post.thumbnailUrl ??
+                    ""
+                  }
                   mediaUrls={detailQuery.data.post.carouselMediaUrls}
                   caption={detailQuery.data.post.caption ?? ""}
                   hashtagsRaw={detailQuery.data.post.hashtags.join(" ")}
@@ -2042,22 +2404,26 @@ function SchedulerPage() {
                 disabled={publishNowMutation.isPending}
                 onClick={() => publishNowMutation.mutate(detailQuery.data!.post!.id)}
               >
-                {publishNowMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Publish now"}
+                {publishNowMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Publish now"
+                )}
               </Button>
             )}
             {detailQuery.data?.post &&
               (detailQuery.data.post.status === "SCHEDULED" ||
                 detailQuery.data.post.status === "DRAFT" ||
                 detailQuery.data.post.status === "FAILED") && (
-              <Button
-                variant="outline"
-                className="text-destructive border-destructive/40 hover:bg-destructive/10"
-                disabled={cancelMutation.isPending}
-                onClick={() => cancelMutation.mutate(detailQuery.data!.post!.id)}
-              >
-                Cancel post
-              </Button>
-            )}
+                <Button
+                  variant="outline"
+                  className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                  disabled={cancelMutation.isPending}
+                  onClick={() => cancelMutation.mutate(detailQuery.data!.post!.id)}
+                >
+                  Cancel post
+                </Button>
+              )}
             <Button variant="outline" onClick={() => setDetailOpen(false)}>
               Close
             </Button>

@@ -18,12 +18,16 @@ import { ProtectedRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  getAnalyticsPage,
-  type AnalyticsApiRange,
-} from "@/lib/api/analytics-api";
+import { getAnalyticsPage, type AnalyticsApiRange } from "@/lib/api/analytics-api";
 import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
+import { InsightsCard } from "@/components/lyra/insights-card";
+import {
+  InsightSummary,
+  InsightPointList,
+  AnalyticsHighlight,
+} from "@/components/lyra/insight-content";
+import { useLyraInsights } from "@/hooks/use-lyra-insights";
 
 export const Route = createFileRoute("/_app/analytics")({
   head: () => ({ meta: [{ title: "Analytics — Liffio" }] }),
@@ -55,6 +59,13 @@ function AnalyticsPage() {
     queryKey: ["analytics-page", workspaceId, range],
     queryFn: () => getAnalyticsPage(workspaceId, range),
     enabled: Boolean(workspaceId) && workspaceId !== "default",
+  });
+
+  const insights = useLyraInsights({
+    task: "analytics",
+    workspaceId,
+    input: { period: range === "7d" ? "weekly" : "monthly" },
+    queryKeyExtra: [range],
   });
 
   const data = analyticsQuery.data;
@@ -95,9 +106,46 @@ function AnalyticsPage() {
           </div>
         )}
 
+        <InsightsCard
+          title="AI Insights"
+          data={insights.data}
+          isLoading={insights.isLoading}
+          isRefreshing={insights.isRefreshing}
+          isResyncing={insights.isResyncing}
+          refreshError={insights.refreshError}
+          resyncError={insights.resyncError}
+          refreshCooldownUntil={insights.refreshCooldownUntil}
+          resyncCooldownUntil={insights.resyncCooldownUntil}
+          lastUpdatedAt={insights.lastUpdatedAt}
+          loadingStartedAt={insights.loadingStartedAt}
+          resyncStartedAt={insights.resyncStartedAt}
+          onRefresh={() => void insights.refresh()}
+          onResync={() => void insights.resync()}
+          onCancelRefresh={insights.cancelRefresh}
+          onCancelResync={insights.cancelResync}
+          renderBody={(data) => (
+            <>
+              <InsightSummary text={data.summary} />
+              <InsightPointList
+                tone="highlight"
+                items={data.highlights}
+                renderItem={(item) => (
+                  <AnalyticsHighlight
+                    finding={item.finding}
+                    metric={item.metric}
+                    severity={item.severity}
+                  />
+                )}
+              />
+            </>
+          )}
+        />
+
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {analyticsQuery.isLoading ? (
-            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)
+            Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-2xl" />
+            ))
           ) : (
             <>
               <StatCard
@@ -192,9 +240,27 @@ function AnalyticsPage() {
                         fontSize: 12,
                       }}
                     />
-                    <Area type="monotone" dataKey="dms" stroke="var(--chart-1)" strokeWidth={2} fill="url(#dms)" />
-                    <Area type="monotone" dataKey="clicks" stroke="var(--chart-4)" strokeWidth={2} fill="url(#clicks)" />
-                    <Area type="monotone" dataKey="leads" stroke="var(--chart-3)" strokeWidth={2} fill="url(#leads)" />
+                    <Area
+                      type="monotone"
+                      dataKey="dms"
+                      stroke="var(--chart-1)"
+                      strokeWidth={2}
+                      fill="url(#dms)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="clicks"
+                      stroke="var(--chart-4)"
+                      strokeWidth={2}
+                      fill="url(#clicks)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="leads"
+                      stroke="var(--chart-3)"
+                      strokeWidth={2}
+                      fill="url(#leads)"
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               )}
@@ -297,8 +363,12 @@ function AnalyticsPage() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">{formatNum(row.dmsSent)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{formatNum(row.linkClicks)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{formatNum(row.leadsCaptured)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {formatNum(row.linkClicks)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {formatNum(row.leadsCaptured)}
+                    </td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {(row.conversionRate * 100).toFixed(1)}%
                     </td>
@@ -311,7 +381,10 @@ function AnalyticsPage() {
                 ))}
                 {(data?.automationPerformance.length ?? 0) === 0 && !analyticsQuery.isLoading && (
                   <tr>
-                    <td colSpan={7} className="px-6 py-10 text-center text-sm text-muted-foreground">
+                    <td
+                      colSpan={7}
+                      className="px-6 py-10 text-center text-sm text-muted-foreground"
+                    >
                       No automation activity in this range yet.
                     </td>
                   </tr>

@@ -50,6 +50,8 @@ import {
 import { useAutosave } from "@/hooks/use-autosave";
 import { useApp } from "@/state/app-context";
 import { LIMITS, urlError, lengthError } from "@/lib/validation";
+import { KeywordSuggest } from "@/components/lyra/keyword-suggest";
+import { DmMessageAssist } from "@/components/lyra/dm-message-assist";
 
 export const Route = createFileRoute("/_app/automations/new")({
   head: () => ({ meta: [{ title: "New automation — Liffio" }] }),
@@ -147,7 +149,7 @@ function AutomationBuilder() {
 
   const [form, setForm] = useState<BuilderForm>(defaultForm);
   const [expandedBlockIds, setExpandedBlockIds] = useState<string[]>(
-    defaultForm.triggerBlocks.map((b) => b.id)
+    defaultForm.triggerBlocks.map((b) => b.id),
   );
   const [restoredBannerDismissed, setRestoredBannerDismissed] = useState(false);
   const firstChangeRef = useRef(false);
@@ -212,7 +214,8 @@ function AutomationBuilder() {
       postId: form.postScope === "specific" ? form.postId : null,
       dmMessage: primary.dmMessage.trim(),
       autoReply: primary.autoReply,
-      replyMessages: primary.autoReply && primary.replyMessage.trim() ? [primary.replyMessage.trim()] : [],
+      replyMessages:
+        primary.autoReply && primary.replyMessage.trim() ? [primary.replyMessage.trim()] : [],
       dmButtonLabel: primary.hasButton ? primary.dmButtonLabel.trim() || undefined : undefined,
       dmButtonUrl: primary.hasButton ? primary.dmButtonUrl.trim() || undefined : undefined,
       followBeforeDm: form.followBeforeDm,
@@ -236,7 +239,9 @@ function AutomationBuilder() {
     mutationFn: (status: "ACTIVE" | "DRAFT") => createAutomation(workspaceId, buildPayload(status)),
     onSuccess: async (_, status) => {
       await autosave.clear();
-      toast.success(status === "ACTIVE" ? `"${form.name}" is live` : `"${form.name}" saved as draft`);
+      toast.success(
+        status === "ACTIVE" ? `"${form.name}" is live` : `"${form.name}" saved as draft`,
+      );
       void navigate({ to: "/automations" });
     },
     onError: (error) => toast.error((error as Error).message),
@@ -413,7 +418,9 @@ function AutomationBuilder() {
               <Input
                 id="name"
                 value={form.name}
-                onChange={(e) => update({ name: e.target.value.slice(0, LIMITS.automationName.max) })}
+                onChange={(e) =>
+                  update({ name: e.target.value.slice(0, LIMITS.automationName.max) })
+                }
                 maxLength={LIMITS.automationName.max}
               />
             </div>
@@ -442,7 +449,7 @@ function AutomationBuilder() {
                     "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                     form.postScope === o.v
                       ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {o.l}
@@ -456,9 +463,7 @@ function AutomationBuilder() {
                   <p className="text-xs text-muted-foreground">Loading your Instagram posts…</p>
                 )}
                 {wizardData.isError && (
-                  <p className="text-xs text-destructive">
-                    {(wizardData.error as Error).message}
-                  </p>
+                  <p className="text-xs text-destructive">{(wizardData.error as Error).message}</p>
                 )}
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
                   {(wizardData.data?.media ?? []).map((item) => (
@@ -470,7 +475,7 @@ function AutomationBuilder() {
                         "relative aspect-square overflow-hidden rounded-lg border-2 bg-muted transition-all",
                         form.postId === item.id
                           ? "border-primary"
-                          : "border-border hover:border-muted-foreground/50"
+                          : "border-border hover:border-muted-foreground/50",
                       )}
                     >
                       {item.thumbnailUrl ? (
@@ -620,7 +625,10 @@ function AutomationBuilder() {
               {form.followUps.map((f, i) => (
                 <div key={f.id} className="rounded-xl border bg-background p-3.5">
                   <div className="mb-2.5 flex items-center gap-2">
-                    <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+                    <Badge
+                      variant="outline"
+                      className="border-primary/30 bg-primary/10 text-primary"
+                    >
                       Step {i + 1}
                     </Badge>
                     <span className="text-xs text-muted-foreground">Wait</span>
@@ -628,7 +636,7 @@ function AutomationBuilder() {
                       value={String(f.delayMinutes)}
                       onValueChange={(v) => {
                         const next = form.followUps.map((x) =>
-                          x.id === f.id ? { ...x, delayMinutes: Number(v) } : x
+                          x.id === f.id ? { ...x, delayMinutes: Number(v) } : x,
                         );
                         update({ followUps: next });
                       }}
@@ -658,7 +666,9 @@ function AutomationBuilder() {
                     value={f.message}
                     onChange={(e) => {
                       const next = form.followUps.map((x) =>
-                        x.id === f.id ? { ...x, message: e.target.value.slice(0, LIMITS.followUpMessage.max) } : x
+                        x.id === f.id
+                          ? { ...x, message: e.target.value.slice(0, LIMITS.followUpMessage.max) }
+                          : x,
                       );
                       update({ followUps: next });
                     }}
@@ -693,9 +703,11 @@ function AutomationBuilder() {
         <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start">
           <DmPreview
             username={wizardData.data?.profile.username ?? current.igHandle ?? "yourbrand"}
-            keyword={form.anyComment ? "any comment" : (form.triggerBlocks[0]?.keyword || "KEYWORD")}
+            keyword={form.anyComment ? "any comment" : form.triggerBlocks[0]?.keyword || "KEYWORD"}
             message={form.triggerBlocks[0]?.dmMessage ?? ""}
-            buttonLabel={form.triggerBlocks[0]?.hasButton ? form.triggerBlocks[0].dmButtonLabel : ""}
+            buttonLabel={
+              form.triggerBlocks[0]?.hasButton ? form.triggerBlocks[0].dmButtonLabel : ""
+            }
             buttonUrl={form.triggerBlocks[0]?.hasButton ? form.triggerBlocks[0].dmButtonUrl : ""}
             autoReply={form.triggerBlocks[0]?.autoReply ? form.triggerBlocks[0].replyMessage : ""}
             followBeforeDm={form.followBeforeDm}
@@ -752,15 +764,21 @@ function TriggerBlockFields({
     <div>
       {showKeywordStep && (
         <TimelineStep index={keywordStepIndex} title="Trigger keyword">
-          <Input
-            value={block.keyword}
-            onChange={(e) =>
-              onChange({ keyword: e.target.value.slice(0, LIMITS.keyword.max).toUpperCase() })
-            }
-            maxLength={LIMITS.keyword.max}
-            placeholder="e.g. GUIDE"
-            className="font-mono uppercase"
-          />
+          <div className="flex items-center gap-2">
+            <Input
+              value={block.keyword}
+              onChange={(e) =>
+                onChange({ keyword: e.target.value.slice(0, LIMITS.keyword.max).toUpperCase() })
+              }
+              maxLength={LIMITS.keyword.max}
+              placeholder="e.g. GUIDE"
+              className="font-mono uppercase"
+            />
+            <KeywordSuggest
+              sourceText={block.dmMessage}
+              onPick={(kw) => onChange({ keyword: kw })}
+            />
+          </div>
           <p className="text-[11px] text-muted-foreground">
             Not case-sensitive. The comment must contain this word.
           </p>
@@ -773,24 +791,44 @@ function TriggerBlockFields({
           <Switch checked={block.autoReply} onCheckedChange={(v) => onChange({ autoReply: v })} />
         </div>
         {block.autoReply && (
-          <Textarea
-            value={block.replyMessage}
-            onChange={(e) =>
-              onChange({ replyMessage: e.target.value.slice(0, LIMITS.replyMessage.max) })
-            }
-            maxLength={LIMITS.replyMessage.max}
-            rows={2}
-            className="resize-none"
-            placeholder="Sent! Check your DMs 💌"
-          />
+          <div className="space-y-1">
+            <div className="flex justify-end">
+              <DmMessageAssist
+                label="auto-reply"
+                currentValue={block.replyMessage}
+                keyword={block.keyword}
+                onApply={(msg) => onChange({ replyMessage: msg.slice(0, LIMITS.replyMessage.max) })}
+              />
+            </div>
+            <Textarea
+              value={block.replyMessage}
+              onChange={(e) =>
+                onChange({ replyMessage: e.target.value.slice(0, LIMITS.replyMessage.max) })
+              }
+              maxLength={LIMITS.replyMessage.max}
+              rows={2}
+              className="resize-none"
+              placeholder="Sent! Check your DMs 💌"
+            />
+          </div>
         )}
-        <Textarea
-          value={block.dmMessage}
-          onChange={(e) => onChange({ dmMessage: e.target.value.slice(0, LIMITS.dmMessage.max) })}
-          maxLength={LIMITS.dmMessage.max}
-          rows={4}
-          placeholder="Hi there! Here's the resource you asked for…"
-        />
+        <div className="space-y-1">
+          <div className="flex justify-end">
+            <DmMessageAssist
+              label="DM message"
+              currentValue={block.dmMessage}
+              keyword={block.keyword}
+              onApply={(msg) => onChange({ dmMessage: msg.slice(0, LIMITS.dmMessage.max) })}
+            />
+          </div>
+          <Textarea
+            value={block.dmMessage}
+            onChange={(e) => onChange({ dmMessage: e.target.value.slice(0, LIMITS.dmMessage.max) })}
+            maxLength={LIMITS.dmMessage.max}
+            rows={4}
+            placeholder="Hi there! Here's the resource you asked for…"
+          />
+        </div>
         <div className="flex items-center justify-between">
           <span className="text-[11px] text-muted-foreground">
             Use {"{{name}}"} {"{{username}}"} {"{{keyword}}"} as variables
@@ -924,9 +962,7 @@ function DmPreview({
           )}
 
           {followBeforeDm && (
-            <Bubble>
-              Follow @{handle} first so I can DM you — tap Follow, then come back 💌
-            </Bubble>
+            <Bubble>Follow @{handle} first so I can DM you — tap Follow, then come back 💌</Bubble>
           )}
 
           <Bubble>
@@ -961,7 +997,9 @@ function DmPreview({
                 <div className="h-px flex-1 bg-border" />
               </div>
               <Bubble>
-                {f.message || <span className="italic opacity-70">Follow-up #{i + 1} message…</span>}
+                {f.message || (
+                  <span className="italic opacity-70">Follow-up #{i + 1} message…</span>
+                )}
               </Bubble>
             </div>
           ))}

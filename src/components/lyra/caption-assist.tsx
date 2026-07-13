@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,10 @@ import {
 } from "@/components/ui/select";
 import { LyraThinking } from "@/components/lyra-thinking";
 import { useLyra } from "@/hooks/use-lyra";
+import { usePersistedState } from "@/hooks/use-persisted-state";
 import { urlsToDataUrls } from "@/lib/image-data-url";
+import { lyraStorageKey } from "@/lib/lyra-persist";
+import { useApp } from "@/state/app-context";
 
 type CaptionMode = "generate" | "rewrite" | "expand" | "shorten";
 
@@ -34,11 +36,16 @@ export function CaptionAssist({
   mediaUrls: string[];
   onApply: (caption: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<CaptionMode>(caption.trim() ? "rewrite" : "generate");
-  const [topic, setTopic] = useState("");
-  const [pendingDraft, setPendingDraft] = useState<string | null>(null);
-  const lyra = useLyra<"caption">();
+  const { current, user } = useApp();
+  const base = lyraStorageKey(user?.id, current.id, "caption-assist");
+  const [open, setOpen] = usePersistedState(`${base}:open`, false);
+  const [mode, setMode] = usePersistedState<CaptionMode>(
+    `${base}:mode`,
+    caption.trim() ? "rewrite" : "generate",
+  );
+  const [topic, setTopic] = usePersistedState(`${base}:topic`, "");
+  const [pendingDraft, setPendingDraft] = usePersistedState<string | null>(`${base}:draft`, null);
+  const lyra = useLyra<"caption">({ persistKey: `${base}:lyra` });
 
   const run = async () => {
     setPendingDraft(null);

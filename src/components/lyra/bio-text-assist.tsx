@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -6,6 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { LyraThinking } from "@/components/lyra-thinking";
 import { useLyra } from "@/hooks/use-lyra";
+import { usePersistedState } from "@/hooks/use-persisted-state";
+import { lyraStorageKey } from "@/lib/lyra-persist";
+import { useApp } from "@/state/app-context";
 
 const SYSTEM_PROMPT =
   "You write short, punchy link-in-bio profile bios for creators/brands on Instagram. " +
@@ -22,10 +24,12 @@ export function BioTextAssist({
   onApply: (bio: string) => void;
   maxLength: number;
 }) {
-  const [open, setOpen] = useState(false);
-  const [topic, setTopic] = useState("");
-  const [pendingDraft, setPendingDraft] = useState<string | null>(null);
-  const lyra = useLyra<"custom_prompt">();
+  const { current, user } = useApp();
+  const base = lyraStorageKey(user?.id, current.id, "bio-text-assist");
+  const [open, setOpen] = usePersistedState(`${base}:open`, false);
+  const [topic, setTopic] = usePersistedState(`${base}:topic`, "");
+  const [pendingDraft, setPendingDraft] = usePersistedState<string | null>(`${base}:draft`, null);
+  const lyra = useLyra<"custom_prompt">({ persistKey: `${base}:lyra` });
 
   const run = async () => {
     setPendingDraft(null);

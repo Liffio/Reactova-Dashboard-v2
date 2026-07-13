@@ -1,10 +1,12 @@
-import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { LyraThinking } from "@/components/lyra-thinking";
 import { useLyra } from "@/hooks/use-lyra";
+import { usePersistedState } from "@/hooks/use-persisted-state";
+import { lyraStorageKey } from "@/lib/lyra-persist";
+import { useApp } from "@/state/app-context";
 
 /**
  * The `keyword` task returns a list, but an automation trigger wants exactly
@@ -14,14 +16,19 @@ import { useLyra } from "@/hooks/use-lyra";
 export function KeywordSuggest({
   sourceText,
   onPick,
+  persistId,
 }: {
   /** DM/reply copy already written, used as extraction context when present. */
   sourceText?: string;
   onPick: (keyword: string) => void;
+  /** Stable identifier (e.g. the trigger block's id) so multiple instances on one page don't share persisted state. */
+  persistId?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const [topic, setTopic] = useState("");
-  const lyra = useLyra<"keyword">();
+  const { current, user } = useApp();
+  const base = lyraStorageKey(user?.id, current.id, `keyword-suggest:${persistId ?? "default"}`);
+  const [open, setOpen] = usePersistedState(`${base}:open`, false);
+  const [topic, setTopic] = usePersistedState(`${base}:topic`, "");
+  const lyra = useLyra<"keyword">({ persistKey: `${base}:lyra` });
 
   const run = async () => {
     await lyra.run({

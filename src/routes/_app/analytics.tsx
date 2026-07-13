@@ -51,7 +51,7 @@ const roiStyles: Record<string, string> = {
 };
 
 function AnalyticsPage() {
-  const { current } = useApp();
+  const { current, user } = useApp();
   const workspaceId = current.id;
   const [range, setRange] = useState<AnalyticsApiRange>("30d");
 
@@ -64,6 +64,7 @@ function AnalyticsPage() {
   const insights = useLyraInsights({
     task: "analytics",
     workspaceId,
+    userId: user?.id,
     input: { period: range === "7d" ? "weekly" : "monthly" },
     queryKeyExtra: [range],
   });

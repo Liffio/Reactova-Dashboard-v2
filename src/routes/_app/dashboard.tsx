@@ -110,6 +110,7 @@ function DashboardPage() {
   const insights = useLyraInsights({
     task: "insight",
     workspaceId,
+    userId: user?.id,
     input: { focus: "business_insights" },
     queryKeyExtra: ["dashboard"],
   });

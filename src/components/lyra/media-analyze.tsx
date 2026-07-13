@@ -1,11 +1,13 @@
-import { useState } from "react";
 import { ScanText, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { LyraThinking } from "@/components/lyra-thinking";
 import { useLyra } from "@/hooks/use-lyra";
+import { usePersistedState } from "@/hooks/use-persisted-state";
 import { urlsToDataUrls } from "@/lib/image-data-url";
+import { lyraStorageKey } from "@/lib/lyra-persist";
+import { useApp } from "@/state/app-context";
 
 type AnalyzeMode = "image_summary" | "ocr" | "vision_analysis";
 
@@ -23,11 +25,13 @@ export function MediaAnalyze({
   imageUrls: string[];
   onInsertIntoCaption: (text: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<AnalyzeMode>("image_summary");
-  const summaryLyra = useLyra<"image_summary">();
-  const ocrLyra = useLyra<"ocr">();
-  const visionLyra = useLyra<"vision_analysis">();
+  const { current, user } = useApp();
+  const base = lyraStorageKey(user?.id, current.id, "media-analyze");
+  const [open, setOpen] = usePersistedState(`${base}:open`, false);
+  const [mode, setMode] = usePersistedState<AnalyzeMode>(`${base}:mode`, "image_summary");
+  const summaryLyra = useLyra<"image_summary">({ persistKey: `${base}:summary` });
+  const ocrLyra = useLyra<"ocr">({ persistKey: `${base}:ocr` });
+  const visionLyra = useLyra<"vision_analysis">({ persistKey: `${base}:vision` });
   const active = mode === "image_summary" ? summaryLyra : mode === "ocr" ? ocrLyra : visionLyra;
 
   const run = async (nextMode: AnalyzeMode) => {

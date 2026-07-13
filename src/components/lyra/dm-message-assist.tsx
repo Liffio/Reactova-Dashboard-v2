@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { LyraThinking } from "@/components/lyra-thinking";
 import { useLyra } from "@/hooks/use-lyra";
+import { usePersistedState } from "@/hooks/use-persisted-state";
+import { lyraStorageKey } from "@/lib/lyra-persist";
+import { useApp } from "@/state/app-context";
 
 const SYSTEM_PROMPT =
   "You write short, warm Instagram automation messages for a creator's DM/reply automation. " +
@@ -19,15 +21,24 @@ export function DmMessageAssist({
   currentValue,
   keyword,
   onApply,
+  persistId,
 }: {
   label: string;
   currentValue: string;
   keyword?: string;
   onApply: (message: string) => void;
+  /** Stable identifier (e.g. the trigger block's id) so multiple instances on one page don't share persisted state. */
+  persistId?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const [instructions, setInstructions] = useState("");
-  const lyra = useLyra<"custom_prompt">();
+  const { current, user } = useApp();
+  const base = lyraStorageKey(
+    user?.id,
+    current.id,
+    `dm-message-assist:${persistId ?? "default"}:${label}`,
+  );
+  const [open, setOpen] = usePersistedState(`${base}:open`, false);
+  const [instructions, setInstructions] = usePersistedState(`${base}:instructions`, "");
+  const lyra = useLyra<"custom_prompt">({ persistKey: `${base}:lyra` });
 
   const run = async () => {
     const context = [

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Lightbulb, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +12,9 @@ import {
 } from "@/components/ui/select";
 import { LyraThinking } from "@/components/lyra-thinking";
 import { useLyra } from "@/hooks/use-lyra";
+import { usePersistedState } from "@/hooks/use-persisted-state";
+import { lyraStorageKey } from "@/lib/lyra-persist";
+import { useApp } from "@/state/app-context";
 
 type IdeaType = "reel" | "story" | "carousel" | "cta";
 
@@ -31,10 +33,12 @@ export function ContentIdeas({
   caption: string;
   onInsert: (nextCaption: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [type, setType] = useState<IdeaType>("reel");
-  const [topic, setTopic] = useState("");
-  const lyra = useLyra<"suggestion">();
+  const { current, user } = useApp();
+  const base = lyraStorageKey(user?.id, current.id, "content-ideas");
+  const [open, setOpen] = usePersistedState(`${base}:open`, false);
+  const [type, setType] = usePersistedState<IdeaType>(`${base}:type`, "reel");
+  const [topic, setTopic] = usePersistedState(`${base}:topic`, "");
+  const lyra = useLyra<"suggestion">({ persistKey: `${base}:lyra` });
 
   const run = async () => {
     await lyra.run({

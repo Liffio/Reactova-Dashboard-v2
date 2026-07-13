@@ -1,9 +1,10 @@
-import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LyraThinking } from "@/components/lyra-thinking";
 import { useLyra } from "@/hooks/use-lyra";
+import { lyraStorageKey } from "@/lib/lyra-persist";
+import { useApp } from "@/state/app-context";
 
 function parseHashtagTokens(raw: string): string[] {
   return raw
@@ -22,7 +23,10 @@ export function HashtagAssist({
   hashtags: string;
   onApply: (hashtags: string) => void;
 }) {
-  const lyra = useLyra<"hashtag">();
+  const { current, user } = useApp();
+  const lyra = useLyra<"hashtag">({
+    persistKey: lyraStorageKey(user?.id, current.id, "hashtag-assist"),
+  });
 
   const run = async () => {
     const result = await lyra.run({

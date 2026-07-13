@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code2, Eye, Mail, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
@@ -55,6 +55,15 @@ function EmailTemplatesRoute() {
       <EmailTemplatesPage />
     </PlatformAdminRoute>
   );
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(id);
+  }, [value, delayMs]);
+  return debounced;
 }
 
 const categoryStyles: Record<string, string> = {
@@ -319,9 +328,14 @@ function TemplateEditorDialog({ template, onClose, onSuccess }: { template: Emai
     if (codeHtmlQuery.data?.html) setHtml(codeHtmlQuery.data.html);
   }, [codeHtmlQuery.data]);
 
+  const debouncedHtml = useDebouncedValue(html, 400);
+
   const saveMutation = useMutation({
-    mutationFn: () => saveEmailTemplateCodeHtml(template.ref, html),
-    onSuccess: () => { toast.success("Template saved"); onSuccess(); },
+    mutationFn: async () => {
+      await saveEmailTemplateCodeHtml(template.ref, html);
+      await syncEmailTemplateBrevo(template.ref);
+    },
+    onSuccess: () => { toast.success("Template saved and synced to Brevo"); onSuccess(); },
     onError: (e) => toast.error((e as Error).message),
   });
 
@@ -361,14 +375,30 @@ function TemplateEditorDialog({ template, onClose, onSuccess }: { template: Emai
               <TabsTrigger value="brevo">Brevo HTML</TabsTrigger>
             </TabsList>
             <TabsContent value="code">
-              <textarea
-                value={html}
-                onChange={(e) => setHtml(e.target.value.slice(0, LIMITS.emailBody.max))}
-                maxLength={LIMITS.emailBody.max}
-                className="w-full h-80 rounded-lg border bg-muted/20 font-mono text-xs p-3 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="<!DOCTYPE html>..."
-                spellCheck={false}
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Code</Label>
+                  <textarea
+                    value={html}
+                    onChange={(e) => setHtml(e.target.value.slice(0, LIMITS.emailBody.max))}
+                    maxLength={LIMITS.emailBody.max}
+                    className="w-full h-80 rounded-lg border bg-muted/20 font-mono text-xs p-3 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="<!DOCTYPE html>..."
+                    spellCheck={false}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Live preview</Label>
+                  <div className="h-80 overflow-hidden rounded-lg border bg-white">
+                    <iframe
+                      srcDoc={debouncedHtml}
+                      className="h-full w-full border-0"
+                      title="Live template preview"
+                      sandbox="allow-same-origin"
+                    />
+                  </div>
+                </div>
+              </div>
             </TabsContent>
             <TabsContent value="brevo">
               {brevoHtmlQuery.isLoading ? (
@@ -391,7 +421,7 @@ function TemplateEditorDialog({ template, onClose, onSuccess }: { template: Emai
             )}
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button disabled={saveMutation.isPending || editorTab !== "code"} onClick={() => saveMutation.mutate()}>
-              {saveMutation.isPending ? "Saving…" : "Save HTML"}
+              {saveMutation.isPending ? "Saving…" : "Save & sync to Brevo"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -420,15 +450,27 @@ function CreateTemplateDialog({ onClose, onSuccess }: { onClose: () => void; onS
   const [subject, setSubject] = useState("");
   const [slug, setSlug] = useState("");
   const [variables, setVariables] = useState("");
+  const [html, setHtml] = useState("");
+  const debouncedHtml = useDebouncedValue(html, 400);
 
   const createMutation = useMutation({
-    mutationFn: () => createEmailTemplate({
-      label,
-      subject,
-      slug: slug || undefined,
-      variables: variables.split(",").map((v) => v.trim()).filter(Boolean),
-    }),
-    onSuccess: () => { toast.success("Template created"); onSuccess(); },
+    mutationFn: async () => {
+      const created = await createEmailTemplate({
+        label,
+        subject,
+        slug: slug || undefined,
+        variables: variables.split(",").map((v) => v.trim()).filter(Boolean),
+      });
+      if (html.trim()) {
+        await saveEmailTemplateCodeHtml(created.ref, html);
+        await syncEmailTemplateBrevo(created.ref);
+      }
+      return created;
+    },
+    onSuccess: () => {
+      toast.success(html.trim() ? "Template created and synced to Brevo" : "Template created");
+      onSuccess();
+    },
     onError: (e) => toast.error((e as Error).message),
   });
 
@@ -438,27 +480,57 @@ function CreateTemplateDialog({ onClose, onSuccess }: { onClose: () => void; onS
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader><DialogTitle>New email template</DialogTitle></DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Label</Label>
-            <Input placeholder="My Custom Template" value={label} onChange={(e) => setLabel(e.target.value.slice(0, LIMITS.genericName.max))} maxLength={LIMITS.genericName.max} />
-            {labelErr && <p className="text-xs text-destructive">{labelErr}</p>}
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Label</Label>
+              <Input placeholder="My Custom Template" value={label} onChange={(e) => setLabel(e.target.value.slice(0, LIMITS.genericName.max))} maxLength={LIMITS.genericName.max} />
+              {labelErr && <p className="text-xs text-destructive">{labelErr}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Subject</Label>
+              <Input placeholder="Subject line" value={subject} onChange={(e) => setSubject(e.target.value.slice(0, LIMITS.emailSubject.max))} maxLength={LIMITS.emailSubject.max} />
+              {subjectErr && <p className="text-xs text-destructive">{subjectErr}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Slug (optional)</Label>
+              <Input placeholder="my-template" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, LIMITS.shortLinkSlug.max))} maxLength={LIMITS.shortLinkSlug.max} />
+              {slugErr && <p className="text-xs text-destructive">{slugErr}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Variables (comma-separated)</Label>
+              <Input placeholder="name, email, link" value={variables} onChange={(e) => setVariables(e.target.value.slice(0, LIMITS.genericNote.max))} maxLength={LIMITS.genericNote.max} />
+            </div>
+            <div className="space-y-2">
+              <Label>HTML (optional — leave blank to start from the default template)</Label>
+              <textarea
+                value={html}
+                onChange={(e) => setHtml(e.target.value.slice(0, LIMITS.emailBody.max))}
+                maxLength={LIMITS.emailBody.max}
+                className="w-full h-40 rounded-lg border bg-muted/20 font-mono text-xs p-3 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="<!DOCTYPE html>..."
+                spellCheck={false}
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label>Subject</Label>
-            <Input placeholder="Subject line" value={subject} onChange={(e) => setSubject(e.target.value.slice(0, LIMITS.emailSubject.max))} maxLength={LIMITS.emailSubject.max} />
-            {subjectErr && <p className="text-xs text-destructive">{subjectErr}</p>}
-          </div>
-          <div className="space-y-2">
-            <Label>Slug (optional)</Label>
-            <Input placeholder="my-template" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, LIMITS.shortLinkSlug.max))} maxLength={LIMITS.shortLinkSlug.max} />
-            {slugErr && <p className="text-xs text-destructive">{slugErr}</p>}
-          </div>
-          <div className="space-y-2">
-            <Label>Variables (comma-separated)</Label>
-            <Input placeholder="name, email, link" value={variables} onChange={(e) => setVariables(e.target.value.slice(0, LIMITS.genericNote.max))} maxLength={LIMITS.genericNote.max} />
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Live preview</Label>
+            <div className="h-full min-h-[22rem] overflow-hidden rounded-lg border bg-white">
+              {debouncedHtml.trim() ? (
+                <iframe
+                  srcDoc={debouncedHtml}
+                  className="h-full w-full border-0"
+                  title="Live template preview"
+                  sandbox="allow-same-origin"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  Write HTML to see a live preview.
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <DialogFooter>

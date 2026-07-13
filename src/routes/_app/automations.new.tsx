@@ -777,6 +777,7 @@ function TriggerBlockFields({
             <KeywordSuggest
               sourceText={block.dmMessage}
               onPick={(kw) => onChange({ keyword: kw })}
+              persistId={block.id}
             />
           </div>
           <p className="text-[11px] text-muted-foreground">
@@ -798,6 +799,7 @@ function TriggerBlockFields({
                 currentValue={block.replyMessage}
                 keyword={block.keyword}
                 onApply={(msg) => onChange({ replyMessage: msg.slice(0, LIMITS.replyMessage.max) })}
+                persistId={block.id}
               />
             </div>
             <Textarea
@@ -819,6 +821,7 @@ function TriggerBlockFields({
               currentValue={block.dmMessage}
               keyword={block.keyword}
               onApply={(msg) => onChange({ dmMessage: msg.slice(0, LIMITS.dmMessage.max) })}
+              persistId={block.id}
             />
           </div>
           <Textarea

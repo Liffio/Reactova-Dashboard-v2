@@ -5,7 +5,7 @@ import { CheckCircle2, Mail, ShieldAlert, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { ProtectedRoute } from "@/components/auth/guards";
+import { PlatformAdminRoute } from "@/components/auth/guards";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,9 +31,9 @@ export const Route = createFileRoute("/_app/admin/creators")({
 
 function AdminCreatorsRoute() {
   return (
-    <ProtectedRoute module="creatorProgram">
+    <PlatformAdminRoute>
       <AdminCreatorsPage />
-    </ProtectedRoute>
+    </PlatformAdminRoute>
   );
 }
 

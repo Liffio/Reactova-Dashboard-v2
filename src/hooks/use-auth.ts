@@ -17,6 +17,7 @@ import {
 } from "@/lib/api/auth-api";
 import { authStore, useAuthState } from "@/lib/auth/auth-store";
 import { clearStoredActiveWorkspaceId } from "@/lib/workspace-preference";
+import { clearLyraPersisted } from "@/lib/lyra-persist";
 
 export function useAuth() {
   const user = useAuthState((s) => s.user);
@@ -122,6 +123,7 @@ export function useLogoutMutation() {
     mutationFn: logout,
     onSuccess: () => {
       clearStoredActiveWorkspaceId(userId);
+      clearLyraPersisted(userId);
       authStore.clear();
     },
   });

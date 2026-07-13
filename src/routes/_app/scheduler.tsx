@@ -822,7 +822,7 @@ const FORM_DEFAULTS: FormState = {
 };
 
 function SchedulerPage() {
-  const { current } = useApp();
+  const { current, user } = useApp();
   const workspaceId = current.id;
   const queryClient = useQueryClient();
 
@@ -888,6 +888,7 @@ function SchedulerPage() {
   const insights = useLyraInsights({
     task: "insight",
     workspaceId,
+    userId: user?.id,
     input: { focus: "growth_analysis" },
     queryKeyExtra: ["scheduler"],
   });

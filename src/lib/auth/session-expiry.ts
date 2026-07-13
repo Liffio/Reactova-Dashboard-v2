@@ -13,6 +13,7 @@ import { ApiError } from "@/lib/api/http";
 import { logout, refreshAccessToken } from "@/lib/api/auth-api";
 import { flushAllAutosaves } from "@/lib/autosave-registry";
 import { clearStoredActiveWorkspaceId } from "@/lib/workspace-preference";
+import { clearLyraPersisted } from "@/lib/lyra-persist";
 
 export { SESSION_EXPIRED_EVENT } from "@/lib/session-events";
 
@@ -50,6 +51,7 @@ export async function forceSessionLogout(reason: SessionEndReason = "expired"): 
   const userId = authStore.getState().user?.id;
   await flushAllAutosaves();
   clearStoredActiveWorkspaceId(userId);
+  clearLyraPersisted(userId);
   authStore.clear();
   void logout().catch(() => undefined);
 

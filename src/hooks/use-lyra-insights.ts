@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { callLyra, type LyraError, type LyraTaskMap } from "@/lib/api/lyra-api";
+import { lyraStorageKey, readLyraPersisted, writeLyraPersisted } from "@/lib/lyra-persist";
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
@@ -20,11 +21,14 @@ type InsightsTask = "insight" | "analytics";
 export function useLyraInsights<K extends InsightsTask>({
   task,
   workspaceId,
+  userId,
   input,
   queryKeyExtra = [],
 }: {
   task: K;
   workspaceId: string;
+  /** Any stable per-account identifier (e.g. email) — scopes persisted state so a relogin as a different account never surfaces stale content. */
+  userId?: string | null;
   input: LyraTaskMap[K]["input"];
   queryKeyExtra?: unknown[];
 }) {
@@ -35,6 +39,10 @@ export function useLyraInsights<K extends InsightsTask>({
     // queryKeyExtra is compared by its serialized form, not identity, since callers pass array literals inline
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [task, workspaceId, queryKeyExtraJson],
+  );
+  const persistKey = useMemo(
+    () => lyraStorageKey(userId, workspaceId, `insights:${task}:${queryKeyExtraJson}`),
+    [userId, workspaceId, task, queryKeyExtraJson],
   );
 
   const query = useQuery<LyraTaskMap[K]["output"], LyraError>({
@@ -49,7 +57,21 @@ export function useLyraInsights<K extends InsightsTask>({
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
     retry: false,
+    // Shows the last persisted result instantly on mount (refresh/relogin)
+    // instead of a blank loading state, while still fetching fresh data in
+    // the background — placeholderData never marks the query as "fresh".
+    // Cast: TS can't distribute react-query's NonFunctionGuard over the
+    // unresolved generic K here; the runtime type is correct via the
+    // explicit useQuery<LyraTaskMap[K]["output"], LyraError> above.
+    placeholderData: (() =>
+      readLyraPersisted<LyraTaskMap[K]["output"]>(persistKey) ?? undefined) as never,
   });
+
+  useEffect(() => {
+    if (query.data && !query.isPlaceholderData) {
+      writeLyraPersisted(persistKey, query.data);
+    }
+  }, [query.data, query.isPlaceholderData, persistKey]);
 
   const [refreshCooldownUntil, setRefreshCooldownUntil] = useState<number | null>(null);
   const [resyncCooldownUntil, setResyncCooldownUntil] = useState<number | null>(null);

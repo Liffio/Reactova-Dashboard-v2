@@ -22,6 +22,8 @@ import {
   persistActiveWorkspaceId,
   readStoredActiveWorkspaceId,
 } from "@/lib/workspace-preference";
+import { clearLyraPersisted } from "@/lib/lyra-persist";
+import { safeIdentify } from "@/lib/analytics";
 import {
   authStore,
   useAuthState,
@@ -47,7 +49,7 @@ export interface Workspace {
 }
 
 interface AppCtx {
-  user: { name: string; email: string } | null;
+  user: { id: string; name: string; email: string } | null;
   workspaces: Workspace[];
   workspacesLoading: boolean;
   current: Workspace;
@@ -190,8 +192,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (authMeQuery.error) {
       authStore.clear();
       clearStoredActiveWorkspaceId(authUser?.id);
+      clearLyraPersisted(authUser?.id);
     }
   }, [authMeQuery.data, authMeQuery.error, authUser?.id, selectedWorkspaceId]);
+
+  // Link this session to the pre-signup marketing-site session in Umami.
+  // safeIdentify no-ops once the same user id has already been identified,
+  // so re-running (workspace switch, token refresh) is harmless.
+  useEffect(() => {
+    if (authUser?.id) {
+      safeIdentify(authUser.id);
+    }
+  }, [authUser?.id]);
 
   const current = useMemo(
     () =>
@@ -247,7 +259,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const ctxValue = useMemo<AppCtx>(
     () => ({
-      user: authUser ? { name: authUser.name, email: authUser.email } : null,
+      user: authUser ? { id: authUser.id, name: authUser.name, email: authUser.email } : null,
       workspaces,
       workspacesLoading: workspacesQuery.isLoading,
       current,

@@ -125,6 +125,16 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
         {/* Anti-flash: apply stored theme before first paint */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script
+          defer
+          src="https://umami-analytics-rkhr.srv1772252.hstgr.cloud/script.js"
+          data-website-id="2e8812e6-33e7-4cf1-8cb4-25f074a36b0f"
+        />
+        <script
+          defer
+          src="https://umami-analytics-rkhr.srv1772252.hstgr.cloud/recorder.js"
+          data-website-id="2e8812e6-33e7-4cf1-8cb4-25f074a36b0f"
+        />
       </head>
       <body>
         {children}

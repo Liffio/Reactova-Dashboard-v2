@@ -40,7 +40,10 @@ import { Route as AuthGoogleCompleteRouteImport } from './routes/auth.google.com
 import { Route as AppAutomationsNewRouteImport } from './routes/_app/automations.new'
 import { Route as AppAdminEmailTemplatesRouteImport } from './routes/_app/admin.email-templates'
 import { Route as AppAdminCreatorsRouteImport } from './routes/_app/admin.creators'
+import { Route as AppAdminCreatorManagementRouteImport } from './routes/_app/admin.creator-management'
 import { Route as AppAdminAffiliatesRouteImport } from './routes/_app/admin.affiliates'
+import { Route as AppAdminCreatorsProfileIdRouteImport } from './routes/_app/admin.creators.$profileId'
+import { Route as AppAdminCreatorManagementProfileIdRouteImport } from './routes/_app/admin.creator-management.$profileId'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -196,11 +199,29 @@ const AppAdminCreatorsRoute = AppAdminCreatorsRouteImport.update({
   path: '/admin/creators',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminCreatorManagementRoute =
+  AppAdminCreatorManagementRouteImport.update({
+    id: '/admin/creator-management',
+    path: '/admin/creator-management',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppAdminAffiliatesRoute = AppAdminAffiliatesRouteImport.update({
   id: '/admin/affiliates',
   path: '/admin/affiliates',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminCreatorsProfileIdRoute =
+  AppAdminCreatorsProfileIdRouteImport.update({
+    id: '/$profileId',
+    path: '/$profileId',
+    getParentRoute: () => AppAdminCreatorsRoute,
+  } as any)
+const AppAdminCreatorManagementProfileIdRoute =
+  AppAdminCreatorManagementProfileIdRouteImport.update({
+    id: '/$profileId',
+    path: '/$profileId',
+    getParentRoute: () => AppAdminCreatorManagementRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -228,12 +249,15 @@ export interface FileRoutesByFullPath {
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
-  '/admin/creators': typeof AppAdminCreatorsRoute
+  '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
+  '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/automations/new': typeof AppAutomationsNewRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
   '/automations/': typeof AppAutomationsIndexRoute
+  '/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
+  '/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -261,12 +285,15 @@ export interface FileRoutesByTo {
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
-  '/admin/creators': typeof AppAdminCreatorsRoute
+  '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
+  '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/automations/new': typeof AppAutomationsNewRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
   '/automations': typeof AppAutomationsIndexRoute
+  '/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
+  '/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -296,12 +323,15 @@ export interface FileRoutesById {
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/_app/admin/affiliates': typeof AppAdminAffiliatesRoute
-  '/_app/admin/creators': typeof AppAdminCreatorsRoute
+  '/_app/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
+  '/_app/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/_app/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/_app/automations/new': typeof AppAutomationsNewRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
   '/_app/automations/': typeof AppAutomationsIndexRoute
+  '/_app/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
+  '/_app/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -331,12 +361,15 @@ export interface FileRouteTypes {
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
+    | '/admin/creator-management'
     | '/admin/creators'
     | '/admin/email-templates'
     | '/automations/new'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
     | '/automations/'
+    | '/admin/creator-management/$profileId'
+    | '/admin/creators/$profileId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -364,12 +397,15 @@ export interface FileRouteTypes {
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
+    | '/admin/creator-management'
     | '/admin/creators'
     | '/admin/email-templates'
     | '/automations/new'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
     | '/automations'
+    | '/admin/creator-management/$profileId'
+    | '/admin/creators/$profileId'
   id:
     | '__root__'
     | '/'
@@ -398,12 +434,15 @@ export interface FileRouteTypes {
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/_app/admin/affiliates'
+    | '/_app/admin/creator-management'
     | '/_app/admin/creators'
     | '/_app/admin/email-templates'
     | '/_app/automations/new'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
     | '/_app/automations/'
+    | '/_app/admin/creator-management/$profileId'
+    | '/_app/admin/creators/$profileId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -641,6 +680,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminCreatorsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/creator-management': {
+      id: '/_app/admin/creator-management'
+      path: '/admin/creator-management'
+      fullPath: '/admin/creator-management'
+      preLoaderRoute: typeof AppAdminCreatorManagementRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/admin/affiliates': {
       id: '/_app/admin/affiliates'
       path: '/admin/affiliates'
@@ -648,8 +694,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminAffiliatesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/creators/$profileId': {
+      id: '/_app/admin/creators/$profileId'
+      path: '/$profileId'
+      fullPath: '/admin/creators/$profileId'
+      preLoaderRoute: typeof AppAdminCreatorsProfileIdRouteImport
+      parentRoute: typeof AppAdminCreatorsRoute
+    }
+    '/_app/admin/creator-management/$profileId': {
+      id: '/_app/admin/creator-management/$profileId'
+      path: '/$profileId'
+      fullPath: '/admin/creator-management/$profileId'
+      preLoaderRoute: typeof AppAdminCreatorManagementProfileIdRouteImport
+      parentRoute: typeof AppAdminCreatorManagementRoute
+    }
   }
 }
+
+interface AppAdminCreatorManagementRouteChildren {
+  AppAdminCreatorManagementProfileIdRoute: typeof AppAdminCreatorManagementProfileIdRoute
+}
+
+const AppAdminCreatorManagementRouteChildren: AppAdminCreatorManagementRouteChildren =
+  {
+    AppAdminCreatorManagementProfileIdRoute:
+      AppAdminCreatorManagementProfileIdRoute,
+  }
+
+const AppAdminCreatorManagementRouteWithChildren =
+  AppAdminCreatorManagementRoute._addFileChildren(
+    AppAdminCreatorManagementRouteChildren,
+  )
+
+interface AppAdminCreatorsRouteChildren {
+  AppAdminCreatorsProfileIdRoute: typeof AppAdminCreatorsProfileIdRoute
+}
+
+const AppAdminCreatorsRouteChildren: AppAdminCreatorsRouteChildren = {
+  AppAdminCreatorsProfileIdRoute: AppAdminCreatorsProfileIdRoute,
+}
+
+const AppAdminCreatorsRouteWithChildren =
+  AppAdminCreatorsRoute._addFileChildren(AppAdminCreatorsRouteChildren)
 
 interface AppRouteChildren {
   AppAffiliateRoute: typeof AppAffiliateRoute
@@ -667,7 +753,8 @@ interface AppRouteChildren {
   AppShortLinksRoute: typeof AppShortLinksRoute
   AppTeamRoute: typeof AppTeamRoute
   AppAdminAffiliatesRoute: typeof AppAdminAffiliatesRoute
-  AppAdminCreatorsRoute: typeof AppAdminCreatorsRoute
+  AppAdminCreatorManagementRoute: typeof AppAdminCreatorManagementRouteWithChildren
+  AppAdminCreatorsRoute: typeof AppAdminCreatorsRouteWithChildren
   AppAdminEmailTemplatesRoute: typeof AppAdminEmailTemplatesRoute
   AppAutomationsNewRoute: typeof AppAutomationsNewRoute
   AppAutomationsIndexRoute: typeof AppAutomationsIndexRoute
@@ -689,7 +776,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppShortLinksRoute: AppShortLinksRoute,
   AppTeamRoute: AppTeamRoute,
   AppAdminAffiliatesRoute: AppAdminAffiliatesRoute,
-  AppAdminCreatorsRoute: AppAdminCreatorsRoute,
+  AppAdminCreatorManagementRoute: AppAdminCreatorManagementRouteWithChildren,
+  AppAdminCreatorsRoute: AppAdminCreatorsRouteWithChildren,
   AppAdminEmailTemplatesRoute: AppAdminEmailTemplatesRoute,
   AppAutomationsNewRoute: AppAutomationsNewRoute,
   AppAutomationsIndexRoute: AppAutomationsIndexRoute,

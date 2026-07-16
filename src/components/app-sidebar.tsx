@@ -19,6 +19,7 @@ import {
   BookOpen,
   Sparkles,
   ClipboardCheck,
+  Database,
 } from "lucide-react";
 
 import {
@@ -91,6 +92,7 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
       { title: "Email templates", url: "/admin/email-templates", icon: Mail },
       { title: "Affiliates", url: "/admin/affiliates", icon: Handshake },
       { title: "Creator Applications", url: "/admin/creators", icon: ClipboardCheck },
+      { title: "Creator Management", url: "/admin/creator-management", icon: Database },
     ],
   },
 ];

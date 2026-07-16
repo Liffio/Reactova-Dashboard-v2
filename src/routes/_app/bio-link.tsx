@@ -71,7 +71,7 @@ import {
 } from "@/lib/api/biolink-api";
 import { useApp } from "@/state/app-context";
 import { LIMITS, lengthError, urlError } from "@/lib/validation";
-import { getCreatorProgramStatus } from "@/lib/api/creator-program-api";
+import { getCreatorStatus } from "@/lib/api/creator-eligibility-api";
 import { BioTextAssist } from "@/components/lyra/bio-text-assist";
 
 export const Route = createFileRoute("/_app/bio-link")({
@@ -643,10 +643,10 @@ function BioLinkPage() {
   });
 
   const creatorProgramStatusQuery = useQuery({
-    queryKey: ["creator-program-status"],
-    queryFn: getCreatorProgramStatus,
+    queryKey: ["creator-eligibility-status"],
+    queryFn: getCreatorStatus,
   });
-  const isCreatorProgramMember = creatorProgramStatusQuery.data?.state === "member";
+  const isCreatorProgramMember = creatorProgramStatusQuery.data?.state === "Active";
 
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: ["biolink", workspaceId] });

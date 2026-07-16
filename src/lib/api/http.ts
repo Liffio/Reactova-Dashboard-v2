@@ -29,10 +29,13 @@ export function resolveApiAssetUrl(pathOrUrl: string | null | undefined): string
 /** Thrown on any non-ok response; `code` carries the backend's machine-readable error code, if any. */
 export class ApiError extends Error {
   code?: string;
-  constructor(message: string, code?: string) {
+  /** HTTP status of the failed response, when known — lets callers distinguish e.g. 404 from other failures. */
+  status?: number;
+  constructor(message: string, code?: string, status?: number) {
     super(message);
     this.name = "ApiError";
     this.code = code;
+    this.status = status;
   }
 }
 
@@ -116,8 +119,7 @@ export type ApiUploadConfig = {
 };
 
 export async function apiRequest<T>(path: string, config: ApiRequestConfig = {}): Promise<T> {
-  const token =
-    config.token === null ? null : (config.token ?? authStore.getState().accessToken);
+  const token = config.token === null ? null : (config.token ?? authStore.getState().accessToken);
   const method = config.method ?? "GET";
   const isPublicGet =
     method === "GET" &&
@@ -162,7 +164,7 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
     if (isAuthFailure && token) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
-    throw new ApiError(formatApiErrorBody(payload), code);
+    throw new ApiError(formatApiErrorBody(payload), code, res.status);
   }
 
   if (res.status === 204) {
@@ -175,7 +177,7 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
 export async function apiUploadRequest<T>(
   path: string,
   formData: FormData,
-  config: ApiUploadConfig = {}
+  config: ApiUploadConfig = {},
 ): Promise<T> {
   const token = config.token ?? authStore.getState().accessToken;
 

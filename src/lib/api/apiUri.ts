@@ -9,6 +9,14 @@
 
 const V1 = "/api/v1";
 
+/**
+ * Creator Eligibility System — deliberately versioned separately from the
+ * rest of the API (`/api/creator/v1/...` not `/api/v1/creators`), per
+ * ENDPOINT-CONTRACT.md §1.1, so a future `/api/creator/v2/...` can ship
+ * without forcing a synchronized frontend/backend deploy.
+ */
+const CREATOR_V1 = "/api/creator/v1";
+
 export const apiUri = {
   auth: {
     register: `${V1}/auth/register`,
@@ -152,9 +160,11 @@ export const apiUri = {
     kycSubmit: `${V1}/affiliate/kyc/submit`,
   },
 
-  creators: {
-    apply: `${V1}/creators/apply`,
-    status: `${V1}/creators/status`,
+  creator: {
+    status: `${CREATOR_V1}/status`,
+    profile: `${CREATOR_V1}/profile`,
+    apply: `${CREATOR_V1}/apply`,
+    thresholds: `${CREATOR_V1}/thresholds`,
   },
 
   agency: {
@@ -233,15 +243,82 @@ export const apiUri = {
       kycApprove: (submissionId: string) => `${V1}/admin/affiliate/kyc/${submissionId}/approve`,
       kycReject: (submissionId: string) => `${V1}/admin/affiliate/kyc/${submissionId}/reject`,
     },
-    creators: {
-      applications: (status?: string) =>
-        `${V1}/creators-admin/applications${status ? `?status=${encodeURIComponent(status)}` : ""}`,
-      approve: (id: string) => `${V1}/creators-admin/applications/${id}/approve`,
-      reject: (id: string) => `${V1}/creators-admin/applications/${id}/reject`,
-      members: (status?: string) =>
-        `${V1}/creators-admin/members${status ? `?status=${encodeURIComponent(status)}` : ""}`,
-      sendNotice: (id: string) => `${V1}/creators-admin/members/${id}/send-notice`,
-      remove: (id: string) => `${V1}/creators-admin/members/${id}/remove`,
+    creator: {
+      applications: (params: { page?: number; limit?: number; state?: string } = {}) => {
+        const qs = new URLSearchParams();
+        if (params.page) qs.set("page", String(params.page));
+        if (params.limit) qs.set("limit", String(params.limit));
+        if (params.state) qs.set("state", params.state);
+        const suffix = qs.toString();
+        return `${CREATOR_V1}/admin/applications${suffix ? `?${suffix}` : ""}`;
+      },
+      application: (id: string) => `${CREATOR_V1}/admin/applications/${id}`,
+      approve: (id: string) => `${CREATOR_V1}/admin/applications/${id}/approve`,
+      reject: (id: string) => `${CREATOR_V1}/admin/applications/${id}/reject`,
+      overview: `${CREATOR_V1}/admin/overview`,
+      creator: (profileId: string) => `${CREATOR_V1}/admin/creators/${profileId}`,
+      override: (profileId: string) => `${CREATOR_V1}/admin/creators/${profileId}/override`,
+      settings: `${CREATOR_V1}/admin/settings`,
+      // Phase 6 — Creator Management Dashboard (ENDPOINT-CONTRACT.md §6)
+      list: (params: { limit?: number; cursor?: string; search?: string; state?: string } = {}) => {
+        const qs = new URLSearchParams();
+        if (params.limit) qs.set("limit", String(params.limit));
+        if (params.cursor) qs.set("cursor", params.cursor);
+        if (params.search) qs.set("search", params.search);
+        if (params.state) qs.set("state", params.state);
+        const suffix = qs.toString();
+        return `${CREATOR_V1}/admin/creators${suffix ? `?${suffix}` : ""}`;
+      },
+      pause: (profileId: string) => `${CREATOR_V1}/admin/creators/${profileId}/pause`,
+      reactivate: (profileId: string) => `${CREATOR_V1}/admin/creators/${profileId}/reactivate`,
+      remove: (profileId: string) => `${CREATOR_V1}/admin/creators/${profileId}/remove`,
+      forceEligibilityCheck: (profileId: string) =>
+        `${CREATOR_V1}/admin/creators/${profileId}/force-eligibility-check`,
+      forceHealthCheck: (profileId: string) =>
+        `${CREATOR_V1}/admin/creators/${profileId}/force-health-check`,
+      forceMetricsSync: (profileId: string) =>
+        `${CREATOR_V1}/admin/creators/${profileId}/force-metrics-sync`,
+      plan: (profileId: string) => `${CREATOR_V1}/admin/creators/${profileId}/plan`,
+      notes: (profileId: string) => `${CREATOR_V1}/admin/creators/${profileId}/notes`,
+      bulk: (
+        action: "pause" | "reactivate" | "force-health-check" | "force-metrics-sync" | "export",
+        params: { state?: string; search?: string } = {},
+      ) => {
+        const qs = new URLSearchParams();
+        if (params.state) qs.set("state", params.state);
+        if (params.search) qs.set("search", params.search);
+        const suffix = qs.toString();
+        return `${CREATOR_V1}/admin/creators/bulk/${action}${suffix ? `?${suffix}` : ""}`;
+      },
+      analytics: `${CREATOR_V1}/admin/analytics`,
+      // Section 7 additions (ENDPOINT-CONTRACT.md §7)
+      waitlist: (params: { limit?: number; cursor?: string } = {}) => {
+        const qs = new URLSearchParams();
+        if (params.limit) qs.set("limit", String(params.limit));
+        if (params.cursor) qs.set("cursor", params.cursor);
+        const suffix = qs.toString();
+        return `${CREATOR_V1}/admin/waitlist${suffix ? `?${suffix}` : ""}`;
+      },
+      auditLog: (
+        params: {
+          creatorProfileId?: string;
+          decisionType?: string;
+          from?: string;
+          to?: string;
+          limit?: number;
+          cursor?: string;
+        } = {},
+      ) => {
+        const qs = new URLSearchParams();
+        if (params.creatorProfileId) qs.set("creatorProfileId", params.creatorProfileId);
+        if (params.decisionType) qs.set("decisionType", params.decisionType);
+        if (params.from) qs.set("from", params.from);
+        if (params.to) qs.set("to", params.to);
+        if (params.limit) qs.set("limit", String(params.limit));
+        if (params.cursor) qs.set("cursor", params.cursor);
+        const suffix = qs.toString();
+        return `${CREATOR_V1}/admin/audit-log${suffix ? `?${suffix}` : ""}`;
+      },
     },
   },
 

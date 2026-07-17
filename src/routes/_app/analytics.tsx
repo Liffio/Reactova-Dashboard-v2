@@ -153,23 +153,23 @@ function AnalyticsPage() {
                 label="DMs sent"
                 value={formatNum(data?.summary.totalDmsSent ?? 0)}
                 icon={MessageCircle}
-                hint={`${((data?.summary.dmDeliveryRate ?? 0) * 100).toFixed(1)}% delivered`}
+                hint={`${(data?.summary.dmDeliveryRate ?? 0).toFixed(1)}% delivered`}
               />
               <StatCard
                 label="Link clicks"
                 value={formatNum(data?.summary.totalLinkClicks ?? 0)}
                 icon={MousePointerClick}
-                hint={`${((data?.rates.clickRate ?? 0) * 100).toFixed(1)}% click rate`}
+                hint={`${(data?.rates.clickRate ?? 0).toFixed(1)}% click rate`}
               />
               <StatCard
                 label="Leads captured"
                 value={formatNum(data?.summary.leadsCaptured ?? 0)}
                 icon={UserPlus}
-                hint={`${((data?.rates.leadRate ?? 0) * 100).toFixed(1)}% lead rate`}
+                hint={`${(data?.rates.leadRate ?? 0).toFixed(1)}% lead rate`}
               />
               <StatCard
                 label="Conversion rate"
-                value={`${((data?.summary.conversionRate ?? 0) * 100).toFixed(1)}%`}
+                value={`${(data?.summary.conversionRate ?? 0).toFixed(1)}%`}
                 icon={TrendingUp}
                 hint="DM → click"
               />
@@ -285,7 +285,7 @@ function AnalyticsPage() {
                   ] as Array<[string, number]>
                 ).map(([stage, value], i, all) => {
                   const max = all[0][1] || 1;
-                  const pct = (value / max) * 100;
+                  const pct = Math.min((value / max) * 100, 100);
                   return (
                     <div key={stage}>
                       <div className="mb-1 flex items-center justify-between text-xs">
@@ -371,7 +371,7 @@ function AnalyticsPage() {
                       {formatNum(row.leadsCaptured)}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
-                      {(row.conversionRate * 100).toFixed(1)}%
+                      {row.conversionRate.toFixed(1)}%
                     </td>
                     <td className="px-6 py-3 text-right">
                       <Badge variant="outline" className={roiStyles[row.roiBand]}>

@@ -320,6 +320,54 @@ export const apiUri = {
         return `${CREATOR_V1}/admin/audit-log${suffix ? `?${suffix}` : ""}`;
       },
     },
+    aiTokens: {
+      settings: `${V1}/admin/ai-tokens/settings`,
+      plans: `${V1}/admin/ai-tokens/plans`,
+      plan: (planKey: string) => `${V1}/admin/ai-tokens/plans/${planKey}`,
+      features: `${V1}/admin/ai-tokens/features`,
+      feature: (featureKey: string) =>
+        `${V1}/admin/ai-tokens/features/${encodeURIComponent(featureKey)}`,
+      workspaces: (
+        params: {
+          limit?: number;
+          offset?: number;
+          workspaceId?: string;
+          sortBy?: "consumed" | "percent" | "remaining";
+        } = {},
+      ) => {
+        const qs = new URLSearchParams();
+        if (params.limit) qs.set("limit", String(params.limit));
+        if (params.offset) qs.set("offset", String(params.offset));
+        if (params.workspaceId) qs.set("workspaceId", params.workspaceId);
+        if (params.sortBy) qs.set("sortBy", params.sortBy);
+        const suffix = qs.toString();
+        return `${V1}/admin/ai-tokens/workspaces${suffix ? `?${suffix}` : ""}`;
+      },
+      workspaceLedger: (workspaceId: string) =>
+        `${V1}/admin/ai-tokens/workspaces/${workspaceId}/ledger`,
+      workspaceGrant: (workspaceId: string) =>
+        `${V1}/admin/ai-tokens/workspaces/${workspaceId}/grant`,
+      ledger: (
+        params: {
+          workspaceId?: string;
+          entryType?: string;
+          from?: string;
+          to?: string;
+          limit?: number;
+          offset?: number;
+        } = {},
+      ) => {
+        const qs = new URLSearchParams();
+        if (params.workspaceId) qs.set("workspaceId", params.workspaceId);
+        if (params.entryType) qs.set("entryType", params.entryType);
+        if (params.from) qs.set("from", params.from);
+        if (params.to) qs.set("to", params.to);
+        if (params.limit) qs.set("limit", String(params.limit));
+        if (params.offset) qs.set("offset", String(params.offset));
+        const suffix = qs.toString();
+        return `${V1}/admin/ai-tokens/ledger${suffix ? `?${suffix}` : ""}`;
+      },
+    },
   },
 
   marketing: {
@@ -336,5 +384,9 @@ export const apiUri = {
 
   liffio: {
     lyra: `${V1}/liffio/Lyra`,
+  },
+
+  aiTokens: {
+    balance: `${V1}/ai-tokens/balance`,
   },
 } as const;

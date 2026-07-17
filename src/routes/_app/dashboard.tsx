@@ -15,6 +15,7 @@ import { motion } from "framer-motion";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { TokenMeter } from "@/components/dashboard/token-meter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -173,10 +174,10 @@ function DashboardPage() {
           variants={staggerContainer}
           initial="hidden"
           animate="show"
-          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
         >
           {dashboardQuery.isLoading ? (
-            Array.from({ length: 4 }).map((_, i) => (
+            Array.from({ length: 5 }).map((_, i) => (
               <motion.div key={i} variants={staggerItem}>
                 <Skeleton className="h-32 rounded-2xl" />
               </motion.div>
@@ -218,6 +219,9 @@ function DashboardPage() {
                   icon={MousePointerClick}
                   hint="vs. last month"
                 />
+              </motion.div>
+              <motion.div variants={staggerItem}>
+                <TokenMeter workspaceId={workspaceId} />
               </motion.div>
             </>
           )}

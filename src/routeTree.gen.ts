@@ -32,6 +32,7 @@ import { Route as AppBioLinkRouteImport } from './routes/_app/bio-link'
 import { Route as AppBillingsRouteImport } from './routes/_app/billings'
 import { Route as AppApiDocsRouteImport } from './routes/_app/api-docs'
 import { Route as AppAnalyticsRouteImport } from './routes/_app/analytics'
+import { Route as AppAiTokensMasterRouteImport } from './routes/_app/ai-tokens-master'
 import { Route as AppAgencyRouteImport } from './routes/_app/agency'
 import { Route as AppAffiliateRouteImport } from './routes/_app/affiliate'
 import { Route as AppAutomationsIndexRouteImport } from './routes/_app/automations.index'
@@ -159,6 +160,11 @@ const AppAnalyticsRoute = AppAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAiTokensMasterRoute = AppAiTokensMasterRouteImport.update({
+  id: '/ai-tokens-master',
+  path: '/ai-tokens-master',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAgencyRoute = AppAgencyRouteImport.update({
   id: '/agency',
   path: '/agency',
@@ -234,6 +240,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/affiliate': typeof AppAffiliateRoute
   '/agency': typeof AppAgencyRoute
+  '/ai-tokens-master': typeof AppAiTokensMasterRoute
   '/analytics': typeof AppAnalyticsRoute
   '/api-docs': typeof AppApiDocsRoute
   '/billings': typeof AppBillingsRoute
@@ -270,6 +277,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/affiliate': typeof AppAffiliateRoute
   '/agency': typeof AppAgencyRoute
+  '/ai-tokens-master': typeof AppAiTokensMasterRoute
   '/analytics': typeof AppAnalyticsRoute
   '/api-docs': typeof AppApiDocsRoute
   '/billings': typeof AppBillingsRoute
@@ -308,6 +316,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/_app/affiliate': typeof AppAffiliateRoute
   '/_app/agency': typeof AppAgencyRoute
+  '/_app/ai-tokens-master': typeof AppAiTokensMasterRoute
   '/_app/analytics': typeof AppAnalyticsRoute
   '/_app/api-docs': typeof AppApiDocsRoute
   '/_app/billings': typeof AppBillingsRoute
@@ -346,6 +355,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/affiliate'
     | '/agency'
+    | '/ai-tokens-master'
     | '/analytics'
     | '/api-docs'
     | '/billings'
@@ -382,6 +392,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/affiliate'
     | '/agency'
+    | '/ai-tokens-master'
     | '/analytics'
     | '/api-docs'
     | '/billings'
@@ -419,6 +430,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/_app/affiliate'
     | '/_app/agency'
+    | '/_app/ai-tokens-master'
     | '/_app/analytics'
     | '/_app/api-docs'
     | '/_app/billings'
@@ -624,6 +636,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAnalyticsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/ai-tokens-master': {
+      id: '/_app/ai-tokens-master'
+      path: '/ai-tokens-master'
+      fullPath: '/ai-tokens-master'
+      preLoaderRoute: typeof AppAiTokensMasterRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/agency': {
       id: '/_app/agency'
       path: '/agency'
@@ -740,6 +759,7 @@ const AppAdminCreatorsRouteWithChildren =
 interface AppRouteChildren {
   AppAffiliateRoute: typeof AppAffiliateRoute
   AppAgencyRoute: typeof AppAgencyRoute
+  AppAiTokensMasterRoute: typeof AppAiTokensMasterRoute
   AppAnalyticsRoute: typeof AppAnalyticsRoute
   AppApiDocsRoute: typeof AppApiDocsRoute
   AppBillingsRoute: typeof AppBillingsRoute
@@ -763,6 +783,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAffiliateRoute: AppAffiliateRoute,
   AppAgencyRoute: AppAgencyRoute,
+  AppAiTokensMasterRoute: AppAiTokensMasterRoute,
   AppAnalyticsRoute: AppAnalyticsRoute,
   AppApiDocsRoute: AppApiDocsRoute,
   AppBillingsRoute: AppBillingsRoute,

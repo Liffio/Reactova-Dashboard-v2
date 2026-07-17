@@ -20,6 +20,7 @@ import {
   Sparkles,
   ClipboardCheck,
   Database,
+  Coins,
 } from "lucide-react";
 
 import {
@@ -93,6 +94,7 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
       { title: "Affiliates", url: "/admin/affiliates", icon: Handshake },
       { title: "Creator Applications", url: "/admin/creators", icon: ClipboardCheck },
       { title: "Creator Management", url: "/admin/creator-management", icon: Database },
+      { title: "AI Tokens", url: "/ai-tokens-master", icon: Coins },
     ],
   },
 ];

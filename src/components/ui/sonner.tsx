@@ -18,12 +18,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
           actionButton: "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
           cancelButton: "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
           success:
-            "group-[.toaster]:!bg-success/10 group-[.toaster]:!border-l-success group-[.toaster]:[&_svg]:text-success",
+            "group-[.toaster]:![background-color:color-mix(in_oklch,var(--success)_12%,var(--card))] group-[.toaster]:!border-l-success group-[.toaster]:[&_svg]:text-success",
           error:
-            "group-[.toaster]:!bg-destructive/10 group-[.toaster]:!border-l-destructive group-[.toaster]:[&_svg]:text-destructive",
+            "group-[.toaster]:![background-color:color-mix(in_oklch,var(--destructive)_12%,var(--card))] group-[.toaster]:!border-l-destructive group-[.toaster]:[&_svg]:text-destructive",
           warning:
-            "group-[.toaster]:!bg-warning/10 group-[.toaster]:!border-l-warning group-[.toaster]:[&_svg]:text-warning",
-          info: "group-[.toaster]:!bg-primary/10 group-[.toaster]:!border-l-primary group-[.toaster]:[&_svg]:text-primary",
+            "group-[.toaster]:![background-color:color-mix(in_oklch,var(--warning)_14%,var(--card))] group-[.toaster]:!border-l-warning group-[.toaster]:[&_svg]:text-warning",
+          info: "group-[.toaster]:![background-color:color-mix(in_oklch,var(--primary)_12%,var(--card))] group-[.toaster]:!border-l-primary group-[.toaster]:[&_svg]:text-primary",
         },
       }}
       {...props}

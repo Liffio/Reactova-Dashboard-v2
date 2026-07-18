@@ -33,6 +33,7 @@ import { loginPathWithRedirect } from "@/lib/auth/auth-navigation";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { useApp } from "@/state/app-context";
 import { formatDateTime } from "@/lib/format";
+import { CreatorAssistantBubble } from "@/components/creator-assistant/creator-assistant-bubble";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -378,6 +379,7 @@ function AppLayout() {
             </main>
           </div>
         </div>
+        <CreatorAssistantBubble />
       </SidebarProvider>
     </ProtectedRoute>
   );

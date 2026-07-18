@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertCircle, Check, RotateCcw, Sparkles, X } from "lucide-react";
+import { AlertCircle, ArrowUpCircle, Check, RotateCcw, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fadeIn, scaleIn } from "@/lib/motion";
 import type { LyraStatus } from "@/hooks/use-lyra";
@@ -204,7 +205,34 @@ export function LyraThinking({
         </motion.div>
       )}
 
-      {status === "error" && (
+      {status === "error" && error?.code === "AI_TOKEN_LIMIT_REACHED" && (
+        <motion.div
+          key="token-limit-error"
+          initial="hidden"
+          animate="show"
+          exit="hidden"
+          variants={scaleIn}
+          className={cn(
+            "flex flex-wrap items-center gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-warning",
+            text,
+            className,
+          )}
+        >
+          <ArrowUpCircle className="h-3.5 w-3.5 shrink-0" />
+          <span className="flex-1 min-w-[10rem]">
+            You've used all your Lyra AI tokens for this period.
+          </span>
+          <Link
+            to="/billings"
+            className="inline-flex items-center gap-1 rounded-full border border-warning/30 px-2 py-0.5 text-xs transition-colors hover:bg-warning/10"
+          >
+            <ArrowUpCircle className="h-3 w-3" />
+            Upgrade plan
+          </Link>
+        </motion.div>
+      )}
+
+      {status === "error" && error?.code !== "AI_TOKEN_LIMIT_REACHED" && (
         <motion.div
           key="error"
           initial="hidden"

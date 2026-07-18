@@ -158,7 +158,9 @@ jobs:
             # ── 1. Registry auth ─────────────────────────────────────────────────────
             # GHCR_PAT: GitHub classic PAT with read:packages scope, stored as repo secret.
             # GITHUB_TOKEN cannot be used here — it only authenticates inside Actions runners.
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            # Username must be the PAT owner's login — github.actor breaks when someone
+            # else pushes; set GHCR_USERNAME to the PAT creator's username to pin it.
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME || github.actor }}" --password-stdin
             echo "Logged in to ghcr.io"
 
             # ── 2. Pull new image ────────────────────────────────────────────────────

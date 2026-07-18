@@ -75,55 +75,173 @@ jobs:
     needs: validate
     environment: production
 
+    permissions:
+      contents: read
+      packages: write   # allows GITHUB_TOKEN to push to ghcr.io
+
+    env:
+      # Force Docker actions (login, buildx, build-push) to use Node 24 instead of the
+      # deprecated Node 20 runtime. Remove once upstream actions ship Node 24 builds natively.
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run deploy script
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          password: ${{ secrets.DEPLOY_PASSWORD }}
-          port: ${{ secrets.DEPLOY_PORT || '22' }}
-          timeout: 5m
-          command_timeout: 15m
-          script: bash "${{ secrets.DEPLOY_PATH }}/deploy/deploy.sh"
+      - name: Derive lowercase image name
+        # GHCR requires all-lowercase repository paths. github.repository_owner
+        # preserves the original casing (e.g. "Reactova"), which fails the push.
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "LIFFIO_IMAGE=ghcr.io/${OWNER}/liffio-frontend" >> "$GITHUB_ENV"
 
-      - name: Health check
-        uses: appleboy/ssh-action@v1.2.5
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.LIFFIO_IMAGE }}:${{ github.sha }}
+            ${{ env.LIFFIO_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Copy docker-compose.yml to droplet
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           password: ${{ secrets.DEPLOY_PASSWORD }}
           port: ${{ secrets.DEPLOY_PORT || '22' }}
+          source: docker-compose.yml
+          target: ${{ secrets.DEPLOY_PATH }}
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          # LIFFIO_IMAGE + IMAGE_TAG are computed values (not secrets) injected via envs: below.
+          LIFFIO_IMAGE: ${{ env.LIFFIO_IMAGE }}
+          IMAGE_TAG: ${{ github.sha }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          port: ${{ secrets.DEPLOY_PORT || '22' }}
+          envs: LIFFIO_IMAGE,IMAGE_TAG
+          timeout: 5m
+          command_timeout: 20m
           script: |
-            sleep 3
-            HTML=$(curl -s -w '\n%{http_code}' http://127.0.0.1:3000/)
-            STATUS=$(echo "$HTML" | tail -1)
-            BODY=$(echo "$HTML" | sed '$d')
-            if [ "$STATUS" != "200" ]; then
-              echo "Health check failed — HTTP $STATUS on /"
-              pm2 logs liffio-dashboard --lines 30 --nostream
+            set -euo pipefail
+
+            cd "${{ secrets.DEPLOY_PATH }}"
+
+            # LIFFIO_IMAGE and IMAGE_TAG are injected by the runner via envs:.
+            # Rollback: SSH in, set LIFFIO_IMAGE + IMAGE_TAG to a previous SHA, run docker compose up -d.
+
+            # ── 0. Ensure Docker is present (first deploy on this droplet installs it) ─
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "Docker not found — installing via get.docker.com..."
+              curl -fsSL https://get.docker.com | sh
+              systemctl enable --now docker
+            fi
+
+            # ── 1. Registry auth ─────────────────────────────────────────────────────
+            # GHCR_PAT: GitHub classic PAT with read:packages scope, stored as repo secret.
+            # GITHUB_TOKEN cannot be used here — it only authenticates inside Actions runners.
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            echo "Logged in to ghcr.io"
+
+            # ── 2. Pull new image ────────────────────────────────────────────────────
+            echo "Pulling ${LIFFIO_IMAGE}:${IMAGE_TAG}..."
+            docker compose pull
+            echo "Pull complete."
+
+            # ── 3. One-time takeover from the legacy PM2 deploy ──────────────────────
+            # The old pipeline ran server-start.mjs under PM2 on the same port (3000).
+            # Remove it so the container can bind — a no-op on every later deploy.
+            if command -v pm2 >/dev/null 2>&1 && pm2 jlist | grep -q '"name":"liffio-dashboard"'; then
+              echo "Stopping legacy PM2 process liffio-dashboard..."
+              pm2 delete liffio-dashboard || true
+              pm2 save || true
+            fi
+
+            # ── 4. Swap containers ───────────────────────────────────────────────────
+            echo "Starting updated container..."
+            docker compose up -d --force-recreate --remove-orphans
+
+            # ── 5. Wait for the web container to be healthy ──────────────────────────
+            echo "Waiting for web container to be healthy (up to 120s)..."
+            DEADLINE=$(($(date +%s) + 120))
+            while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+              CONTAINER_ID=$(docker compose ps -q web 2>/dev/null | head -1)
+              if [ -n "$CONTAINER_ID" ]; then
+                STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$CONTAINER_ID" 2>/dev/null || echo "unknown")
+                echo "  $(date +%H:%M:%S)  web health: $STATUS"
+                if [ "$STATUS" = "healthy" ]; then
+                  echo "Web container is healthy."
+                  break
+                fi
+                if [ "$STATUS" = "unhealthy" ]; then
+                  echo "ERROR: web container is unhealthy. Recent logs:"
+                  docker compose logs web --tail=100 --no-log-prefix
+                  exit 1
+                fi
+              else
+                echo "  $(date +%H:%M:%S)  web container not running yet..."
+              fi
+              sleep 5
+            done
+
+            CONTAINER_ID=$(docker compose ps -q web 2>/dev/null | head -1)
+            FINAL_STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$CONTAINER_ID" 2>/dev/null || echo "unknown")
+            if [ "$FINAL_STATUS" != "healthy" ]; then
+              echo "ERROR: web container did not become healthy within 120s (last status: $FINAL_STATUS)"
+              docker compose logs web --tail=100 --no-log-prefix
               exit 1
             fi
-            echo "Root check passed — HTTP $STATUS"
 
-            # The root page returning 200 isn't enough: a stale in-memory SSR
-            # bundle can still reference asset hashes a fresh build just deleted
-            # from disk. Verify at least one referenced asset actually resolves.
-            ASSET=$(echo "$BODY" | grep -oE '/assets/[A-Za-z0-9_.-]+\.(js|css)' | head -1)
+            # ── 6. Stale-build check ─────────────────────────────────────────────────
+            # The root page returning 200 isn't enough: a stale SSR bundle can reference
+            # asset hashes a fresh build just replaced. Verify at least one referenced
+            # asset actually resolves from the NEW container.
+            # --compressed + grep -a: the SSR response can arrive gzipped, which makes
+            # plain grep classify the body as binary and silently match nothing.
+            HTML=$(curl -s --compressed -w '\n%{http_code}' http://127.0.0.1:3000/)
+            HTTP_STATUS=$(echo "$HTML" | tail -1)
+            BODY=$(echo "$HTML" | sed '$d')
+            if [ "$HTTP_STATUS" != "200" ]; then
+              echo "Stale-build check failed — HTTP $HTTP_STATUS on /"
+              docker compose logs web --tail=50 --no-log-prefix
+              exit 1
+            fi
+            ASSET=$(echo "$BODY" | grep -aoE '/assets/[A-Za-z0-9_.-]+\.(js|css)' | head -1)
             if [ -z "$ASSET" ]; then
-              echo "Health check failed — no asset reference found in / response"
+              echo "Stale-build check failed — no asset reference found in / response"
               exit 1
             fi
             ASSET_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:3000$ASSET")
             if [ "$ASSET_STATUS" != "200" ]; then
-              echo "Health check failed — HTTP $ASSET_STATUS on $ASSET (stale build reference?)"
-              pm2 logs liffio-dashboard --lines 30 --nostream
+              echo "Stale-build check failed — HTTP $ASSET_STATUS on $ASSET"
+              docker compose logs web --tail=50 --no-log-prefix
               exit 1
             fi
             echo "Asset check passed — $ASSET returned $ASSET_STATUS"
+
+            # ── 7. Prune old dangling images ─────────────────────────────────────────
+            docker image prune -f
+            echo ""
+            echo "Deployment complete: ${LIFFIO_IMAGE}:${IMAGE_TAG}"
+            docker compose ps
 
       - name: Purge Cloudflare cache
         env:

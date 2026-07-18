@@ -1,0 +1,35 @@
+# Image is resolved from shell env vars set by the CI deploy script before running compose:
+#   export LIFFIO_IMAGE=ghcr.io/YOUR_ORG/liffio-frontend
+#   export IMAGE_TAG=<git-sha>        # or "latest"
+#
+# For local builds only (not used in CI):
+#   docker compose build
+#   docker compose up -d
+#
+# Networking on the droplet: nginx keeps proxying app.liffio.com -> 127.0.0.1:3000
+# exactly as it did under PM2 — the container publishes on loopback only, so port
+# 3000 is never exposed to the public internet directly.
+#
+# Rollback: SSH in, export LIFFIO_IMAGE + IMAGE_TAG to a previous SHA, docker compose up -d.
+
+services:
+  web:
+    build: .
+    image: ${LIFFIO_IMAGE:-liffio-frontend}:${IMAGE_TAG:-latest}
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "require('http').get('http://localhost:3000/',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3

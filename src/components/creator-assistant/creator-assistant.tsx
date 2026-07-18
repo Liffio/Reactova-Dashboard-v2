@@ -42,6 +42,8 @@ import {
   type AssistantStoredMessage,
 } from "@/lib/api/assistant-api";
 import { urlToDataUrl } from "@/lib/image-data-url";
+import { useNavigate } from "@tanstack/react-router";
+import { savePostHandoff, saveAutomationHandoff } from "@/lib/lyra-handoff";
 import { PostPreviewCard, type AttachedMedia } from "@/components/creator-assistant/creator-assistant-post-preview";
 import { AutomationPreviewCard } from "@/components/creator-assistant/creator-assistant-automation-preview";
 
@@ -311,6 +313,98 @@ export function CreatorAssistant() {
     }
   };
 
+  const navigate = useNavigate();
+
+  /** "Looks good — review & create" on the post card: persist the full draft as
+   *  a handoff, close the drawer, and send the user to the scheduler where the
+   *  theater prefills the compose dialog. Nothing is created until they press
+   *  Schedule there. */
+  const handoffPost = async () => {
+    if (!workspaceId) return;
+    try {
+      await savePostHandoff(workspaceId, {
+        intent: "post",
+        draft: {
+          caption: postDraft.caption ?? "",
+          hashtags: postDraft.hashtags ?? [],
+          scheduledLocal: postDraft.scheduledLocal ?? "",
+          musicTitle: postDraft.musicTitle ?? "",
+          musicArtist: postDraft.musicArtist ?? "",
+          shareToFeed: postDraft.shareToFeed ?? true,
+          automation: postDraft.automation ?? {
+            enabled: false,
+            name: "",
+            keywords: [],
+            anyComment: false,
+            dmMessage: "",
+            autoReply: false,
+            replyMessages: [],
+            dmButtonLabel: "",
+            dmButtonUrl: "",
+          },
+        },
+        media: attachedMedia
+          ? { url: attachedMedia.url, thumbnailUrl: attachedMedia.thumbnailUrl, type: attachedMedia.type }
+          : null,
+        accountId: selectedAccountId,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Hmm, I couldn't prepare the handoff just now — mind pressing that button again?" },
+      ]);
+      return;
+    }
+    const bubble: CopilotMessage = {
+      role: "assistant",
+      content: "Taking you to the scheduler — I'm filling everything in there. Review it and hit Schedule when you're happy ✨",
+    };
+    setMessages((prev) => [...prev, bubble]);
+    void persistTurn([bubble], "Scheduled post handoff");
+    setPostDraft({});
+    setAttachedMedia(null);
+    setLastIntent(null);
+    setPreviewAnchor(null);
+    setOpen(false);
+    void navigate({ to: "/scheduler", search: { lyraDraft: true } });
+  };
+
+  /** Same flow for automations — lands in the builder wizard, prefilled. */
+  const handoffAutomation = async () => {
+    if (!workspaceId) return;
+    try {
+      await saveAutomationHandoff(workspaceId, {
+        intent: "automation",
+        draft: {
+          name: automationDraft.name ?? "New automation",
+          postScope: automationDraft.postScope ?? "any",
+          anyComment: automationDraft.anyComment ?? false,
+          triggerBlocks: automationDraft.triggerBlocks ?? [],
+          followBeforeDm: automationDraft.followBeforeDm ?? false,
+          followUps: automationDraft.followUps ?? [],
+        },
+      });
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Hmm, I couldn't prepare the handoff just now — mind pressing that button again?" },
+      ]);
+      return;
+    }
+    const bubble: CopilotMessage = {
+      role: "assistant",
+      content: "Opening the automation builder — everything's filled in for you. Review it and hit Publish when it looks right ✨",
+    };
+    setMessages((prev) => [...prev, bubble]);
+    void persistTurn([bubble], "Automation handoff");
+    setAutomationDraft({});
+    setLastIntent(null);
+    setPreviewAnchor(null);
+    setOpen(false);
+    void navigate({ to: "/automations/new", search: { lyraDraft: true } });
+  };
+
   const emptyConversation = messages.length === 0;
 
   return (
@@ -443,7 +537,6 @@ export function CreatorAssistant() {
                 </div>
                 {previewAnchor?.index === i && previewAnchor.kind === "post" && postDraft.caption && (
                   <PostPreviewCard
-                    workspaceId={workspaceId}
                     draft={{
                       caption: postDraft.caption ?? "",
                       hashtags: postDraft.hashtags ?? [],
@@ -464,21 +557,13 @@ export function CreatorAssistant() {
                       },
                     }}
                     media={attachedMedia}
-                    accountId={selectedAccountId}
-                    timezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
-                    onCreated={() => {
-                      setPostDraft({});
-                      setAttachedMedia(null);
-                      setLastIntent(null);
-                      setPreviewAnchor(null);
-                    }}
+                    onConfirm={handoffPost}
                   />
                 )}
                 {previewAnchor?.index === i &&
                 previewAnchor.kind === "automation" &&
                 automationDraft.triggerBlocks?.length ? (
                   <AutomationPreviewCard
-                    workspaceId={workspaceId}
                     draft={{
                       name: automationDraft.name ?? "New automation",
                       postScope: automationDraft.postScope ?? "any",
@@ -487,11 +572,7 @@ export function CreatorAssistant() {
                       followBeforeDm: automationDraft.followBeforeDm ?? false,
                       followUps: automationDraft.followUps ?? [],
                     }}
-                    onCreated={() => {
-                      setAutomationDraft({});
-                      setLastIntent(null);
-                      setPreviewAnchor(null);
-                    }}
+                    onConfirm={handoffAutomation}
                   />
                 ) : null}
               </div>

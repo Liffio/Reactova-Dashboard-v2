@@ -1,11 +1,6 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Link } from "@tanstack/react-router";
-import { CalendarClock, Check, MessageSquare } from "lucide-react";
+import { CalendarClock, Loader2, MessageSquare, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { createScheduledPost } from "@/lib/api/scheduler-api";
 import type { LyraPostDraftFields } from "@/lib/api/lyra-api";
 
 export type AttachedMedia = {
@@ -14,26 +9,25 @@ export type AttachedMedia = {
   type: "FEED" | "REEL";
   /** Set once the attachment has been rendered inside a sent chat message, so the
    *  composer stops showing its own duplicate thumbnail while the media stays
-   *  available for the preview card and the actual createScheduledPost call. */
+   *  available for the preview card and the handoff to the scheduler. */
   shownInChat?: boolean;
 };
 
+/** Chat-embedded summary of the drafted post. Confirming no longer creates the
+ *  post directly — it hands the full draft off to the scheduler compose dialog
+ *  (via lyra-handoff + `?lyraDraft=true`), where the user verifies every field
+ *  in the real tool and presses the actual Schedule button. */
 export function PostPreviewCard({
-  workspaceId,
   draft,
   media,
-  accountId,
-  timezone,
-  onCreated,
+  onConfirm,
 }: {
-  workspaceId: string;
   draft: LyraPostDraftFields;
   media: AttachedMedia | null;
-  accountId: string | null;
-  timezone: string;
-  onCreated: () => void;
+  /** Saves the handoff, closes the drawer, and redirects — provided by the drawer. */
+  onConfirm: () => Promise<void>;
 }) {
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pending, setPending] = useState(false);
 
   // Same default the scheduler compose dialog ships with — the automation must
   // never be blocked just because the model (or user) didn't spell out DM text.
@@ -45,47 +39,7 @@ export function PostPreviewCard({
     .map((k) => k.trim().replace(/^#+/, "").toUpperCase())
     .filter(Boolean);
 
-  const createMutation = useMutation({
-    mutationFn: () =>
-      createScheduledPost(workspaceId, {
-        platformAccountId: accountId ?? undefined,
-        type: media?.type ?? "FEED",
-        caption: draft.caption,
-        hashtags: draft.hashtags,
-        scheduledLocal: draft.scheduledLocal,
-        timezone,
-        primaryMediaUrl: media?.url,
-        thumbnailUrl: media?.thumbnailUrl,
-        musicTitle: draft.musicTitle || undefined,
-        musicArtist: draft.musicArtist || undefined,
-        shareToFeed: draft.shareToFeed,
-        // Mirrors the scheduler compose dialog's own "Automation" toggle submit
-        // (scheduler.tsx) — attaches a keyword automation to THIS post in the same request.
-        automation: draft.automation.enabled
-          ? {
-              enabled: true,
-              name: draft.automation.name.trim() || `Automation for ${(media?.type ?? "FEED").toLowerCase()} post`,
-              keywords: draft.automation.anyComment ? [] : normalizedKeywords,
-              anyComment: draft.automation.anyComment,
-              dmMessage: effectiveDmMessage,
-              autoReply: draft.automation.autoReply,
-              replyMessages: draft.automation.replyMessages.map((m) => m.trim()).filter(Boolean),
-              dmButtonLabel: draft.automation.dmButtonUrl.trim()
-                ? draft.automation.dmButtonLabel.trim() || undefined
-                : undefined,
-              dmButtonUrl: draft.automation.dmButtonUrl.trim() || undefined,
-            }
-          : undefined,
-      }),
-    onSuccess: () => {
-      toast.success("Post scheduled");
-      setConfirmOpen(false);
-      onCreated();
-    },
-    onError: (error) => toast.error((error as Error).message),
-  });
-
-  // The DM message can never block creation (a default fills in), so the only
+  // The DM message can never block the handoff (a default fills in), so the only
   // automation requirement left is having something to trigger on.
   const automationReady =
     !draft.automation.enabled || draft.automation.anyComment || normalizedKeywords.length > 0;
@@ -100,6 +54,15 @@ export function PostPreviewCard({
         : !automationReady
           ? "Give Lyra a comment keyword for the automation."
           : null;
+
+  const confirm = async () => {
+    setPending(true);
+    try {
+      await onConfirm();
+    } finally {
+      setPending(false);
+    }
+  };
 
   return (
     <div className="rounded-xl border bg-card p-3 text-sm">
@@ -131,39 +94,23 @@ export function PostPreviewCard({
         type="button"
         size="sm"
         className="mt-3 w-full"
-        disabled={!ready}
-        onClick={() => setConfirmOpen(true)}
+        disabled={!ready || pending}
+        onClick={() => void confirm()}
       >
-        <Check className="mr-1.5 h-3.5 w-3.5" />
-        Looks good — Create
+        {pending ? (
+          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <WandSparkles className="mr-1.5 h-3.5 w-3.5" />
+        )}
+        {pending ? "Preparing…" : "Looks good — review & create"}
       </Button>
-      {notReadyHint && (
+      {notReadyHint ? (
         <p className="mt-1.5 text-center text-[11px] text-muted-foreground">{notReadyHint}</p>
+      ) : (
+        <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+          I'll take you to the scheduler and fill everything in — you confirm before anything is scheduled.
+        </p>
       )}
-
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Schedule this post?</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            This will schedule the post for {draft.scheduledLocal.replace("T", " ")}
-            {draft.automation.enabled
-              ? " — its keyword automation is created right away and goes live the moment the post publishes"
-              : ""}
-            . You can still edit or cancel it afterward from the{" "}
-            <Link to="/scheduler" className="underline">scheduler</Link>.
-          </p>
-          <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="button" disabled={createMutation.isPending} onClick={() => createMutation.mutate()}>
-              {createMutation.isPending ? "Scheduling…" : "Confirm"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -53,10 +53,30 @@ import { LIMITS, urlError, lengthError } from "@/lib/validation";
 import { KeywordSuggest } from "@/components/lyra/keyword-suggest";
 import { DmMessageAssist } from "@/components/lyra/dm-message-assist";
 import { AutomationCopilotPanel } from "@/components/lyra/automation-copilot-panel";
+import { LyraHandoffToast } from "@/components/lyra/lyra-handoff-toast";
+import { useLyraHandoffTheater, type TheaterStep } from "@/hooks/use-lyra-handoff-theater";
+import {
+  LYRA_HANDOFF_KEY,
+  resolveAutomationHandoff,
+  type LyraAutomationHandoff,
+} from "@/lib/lyra-handoff";
+import { getDraft } from "@/lib/api/drafts-api";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { LyraAutomationCopilotOutput, LyraAutomationDraftFields } from "@/lib/api/lyra-api";
 
 export const Route = createFileRoute("/_app/automations/new")({
   head: () => ({ meta: [{ title: "New automation — Liffio" }] }),
+  // `?lyraDraft=true` — arrival from the Ask AI drawer: load the Lyra handoff
+  // and prefill the wizard with the step-by-step theater.
+  validateSearch: (search: Record<string, unknown>): { lyraDraft?: boolean } => ({
+    lyraDraft: search.lyraDraft === true || search.lyraDraft === "true" ? true : undefined,
+  }),
   component: AutomationBuilderRoute,
 });
 
@@ -157,10 +177,17 @@ function AutomationBuilder() {
   const [restoredBannerDismissed, setRestoredBannerDismissed] = useState(false);
   const firstChangeRef = useRef(false);
 
+  // Lyra handoff mode (?lyraDraft=true): the wizard runs against the separate
+  // `lyra-handoff` draft slot so the user's own autosaved draft (key "new") is
+  // never touched — accepting Lyra's draft and editing it autosaves into Lyra's
+  // slot; declining flips the key back to "new" and normal restore takes over.
+  const { lyraDraft } = Route.useSearch();
+  const handoffMode = Boolean(lyraDraft);
+
   const autosave = useAutosave<BuilderForm>({
     workspaceId,
     module: "automation",
-    draftKey: "new",
+    draftKey: handoffMode ? LYRA_HANDOFF_KEY : "new",
   });
 
   const wizardData = useQuery({
@@ -197,10 +224,130 @@ function AutomationBuilder() {
   };
 
   const showRestoreBanner =
+    !handoffMode &&
     autosave.draftLoaded &&
     autosave.draft !== null &&
     !restoredBannerDismissed &&
     !firstChangeRef.current;
+
+  // ── Lyra handoff arrival ────────────────────────────────────────────────────
+  const theater = useLyraHandoffTheater();
+  const [pendingHandoff, setPendingHandoff] = useState<LyraAutomationHandoff | null>(null);
+  const [conflictOpen, setConflictOpen] = useState(false);
+  const handoffConsumedRef = useRef(false);
+
+  /** Plays Lyra's draft into the form step by step, reusing the copilot's
+   *  highlight styling so each section glows as it lands. */
+  const runHandoffTheater = (handoff: LyraAutomationHandoff) => {
+    const d = handoff.draft;
+    const blocks = (d.anyComment ? d.triggerBlocks.slice(0, 1) : d.triggerBlocks).map((b) =>
+      createTriggerBlock({ ...b, keyword: d.anyComment ? "" : b.keyword.trim().toUpperCase() }),
+    );
+
+    const glow = (field: string) => setHighlightedFields((prev) => new Set(prev).add(field));
+    const steps: TheaterStep[] = [];
+
+    steps.push({
+      label: `Naming it "${d.name || "New automation"}"`,
+      apply: () => {
+        update({ name: d.name || "New automation" });
+        glow("name");
+      },
+    });
+    steps.push({
+      label:
+        d.postScope === "any"
+          ? "Listening on all your posts"
+          : d.postScope === "next"
+            ? "Listening on your next post"
+            : "Listening on a post you'll pick",
+      apply: () => {
+        update({ postScope: d.postScope, anyComment: d.anyComment });
+        glow("postScope");
+        glow("anyComment");
+      },
+    });
+    blocks.forEach((block, i) => {
+      steps.push({
+        label: d.anyComment
+          ? "Writing the reply & DM"
+          : `Adding the "${block.keyword || "keyword"}" trigger`,
+        apply: () => {
+          const next = blocks.slice(0, i + 1);
+          update({ triggerBlocks: next });
+          setExpandedBlockIds(next.map((b) => b.id));
+          glow("triggerBlocks");
+        },
+      });
+    });
+    if (d.followBeforeDm) {
+      steps.push({
+        label: "Turning on the follow-first gate",
+        apply: () => {
+          update({ followBeforeDm: true });
+          glow("followBeforeDm");
+        },
+      });
+    }
+    if (d.followUps.length > 0) {
+      steps.push({
+        label: `Adding ${d.followUps.length} follow-up message${d.followUps.length === 1 ? "" : "s"}`,
+        apply: () => {
+          update({
+            followUps: d.followUps.map((f, i) => ({
+              id: `fu-${Date.now()}-${i}`,
+              delayMinutes: f.delayMinutes,
+              message: f.message,
+            })),
+          });
+          glow("followUps");
+        },
+      });
+    }
+    steps.push({ label: "Double-checking everything", apply: () => {} });
+
+    theater.start(steps, {
+      onDone: () => {
+        window.setTimeout(() => setHighlightedFields(new Set()), 2500);
+      },
+    });
+  };
+
+  useEffect(() => {
+    if (!handoffMode || !workspaceId || workspaceId === "default" || handoffConsumedRef.current) {
+      return;
+    }
+    handoffConsumedRef.current = true;
+
+    void resolveAutomationHandoff(workspaceId).then(async (resolution) => {
+      if (resolution.kind === "none") {
+        toast.error("Couldn't load Lyra's draft", {
+          description: "It may have expired — ask Lyra to prepare it again.",
+        });
+        void navigate({ to: "/automations/new", search: {}, replace: true });
+        return;
+      }
+      // Mid-review edits were autosaved into Lyra's slot — restore them silently.
+      if (resolution.kind === "form") {
+        const restored = { ...defaultForm, ...(resolution.form as Partial<BuilderForm>) };
+        setForm(restored);
+        setExpandedBlockIds(restored.triggerBlocks.map((b) => b.id));
+        firstChangeRef.current = true;
+        return;
+      }
+      // A genuine handoff: if the user has their own in-progress draft, ask
+      // before showing Lyra's — their draft lives in its own slot and is safe
+      // either way.
+      const ownDraft = await getDraft(workspaceId, "automation", "new").catch(() => null);
+      if (ownDraft) {
+        setPendingHandoff(resolution.handoff);
+        setConflictOpen(true);
+        return;
+      }
+      runHandoffTheater(resolution.handoff);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoffMode, workspaceId]);
 
   const buildPayload = (status: "ACTIVE" | "DRAFT"): CreateAutomationInput => {
     const normalizedBlocks = form.triggerBlocks.map((block) => ({
@@ -390,6 +537,63 @@ function AutomationBuilder() {
 
   return (
     <div>
+      <LyraHandoffToast
+        visible={theater.visible}
+        phase={theater.phase}
+        steps={theater.steps}
+        currentIndex={theater.currentIndex}
+        title="Lyra is building your automation"
+        doneTitle="All set — over to you ✨"
+        doneMessage="Review every step, then hit Publish to make it live."
+        onDismiss={theater.dismiss}
+      />
+
+      <Dialog
+        open={conflictOpen}
+        onOpenChange={(open) => {
+          setConflictOpen(open);
+          if (!open && pendingHandoff) {
+            // Dismissing counts as "keep my draft" — never silently overwrite.
+            setPendingHandoff(null);
+            void navigate({ to: "/automations/new", search: {}, replace: true });
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Load Lyra's draft?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            You already have an automation draft in progress. Lyra's draft opens in its own slot —
+            your draft stays saved either way.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setConflictOpen(false);
+                setPendingHandoff(null);
+                void navigate({ to: "/automations/new", search: {}, replace: true });
+              }}
+            >
+              Keep my draft
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                const handoff = pendingHandoff;
+                setConflictOpen(false);
+                setPendingHandoff(null);
+                if (handoff) runHandoffTheater(handoff);
+              }}
+            >
+              Load Lyra's draft
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <PageHeader
         eyebrow="Automations"
         title="New automation"

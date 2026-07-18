@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addMonths,
@@ -98,6 +98,9 @@ import { HashtagAssist } from "@/components/lyra/hashtag-assist";
 import { ContentIdeas } from "@/components/lyra/content-ideas";
 import { MediaAnalyze } from "@/components/lyra/media-analyze";
 import { InsightsCard } from "@/components/lyra/insights-card";
+import { LyraHandoffToast } from "@/components/lyra/lyra-handoff-toast";
+import { useLyraHandoffTheater, type TheaterStep } from "@/hooks/use-lyra-handoff-theater";
+import { clearPostHandoff, getPostHandoff } from "@/lib/lyra-handoff";
 import {
   InsightSummary,
   InsightPointList,
@@ -108,6 +111,11 @@ import { useLyraInsights } from "@/hooks/use-lyra-insights";
 
 export const Route = createFileRoute("/_app/scheduler")({
   head: () => ({ meta: [{ title: "Scheduler — Liffio" }] }),
+  // `?lyraDraft=true` — arrival from the Ask AI drawer: load the Lyra handoff
+  // and prefill the compose dialog with the step-by-step theater.
+  validateSearch: (search: Record<string, unknown>): { lyraDraft?: boolean } => ({
+    lyraDraft: search.lyraDraft === true || search.lyraDraft === "true" ? true : undefined,
+  }),
   component: SchedulerRoute,
 });
 
@@ -919,6 +927,108 @@ function SchedulerPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  // ── Lyra handoff arrival (?lyraDraft=true) ─────────────────────────────────
+  const { lyraDraft } = Route.useSearch();
+  const navigate = useNavigate();
+  const theater = useLyraHandoffTheater();
+  /** True from handoff load until the real create succeeds — drives cleanup. */
+  const handoffActiveRef = useRef(false);
+  /** One consumption per mount, even if queries/search re-render the page. */
+  const handoffConsumedRef = useRef(false);
+
+  useEffect(() => {
+    if (!lyraDraft || !workspaceId || workspaceId === "default" || handoffConsumedRef.current) {
+      return;
+    }
+    handoffConsumedRef.current = true;
+
+    void getPostHandoff(workspaceId).then((handoff) => {
+      if (!handoff) {
+        toast.error("Couldn't load Lyra's draft", {
+          description: "It may have expired — ask Lyra to prepare it again.",
+        });
+        void navigate({ to: "/scheduler", search: {}, replace: true });
+        return;
+      }
+
+      handoffActiveRef.current = true;
+      setMainTab("planner");
+      setComposeOpen(true);
+
+      const d = handoff.draft;
+      const media = handoff.media;
+      const steps: TheaterStep[] = [];
+
+      if (media) {
+        steps.push({
+          label: media.type === "REEL" ? "Attaching your video" : "Attaching your media",
+          apply: () =>
+            setForm((f) => ({
+              ...f,
+              type: media.type,
+              primaryMediaUrl: media.url,
+              shareToFeed: media.type === "REEL" ? d.shareToFeed : f.shareToFeed,
+            })),
+        });
+      }
+      if (d.caption) {
+        steps.push({
+          label: "Writing your caption",
+          apply: () => setForm((f) => ({ ...f, caption: d.caption })),
+        });
+      }
+      if (d.hashtags.length > 0) {
+        steps.push({
+          label: `Adding ${d.hashtags.length} hashtag${d.hashtags.length === 1 ? "" : "s"}`,
+          apply: () => setForm((f) => ({ ...f, hashtags: d.hashtags.join(" ") })),
+        });
+      }
+      if (d.scheduledLocal) {
+        steps.push({
+          label: `Scheduling for ${d.scheduledLocal.replace("T", " at ")}`,
+          apply: () =>
+            setForm((f) => ({ ...f, scheduleLocal: d.scheduledLocal, timezone: handoff.timezone })),
+        });
+      }
+      if (d.musicTitle) {
+        steps.push({
+          label: `Searching music: "${d.musicTitle}"`,
+          apply: () => setMusicQuery([d.musicTitle, d.musicArtist].filter(Boolean).join(" ")),
+        });
+      }
+      if (d.automation.enabled) {
+        const keywords = d.automation.keywords
+          .map((k) => k.trim().replace(/^#+/, "").toUpperCase())
+          .filter(Boolean);
+        steps.push({
+          label: d.automation.anyComment
+            ? "Setting up the any-comment automation"
+            : `Setting up the "${keywords.join(", ")}" automation`,
+          apply: () =>
+            setForm((f) => ({
+              ...f,
+              automationEnabled: true,
+              automationName: d.automation.name,
+              automationKeywords: keywords,
+              automationAnyComment: d.automation.anyComment,
+              automationDmMessage: d.automation.dmMessage.trim() || f.automationDmMessage,
+              automationAutoReply: d.automation.autoReply,
+              automationReplyMessages:
+                d.automation.replyMessages.filter((m) => m.trim()).length > 0
+                  ? d.automation.replyMessages.filter((m) => m.trim())
+                  : f.automationReplyMessages,
+              automationButtonLabel: d.automation.dmButtonLabel,
+              automationButtonUrl: d.automation.dmButtonUrl,
+            })),
+        });
+      }
+      steps.push({ label: "Double-checking everything", apply: () => {} });
+
+      theater.start(steps);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lyraDraft, workspaceId]);
+
   const createMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => createScheduledPost(workspaceId, body),
     onSuccess: () => {
@@ -927,6 +1037,14 @@ function SchedulerPage() {
       setForm(FORM_DEFAULTS);
       setSelectedMusic(null);
       setCarouselUrlDraft("");
+      // A Lyra handoff is one-shot: once the post is really created, delete the
+      // stored handoff and strip ?lyraDraft so a refresh doesn't replay the theater.
+      if (handoffActiveRef.current) {
+        handoffActiveRef.current = false;
+        theater.dismiss();
+        void clearPostHandoff(workspaceId);
+        void navigate({ to: "/scheduler", search: {}, replace: true });
+      }
       void queryClient.invalidateQueries({ queryKey: ["scheduler-calendar", workspaceId] });
       void queryClient.invalidateQueries({ queryKey: ["scheduler-list", workspaceId] });
     },
@@ -1259,6 +1377,16 @@ function SchedulerPage() {
 
   return (
     <div>
+      <LyraHandoffToast
+        visible={theater.visible}
+        phase={theater.phase}
+        steps={theater.steps}
+        currentIndex={theater.currentIndex}
+        title="Lyra is setting up your post"
+        doneTitle="All set — over to you ✨"
+        doneMessage="Review every field, then hit Save to schedule it for real."
+        onDismiss={theater.dismiss}
+      />
       <PageHeader
         eyebrow="Automate"
         title="Scheduler"
@@ -1805,7 +1933,14 @@ function SchedulerPage() {
       </div>
 
       {/* ── Compose dialog ──────────────────────────────────────────────────── */}
-      <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
+      <Dialog
+        open={composeOpen}
+        onOpenChange={(open) => {
+          setComposeOpen(open);
+          // Closing the composer mid-review retires the handoff toast too.
+          if (!open) theater.dismiss();
+        }}
+      >
         <DialogContent className="w-full max-w-[min(100vw-1.5rem,56rem)] max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New scheduled post</DialogTitle>
@@ -2353,7 +2488,12 @@ function SchedulerPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {TIMEZONES.map((tz) => (
+                    {/* A Lyra handoff carries the user's real browser timezone, which may
+                        not be in the curated list — include it so the select can show it. */}
+                    {(TIMEZONES.includes(form.timezone)
+                      ? TIMEZONES
+                      : [form.timezone, ...TIMEZONES]
+                    ).map((tz) => (
                       <SelectItem key={tz} value={tz}>
                         {tz}
                       </SelectItem>

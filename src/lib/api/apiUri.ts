@@ -76,6 +76,10 @@ export const apiUri = {
 
   assistant: {
     quick: `${V1}/assistant/quick`,
+    conversations: `${V1}/assistant/conversations`,
+    conversation: (conversationId: string) => `${V1}/assistant/conversations/${conversationId}`,
+    conversationMessages: (conversationId: string) =>
+      `${V1}/assistant/conversations/${conversationId}/messages`,
   },
 
   automations: {

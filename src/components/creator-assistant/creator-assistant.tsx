@@ -20,7 +20,7 @@ import { lyraStorageKey } from "@/lib/lyra-persist";
 import { useApp } from "@/state/app-context";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   uploadSchedulerMedia,
   listPlatformAccounts,
@@ -32,7 +32,15 @@ import type {
   LyraPostDraftFields,
   LyraAutomationDraftFields,
 } from "@/lib/api/lyra-api";
-import { quickAsk } from "@/lib/api/assistant-api";
+import {
+  quickAsk,
+  listConversations,
+  createConversation,
+  listConversationMessages,
+  appendConversationMessages,
+  deleteConversation,
+  type AssistantStoredMessage,
+} from "@/lib/api/assistant-api";
 import { urlToDataUrl } from "@/lib/image-data-url";
 import { PostPreviewCard, type AttachedMedia } from "@/components/creator-assistant/creator-assistant-post-preview";
 import { AutomationPreviewCard } from "@/components/creator-assistant/creator-assistant-automation-preview";
@@ -43,15 +51,6 @@ export type CopilotMessage = {
   /** Thumbnail of media attached with this message, rendered above the bubble. */
   imageUrl?: string;
 };
-
-type StoredConversation = {
-  id: string;
-  title: string;
-  messages: CopilotMessage[];
-  updatedAtIso: string;
-};
-
-const HISTORY_LIMIT = 20;
 
 const SUGGESTIONS: Array<{ label: string; starter: string }> = [
   { label: "Schedule a post", starter: "Schedule a post " },
@@ -91,7 +90,13 @@ export function CreatorAssistant() {
   const [open, setOpen] = usePersistedState(`${base}:open`, false);
   const [tab, setTab] = useState<"chat" | "history">("chat");
   const [messages, setMessages] = usePersistedState<CopilotMessage[]>(`${base}:messages`, []);
-  const [history, setHistory] = usePersistedState<StoredConversation[]>(`${base}:history`, []);
+  /** Server-side conversation this session appends to — created lazily on the
+   *  first message. localStorage keeps the live mirror; the DB is the durable
+   *  record behind the History tab. */
+  const [conversationId, setConversationId] = usePersistedState<string | null>(
+    `${base}:conversation-id`,
+    null,
+  );
   const [draftText, setDraftText] = useState("");
   const [postDraft, setPostDraft] = usePersistedState<Partial<LyraPostDraftFields>>(`${base}:post-draft`, {});
   const [automationDraft, setAutomationDraft] = usePersistedState<Partial<LyraAutomationDraftFields>>(
@@ -115,12 +120,43 @@ export function CreatorAssistant() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const queryClient = useQueryClient();
+
   const accountsQuery = useQuery({
     queryKey: ["scheduler-platform-accounts", workspaceId],
     queryFn: () => listPlatformAccounts(workspaceId),
     enabled: Boolean(workspaceId) && open,
   });
   const accounts: PlatformAccountDto[] = accountsQuery.data?.accounts ?? [];
+
+  const conversationsQuery = useQuery({
+    queryKey: ["assistant-conversations", workspaceId],
+    queryFn: () => listConversations(workspaceId),
+    enabled: Boolean(workspaceId) && open && tab === "history",
+  });
+  const conversations = conversationsQuery.data?.conversations ?? [];
+
+  /** Creates the server conversation on first use and appends this turn's
+   *  messages — entirely best-effort so history storage can never break chat. */
+  const persistTurn = async (turn: CopilotMessage[], titleSeed: string) => {
+    try {
+      let id = conversationId;
+      if (!id) {
+        const created = await createConversation(workspaceId, titleSeed.slice(0, 120) || "New chat");
+        id = created.id;
+        setConversationId(id);
+        void queryClient.invalidateQueries({ queryKey: ["assistant-conversations", workspaceId] });
+      }
+      const stored: AssistantStoredMessage[] = turn.map((m) => ({
+        role: m.role,
+        content: m.content,
+        ...(m.imageUrl ? { imageUrl: m.imageUrl } : {}),
+      }));
+      await appendConversationMessages(workspaceId, id, stored);
+    } catch {
+      // History is a nice-to-have — never surface storage failures in the chat.
+    }
+  };
 
   useEffect(() => {
     if (!selectedAccountId && accounts.length === 1) setSelectedAccountId(accounts[0].id);
@@ -161,37 +197,37 @@ export function CreatorAssistant() {
     lyra.reset();
   };
 
-  /** Pushes the current conversation (if any) onto the history stack. */
-  const archiveCurrent = () => {
-    if (messages.length === 0) return;
-    const title =
-      messages.find((m) => m.role === "user")?.content.slice(0, 60) ?? "New chat";
-    const entry: StoredConversation = {
-      id: crypto.randomUUID(),
-      title,
-      messages,
-      updatedAtIso: new Date().toISOString(),
-    };
-    setHistory((prev) => [entry, ...prev].slice(0, HISTORY_LIMIT));
-  };
-
   const newChat = () => {
-    archiveCurrent();
+    // The server already holds everything persisted so far — just detach.
     setMessages([]);
+    setConversationId(null);
     clearWorkbench();
     setTab("chat");
   };
 
-  const openConversation = (conversation: StoredConversation) => {
-    archiveCurrent();
-    setHistory((prev) => prev.filter((c) => c.id !== conversation.id));
-    setMessages(conversation.messages);
-    clearWorkbench();
-    setTab("chat");
+  const openConversation = async (id: string) => {
+    try {
+      const { messages: stored } = await listConversationMessages(workspaceId, id);
+      setMessages(stored.map((m) => ({ role: m.role, content: m.content, imageUrl: m.imageUrl })));
+      setConversationId(id);
+      clearWorkbench();
+      setTab("chat");
+    } catch {
+      // Leave the history tab open if the fetch fails.
+    }
   };
 
-  const deleteConversation = (id: string) => {
-    setHistory((prev) => prev.filter((c) => c.id !== id));
+  const removeConversation = async (id: string) => {
+    try {
+      await deleteConversation(workspaceId, id);
+      if (conversationId === id) {
+        setConversationId(null);
+        setMessages([]);
+      }
+      void queryClient.invalidateQueries({ queryKey: ["assistant-conversations", workspaceId] });
+    } catch {
+      // Best-effort.
+    }
   };
 
   const send = async () => {
@@ -214,11 +250,15 @@ export function CreatorAssistant() {
     // server straight from the database — instant, zero AI tokens. Skipped when
     // media was just attached (the message is about the image, so it needs the
     // LLM). Best-effort: any failure silently falls through to the Lyra call.
+    const userMessage = nextMessages[nextMessages.length - 1];
+
     if (!sendingMedia) {
       try {
         const quick = await quickAsk(workspaceId, text);
         if (quick.matched && quick.reply) {
-          setMessages((prev) => [...prev, { role: "assistant", content: quick.reply! }]);
+          const quickReply: CopilotMessage = { role: "assistant", content: quick.reply };
+          setMessages((prev) => [...prev, quickReply]);
+          void persistTurn([userMessage, quickReply], text);
           return;
         }
       } catch {
@@ -251,7 +291,9 @@ export function CreatorAssistant() {
     if (result.status === "complete" && result.content) {
       const content: LyraCreatorCopilotOutput = result.content;
       const replyIndex = nextMessages.length;
-      setMessages((prev) => [...prev, { role: "assistant", content: content.reply }]);
+      const reply: CopilotMessage = { role: "assistant", content: content.reply };
+      setMessages((prev) => [...prev, reply]);
+      void persistTurn([userMessage, reply], text);
       setLastIntent(content.intent);
       if (content.intent === "post" && content.postDraft) {
         setPostDraft(content.postDraft);
@@ -262,7 +304,9 @@ export function CreatorAssistant() {
         setPreviewAnchor({ kind: "automation", index: replyIndex });
       }
     } else if (result.status === "error") {
-      setMessages((prev) => [...prev, { role: "assistant", content: friendlyLyraError(result.error) }]);
+      const errorReply: CopilotMessage = { role: "assistant", content: friendlyLyraError(result.error) };
+      setMessages((prev) => [...prev, errorReply]);
+      void persistTurn([userMessage, errorReply], text);
       lyra.reset();
     }
   };
@@ -331,25 +375,27 @@ export function CreatorAssistant() {
 
         {tab === "history" ? (
           <div className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3">
-            {history.length === 0 ? (
+            {conversationsQuery.isLoading ? (
+              <p className="px-1 py-6 text-center text-sm text-muted-foreground">Loading your chats…</p>
+            ) : conversations.length === 0 ? (
               <p className="px-1 py-6 text-center text-sm text-muted-foreground">No past chats yet.</p>
             ) : (
-              history.map((c) => (
+              conversations.map((c) => (
                 <div
                   key={c.id}
                   className="group flex items-center gap-2 rounded-xl border bg-card px-3 py-2.5 transition-colors hover:bg-accent/50"
                 >
                   <button
                     type="button"
-                    onClick={() => openConversation(c)}
+                    onClick={() => void openConversation(c.id)}
                     className="min-w-0 flex-1 text-left"
                   >
                     <p className="truncate text-sm">{c.title}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateTime(c.updatedAtIso)}</p>
+                    <p className="text-xs text-muted-foreground">{formatDateTime(c.updatedAt)}</p>
                   </button>
                   <button
                     type="button"
-                    onClick={() => deleteConversation(c.id)}
+                    onClick={() => void removeConversation(c.id)}
                     aria-label="Delete chat"
                     className="rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
                   >

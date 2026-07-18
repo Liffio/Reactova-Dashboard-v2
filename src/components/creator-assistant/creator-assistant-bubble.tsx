@@ -196,6 +196,17 @@ export function CreatorAssistantBubble() {
                     musicTitle: postDraft.musicTitle ?? "",
                     musicArtist: postDraft.musicArtist ?? "",
                     shareToFeed: postDraft.shareToFeed ?? true,
+                    automation: postDraft.automation ?? {
+                      enabled: false,
+                      name: "",
+                      keywords: [],
+                      anyComment: false,
+                      dmMessage: "",
+                      autoReply: false,
+                      replyMessages: [],
+                      dmButtonLabel: "",
+                      dmButtonUrl: "",
+                    },
                   }}
                   media={attachedMedia}
                   accountId={selectedAccountId}

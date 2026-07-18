@@ -21,7 +21,8 @@ export type LyraTask =
   | "ocr"
   | "image_summary"
   | "custom_prompt"
-  | "automation_copilot";
+  | "automation_copilot"
+  | "creator_copilot";
 
 export type LyraError = {
   code:
@@ -122,6 +123,31 @@ export type LyraAutomationCopilotOutput = LyraAutomationDraftFields & {
   changedFields: Array<keyof LyraAutomationDraftFields>;
 };
 
+export type LyraPostDraftFields = {
+  caption: string;
+  hashtags: string[];
+  /** Naive local wall time, "YYYY-MM-DDTHH:mm" — same format the scheduler API's
+   *  `scheduledLocal` field expects, so it can be passed straight through on create. */
+  scheduledLocal: string;
+  musicTitle: string;
+  musicArtist: string;
+  shareToFeed: boolean;
+};
+export type LyraCreatorCopilotInput = {
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  currentPostDraftState: Partial<LyraPostDraftFields>;
+  currentAutomationDraftState: Partial<LyraAutomationDraftFields>;
+  nowLocal: string;
+  timezone: string;
+};
+export type LyraCreatorCopilotOutput = {
+  reply: string;
+  intent: "post" | "automation" | "chat";
+  postDraft?: LyraPostDraftFields;
+  automationDraft?: LyraAutomationDraftFields;
+  changedFields: string[];
+};
+
 export type LyraTaskMap = {
   chat: { input: LyraChatInput; output: { reply: string } };
   caption: { input: LyraCaptionInput; output: { caption: string } };
@@ -148,6 +174,7 @@ export type LyraTaskMap = {
   image_summary: { input: LyraImageSummaryInput; output: { summary: string } };
   custom_prompt: { input: LyraCustomPromptInput; output: { response: string } };
   automation_copilot: { input: LyraAutomationCopilotInput; output: LyraAutomationCopilotOutput };
+  creator_copilot: { input: LyraCreatorCopilotInput; output: LyraCreatorCopilotOutput };
 };
 
 export type LyraOptions = { resync?: boolean } & Record<string, unknown>;

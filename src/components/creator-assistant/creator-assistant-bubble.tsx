@@ -20,9 +20,9 @@ import type {
   LyraPostDraftFields,
   LyraAutomationDraftFields,
 } from "@/lib/api/lyra-api";
+import { PostPreviewCard, type AttachedMedia } from "@/components/creator-assistant/creator-assistant-post-preview";
 
 export type CopilotMessage = { role: "user" | "assistant"; content: string };
-type AttachedMedia = { url: string; thumbnailUrl: string; type: "FEED" | "REEL" };
 
 const GREETING: CopilotMessage = {
   role: "assistant",
@@ -185,6 +185,27 @@ export function CreatorAssistantBubble() {
                   {m.content}
                 </div>
               ))}
+              {lastIntent === "post" && postDraft.caption && (
+                <PostPreviewCard
+                  workspaceId={workspaceId}
+                  draft={{
+                    caption: postDraft.caption ?? "",
+                    hashtags: postDraft.hashtags ?? [],
+                    scheduledLocal: postDraft.scheduledLocal ?? "",
+                    musicTitle: postDraft.musicTitle ?? "",
+                    musicArtist: postDraft.musicArtist ?? "",
+                    shareToFeed: postDraft.shareToFeed ?? true,
+                  }}
+                  media={attachedMedia}
+                  accountId={selectedAccountId}
+                  timezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+                  onCreated={() => {
+                    setPostDraft({});
+                    setAttachedMedia(null);
+                    setLastIntent(null);
+                  }}
+                />
+              )}
               {lyra.isActive && (
                 <LyraThinking status="thinking" startedAt={lyra.startedAt} onCancel={lyra.cancel} size="sm" />
               )}

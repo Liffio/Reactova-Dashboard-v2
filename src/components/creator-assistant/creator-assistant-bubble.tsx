@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, X } from "lucide-react";
+import { Send, Sparkles, X, Paperclip, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { LyraThinking } from "@/components/lyra-thinking";
@@ -9,6 +9,12 @@ import { usePersistedState } from "@/hooks/use-persisted-state";
 import { lyraStorageKey } from "@/lib/lyra-persist";
 import { useApp } from "@/state/app-context";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import {
+  uploadSchedulerMedia,
+  listPlatformAccounts,
+  type PlatformAccountDto,
+} from "@/lib/api/scheduler-api";
 import type {
   LyraCreatorCopilotOutput,
   LyraPostDraftFields,
@@ -16,6 +22,7 @@ import type {
 } from "@/lib/api/lyra-api";
 
 export type CopilotMessage = { role: "user" | "assistant"; content: string };
+type AttachedMedia = { url: string; thumbnailUrl: string; type: "FEED" | "REEL" };
 
 const GREETING: CopilotMessage = {
   role: "assistant",
@@ -47,6 +54,40 @@ export function CreatorAssistantBubble() {
     `${base}:last-intent`,
     null,
   );
+
+  const [attachedMedia, setAttachedMedia] = useState<AttachedMedia | null>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const accountsQuery = useQuery({
+    queryKey: ["scheduler-platform-accounts", workspaceId],
+    queryFn: () => listPlatformAccounts(workspaceId),
+    enabled: Boolean(workspaceId) && open,
+  });
+  const accounts: PlatformAccountDto[] = accountsQuery.data?.accounts ?? [];
+
+  useEffect(() => {
+    if (!selectedAccountId && accounts.length === 1) setSelectedAccountId(accounts[0].id);
+  }, [accounts, selectedAccountId]);
+
+  const handleFileSelected = async (file: File) => {
+    if (!workspaceId) return;
+    setUploadingMedia(true);
+    try {
+      const isVideo = file.type.startsWith("video/");
+      const postType = isVideo ? "REEL" : "FEED";
+      const uploaded = await uploadSchedulerMedia(workspaceId, file, postType);
+      setAttachedMedia({ url: uploaded.primaryMediaUrl, thumbnailUrl: uploaded.thumbnailUrl, type: postType });
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: `Couldn't upload that file: ${(err as Error).message}` },
+      ]);
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
 
   const lyra = useLyra<"creator_copilot">({ persistKey: `${base}:lyra` });
   const listRef = useRef<HTMLDivElement>(null);
@@ -153,7 +194,57 @@ export function CreatorAssistantBubble() {
             </div>
 
             <div className="border-t px-4 py-3">
+              {attachedMedia && (
+                <div className="mb-2 flex items-center gap-2 rounded-lg border bg-muted/30 px-2 py-1.5 text-xs">
+                  <img src={attachedMedia.thumbnailUrl} alt="" className="h-8 w-8 rounded object-cover" />
+                  <span className="flex-1 text-muted-foreground">Attached</span>
+                  <button
+                    type="button"
+                    onClick={() => setAttachedMedia(null)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+              {lastIntent === "post" && !selectedAccountId && accounts.length > 1 && (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  <span className="w-full text-xs text-muted-foreground">Which account?</span>
+                  {accounts.map((acc) => (
+                    <button
+                      key={acc.id}
+                      type="button"
+                      onClick={() => setSelectedAccountId(acc.id)}
+                      className="rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-accent"
+                    >
+                      @{acc.platformUsername}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex items-end gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleFileSelected(file);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingMedia}
+                  aria-label="Attach media"
+                >
+                  {uploadingMedia ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
+                </Button>
                 <Textarea
                   value={draftText}
                   onChange={(e) => setDraftText(e.target.value)}

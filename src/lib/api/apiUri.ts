@@ -74,6 +74,10 @@ export const apiUri = {
     options: `${V1}/team/options`,
   },
 
+  assistant: {
+    quick: `${V1}/assistant/quick`,
+  },
+
   automations: {
     list: `${V1}/automations`,
     create: `${V1}/automations`,

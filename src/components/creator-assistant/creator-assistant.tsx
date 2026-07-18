@@ -27,9 +27,11 @@ import {
 } from "@/lib/api/scheduler-api";
 import type {
   LyraCreatorCopilotOutput,
+  LyraError,
   LyraPostDraftFields,
   LyraAutomationDraftFields,
 } from "@/lib/api/lyra-api";
+import { quickAsk } from "@/lib/api/assistant-api";
 import { PostPreviewCard, type AttachedMedia } from "@/components/creator-assistant/creator-assistant-post-preview";
 import { AutomationPreviewCard } from "@/components/creator-assistant/creator-assistant-automation-preview";
 
@@ -55,6 +57,19 @@ export function nowLocalString(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** End users never see raw error payloads — every failure becomes a normal,
+ *  friendly assistant bubble in the conversation. */
+function friendlyLyraError(error: LyraError | null): string {
+  switch (error?.code) {
+    case "AI_TOKEN_LIMIT_REACHED":
+      return "You've used all your Lyra AI tokens for this billing period — upgrading your plan unlocks more. I can still answer quick workspace questions for free though, like \"how many leads this week?\" or \"what's my engagement?\"";
+    case "RATE_LIMITED":
+      return "I'm handling a lot of requests right now — give it a few seconds and send that again.";
+    default:
+      return "Sorry — something went wrong on my end while thinking about that. Mind sending it again?";
+  }
 }
 
 /** "Ask AI" pill trigger in the TopBar + right-side drawer for Lyra AI.
@@ -173,6 +188,19 @@ export function CreatorAssistant() {
     setMessages(nextMessages);
     setDraftText("");
 
+    // Token-free fast path: recognizable workspace questions are answered by the
+    // server straight from the database — instant, zero AI tokens. Best-effort:
+    // any failure here silently falls through to the normal Lyra call.
+    try {
+      const quick = await quickAsk(workspaceId, text);
+      if (quick.matched && quick.reply) {
+        setMessages((prev) => [...prev, { role: "assistant", content: quick.reply! }]);
+        return;
+      }
+    } catch {
+      // fall through to Lyra
+    }
+
     const result = await lyra.run({
       task: "creator_copilot",
       workspaceId,
@@ -191,6 +219,9 @@ export function CreatorAssistant() {
       setLastIntent(content.intent);
       if (content.intent === "post" && content.postDraft) setPostDraft(content.postDraft);
       if (content.intent === "automation" && content.automationDraft) setAutomationDraft(content.automationDraft);
+    } else if (result.status === "error") {
+      setMessages((prev) => [...prev, { role: "assistant", content: friendlyLyraError(result.error) }]);
+      lyra.reset();
     }
   };
 
@@ -358,9 +389,6 @@ export function CreatorAssistant() {
             ) : null}
             {lyra.isActive && (
               <LyraThinking status="thinking" startedAt={lyra.startedAt} onCancel={lyra.cancel} size="sm" />
-            )}
-            {lyra.status === "error" && (
-              <LyraThinking status="error" error={lyra.error} onRetry={() => void send()} size="sm" />
             )}
           </div>
         )}

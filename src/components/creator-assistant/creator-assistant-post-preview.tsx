@@ -148,8 +148,11 @@ export function PostPreviewCard({
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             This will schedule the post for {draft.scheduledLocal.replace("T", " ")}
-            {draft.automation.enabled ? " and activate the keyword automation on it" : ""}. You can still edit or
-            cancel it afterward from the <Link to="/scheduler" className="underline">scheduler</Link>.
+            {draft.automation.enabled
+              ? " — its keyword automation is created right away and goes live the moment the post publishes"
+              : ""}
+            . You can still edit or cancel it afterward from the{" "}
+            <Link to="/scheduler" className="underline">scheduler</Link>.
           </p>
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>

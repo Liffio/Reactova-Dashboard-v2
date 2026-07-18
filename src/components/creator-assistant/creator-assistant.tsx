@@ -5,6 +5,7 @@ import {
   Paperclip,
   Send,
   Sparkles,
+  Square,
   SquarePen,
   Trash2,
   X,
@@ -331,8 +332,10 @@ export function CreatorAssistant() {
               <div
                 key={i}
                 className={cn(
-                  "max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed",
-                  m.role === "user" ? "ml-auto bg-primary text-primary-foreground" : "bg-muted/50 text-foreground",
+                  "max-w-[85%] whitespace-pre-wrap break-words px-3.5 py-2 text-sm leading-relaxed animate-in fade-in-0 slide-in-from-bottom-1 duration-200",
+                  m.role === "user"
+                    ? "ml-auto rounded-2xl rounded-br-md bg-primary text-primary-foreground shadow-soft"
+                    : "rounded-2xl rounded-bl-md border border-border/60 bg-muted/40 text-foreground",
                 )}
               >
                 {m.content}
@@ -433,7 +436,7 @@ export function CreatorAssistant() {
                       setDraftText(s.starter);
                       textareaRef.current?.focus();
                     }}
-                    className="rounded-full border bg-card px-3 py-1.5 text-xs transition-colors hover:bg-accent"
+                    className="rounded-full border bg-card px-3 py-1.5 text-xs shadow-soft transition-colors hover:bg-accent hover:text-accent-foreground"
                   >
                     {s.label}
                   </button>
@@ -465,7 +468,6 @@ export function CreatorAssistant() {
                 placeholder="Ask Lyra anything…"
                 className="min-h-9 w-full resize-none border-0 p-1.5 text-sm shadow-none focus-visible:ring-0"
                 rows={2}
-                disabled={lyra.isActive}
               />
               <div className="flex items-center justify-end gap-1.5">
                 <Button
@@ -483,16 +485,33 @@ export function CreatorAssistant() {
                     <Paperclip className="h-3.5 w-3.5" />
                   )}
                 </Button>
-                <Button
-                  type="button"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 rounded-full"
-                  onClick={() => void send()}
-                  disabled={lyra.isActive || !draftText.trim()}
-                  aria-label="Send"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                </Button>
+                {lyra.isActive ? (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="relative h-8 w-8 shrink-0 rounded-full"
+                    onClick={() => lyra.cancel()}
+                    aria-label="Stop generating"
+                  >
+                    <span
+                      aria-hidden
+                      className="absolute -inset-px animate-spin rounded-full border-2 border-primary/20 border-t-primary"
+                    />
+                    <Square className="h-2.5 w-2.5 fill-current" />
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 rounded-full"
+                    onClick={() => void send()}
+                    disabled={!draftText.trim()}
+                    aria-label="Send"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </div>
             </div>
             <p className="mt-1.5 text-center text-[11px] text-muted-foreground">

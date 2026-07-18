@@ -102,6 +102,12 @@ export function CreatorAssistant() {
     `${base}:last-intent`,
     null,
   );
+  /** Where the live preview card sits inside the message stream — pinned right
+   *  after the assistant reply that produced the draft, so new messages push it
+   *  up with the rest of the conversation instead of it floating at the bottom. */
+  const [previewAnchor, setPreviewAnchor] = usePersistedState<
+    { kind: "post" | "automation"; index: number } | null
+  >(`${base}:preview-anchor`, null);
 
   const [attachedMedia, setAttachedMedia] = useState<AttachedMedia | null>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
@@ -149,6 +155,7 @@ export function CreatorAssistant() {
     setPostDraft({});
     setAutomationDraft({});
     setLastIntent(null);
+    setPreviewAnchor(null);
     setAttachedMedia(null);
     setDraftText("");
     lyra.reset();
@@ -243,10 +250,17 @@ export function CreatorAssistant() {
 
     if (result.status === "complete" && result.content) {
       const content: LyraCreatorCopilotOutput = result.content;
+      const replyIndex = nextMessages.length;
       setMessages((prev) => [...prev, { role: "assistant", content: content.reply }]);
       setLastIntent(content.intent);
-      if (content.intent === "post" && content.postDraft) setPostDraft(content.postDraft);
-      if (content.intent === "automation" && content.automationDraft) setAutomationDraft(content.automationDraft);
+      if (content.intent === "post" && content.postDraft) {
+        setPostDraft(content.postDraft);
+        setPreviewAnchor({ kind: "post", index: replyIndex });
+      }
+      if (content.intent === "automation" && content.automationDraft) {
+        setAutomationDraft(content.automationDraft);
+        setPreviewAnchor({ kind: "automation", index: replyIndex });
+      }
     } else if (result.status === "error") {
       setMessages((prev) => [...prev, { role: "assistant", content: friendlyLyraError(result.error) }]);
       lyra.reset();
@@ -356,83 +370,99 @@ export function CreatorAssistant() {
         ) : (
           <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
             {messages.map((m, i) => (
-              <div
-                key={i}
-                className={cn(
-                  "flex max-w-[85%] flex-col gap-1.5 animate-in fade-in-0 slide-in-from-bottom-1 duration-200",
-                  m.role === "user" ? "ml-auto items-end" : "items-start",
-                )}
-              >
-                {m.imageUrl && (
-                  <img
-                    src={m.imageUrl}
-                    alt="Attached media"
-                    className="max-h-40 max-w-full rounded-xl border object-cover shadow-soft"
-                  />
-                )}
+              <div key={i} className="space-y-3">
                 <div
                   className={cn(
-                    "whitespace-pre-wrap break-words px-3.5 py-2 text-sm leading-relaxed",
-                    m.role === "user"
-                      ? "rounded-2xl rounded-br-md bg-primary text-primary-foreground shadow-soft"
-                      : "rounded-2xl rounded-bl-md border border-border/60 bg-muted/40 text-foreground",
+                    "flex max-w-[85%] flex-col gap-1.5 animate-in fade-in-0 slide-in-from-bottom-1 duration-200",
+                    m.role === "user" ? "ml-auto items-end" : "items-start",
                   )}
                 >
-                  {m.content}
+                  {m.imageUrl && (
+                    <img
+                      src={m.imageUrl}
+                      alt="Attached media"
+                      className="max-h-40 max-w-full rounded-xl border object-cover shadow-soft"
+                    />
+                  )}
+                  <div
+                    className={cn(
+                      "whitespace-pre-wrap break-words px-3.5 py-2 text-sm leading-relaxed",
+                      m.role === "user"
+                        ? "rounded-2xl rounded-br-md bg-primary text-primary-foreground shadow-soft"
+                        : "rounded-2xl rounded-bl-md border border-border/60 bg-muted/40 text-foreground",
+                    )}
+                  >
+                    {m.content}
+                  </div>
                 </div>
+                {previewAnchor?.index === i && previewAnchor.kind === "post" && postDraft.caption && (
+                  <PostPreviewCard
+                    workspaceId={workspaceId}
+                    draft={{
+                      caption: postDraft.caption ?? "",
+                      hashtags: postDraft.hashtags ?? [],
+                      scheduledLocal: postDraft.scheduledLocal ?? "",
+                      musicTitle: postDraft.musicTitle ?? "",
+                      musicArtist: postDraft.musicArtist ?? "",
+                      shareToFeed: postDraft.shareToFeed ?? true,
+                      automation: postDraft.automation ?? {
+                        enabled: false,
+                        name: "",
+                        keywords: [],
+                        anyComment: false,
+                        dmMessage: "",
+                        autoReply: false,
+                        replyMessages: [],
+                        dmButtonLabel: "",
+                        dmButtonUrl: "",
+                      },
+                    }}
+                    media={attachedMedia}
+                    accountId={selectedAccountId}
+                    timezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+                    onCreated={() => {
+                      setPostDraft({});
+                      setAttachedMedia(null);
+                      setLastIntent(null);
+                      setPreviewAnchor(null);
+                    }}
+                  />
+                )}
+                {previewAnchor?.index === i &&
+                previewAnchor.kind === "automation" &&
+                automationDraft.triggerBlocks?.length ? (
+                  <AutomationPreviewCard
+                    workspaceId={workspaceId}
+                    draft={{
+                      name: automationDraft.name ?? "New automation",
+                      postScope: automationDraft.postScope ?? "any",
+                      anyComment: automationDraft.anyComment ?? false,
+                      triggerBlocks: automationDraft.triggerBlocks ?? [],
+                      followBeforeDm: automationDraft.followBeforeDm ?? false,
+                      followUps: automationDraft.followUps ?? [],
+                    }}
+                    onCreated={() => {
+                      setAutomationDraft({});
+                      setLastIntent(null);
+                      setPreviewAnchor(null);
+                    }}
+                  />
+                ) : null}
               </div>
             ))}
-            {lastIntent === "post" && postDraft.caption && (
-              <PostPreviewCard
-                workspaceId={workspaceId}
-                draft={{
-                  caption: postDraft.caption ?? "",
-                  hashtags: postDraft.hashtags ?? [],
-                  scheduledLocal: postDraft.scheduledLocal ?? "",
-                  musicTitle: postDraft.musicTitle ?? "",
-                  musicArtist: postDraft.musicArtist ?? "",
-                  shareToFeed: postDraft.shareToFeed ?? true,
-                  automation: postDraft.automation ?? {
-                    enabled: false,
-                    name: "",
-                    keywords: [],
-                    anyComment: false,
-                    dmMessage: "",
-                    autoReply: false,
-                    replyMessages: [],
-                    dmButtonLabel: "",
-                    dmButtonUrl: "",
-                  },
-                }}
-                media={attachedMedia}
-                accountId={selectedAccountId}
-                timezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
-                onCreated={() => {
-                  setPostDraft({});
-                  setAttachedMedia(null);
-                  setLastIntent(null);
-                }}
-              />
-            )}
-            {lastIntent === "automation" && automationDraft.triggerBlocks?.length ? (
-              <AutomationPreviewCard
-                workspaceId={workspaceId}
-                draft={{
-                  name: automationDraft.name ?? "New automation",
-                  postScope: automationDraft.postScope ?? "any",
-                  anyComment: automationDraft.anyComment ?? false,
-                  triggerBlocks: automationDraft.triggerBlocks ?? [],
-                  followBeforeDm: automationDraft.followBeforeDm ?? false,
-                  followUps: automationDraft.followUps ?? [],
-                }}
-                onCreated={() => {
-                  setAutomationDraft({});
-                  setLastIntent(null);
-                }}
-              />
-            ) : null}
             {lyra.isActive && (
-              <LyraThinking status="thinking" startedAt={lyra.startedAt} onCancel={lyra.cancel} size="sm" />
+              <LyraThinking
+                status="thinking"
+                startedAt={lyra.startedAt}
+                onCancel={lyra.cancel}
+                size="sm"
+                statusMessages={[
+                  "Analysing your request…",
+                  "Looking at your media…",
+                  "Checking your workspace…",
+                  "Drafting your content…",
+                ]}
+              />
             )}
           </div>
         )}

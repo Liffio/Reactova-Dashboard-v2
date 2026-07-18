@@ -156,10 +156,15 @@ jobs:
             fi
 
             # ── 1. Registry auth ─────────────────────────────────────────────────────
-            # GHCR_PAT: GitHub classic PAT with read:packages scope, stored as repo secret.
+            # GHCR_PAT: GitHub CLASSIC PAT with read:packages scope, stored as repo secret.
+            # Fine-grained PATs do NOT work with GHCR — login succeeds but every pull 403s.
             # GITHUB_TOKEN cannot be used here — it only authenticates inside Actions runners.
             # Username must be the PAT owner's login — github.actor breaks when someone
             # else pushes; set GHCR_USERNAME to the PAT creator's username to pin it.
+            if [ -z "${{ secrets.GHCR_PAT }}" ]; then
+              echo "ERROR: GHCR_PAT repo secret is not set — the droplet cannot pull from ghcr.io without it."
+              exit 1
+            fi
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME || github.actor }}" --password-stdin
             echo "Logged in to ghcr.io"
 

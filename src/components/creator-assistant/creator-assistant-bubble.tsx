@@ -21,6 +21,7 @@ import type {
   LyraAutomationDraftFields,
 } from "@/lib/api/lyra-api";
 import { PostPreviewCard, type AttachedMedia } from "@/components/creator-assistant/creator-assistant-post-preview";
+import { AutomationPreviewCard } from "@/components/creator-assistant/creator-assistant-automation-preview";
 
 export type CopilotMessage = { role: "user" | "assistant"; content: string };
 
@@ -206,6 +207,23 @@ export function CreatorAssistantBubble() {
                   }}
                 />
               )}
+              {lastIntent === "automation" && automationDraft.triggerBlocks?.length ? (
+                <AutomationPreviewCard
+                  workspaceId={workspaceId}
+                  draft={{
+                    name: automationDraft.name ?? "New automation",
+                    postScope: automationDraft.postScope ?? "any",
+                    anyComment: automationDraft.anyComment ?? false,
+                    triggerBlocks: automationDraft.triggerBlocks ?? [],
+                    followBeforeDm: automationDraft.followBeforeDm ?? false,
+                    followUps: automationDraft.followUps ?? [],
+                  }}
+                  onCreated={() => {
+                    setAutomationDraft({});
+                    setLastIntent(null);
+                  }}
+                />
+              ) : null}
               {lyra.isActive && (
                 <LyraThinking status="thinking" startedAt={lyra.startedAt} onCancel={lyra.cancel} size="sm" />
               )}

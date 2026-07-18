@@ -155,6 +155,9 @@ export type LyraCreatorCopilotInput = {
   currentAutomationDraftState: Partial<LyraAutomationDraftFields>;
   nowLocal: string;
   timezone: string;
+  /** Base64 data URLs of attached media (thumbnails) — switches the server call
+   *  to the vision model so "caption this image" requests actually see the image. */
+  images?: string[];
 };
 export type LyraCreatorCopilotOutput = {
   reply: string;

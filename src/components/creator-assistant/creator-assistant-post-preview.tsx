@@ -8,7 +8,15 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { createScheduledPost } from "@/lib/api/scheduler-api";
 import type { LyraPostDraftFields } from "@/lib/api/lyra-api";
 
-export type AttachedMedia = { url: string; thumbnailUrl: string; type: "FEED" | "REEL" };
+export type AttachedMedia = {
+  url: string;
+  thumbnailUrl: string;
+  type: "FEED" | "REEL";
+  /** Set once the attachment has been rendered inside a sent chat message, so the
+   *  composer stops showing its own duplicate thumbnail while the media stays
+   *  available for the preview card and the actual createScheduledPost call. */
+  shownInChat?: boolean;
+};
 
 export function PostPreviewCard({
   workspaceId,

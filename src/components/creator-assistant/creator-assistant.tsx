@@ -33,10 +33,16 @@ import type {
   LyraAutomationDraftFields,
 } from "@/lib/api/lyra-api";
 import { quickAsk } from "@/lib/api/assistant-api";
+import { urlToDataUrl } from "@/lib/image-data-url";
 import { PostPreviewCard, type AttachedMedia } from "@/components/creator-assistant/creator-assistant-post-preview";
 import { AutomationPreviewCard } from "@/components/creator-assistant/creator-assistant-automation-preview";
 
-export type CopilotMessage = { role: "user" | "assistant"; content: string };
+export type CopilotMessage = {
+  role: "user" | "assistant";
+  content: string;
+  /** Thumbnail of media attached with this message, rendered above the bubble. */
+  imageUrl?: string;
+};
 
 type StoredConversation = {
   id: string;
@@ -185,32 +191,53 @@ export function CreatorAssistant() {
     const text = draftText.trim();
     if (!text || lyra.isActive || !workspaceId) return;
 
-    const nextMessages: CopilotMessage[] = [...messages, { role: "user", content: text }];
+    // A freshly-attached image belongs to this message — show it in the bubble
+    // and stop showing the composer's duplicate thumbnail.
+    const sendingMedia = attachedMedia && !attachedMedia.shownInChat ? attachedMedia : null;
+    if (sendingMedia) setAttachedMedia({ ...sendingMedia, shownInChat: true });
+
+    const nextMessages: CopilotMessage[] = [
+      ...messages,
+      { role: "user", content: text, ...(sendingMedia ? { imageUrl: sendingMedia.thumbnailUrl } : {}) },
+    ];
     setMessages(nextMessages);
     setDraftText("");
 
     // Token-free fast path: recognizable workspace questions are answered by the
-    // server straight from the database — instant, zero AI tokens. Best-effort:
-    // any failure here silently falls through to the normal Lyra call.
-    try {
-      const quick = await quickAsk(workspaceId, text);
-      if (quick.matched && quick.reply) {
-        setMessages((prev) => [...prev, { role: "assistant", content: quick.reply! }]);
-        return;
+    // server straight from the database — instant, zero AI tokens. Skipped when
+    // media was just attached (the message is about the image, so it needs the
+    // LLM). Best-effort: any failure silently falls through to the Lyra call.
+    if (!sendingMedia) {
+      try {
+        const quick = await quickAsk(workspaceId, text);
+        if (quick.matched && quick.reply) {
+          setMessages((prev) => [...prev, { role: "assistant", content: quick.reply! }]);
+          return;
+        }
+      } catch {
+        // fall through to Lyra
       }
-    } catch {
-      // fall through to Lyra
+    }
+
+    // Vision: convert the attachment's JPEG thumbnail to a base64 data URL so the
+    // model can actually see it. Best-effort — a failed conversion just means the
+    // model answers without the image.
+    let images: string[] | undefined;
+    if (sendingMedia) {
+      const dataUrl = await urlToDataUrl(sendingMedia.thumbnailUrl);
+      if (dataUrl) images = [dataUrl];
     }
 
     const result = await lyra.run({
       task: "creator_copilot",
       workspaceId,
       input: {
-        messages: nextMessages,
+        messages: nextMessages.map(({ role, content }) => ({ role, content })),
         currentPostDraftState: postDraft,
         currentAutomationDraftState: automationDraft,
         nowLocal: nowLocalString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        ...(images ? { images } : {}),
       },
     });
 
@@ -332,13 +359,27 @@ export function CreatorAssistant() {
               <div
                 key={i}
                 className={cn(
-                  "max-w-[85%] whitespace-pre-wrap break-words px-3.5 py-2 text-sm leading-relaxed animate-in fade-in-0 slide-in-from-bottom-1 duration-200",
-                  m.role === "user"
-                    ? "ml-auto rounded-2xl rounded-br-md bg-primary text-primary-foreground shadow-soft"
-                    : "rounded-2xl rounded-bl-md border border-border/60 bg-muted/40 text-foreground",
+                  "flex max-w-[85%] flex-col gap-1.5 animate-in fade-in-0 slide-in-from-bottom-1 duration-200",
+                  m.role === "user" ? "ml-auto items-end" : "items-start",
                 )}
               >
-                {m.content}
+                {m.imageUrl && (
+                  <img
+                    src={m.imageUrl}
+                    alt="Attached media"
+                    className="max-h-40 max-w-full rounded-xl border object-cover shadow-soft"
+                  />
+                )}
+                <div
+                  className={cn(
+                    "whitespace-pre-wrap break-words px-3.5 py-2 text-sm leading-relaxed",
+                    m.role === "user"
+                      ? "rounded-2xl rounded-br-md bg-primary text-primary-foreground shadow-soft"
+                      : "rounded-2xl rounded-bl-md border border-border/60 bg-muted/40 text-foreground",
+                  )}
+                >
+                  {m.content}
+                </div>
               </div>
             ))}
             {lastIntent === "post" && postDraft.caption && (
@@ -398,19 +439,6 @@ export function CreatorAssistant() {
 
         {tab === "chat" && (
           <div className="border-t px-3 py-3">
-            {attachedMedia && (
-              <div className="mb-2 flex items-center gap-2 rounded-lg border bg-muted/30 px-2 py-1.5 text-xs">
-                <img src={attachedMedia.thumbnailUrl} alt="" className="h-8 w-8 rounded object-cover" />
-                <span className="flex-1 text-muted-foreground">Attached</span>
-                <button
-                  type="button"
-                  onClick={() => setAttachedMedia(null)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
             {lastIntent === "post" && !selectedAccountId && accounts.length > 1 && (
               <div className="mb-2 flex flex-wrap gap-1.5">
                 <span className="w-full text-xs text-muted-foreground">Which account?</span>
@@ -444,6 +472,23 @@ export function CreatorAssistant() {
               </div>
             )}
             <div className="rounded-2xl border bg-card p-2 shadow-soft transition-shadow focus-within:shadow-card">
+              {attachedMedia && !attachedMedia.shownInChat && (
+                <div className="relative mb-1.5 inline-block p-1">
+                  <img
+                    src={attachedMedia.thumbnailUrl}
+                    alt="Attached media"
+                    className="h-16 w-16 rounded-xl border object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAttachedMedia(null)}
+                    aria-label="Remove attachment"
+                    className="absolute -right-0.5 -top-0.5 grid h-5 w-5 place-items-center rounded-full border bg-background text-muted-foreground shadow-soft transition-colors hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
               <input
                 ref={fileInputRef}
                 type="file"

@@ -33,7 +33,7 @@ import { loginPathWithRedirect } from "@/lib/auth/auth-navigation";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { useApp } from "@/state/app-context";
 import { formatDateTime } from "@/lib/format";
-import { CreatorAssistantBubble } from "@/components/creator-assistant/creator-assistant-bubble";
+import { CreatorAssistant } from "@/components/creator-assistant/creator-assistant";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -306,6 +306,7 @@ function TopBar() {
       <div className="hidden h-5 w-px bg-border md:block" />
       <div className="min-w-0 flex-1" />
       <div className="ml-auto flex items-center gap-2">
+        <CreatorAssistant />
         <ThemeToggle />
         <NotificationsMenu />
         <DropdownMenu>
@@ -379,7 +380,6 @@ function AppLayout() {
             </main>
           </div>
         </div>
-        <CreatorAssistantBubble />
       </SidebarProvider>
     </ProtectedRoute>
   );

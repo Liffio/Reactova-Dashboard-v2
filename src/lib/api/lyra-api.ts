@@ -20,7 +20,8 @@ export type LyraTask =
   | "vision_analysis"
   | "ocr"
   | "image_summary"
-  | "custom_prompt";
+  | "custom_prompt"
+  | "automation_copilot";
 
 export type LyraError = {
   code:
@@ -90,6 +91,37 @@ export type LyraCustomPromptInput = {
   responseFormat?: "text" | "json";
 };
 
+/** Mirrors the automation wizard's real `TriggerBlock`/`BuilderForm` shape
+ *  (routes/_app/automations.new.tsx) — not a single flat reply/DM pair, since one
+ *  automation can have several independent keyword -> reply/DM blocks. */
+export type LyraAutomationTriggerBlockPatch = {
+  keyword: string;
+  autoReply: boolean;
+  replyMessage: string;
+  dmMessage: string;
+  hasButton: boolean;
+  dmButtonLabel: string;
+  dmButtonUrl: string;
+};
+export type LyraAutomationFollowUpPatch = { delayMinutes: number; message: string };
+export type LyraAutomationDraftFields = {
+  name: string;
+  postScope: "specific" | "any" | "next";
+  anyComment: boolean;
+  triggerBlocks: LyraAutomationTriggerBlockPatch[];
+  followBeforeDm: boolean;
+  followUps: LyraAutomationFollowUpPatch[];
+};
+export type LyraAutomationCopilotInput = {
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  /** The wizard's current in-progress field values, so multi-turn edits have context. */
+  currentDraftState: Partial<LyraAutomationDraftFields>;
+};
+export type LyraAutomationCopilotOutput = LyraAutomationDraftFields & {
+  reply: string;
+  changedFields: Array<keyof LyraAutomationDraftFields>;
+};
+
 export type LyraTaskMap = {
   chat: { input: LyraChatInput; output: { reply: string } };
   caption: { input: LyraCaptionInput; output: { caption: string } };
@@ -115,6 +147,7 @@ export type LyraTaskMap = {
   ocr: { input: LyraOcrInput; output: { text: string; tables: string[][] } };
   image_summary: { input: LyraImageSummaryInput; output: { summary: string } };
   custom_prompt: { input: LyraCustomPromptInput; output: { response: string } };
+  automation_copilot: { input: LyraAutomationCopilotInput; output: LyraAutomationCopilotOutput };
 };
 
 export type LyraOptions = { resync?: boolean } & Record<string, unknown>;

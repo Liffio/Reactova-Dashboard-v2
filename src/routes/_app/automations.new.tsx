@@ -52,6 +52,8 @@ import { useApp } from "@/state/app-context";
 import { LIMITS, urlError, lengthError } from "@/lib/validation";
 import { KeywordSuggest } from "@/components/lyra/keyword-suggest";
 import { DmMessageAssist } from "@/components/lyra/dm-message-assist";
+import { AutomationCopilotPanel } from "@/components/lyra/automation-copilot-panel";
+import type { LyraAutomationCopilotOutput, LyraAutomationDraftFields } from "@/lib/api/lyra-api";
 
 export const Route = createFileRoute("/_app/automations/new")({
   head: () => ({ meta: [{ title: "New automation — Liffio" }] }),
@@ -144,8 +146,9 @@ const defaultForm: BuilderForm = {
 
 function AutomationBuilder() {
   const navigate = useNavigate();
-  const { current } = useApp();
+  const { current, user } = useApp();
   const workspaceId = current.id;
+  const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set());
 
   const [form, setForm] = useState<BuilderForm>(defaultForm);
   const [expandedBlockIds, setExpandedBlockIds] = useState<string[]>(
@@ -321,6 +324,48 @@ function AutomationBuilder() {
     });
   };
 
+  // The co-pilot always echoes the full draft back (see AutomationCopilotTask's system
+  // prompt), so only touch fields it actually says it changed this turn — otherwise an
+  // untouched `triggerBlocks` echo could silently clobber ids/positions the user was
+  // mid-edit on.
+  const applyCopilotPatch = (patch: LyraAutomationCopilotOutput) => {
+    const changed = new Set(patch.changedFields);
+    const partial: Partial<BuilderForm> = {};
+    if (changed.has("name")) partial.name = patch.name;
+    if (changed.has("postScope")) partial.postScope = patch.postScope;
+    if (changed.has("anyComment")) partial.anyComment = patch.anyComment;
+    if (changed.has("followBeforeDm")) partial.followBeforeDm = patch.followBeforeDm;
+    if (changed.has("followUps")) {
+      partial.followUps = patch.followUps.map((f) => ({
+        id: `fu-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        delayMinutes: f.delayMinutes,
+        message: f.message,
+      }));
+    }
+    if (changed.has("triggerBlocks")) {
+      const nextBlocks = patch.triggerBlocks.map((b, i) => {
+        const existing = form.triggerBlocks[i];
+        return existing ? { ...existing, ...b } : createTriggerBlock(b);
+      });
+      partial.triggerBlocks = nextBlocks;
+      setExpandedBlockIds(nextBlocks.map((b) => b.id));
+    }
+
+    if (Object.keys(partial).length > 0) update(partial);
+
+    setHighlightedFields(new Set(patch.changedFields));
+    window.setTimeout(() => setHighlightedFields(new Set()), 1500);
+  };
+
+  const currentDraftForCopilot: Partial<LyraAutomationDraftFields> = {
+    name: form.name,
+    postScope: form.postScope,
+    anyComment: form.anyComment,
+    followBeforeDm: form.followBeforeDm,
+    triggerBlocks: form.triggerBlocks.map(({ id: _id, ...rest }) => rest),
+    followUps: form.followUps.map((f) => ({ delayMinutes: f.delayMinutes, message: f.message })),
+  };
+
   useEffect(() => {
     if (form.postScope === "specific" && !form.postId && wizardData.data?.media?.length) {
       update({ postId: wizardData.data.media[0].id });
@@ -411,8 +456,20 @@ function AutomationBuilder() {
 
       <div className="grid gap-6 p-4 sm:p-6 md:p-10 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">
+          <AutomationCopilotPanel
+            workspaceId={workspaceId}
+            userId={user?.id}
+            currentDraft={currentDraftForCopilot}
+            onApplyPatch={applyCopilotPatch}
+          />
+
           {/* Basics */}
-          <section className="rounded-2xl border bg-card p-5 shadow-soft">
+          <section
+            className={cn(
+              "rounded-2xl border bg-card p-5 shadow-soft transition-shadow",
+              highlightedFields.has("name") && "ring-2 ring-primary/60 animate-pulse",
+            )}
+          >
             <div className="space-y-1.5">
               <Label htmlFor="name">Automation name</Label>
               <Input
@@ -427,7 +484,13 @@ function AutomationBuilder() {
           </section>
 
           {/* Trigger */}
-          <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-soft">
+          <section
+            className={cn(
+              "space-y-4 rounded-2xl border bg-card p-5 shadow-soft transition-shadow",
+              (highlightedFields.has("postScope") || highlightedFields.has("anyComment")) &&
+                "ring-2 ring-primary/60 animate-pulse",
+            )}
+          >
             <SectionTitle
               icon={MessageSquare}
               title="Trigger"
@@ -512,7 +575,12 @@ function AutomationBuilder() {
           </section>
 
           {/* Keyword triggers */}
-          <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-soft">
+          <section
+            className={cn(
+              "space-y-4 rounded-2xl border bg-card p-5 shadow-soft transition-shadow",
+              highlightedFields.has("triggerBlocks") && "ring-2 ring-primary/60 animate-pulse",
+            )}
+          >
             <div className="flex items-center justify-between gap-3">
               <SectionTitle
                 icon={Hash}
@@ -594,7 +662,13 @@ function AutomationBuilder() {
           </section>
 
           {/* Follow gate + follow-ups */}
-          <section className="space-y-4 rounded-2xl border bg-card p-5 shadow-soft">
+          <section
+            className={cn(
+              "space-y-4 rounded-2xl border bg-card p-5 shadow-soft transition-shadow",
+              (highlightedFields.has("followBeforeDm") || highlightedFields.has("followUps")) &&
+                "ring-2 ring-primary/60 animate-pulse",
+            )}
+          >
             <SectionTitle
               icon={ShieldCheck}
               title="Audience growth"

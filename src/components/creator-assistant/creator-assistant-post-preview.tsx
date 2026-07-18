@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
-import { CalendarClock, Check } from "lucide-react";
+import { CalendarClock, Check, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { createScheduledPost } from "@/lib/api/scheduler-api";
@@ -41,6 +41,25 @@ export function PostPreviewCard({
         musicTitle: draft.musicTitle || undefined,
         musicArtist: draft.musicArtist || undefined,
         shareToFeed: draft.shareToFeed,
+        // Mirrors the scheduler compose dialog's own "Automation" toggle submit
+        // (scheduler.tsx) — attaches a keyword automation to THIS post in the same request.
+        automation: draft.automation.enabled
+          ? {
+              enabled: true,
+              name: draft.automation.name.trim() || `Automation for ${(media?.type ?? "FEED").toLowerCase()} post`,
+              keywords: draft.automation.anyComment
+                ? []
+                : draft.automation.keywords.map((k) => k.trim().toUpperCase()).filter(Boolean),
+              anyComment: draft.automation.anyComment,
+              dmMessage: draft.automation.dmMessage.trim(),
+              autoReply: draft.automation.autoReply,
+              replyMessages: draft.automation.replyMessages.map((m) => m.trim()).filter(Boolean),
+              dmButtonLabel: draft.automation.dmButtonUrl.trim()
+                ? draft.automation.dmButtonLabel.trim() || undefined
+                : undefined,
+              dmButtonUrl: draft.automation.dmButtonUrl.trim() || undefined,
+            }
+          : undefined,
       }),
     onSuccess: () => {
       toast.success("Post scheduled");
@@ -50,7 +69,12 @@ export function PostPreviewCard({
     onError: (error) => toast.error((error as Error).message),
   });
 
-  const ready = Boolean(draft.caption && media && draft.scheduledLocal);
+  const automationReady =
+    !draft.automation.enabled ||
+    Boolean(
+      draft.automation.dmMessage.trim() && (draft.automation.anyComment || draft.automation.keywords.length > 0),
+    );
+  const ready = Boolean(draft.caption && media && draft.scheduledLocal) && automationReady;
 
   return (
     <div className="rounded-xl border bg-card p-3 text-sm">
@@ -68,6 +92,14 @@ export function PostPreviewCard({
             </p>
           )}
           {!media && <p className="text-xs text-warning">Attach an image or video to continue.</p>}
+          {draft.automation.enabled && (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <MessageSquare className="h-3 w-3" />
+              Automation: {draft.automation.anyComment ? "any comment" : draft.automation.keywords.join(", ") || "—"}
+              {" → "}
+              {draft.automation.dmMessage || "no DM message yet"}
+            </p>
+          )}
         </div>
       </div>
       <Button
@@ -87,8 +119,9 @@ export function PostPreviewCard({
             <DialogTitle>Schedule this post?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will schedule the post for {draft.scheduledLocal.replace("T", " ")}. You can still edit or cancel it
-            afterward from the <Link to="/scheduler" className="underline">scheduler</Link>.
+            This will schedule the post for {draft.scheduledLocal.replace("T", " ")}
+            {draft.automation.enabled ? " and activate the keyword automation on it" : ""}. You can still edit or
+            cancel it afterward from the <Link to="/scheduler" className="underline">scheduler</Link>.
           </p>
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>

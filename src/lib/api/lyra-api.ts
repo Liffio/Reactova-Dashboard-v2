@@ -123,6 +123,21 @@ export type LyraAutomationCopilotOutput = LyraAutomationDraftFields & {
   changedFields: Array<keyof LyraAutomationDraftFields>;
 };
 
+/** Mirrors the scheduler compose dialog's own "Automation" toggle section (scheduler.tsx's
+ *  `automationEnabled`/`automationKeywords`/etc. fields) — a single shared keyword set + DM
+ *  attached to the SAME post, not a separate standalone automation. Sent as `body.automation`
+ *  to `createScheduledPost`, exactly like the composer's own submit does. */
+export type LyraPostAutomationFields = {
+  enabled: boolean;
+  name: string;
+  keywords: string[];
+  anyComment: boolean;
+  dmMessage: string;
+  autoReply: boolean;
+  replyMessages: string[];
+  dmButtonLabel: string;
+  dmButtonUrl: string;
+};
 export type LyraPostDraftFields = {
   caption: string;
   hashtags: string[];
@@ -132,6 +147,7 @@ export type LyraPostDraftFields = {
   musicTitle: string;
   musicArtist: string;
   shareToFeed: boolean;
+  automation: LyraPostAutomationFields;
 };
 export type LyraCreatorCopilotInput = {
   messages: Array<{ role: "user" | "assistant"; content: string }>;

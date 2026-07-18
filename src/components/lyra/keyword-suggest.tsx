@@ -33,6 +33,7 @@ export function KeywordSuggest({
   const run = async () => {
     await lyra.run({
       task: "keyword",
+      workspaceId: current.id,
       input: {
         mode: "extraction",
         topic: topic.trim() || undefined,

@@ -43,6 +43,7 @@ export function ContentIdeas({
   const run = async () => {
     await lyra.run({
       task: "suggestion",
+      workspaceId: current.id,
       input: { type, topic: topic.trim() || undefined, count: 5 },
     });
   };

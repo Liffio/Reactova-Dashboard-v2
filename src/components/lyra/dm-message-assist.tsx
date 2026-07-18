@@ -50,6 +50,7 @@ export function DmMessageAssist({
       .join("\n");
     await lyra.run({
       task: "custom_prompt",
+      workspaceId: current.id,
       input: {
         prompt: context || `Write a ${label.toLowerCase()} for an Instagram DM automation.`,
         systemPrompt: SYSTEM_PROMPT,
@@ -64,13 +65,7 @@ export function DmMessageAssist({
   };
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) lyra.reset();
-      }}
-    >
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           type="button"

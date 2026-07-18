@@ -42,11 +42,11 @@ export function MediaAnalyze({
       return;
     }
     if (nextMode === "image_summary") {
-      await summaryLyra.run({ task: "image_summary", input: { images } });
+      await summaryLyra.run({ task: "image_summary", workspaceId: current.id, input: { images } });
     } else if (nextMode === "ocr") {
-      await ocrLyra.run({ task: "ocr", input: { images } });
+      await ocrLyra.run({ task: "ocr", workspaceId: current.id, input: { images } });
     } else {
-      await visionLyra.run({ task: "vision_analysis", input: { images } });
+      await visionLyra.run({ task: "vision_analysis", workspaceId: current.id, input: { images } });
     }
   };
 

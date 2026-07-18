@@ -53,6 +53,14 @@ export function useLyraInsights<K extends InsightsTask>({
     },
     enabled: Boolean(workspaceId) && workspaceId !== "default",
     staleTime: Infinity,
+    // Default gcTime (5 min) was evicting this query's cache entry whenever the
+    // card unmounted for more than 5 min (route navigation away and back) —
+    // once evicted, react-query has no "fetched" data left (placeholderData
+    // doesn't count), so staleTime: Infinity couldn't prevent a fresh refetch
+    // on remount. Infinity keeps the in-memory cache alive for the whole tab
+    // session, so results only ever change via the explicit Refresh/Resync
+    // actions or the background poll below — never a silent remount refetch.
+    gcTime: Infinity,
     refetchInterval: TWO_HOURS_MS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,

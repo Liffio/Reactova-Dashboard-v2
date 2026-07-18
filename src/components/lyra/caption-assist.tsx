@@ -53,6 +53,7 @@ export function CaptionAssist({
     const images = mediaUrls.length > 0 ? await urlsToDataUrls(mediaUrls) : [];
     const result = await lyra.run({
       task: "caption",
+      workspaceId: current.id,
       input: {
         mode,
         topic: topic.trim() || undefined,
@@ -83,16 +84,7 @@ export function CaptionAssist({
   };
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) {
-          lyra.reset();
-          setPendingDraft(null);
-        }
-      }}
-    >
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           type="button"

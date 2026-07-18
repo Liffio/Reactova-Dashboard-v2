@@ -45,6 +45,7 @@ export function BioTextAssist({
 
     const result = await lyra.run({
       task: "custom_prompt",
+      workspaceId: current.id,
       input: { prompt, systemPrompt: SYSTEM_PROMPT },
     });
     if (result.status !== "complete") return;
@@ -70,16 +71,7 @@ export function BioTextAssist({
   };
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) {
-          lyra.reset();
-          setPendingDraft(null);
-        }
-      }}
-    >
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           type="button"

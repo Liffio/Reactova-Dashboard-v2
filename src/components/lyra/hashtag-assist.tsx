@@ -31,6 +31,7 @@ export function HashtagAssist({
   const run = async () => {
     const result = await lyra.run({
       task: "hashtag",
+      workspaceId: current.id,
       input: { caption: caption.trim() || undefined, count: 10 },
     });
     if (result.status !== "complete" || !result.content) return;

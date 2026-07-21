@@ -16,6 +16,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AppSidebar } from "@/components/app-sidebar";
+import { AccessChangedModal } from "@/components/access/access-changed-modal";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { PageTransition } from "@/components/page-transition";
 import { useTheme } from "@/state/theme-store";
@@ -368,6 +369,9 @@ function AppLayout() {
 
   return (
     <ProtectedRoute>
+      {/* Mounted once for the whole authenticated shell so an access change interrupts the user
+          wherever they are, not only on permission-related pages. */}
+      <AccessChangedModal />
       <SidebarProvider>
         <div className="flex min-h-screen w-full bg-background">
           <AppSidebar />

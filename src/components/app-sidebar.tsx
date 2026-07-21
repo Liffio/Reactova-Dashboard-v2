@@ -16,6 +16,8 @@ import {
   ShieldCheck,
   ShieldAlert,
   KeyRound,
+  Boxes,
+  Package as PackageIcon,
   Mail,
   Handshake,
   BookOpen,
@@ -103,6 +105,18 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
         url: "/platform-admins",
         icon: ShieldAlert,
         platformPermission: "platform:admin_manage",
+      },
+      {
+        title: "Module Registry",
+        url: "/module-registry",
+        icon: Boxes,
+        platformPermission: "platform:module_manage",
+      },
+      {
+        title: "Packages",
+        url: "/packages",
+        icon: PackageIcon,
+        platformPermission: "platform:package_manage",
       },
       {
         title: "Access Management",

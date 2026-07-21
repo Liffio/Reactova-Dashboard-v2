@@ -49,8 +49,8 @@ export function getPlatformPermissionCatalogue() {
   return apiRequest<{ permissions: PlatformPermissionMeta[] }>(apiUri.admin.platform.permissions);
 }
 
-export function listPlatformAdmins(includeRevoked = false) {
-  return apiRequest<{ items: PlatformAdmin[] }>(apiUri.admin.platform.admins(includeRevoked));
+export function listPlatformAdmins(includeRevoked = false, q?: string) {
+  return apiRequest<{ items: PlatformAdmin[] }>(apiUri.admin.platform.admins(includeRevoked, q));
 }
 
 export function lookupPlatformUsers(q: string) {

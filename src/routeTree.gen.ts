@@ -26,6 +26,8 @@ import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppSchedulerRouteImport } from './routes/_app/scheduler'
 import { Route as AppRbacMasterRouteImport } from './routes/_app/rbac-master'
 import { Route as AppPlatformAdminsRouteImport } from './routes/_app/platform-admins'
+import { Route as AppPackagesRouteImport } from './routes/_app/packages'
+import { Route as AppModuleRegistryRouteImport } from './routes/_app/module-registry'
 import { Route as AppLeadsCapturedRouteImport } from './routes/_app/leads-captured'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppCreatorsProgramRouteImport } from './routes/_app/creators-program'
@@ -130,6 +132,16 @@ const AppRbacMasterRoute = AppRbacMasterRouteImport.update({
 const AppPlatformAdminsRoute = AppPlatformAdminsRouteImport.update({
   id: '/platform-admins',
   path: '/platform-admins',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPackagesRoute = AppPackagesRouteImport.update({
+  id: '/packages',
+  path: '/packages',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppModuleRegistryRoute = AppModuleRegistryRouteImport.update({
+  id: '/module-registry',
+  path: '/module-registry',
   getParentRoute: () => AppRoute,
 } as any)
 const AppLeadsCapturedRoute = AppLeadsCapturedRouteImport.update({
@@ -261,6 +273,8 @@ export interface FileRoutesByFullPath {
   '/creators-program': typeof AppCreatorsProgramRoute
   '/dashboard': typeof AppDashboardRoute
   '/leads-captured': typeof AppLeadsCapturedRoute
+  '/module-registry': typeof AppModuleRegistryRoute
+  '/packages': typeof AppPackagesRoute
   '/platform-admins': typeof AppPlatformAdminsRoute
   '/rbac-master': typeof AppRbacMasterRoute
   '/scheduler': typeof AppSchedulerRoute
@@ -300,6 +314,8 @@ export interface FileRoutesByTo {
   '/creators-program': typeof AppCreatorsProgramRoute
   '/dashboard': typeof AppDashboardRoute
   '/leads-captured': typeof AppLeadsCapturedRoute
+  '/module-registry': typeof AppModuleRegistryRoute
+  '/packages': typeof AppPackagesRoute
   '/platform-admins': typeof AppPlatformAdminsRoute
   '/rbac-master': typeof AppRbacMasterRoute
   '/scheduler': typeof AppSchedulerRoute
@@ -341,6 +357,8 @@ export interface FileRoutesById {
   '/_app/creators-program': typeof AppCreatorsProgramRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/leads-captured': typeof AppLeadsCapturedRoute
+  '/_app/module-registry': typeof AppModuleRegistryRoute
+  '/_app/packages': typeof AppPackagesRoute
   '/_app/platform-admins': typeof AppPlatformAdminsRoute
   '/_app/rbac-master': typeof AppRbacMasterRoute
   '/_app/scheduler': typeof AppSchedulerRoute
@@ -382,6 +400,8 @@ export interface FileRouteTypes {
     | '/creators-program'
     | '/dashboard'
     | '/leads-captured'
+    | '/module-registry'
+    | '/packages'
     | '/platform-admins'
     | '/rbac-master'
     | '/scheduler'
@@ -421,6 +441,8 @@ export interface FileRouteTypes {
     | '/creators-program'
     | '/dashboard'
     | '/leads-captured'
+    | '/module-registry'
+    | '/packages'
     | '/platform-admins'
     | '/rbac-master'
     | '/scheduler'
@@ -461,6 +483,8 @@ export interface FileRouteTypes {
     | '/_app/creators-program'
     | '/_app/dashboard'
     | '/_app/leads-captured'
+    | '/_app/module-registry'
+    | '/_app/packages'
     | '/_app/platform-admins'
     | '/_app/rbac-master'
     | '/_app/scheduler'
@@ -616,6 +640,20 @@ declare module '@tanstack/react-router' {
       path: '/platform-admins'
       fullPath: '/platform-admins'
       preLoaderRoute: typeof AppPlatformAdminsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/packages': {
+      id: '/_app/packages'
+      path: '/packages'
+      fullPath: '/packages'
+      preLoaderRoute: typeof AppPackagesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/module-registry': {
+      id: '/_app/module-registry'
+      path: '/module-registry'
+      fullPath: '/module-registry'
+      preLoaderRoute: typeof AppModuleRegistryRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/leads-captured': {
@@ -806,6 +844,8 @@ interface AppRouteChildren {
   AppCreatorsProgramRoute: typeof AppCreatorsProgramRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppLeadsCapturedRoute: typeof AppLeadsCapturedRoute
+  AppModuleRegistryRoute: typeof AppModuleRegistryRoute
+  AppPackagesRoute: typeof AppPackagesRoute
   AppPlatformAdminsRoute: typeof AppPlatformAdminsRoute
   AppRbacMasterRoute: typeof AppRbacMasterRoute
   AppSchedulerRoute: typeof AppSchedulerRoute
@@ -832,6 +872,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppCreatorsProgramRoute: AppCreatorsProgramRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppLeadsCapturedRoute: AppLeadsCapturedRoute,
+  AppModuleRegistryRoute: AppModuleRegistryRoute,
+  AppPackagesRoute: AppPackagesRoute,
   AppPlatformAdminsRoute: AppPlatformAdminsRoute,
   AppRbacMasterRoute: AppRbacMasterRoute,
   AppSchedulerRoute: AppSchedulerRoute,

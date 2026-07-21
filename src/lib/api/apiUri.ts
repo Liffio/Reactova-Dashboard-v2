@@ -9,6 +9,16 @@
 
 const V1 = "/api/v1";
 
+/** Serialises list params, dropping empties so a blank search box isn't sent as `q=`. */
+const listQs = (params: Record<string, string | number | boolean | undefined>): string => {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "" && v !== null) qs.set(k, String(v));
+  }
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+};
+
 /**
  * Creator Eligibility System — deliberately versioned separately from the
  * rest of the API (`/api/creator/v1/...` not `/api/v1/creators`), per
@@ -211,8 +221,8 @@ export const apiUri = {
     platform: {
       me: `${V1}/admin/platform/me`,
       permissions: `${V1}/admin/platform/permissions`,
-      admins: (includeRevoked = false) =>
-        `${V1}/admin/platform/admins${includeRevoked ? "?includeRevoked=true" : ""}`,
+      admins: (includeRevoked = false, q?: string) =>
+        `${V1}/admin/platform/admins${listQs({ includeRevoked: includeRevoked || undefined, q })}`,
       adminsLookup: (q: string) =>
         `${V1}/admin/platform/admins/lookup?q=${encodeURIComponent(q)}`,
       admin: (userId: string) => `${V1}/admin/platform/admins/${userId}`,
@@ -226,6 +236,30 @@ export const apiUri = {
       return `${V1}/admin/audit${suffix ? `?${suffix}` : ""}`;
     },
     auditActions: `${V1}/admin/audit/actions`,
+    /**
+     * Module registry + packages. Lists take page/limit/q — the server filters and counts in SQL,
+     * so the client never fetches a table to search it locally.
+     */
+    registry: {
+      tree: `${V1}/admin/registry/tree`,
+      parents: (p: { page?: number; limit?: number; q?: string } = {}) =>
+        `${V1}/admin/registry/parents${listQs(p)}`,
+      parent: (id: string) => `${V1}/admin/registry/parents/${id}`,
+      children: (p: { page?: number; limit?: number; q?: string; parentModuleId?: string } = {}) =>
+        `${V1}/admin/registry/children${listQs(p)}`,
+      child: (id: string) => `${V1}/admin/registry/children/${id}`,
+      mappings: `${V1}/admin/registry/mappings`,
+      mapping: (parentModuleId: string, childModuleId: string) =>
+        `${V1}/admin/registry/mappings?parentModuleId=${parentModuleId}&childModuleId=${childModuleId}`,
+      codegen: (parentKey?: string) =>
+        `${V1}/admin/registry/codegen${parentKey ? `?parentKey=${encodeURIComponent(parentKey)}` : ""}`,
+    },
+    packages: {
+      list: (p: { page?: number; limit?: number; q?: string } = {}) =>
+        `${V1}/admin/packages${listQs(p)}`,
+      item: (id: string) => `${V1}/admin/packages/${id}`,
+      features: (id: string) => `${V1}/admin/packages/${id}/features`,
+    },
     /** Per-user access matrix (module × action) for a workspace. */
     access: {
       catalogue: `${V1}/admin/access/catalogue`,

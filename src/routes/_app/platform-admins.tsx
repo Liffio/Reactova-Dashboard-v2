@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Lock, Search, ShieldAlert, ShieldCheck, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuthState } from "@/lib/auth/auth-store";
+import { useDebounced } from "@/hooks/use-debounced";
 import {
   getPlatformPermissionCatalogue,
   grantPlatformAdmin,
@@ -69,9 +70,12 @@ function PlatformAdminsPage() {
   const [editing, setEditing] = useState<PlatformAdmin | null>(null);
   const [revoking, setRevoking] = useState<PlatformAdmin | null>(null);
 
+  // Search runs server-side; the client never filters a fetched array.
+  const debouncedSearch = useDebounced(search);
   const adminsQuery = useQuery({
-    queryKey: [ADMINS_QUERY_KEY, includeRevoked],
-    queryFn: () => listPlatformAdmins(includeRevoked),
+    queryKey: [ADMINS_QUERY_KEY, includeRevoked, debouncedSearch],
+    queryFn: () => listPlatformAdmins(includeRevoked, debouncedSearch || undefined),
+    placeholderData: keepPreviousData,
   });
 
   const catalogueQuery = useQuery({
@@ -83,14 +87,7 @@ function PlatformAdminsPage() {
   const catalogue = catalogueQuery.data?.permissions ?? [];
   const refresh = () => void queryClient.invalidateQueries({ queryKey: [ADMINS_QUERY_KEY] });
 
-  const items = useMemo(() => {
-    const all = adminsQuery.data?.items ?? [];
-    const q = search.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter(
-      (a) => a.email?.toLowerCase().includes(q) || a.name?.toLowerCase().includes(q)
-    );
-  }, [adminsQuery.data, search]);
+  const items = adminsQuery.data?.items ?? [];
 
   return (
     <div>

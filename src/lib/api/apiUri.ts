@@ -69,6 +69,9 @@ export const apiUri = {
     },
   },
 
+  /** Registry-driven tenant sidebar; server filters it to what the caller can read. */
+  navigation: `${V1}/navigation`,
+
   workspaces: {
     list: `${V1}/workspaces`,
     create: `${V1}/workspaces`,

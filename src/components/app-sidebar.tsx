@@ -1,4 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard,
@@ -44,6 +45,7 @@ import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { usePlatformAuthz } from "@/hooks/use-platform-authz";
 import { useApp } from "@/state/app-context";
+import { getNavigation } from "@/lib/api/navigation-api";
 
 type NavItem = {
   title: string;
@@ -95,6 +97,22 @@ const nav: Array<{ group: string; items: NavItem[] }> = [
     ],
   },
 ];
+
+/**
+ * Icons the registry may reference, resolved from a fixed map rather than a dynamic import.
+ *
+ * Dynamic resolution would mean shipping all of lucide to satisfy a string chosen in an admin
+ * form. Anything unrecognised falls back to a neutral icon, so a typo in the registry costs a
+ * generic glyph instead of a crashed sidebar.
+ */
+const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
+  LayoutDashboard, BarChart3, Zap, Users, CalendarDays, Link2, LinkIcon, Link: LinkIcon,
+  UsersRound, CreditCard, Gift, Building2, BookOpen, Sparkles, Settings, Boxes, Coins,
+  ShieldCheck, Database, Handshake, Mail, ClipboardCheck, KeyRound,
+};
+
+const resolveNavIcon = (name: string | null): typeof LayoutDashboard =>
+  (name && NAV_ICONS[name]) || Boxes;
 
 const adminNav: Array<{ group: string; items: NavItem[] }> = [
   {
@@ -157,7 +175,9 @@ export function AppSidebar() {
   };
 
   // Permission-gated control-plane items surface for any platform admin; the rest of the admin
-  // nav still requires full super admin, matching the guards those pages use today.
+  // nav still requires full super admin, matching the guards those pages use today. The admin
+  // nav stays hardcoded on purpose — it is platform tooling, not tenant product surface, so it
+  // should not disappear because someone edited the registry.
   const adminSections = adminNav
     .map((section) => ({
       ...section,
@@ -165,7 +185,37 @@ export function AppSidebar() {
     }))
     .filter((section) => section.items.length > 0);
 
-  const sections = [...nav, ...adminSections]
+  /**
+   * Tenant navigation comes from the module registry so operators can change it without a
+   * deploy. `nav` remains as the fallback: while the request is in flight, if it fails, or if the
+   * registry has no sidebar modules, users keep a working menu. A misconfigured registry should
+   * cost you a wrong link, never every link.
+   */
+  const navQuery = useQuery({
+    queryKey: ["navigation", current.id],
+    queryFn: getNavigation,
+    enabled: Boolean(current.id && current.id !== "default"),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  const registryGroups = navQuery.data?.groups ?? [];
+  const tenantSections: Array<{ group: string; items: NavItem[] }> =
+    registryGroups.length > 0
+      ? registryGroups.map((g) => ({
+          group: g.group,
+          items: g.items
+            .filter((m) => m.route)
+            .map((m) => ({
+              title: m.name,
+              url: m.route!,
+              icon: resolveNavIcon(m.icon),
+              module: m.key,
+            })),
+        }))
+      : nav;
+
+  const sections = [...tenantSections, ...adminSections]
     .map((section) => ({ ...section, items: section.items.filter(canSee) }))
     .filter((section) => section.items.length > 0);
 

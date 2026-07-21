@@ -226,6 +226,16 @@ export const apiUri = {
       return `${V1}/admin/audit${suffix ? `?${suffix}` : ""}`;
     },
     auditActions: `${V1}/admin/audit/actions`,
+    /** Per-user access matrix (module × action) for a workspace. */
+    access: {
+      catalogue: `${V1}/admin/access/catalogue`,
+      users: (q: string) => `${V1}/admin/access/users?q=${encodeURIComponent(q)}`,
+      workspaces: (userIds: string[]) =>
+        `${V1}/admin/access/workspaces?userIds=${encodeURIComponent(userIds.join(","))}`,
+      state: (userIds: string[], workspaceId: string) =>
+        `${V1}/admin/access/state?userIds=${encodeURIComponent(userIds.join(","))}&workspaceId=${workspaceId}`,
+      matrix: `${V1}/admin/access/matrix`,
+    },
     rbac: {
       overview: `${V1}/admin/rbac/overview`,
       rolePermissions: (roleKey: string) => `${V1}/admin/rbac/roles/${roleKey}/permissions`,

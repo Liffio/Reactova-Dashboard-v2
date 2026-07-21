@@ -36,6 +36,7 @@ import { Route as AppAnalyticsRouteImport } from './routes/_app/analytics'
 import { Route as AppAiTokensMasterRouteImport } from './routes/_app/ai-tokens-master'
 import { Route as AppAgencyRouteImport } from './routes/_app/agency'
 import { Route as AppAffiliateRouteImport } from './routes/_app/affiliate'
+import { Route as AppAccessManagementRouteImport } from './routes/_app/access-management'
 import { Route as AppAutomationsIndexRouteImport } from './routes/_app/automations.index'
 import { Route as OauthMetaCompleteRouteImport } from './routes/oauth.meta.complete'
 import { Route as AuthGoogleCompleteRouteImport } from './routes/auth.google.complete'
@@ -181,6 +182,11 @@ const AppAffiliateRoute = AppAffiliateRouteImport.update({
   path: '/affiliate',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAccessManagementRoute = AppAccessManagementRouteImport.update({
+  id: '/access-management',
+  path: '/access-management',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAutomationsIndexRoute = AppAutomationsIndexRouteImport.update({
   id: '/automations/',
   path: '/automations/',
@@ -244,6 +250,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/register': typeof RegisterRoute
+  '/access-management': typeof AppAccessManagementRoute
   '/affiliate': typeof AppAffiliateRoute
   '/agency': typeof AppAgencyRoute
   '/ai-tokens-master': typeof AppAiTokensMasterRoute
@@ -282,6 +289,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/register': typeof RegisterRoute
+  '/access-management': typeof AppAccessManagementRoute
   '/affiliate': typeof AppAffiliateRoute
   '/agency': typeof AppAgencyRoute
   '/ai-tokens-master': typeof AppAiTokensMasterRoute
@@ -322,6 +330,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/register': typeof RegisterRoute
+  '/_app/access-management': typeof AppAccessManagementRoute
   '/_app/affiliate': typeof AppAffiliateRoute
   '/_app/agency': typeof AppAgencyRoute
   '/_app/ai-tokens-master': typeof AppAiTokensMasterRoute
@@ -362,6 +371,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/register'
+    | '/access-management'
     | '/affiliate'
     | '/agency'
     | '/ai-tokens-master'
@@ -400,6 +410,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/register'
+    | '/access-management'
     | '/affiliate'
     | '/agency'
     | '/ai-tokens-master'
@@ -439,6 +450,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/register'
+    | '/_app/access-management'
     | '/_app/affiliate'
     | '/_app/agency'
     | '/_app/ai-tokens-master'
@@ -676,6 +688,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAffiliateRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/access-management': {
+      id: '/_app/access-management'
+      path: '/access-management'
+      fullPath: '/access-management'
+      preLoaderRoute: typeof AppAccessManagementRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/automations/': {
       id: '/_app/automations/'
       path: '/automations'
@@ -776,6 +795,7 @@ const AppAdminCreatorsRouteWithChildren =
   AppAdminCreatorsRoute._addFileChildren(AppAdminCreatorsRouteChildren)
 
 interface AppRouteChildren {
+  AppAccessManagementRoute: typeof AppAccessManagementRoute
   AppAffiliateRoute: typeof AppAffiliateRoute
   AppAgencyRoute: typeof AppAgencyRoute
   AppAiTokensMasterRoute: typeof AppAiTokensMasterRoute
@@ -801,6 +821,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAccessManagementRoute: AppAccessManagementRoute,
   AppAffiliateRoute: AppAffiliateRoute,
   AppAgencyRoute: AppAgencyRoute,
   AppAiTokensMasterRoute: AppAiTokensMasterRoute,

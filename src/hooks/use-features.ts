@@ -53,3 +53,46 @@ export function useFeature(moduleKey: string, feature: string): boolean {
   const permissions = usePermissions();
   return permissions.includes(`${moduleKey}:${feature}`);
 }
+
+/**
+ * Feature flags for any module, as a lookup keyed by feature slug.
+ *
+ * Use this rather than a hook-per-feature: a component that gates several controls would
+ * otherwise call hooks conditionally when its branches differ. Unknown slugs return false, which
+ * is the safe direction — a typo hides a control rather than exposing one.
+ *
+ *   const f = useModuleFeatures("biolink");
+ *   {f.social_links && <SocialLinksSection />}
+ */
+export function useModuleFeatures(moduleKey: string): Record<string, boolean> {
+  const permissions = usePermissions();
+  const prefix = `${moduleKey}:`;
+  const held = new Set(
+    permissions.filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length))
+  );
+  return new Proxy(
+    {},
+    {
+      get: (_t, prop: string | symbol) => (typeof prop === "string" ? held.has(prop) : false),
+      has: (_t, prop: string | symbol) => typeof prop === "string" && held.has(prop),
+      ownKeys: () => Array.from(held),
+      getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true, value: true }),
+    }
+  ) as Record<string, boolean>;
+}
+
+/** Module keys that carry feature permissions. Mirrors server config/featurePermissions.ts. */
+export const FEATURE_MODULES = [
+  "automation",
+  "scheduler",
+  "biolink",
+  "shortlink",
+  "lead",
+  "analytics",
+  "affiliate",
+  "agency",
+  "billing",
+  "team",
+  "api",
+  "workspace",
+] as const;

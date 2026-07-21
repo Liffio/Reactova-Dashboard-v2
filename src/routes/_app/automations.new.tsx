@@ -49,6 +49,7 @@ import {
 } from "@/lib/api/automations-api";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useApp } from "@/state/app-context";
+import { useAutomationFeatures } from "@/hooks/use-features";
 import { LIMITS, urlError, lengthError } from "@/lib/validation";
 import { KeywordSuggest } from "@/components/lyra/keyword-suggest";
 import { DmMessageAssist } from "@/components/lyra/dm-message-assist";
@@ -168,6 +169,9 @@ function AutomationBuilder() {
   const navigate = useNavigate();
   const { current, user } = useApp();
   const workspaceId = current.id;
+  // Backend-resolved capability flags. Controls for features this account lacks are not rendered
+  // at all — the server enforces the same set independently.
+  const features = useAutomationFeatures();
   const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set());
 
   const [form, setForm] = useState<BuilderForm>(defaultForm);
@@ -703,25 +707,27 @@ function AutomationBuilder() {
             <div className="inline-flex w-full rounded-lg border bg-background p-1">
               {(
                 [
-                  { v: "any", l: "All posts" },
-                  { v: "next", l: "Next post only" },
-                  { v: "specific", l: "Pick a post" },
-                ] as Array<{ v: PostScope; l: string }>
-              ).map((o) => (
-                <button
-                  key={o.v}
-                  type="button"
-                  onClick={() => update({ postScope: o.v })}
-                  className={cn(
-                    "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                    form.postScope === o.v
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {o.l}
-                </button>
-              ))}
+                  { v: "any", l: "All posts", allowed: features.post_scope_any },
+                  { v: "next", l: "Next post only", allowed: features.post_scope_next },
+                  { v: "specific", l: "Pick a post", allowed: features.post_scope_specific },
+                ] as Array<{ v: PostScope; l: string; allowed: boolean }>
+              )
+                .filter((o) => o.allowed)
+                .map((o) => (
+                  <button
+                    key={o.v}
+                    type="button"
+                    onClick={() => update({ postScope: o.v })}
+                    className={cn(
+                      "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                      form.postScope === o.v
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {o.l}
+                  </button>
+                ))}
             </div>
 
             {form.postScope === "specific" && (
@@ -765,17 +771,21 @@ function AutomationBuilder() {
               </>
             )}
 
-            <Separator />
+            {features.any_comment && (
+              <>
+                <Separator />
 
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Trigger on any comment</p>
-                <p className="text-xs text-muted-foreground">
-                  Skip keyword matching — every comment receives the DM.
-                </p>
-              </div>
-              <Switch checked={form.anyComment} onCheckedChange={setAnyComment} />
-            </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Trigger on any comment</p>
+                    <p className="text-xs text-muted-foreground">
+                      Skip keyword matching — every comment receives the DM.
+                    </p>
+                  </div>
+                  <Switch checked={form.anyComment} onCheckedChange={setAnyComment} />
+                </div>
+              </>
+            )}
           </section>
 
           {/* Keyword triggers */}
@@ -795,7 +805,9 @@ function AutomationBuilder() {
                     : "Each keyword gets its own reply, DM message, and button."
                 }
               />
-              {!form.anyComment && (
+              {/* Adding a second keyword is what makes an automation multi-response, so the
+                  control belongs to the trigger-blocks capability rather than to keywords. */}
+              {!form.anyComment && features.trigger_blocks && (
                 <Button
                   type="button"
                   size="sm"
@@ -878,20 +890,24 @@ function AutomationBuilder() {
               title="Audience growth"
               subtitle="Ask for a follow first, then re-engage automatically."
             />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Ask to follow before DM</p>
-                <p className="text-xs text-muted-foreground">
-                  The link is delivered after they follow your account.
-                </p>
-              </div>
-              <Switch
-                checked={form.followBeforeDm}
-                onCheckedChange={(v) => update({ followBeforeDm: v })}
-              />
-            </div>
+            {features.follow_before_dm && (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Ask to follow before DM</p>
+                    <p className="text-xs text-muted-foreground">
+                      The link is delivered after they follow your account.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={form.followBeforeDm}
+                    onCheckedChange={(v) => update({ followBeforeDm: v })}
+                  />
+                </div>
 
-            <Separator />
+                <Separator />
+              </>
+            )}
 
             <div>
               <p className="text-sm font-medium">Follow-up sequence</p>
@@ -1033,10 +1049,13 @@ function TriggerBlockFields({
   showKeywordStep: boolean;
   onChange: (patch: Partial<TriggerBlock>) => void;
 }) {
+  const features = useAutomationFeatures();
   let step = 1;
   const keywordStepIndex = showKeywordStep ? step++ : 0;
   const messageStepIndex = step++;
-  const buttonStepIndex = step++;
+  // The button step only takes a number when it is actually rendered, otherwise the visible
+  // steps would be numbered 1, 2, 4.
+  const buttonStepIndex = features.block_button || features.dm_button ? step++ : 0;
 
   return (
     <div>
@@ -1065,11 +1084,13 @@ function TriggerBlockFields({
       )}
 
       <TimelineStep index={messageStepIndex} title="Reply & DM message">
-        <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
-          <span className="text-xs font-medium">Public auto-reply on the comment</span>
-          <Switch checked={block.autoReply} onCheckedChange={(v) => onChange({ autoReply: v })} />
-        </div>
-        {block.autoReply && (
+        {(features.block_auto_reply || features.public_auto_reply) && (
+          <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
+            <span className="text-xs font-medium">Public auto-reply on the comment</span>
+            <Switch checked={block.autoReply} onCheckedChange={(v) => onChange({ autoReply: v })} />
+          </div>
+        )}
+        {block.autoReply && (features.block_auto_reply || features.public_auto_reply) && (
           <div className="space-y-1">
             <div className="flex justify-end">
               <DmMessageAssist
@@ -1120,6 +1141,7 @@ function TriggerBlockFields({
         </div>
       </TimelineStep>
 
+      {(features.block_button || features.dm_button) && (
       <TimelineStep index={buttonStepIndex} title="Button (optional)" last>
         <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
           <span className="text-xs font-medium">Attach a tappable button under the DM</span>
@@ -1157,6 +1179,7 @@ function TriggerBlockFields({
           </div>
         )}
       </TimelineStep>
+      )}
     </div>
   );
 }

@@ -7,11 +7,21 @@ import { apiRequest } from "./http";
  * own role and writes ALLOW/DENY overrides accordingly.
  */
 
+export type AccessCatalogueFeature = {
+  key: string;
+  action: string;
+  label: string;
+  description: string | null;
+};
+
 export type AccessCatalogueModule = {
   key: string;
   name: string;
   isEnabled: boolean;
+  /** CRUD permissions — the matrix columns. */
   permissions: Array<{ key: string; action: string }>;
+  /** Capability permissions — an expandable checklist under the module row. */
+  features: AccessCatalogueFeature[];
 };
 
 export type AccessCatalogue = {

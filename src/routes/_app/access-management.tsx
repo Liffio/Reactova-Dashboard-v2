@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Info, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ChevronRight, Info, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -123,6 +123,16 @@ function AccessManagementPage() {
   const [resolved, setResolved] = useState<Set<string>>(new Set());
   useEffect(() => setResolved(new Set()), [seeded]);
 
+  /** Which module rows have their feature checklist expanded. */
+  const [openModules, setOpenModules] = useState<Set<string>>(new Set());
+  const toggleModuleOpen = (key: string) =>
+    setOpenModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
   const cellState = (key: string): TriState => {
     if (mixedKeys.has(key) && !resolved.has(key)) return "indeterminate";
     return ticked?.has(key) ?? false;
@@ -134,6 +144,20 @@ function AccessManagementPage() {
       const copy = new Set(prev ?? []);
       if (next) copy.add(key);
       else copy.delete(key);
+      return copy;
+    });
+  };
+
+  /** Bulk-set a module's whole feature checklist (Select all / Clear all). */
+  const setFeatureGroup = (keys: string[], next: boolean) => {
+    setResolved((prev) => {
+      const copy = new Set(prev);
+      keys.forEach((k) => copy.add(k));
+      return copy;
+    });
+    setTicked((prev) => {
+      const copy = new Set(prev ?? []);
+      keys.forEach((k) => (next ? copy.add(k) : copy.delete(k)));
       return copy;
     });
   };
@@ -305,31 +329,112 @@ function AccessManagementPage() {
                       });
                     }}
                   />
-                  {catalogue!.modules.map((mod) => (
-                    <tr key={mod.key} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="sticky left-0 z-10 bg-card px-4 py-2.5">
-                        <span className="block">{mod.name}</span>
-                        <code className="text-[11px] text-muted-foreground">{mod.key}</code>
-                      </td>
-                      {catalogue!.actions.map((action) => {
-                        const perm = mod.permissions.find((p) => p.action === action);
-                        return (
-                          <td key={action} className="px-4 py-2.5 text-center">
-                            {perm ? (
-                              <Checkbox
-                                checked={cellState(perm.key)}
-                                onCheckedChange={(v) => setCell(perm.key, v === true)}
-                                aria-label={`${mod.name} ${prettyAction(action)}`}
-                                className="mx-auto"
-                              />
-                            ) : (
-                              <span className="text-muted-foreground/40">—</span>
-                            )}
+                  {catalogue!.modules.map((mod) => {
+                    const features = mod.features ?? [];
+                    const expanded = openModules.has(mod.key);
+                    const onCount = features.filter((f) => ticked!.has(f.key)).length;
+
+                    return (
+                      <Fragment key={mod.key}>
+                        <tr className="border-b hover:bg-muted/30">
+                          <td className="sticky left-0 z-10 bg-card px-4 py-2.5">
+                            <div className="flex items-center gap-1.5">
+                              {features.length > 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleModuleOpen(mod.key)}
+                                  aria-expanded={expanded}
+                                  aria-label={`${expanded ? "Hide" : "Show"} ${mod.name} features`}
+                                  className="-ml-1 rounded p-0.5 hover:bg-muted"
+                                >
+                                  <ChevronRight
+                                    className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-90" : ""}`}
+                                  />
+                                </button>
+                              ) : (
+                                <span className="w-[18px]" />
+                              )}
+                              <span className="min-w-0">
+                                <span className="block">{mod.name}</span>
+                                <code className="text-[11px] text-muted-foreground">{mod.key}</code>
+                              </span>
+                              {features.length > 0 && (
+                                <Badge variant="outline" className="ml-1 shrink-0 font-normal">
+                                  {onCount}/{features.length}
+                                </Badge>
+                              )}
+                            </div>
                           </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                          {catalogue!.actions.map((action) => {
+                            const perm = mod.permissions.find((p) => p.action === action);
+                            return (
+                              <td key={action} className="px-4 py-2.5 text-center">
+                                {perm ? (
+                                  <Checkbox
+                                    checked={cellState(perm.key)}
+                                    onCheckedChange={(v) => setCell(perm.key, v === true)}
+                                    aria-label={`${mod.name} ${prettyAction(action)}`}
+                                    className="mx-auto"
+                                  />
+                                ) : (
+                                  <span className="text-muted-foreground/40">—</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+
+                        {expanded && features.length > 0 && (
+                          <tr className="border-b bg-muted/20">
+                            <td colSpan={catalogue!.actions.length + 1} className="px-4 py-3">
+                              <div className="mb-2 flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-medium text-muted-foreground">
+                                  {mod.name} features
+                                </span>
+                                <button
+                                  type="button"
+                                  className="text-[11px] text-primary underline underline-offset-2"
+                                  onClick={() => setFeatureGroup(features.map((f) => f.key), true)}
+                                >
+                                  Select all
+                                </button>
+                                <button
+                                  type="button"
+                                  className="text-[11px] text-muted-foreground underline underline-offset-2"
+                                  onClick={() => setFeatureGroup(features.map((f) => f.key), false)}
+                                >
+                                  Clear all
+                                </button>
+                              </div>
+                              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                {features.map((feature) => (
+                                  <label
+                                    key={feature.key}
+                                    className="flex cursor-pointer items-start gap-2 rounded-lg border bg-card p-2.5 text-sm hover:bg-muted/50"
+                                  >
+                                    <Checkbox
+                                      className="mt-0.5"
+                                      checked={cellState(feature.key)}
+                                      onCheckedChange={(v) => setCell(feature.key, v === true)}
+                                      aria-label={feature.label}
+                                    />
+                                    <span className="min-w-0">
+                                      <span className="block font-medium">{feature.label}</span>
+                                      {feature.description && (
+                                        <span className="block text-xs text-muted-foreground">
+                                          {feature.description}
+                                        </span>
+                                      )}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

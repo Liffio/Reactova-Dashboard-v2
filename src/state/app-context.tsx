@@ -37,6 +37,7 @@ export interface Workspace {
   id: string;
   handle: string;
   igHandle: string | null;
+  humanId: string | null;
   name: string;
   plan: PlanName;
   status: WorkspaceStatus;
@@ -65,6 +66,7 @@ const defaultWorkspace: Workspace = {
   id: "default",
   handle: "@workspace",
   igHandle: null,
+  humanId: null,
   name: "Workspace",
   plan: "Free",
   status: "active",
@@ -128,6 +130,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: workspace.id,
         handle: label,
         igHandle,
+        humanId: workspace.humanId ?? null,
         name: label,
         plan: mapPlan(workspace.plan),
         status:

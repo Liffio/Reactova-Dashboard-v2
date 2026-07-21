@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { WorkspaceIdChip } from "@/components/workspace-id-chip";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -176,8 +177,19 @@ function GeneralSettings() {
               <span className="text-muted-foreground">{displayName.length}/{LIMITS.workspaceName.max}</span>
             </div>
           </div>
+          {current.humanId && (
+            <div className="space-y-1">
+              <Label className="text-muted-foreground">Workspace ID</Label>
+              <WorkspaceIdChip humanId={current.humanId} size="md" />
+              <p className="text-[11px] text-muted-foreground">
+                Use this when contacting support or calling the API. It stays the same even if you
+                rename the workspace.
+              </p>
+            </div>
+          )}
           <div className="space-y-1">
-            <Label className="text-muted-foreground">Workspace ID</Label>
+            {/* The uuid stays visible — existing integrations and support tickets reference it. */}
+            <Label className="text-muted-foreground">Internal ID (UUID)</Label>
             <div className="flex items-center gap-2">
               <code className="rounded-md bg-muted px-2 py-1 font-mono text-xs">{workspaceId}</code>
               <button

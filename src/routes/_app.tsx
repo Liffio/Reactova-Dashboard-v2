@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AccessChangedModal } from "@/components/access/access-changed-modal";
+import { WorkspaceIdChip } from "@/components/workspace-id-chip";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { PageTransition } from "@/components/page-transition";
 import { useTheme } from "@/state/theme-store";
@@ -305,6 +306,9 @@ function TopBar() {
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur md:px-6">
       <SidebarTrigger className="-ml-1" />
       <div className="hidden h-5 w-px bg-border md:block" />
+      {/* Hidden on the narrowest screens: the topbar there is already tight, and the id is
+          always available on the Settings page. */}
+      <WorkspaceIdChip humanId={current.humanId} className="hidden sm:inline-flex" />
       <div className="min-w-0 flex-1" />
       <div className="ml-auto flex items-center gap-2">
         <CreatorAssistant />

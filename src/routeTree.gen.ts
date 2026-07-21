@@ -25,6 +25,7 @@ import { Route as AppShortLinksRouteImport } from './routes/_app/short-links'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppSchedulerRouteImport } from './routes/_app/scheduler'
 import { Route as AppRbacMasterRouteImport } from './routes/_app/rbac-master'
+import { Route as AppPlatformAdminsRouteImport } from './routes/_app/platform-admins'
 import { Route as AppLeadsCapturedRouteImport } from './routes/_app/leads-captured'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppCreatorsProgramRouteImport } from './routes/_app/creators-program'
@@ -35,6 +36,7 @@ import { Route as AppAnalyticsRouteImport } from './routes/_app/analytics'
 import { Route as AppAiTokensMasterRouteImport } from './routes/_app/ai-tokens-master'
 import { Route as AppAgencyRouteImport } from './routes/_app/agency'
 import { Route as AppAffiliateRouteImport } from './routes/_app/affiliate'
+import { Route as AppAccessManagementRouteImport } from './routes/_app/access-management'
 import { Route as AppAutomationsIndexRouteImport } from './routes/_app/automations.index'
 import { Route as OauthMetaCompleteRouteImport } from './routes/oauth.meta.complete'
 import { Route as AuthGoogleCompleteRouteImport } from './routes/auth.google.complete'
@@ -125,6 +127,11 @@ const AppRbacMasterRoute = AppRbacMasterRouteImport.update({
   path: '/rbac-master',
   getParentRoute: () => AppRoute,
 } as any)
+const AppPlatformAdminsRoute = AppPlatformAdminsRouteImport.update({
+  id: '/platform-admins',
+  path: '/platform-admins',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppLeadsCapturedRoute = AppLeadsCapturedRouteImport.update({
   id: '/leads-captured',
   path: '/leads-captured',
@@ -173,6 +180,11 @@ const AppAgencyRoute = AppAgencyRouteImport.update({
 const AppAffiliateRoute = AppAffiliateRouteImport.update({
   id: '/affiliate',
   path: '/affiliate',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAccessManagementRoute = AppAccessManagementRouteImport.update({
+  id: '/access-management',
+  path: '/access-management',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAutomationsIndexRoute = AppAutomationsIndexRouteImport.update({
@@ -238,6 +250,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/register': typeof RegisterRoute
+  '/access-management': typeof AppAccessManagementRoute
   '/affiliate': typeof AppAffiliateRoute
   '/agency': typeof AppAgencyRoute
   '/ai-tokens-master': typeof AppAiTokensMasterRoute
@@ -248,6 +261,7 @@ export interface FileRoutesByFullPath {
   '/creators-program': typeof AppCreatorsProgramRoute
   '/dashboard': typeof AppDashboardRoute
   '/leads-captured': typeof AppLeadsCapturedRoute
+  '/platform-admins': typeof AppPlatformAdminsRoute
   '/rbac-master': typeof AppRbacMasterRoute
   '/scheduler': typeof AppSchedulerRoute
   '/settings': typeof AppSettingsRoute
@@ -275,6 +289,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/register': typeof RegisterRoute
+  '/access-management': typeof AppAccessManagementRoute
   '/affiliate': typeof AppAffiliateRoute
   '/agency': typeof AppAgencyRoute
   '/ai-tokens-master': typeof AppAiTokensMasterRoute
@@ -285,6 +300,7 @@ export interface FileRoutesByTo {
   '/creators-program': typeof AppCreatorsProgramRoute
   '/dashboard': typeof AppDashboardRoute
   '/leads-captured': typeof AppLeadsCapturedRoute
+  '/platform-admins': typeof AppPlatformAdminsRoute
   '/rbac-master': typeof AppRbacMasterRoute
   '/scheduler': typeof AppSchedulerRoute
   '/settings': typeof AppSettingsRoute
@@ -314,6 +330,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/register': typeof RegisterRoute
+  '/_app/access-management': typeof AppAccessManagementRoute
   '/_app/affiliate': typeof AppAffiliateRoute
   '/_app/agency': typeof AppAgencyRoute
   '/_app/ai-tokens-master': typeof AppAiTokensMasterRoute
@@ -324,6 +341,7 @@ export interface FileRoutesById {
   '/_app/creators-program': typeof AppCreatorsProgramRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/leads-captured': typeof AppLeadsCapturedRoute
+  '/_app/platform-admins': typeof AppPlatformAdminsRoute
   '/_app/rbac-master': typeof AppRbacMasterRoute
   '/_app/scheduler': typeof AppSchedulerRoute
   '/_app/settings': typeof AppSettingsRoute
@@ -353,6 +371,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/register'
+    | '/access-management'
     | '/affiliate'
     | '/agency'
     | '/ai-tokens-master'
@@ -363,6 +382,7 @@ export interface FileRouteTypes {
     | '/creators-program'
     | '/dashboard'
     | '/leads-captured'
+    | '/platform-admins'
     | '/rbac-master'
     | '/scheduler'
     | '/settings'
@@ -390,6 +410,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/register'
+    | '/access-management'
     | '/affiliate'
     | '/agency'
     | '/ai-tokens-master'
@@ -400,6 +421,7 @@ export interface FileRouteTypes {
     | '/creators-program'
     | '/dashboard'
     | '/leads-captured'
+    | '/platform-admins'
     | '/rbac-master'
     | '/scheduler'
     | '/settings'
@@ -428,6 +450,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/register'
+    | '/_app/access-management'
     | '/_app/affiliate'
     | '/_app/agency'
     | '/_app/ai-tokens-master'
@@ -438,6 +461,7 @@ export interface FileRouteTypes {
     | '/_app/creators-program'
     | '/_app/dashboard'
     | '/_app/leads-captured'
+    | '/_app/platform-admins'
     | '/_app/rbac-master'
     | '/_app/scheduler'
     | '/_app/settings'
@@ -587,6 +611,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRbacMasterRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/platform-admins': {
+      id: '/_app/platform-admins'
+      path: '/platform-admins'
+      fullPath: '/platform-admins'
+      preLoaderRoute: typeof AppPlatformAdminsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/leads-captured': {
       id: '/_app/leads-captured'
       path: '/leads-captured'
@@ -655,6 +686,13 @@ declare module '@tanstack/react-router' {
       path: '/affiliate'
       fullPath: '/affiliate'
       preLoaderRoute: typeof AppAffiliateRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/access-management': {
+      id: '/_app/access-management'
+      path: '/access-management'
+      fullPath: '/access-management'
+      preLoaderRoute: typeof AppAccessManagementRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/automations/': {
@@ -757,6 +795,7 @@ const AppAdminCreatorsRouteWithChildren =
   AppAdminCreatorsRoute._addFileChildren(AppAdminCreatorsRouteChildren)
 
 interface AppRouteChildren {
+  AppAccessManagementRoute: typeof AppAccessManagementRoute
   AppAffiliateRoute: typeof AppAffiliateRoute
   AppAgencyRoute: typeof AppAgencyRoute
   AppAiTokensMasterRoute: typeof AppAiTokensMasterRoute
@@ -767,6 +806,7 @@ interface AppRouteChildren {
   AppCreatorsProgramRoute: typeof AppCreatorsProgramRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppLeadsCapturedRoute: typeof AppLeadsCapturedRoute
+  AppPlatformAdminsRoute: typeof AppPlatformAdminsRoute
   AppRbacMasterRoute: typeof AppRbacMasterRoute
   AppSchedulerRoute: typeof AppSchedulerRoute
   AppSettingsRoute: typeof AppSettingsRoute
@@ -781,6 +821,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAccessManagementRoute: AppAccessManagementRoute,
   AppAffiliateRoute: AppAffiliateRoute,
   AppAgencyRoute: AppAgencyRoute,
   AppAiTokensMasterRoute: AppAiTokensMasterRoute,
@@ -791,6 +832,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCreatorsProgramRoute: AppCreatorsProgramRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppLeadsCapturedRoute: AppLeadsCapturedRoute,
+  AppPlatformAdminsRoute: AppPlatformAdminsRoute,
   AppRbacMasterRoute: AppRbacMasterRoute,
   AppSchedulerRoute: AppSchedulerRoute,
   AppSettingsRoute: AppSettingsRoute,

@@ -203,6 +203,39 @@ export const apiUri = {
   },
 
   admin: {
+    /**
+     * Superadmin control plane. `platform:*` permissions are a different axis from workspace
+     * RBAC — these endpoints are gated by the platform permission catalogue, not by
+     * `module:action`, and never by a hardcoded superadmin flag on the client.
+     */
+    platform: {
+      me: `${V1}/admin/platform/me`,
+      permissions: `${V1}/admin/platform/permissions`,
+      admins: (includeRevoked = false) =>
+        `${V1}/admin/platform/admins${includeRevoked ? "?includeRevoked=true" : ""}`,
+      adminsLookup: (q: string) =>
+        `${V1}/admin/platform/admins/lookup?q=${encodeURIComponent(q)}`,
+      admin: (userId: string) => `${V1}/admin/platform/admins/${userId}`,
+    },
+    audit: (params: Record<string, string | number | boolean | undefined> = {}) => {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined && v !== "") qs.set(k, String(v));
+      }
+      const suffix = qs.toString();
+      return `${V1}/admin/audit${suffix ? `?${suffix}` : ""}`;
+    },
+    auditActions: `${V1}/admin/audit/actions`,
+    /** Per-user access matrix (module × action) for a workspace. */
+    access: {
+      catalogue: `${V1}/admin/access/catalogue`,
+      users: (q: string) => `${V1}/admin/access/users?q=${encodeURIComponent(q)}`,
+      workspaces: (userIds: string[]) =>
+        `${V1}/admin/access/workspaces?userIds=${encodeURIComponent(userIds.join(","))}`,
+      state: (userIds: string[], workspaceId: string) =>
+        `${V1}/admin/access/state?userIds=${encodeURIComponent(userIds.join(","))}&workspaceId=${workspaceId}`,
+      matrix: `${V1}/admin/access/matrix`,
+    },
     rbac: {
       overview: `${V1}/admin/rbac/overview`,
       rolePermissions: (roleKey: string) => `${V1}/admin/rbac/roles/${roleKey}/permissions`,

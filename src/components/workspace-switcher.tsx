@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronsUpDown, Check, Plus } from "lucide-react";
+import { ChevronsUpDown, Check, Plus, Instagram } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { createWorkspace } from "@/lib/api/workspaces-api";
-import { useApp, type PlanName, type WorkspaceStatus } from "@/state/app-context";
+import { useApp, type PlanName, type Workspace, type WorkspaceStatus } from "@/state/app-context";
 
 function workspaceInitials(name: string) {
   return name
@@ -61,6 +61,17 @@ const statusDotStyles: Record<WorkspaceStatus, string> = {
 
 function StatusDot({ status }: { status: WorkspaceStatus }) {
   return <span className={cn("h-2 w-2 shrink-0 rounded-full", statusDotStyles[status])} />;
+}
+
+/**
+ * The connected Instagram account for a workspace, as a secondary line in the switcher.
+ * Returns null when the workspace has no display name of its own — in that case `name` already
+ * *is* the handle (see `app-context`'s label fallback), so a second line would just repeat it.
+ */
+function instagramLine(workspace: Workspace): string | null {
+  const handle = workspace.igHandle?.replace(/^@/, "").trim();
+  if (!handle) return null;
+  return workspace.name.trim().toLowerCase() === handle.toLowerCase() ? null : `@${handle}`;
 }
 
 /** Workspace switcher — lives in the sidebar footer. */
@@ -127,10 +138,22 @@ export function WorkspaceSwitcher() {
                 }}
               >
                 <StatusDot status={workspace.status} />
-                <span className="flex-1 truncate">{workspace.name}</span>
+                <span className="grid min-w-0 flex-1 leading-tight">
+                  <span className="truncate">{workspace.name}</span>
+                  {instagramLine(workspace) ? (
+                    <span className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
+                      <Instagram className="size-3 shrink-0" />
+                      <span className="truncate">{instagramLine(workspace)}</span>
+                    </span>
+                  ) : workspace.igHandle ? null : (
+                    <span className="truncate text-[11px] text-muted-foreground/70">
+                      No Instagram connected
+                    </span>
+                  )}
+                </span>
                 <PlanBadge plan={workspace.plan} />
                 {workspace.id === current.id ? (
-                  <Check className="ml-auto size-4 text-primary" />
+                  <Check className="size-4 shrink-0 text-primary" />
                 ) : null}
               </DropdownMenuItem>
             ))}

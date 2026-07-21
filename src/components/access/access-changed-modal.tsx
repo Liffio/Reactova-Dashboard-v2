@@ -49,7 +49,8 @@ export function AccessChangedModal() {
       void (async () => {
         try {
           const me = await getAuthMe();
-          authStore.getState().setAuthMe(me);
+          // `setAuthMe` is on the store object itself, not on the state snapshot getState() returns.
+          authStore.setAuthMe(me);
         } catch {
           // A failed refresh must not suppress the notice; the next request will 403 honestly.
         }

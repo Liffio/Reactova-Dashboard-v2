@@ -14,6 +14,7 @@ import {
   Gift,
   Building2,
   ShieldCheck,
+  ShieldAlert,
   Mail,
   Handshake,
   BookOpen,
@@ -38,6 +39,7 @@ import {
 import { Logo } from "@/components/logo";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { useAuthState } from "@/lib/auth/auth-store";
+import { usePlatformAuthz } from "@/hooks/use-platform-authz";
 import { useApp } from "@/state/app-context";
 
 type NavItem = {
@@ -46,6 +48,12 @@ type NavItem = {
   icon: typeof LayoutDashboard;
   /** Module key gating visibility (requires `<module>:read`). */
   module?: string;
+  /**
+   * Platform-tier permission gating visibility, for control-plane items. An item without one
+   * falls back to requiring full super admin — the status quo for the pages whose own guards
+   * still check the binary flag.
+   */
+  platformPermission?: string;
 };
 
 const nav: Array<{ group: string; items: NavItem[] }> = [
@@ -89,6 +97,12 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
   {
     group: "Platform admin",
     items: [
+      {
+        title: "Platform admins",
+        url: "/platform-admins",
+        icon: ShieldAlert,
+        platformPermission: "platform:admin_manage",
+      },
       { title: "RBAC master", url: "/rbac-master", icon: ShieldCheck },
       { title: "Email templates", url: "/admin/email-templates", icon: Mail },
       { title: "Affiliates", url: "/admin/affiliates", icon: Handshake },
@@ -103,10 +117,14 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const permissions = useAuthState((s) => s.permissions);
   const isPlatformSuperAdmin = useAuthState((s) => s.isPlatformSuperAdmin);
+  const { authz: platformAuthz } = usePlatformAuthz();
   const { current } = useApp();
   const isActive = (url: string) => pathname === url || pathname.startsWith(`${url}/`);
 
   const canSee = (item: NavItem) => {
+    if (item.platformPermission) {
+      return platformAuthz.permissions.includes(item.platformPermission);
+    }
     if (!item.module) {
       return true;
     }
@@ -117,7 +135,16 @@ export function AppSidebar() {
     return permissions.includes(`${item.module}:read`);
   };
 
-  const sections = [...nav, ...(isPlatformSuperAdmin ? adminNav : [])]
+  // Permission-gated control-plane items surface for any platform admin; the rest of the admin
+  // nav still requires full super admin, matching the guards those pages use today.
+  const adminSections = adminNav
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => item.platformPermission || isPlatformSuperAdmin),
+    }))
+    .filter((section) => section.items.length > 0);
+
+  const sections = [...nav, ...adminSections]
     .map((section) => ({ ...section, items: section.items.filter(canSee) }))
     .filter((section) => section.items.length > 0);
 

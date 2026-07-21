@@ -8,6 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthState } from "@/lib/auth/auth-store";
+import { usePlatformAuthz } from "@/hooks/use-platform-authz";
 import {
   isAffiliateProgramRedirect,
   loginPathWithRedirect,
@@ -111,6 +112,37 @@ export function AuthOnlyRoute({ children }: { children: ReactNode }) {
   if (!mounted) return <FullPageSpinner />;
   if (!token) { window.location.href = loginPathWithRedirect("/"); return <FullPageSpinner />; }
   if (!user) return <FullPageSpinner />;
+  return <>{children}</>;
+}
+
+/**
+ * Gates on a single granular `platform:*` permission resolved by the backend, rather than the
+ * binary superadmin flag `PlatformAdminRoute` uses. Prefer this for new control-plane pages —
+ * it's what lets a scoped operator (billing-only, Creator-Program reviewer) exist at all.
+ *
+ * The guard is a convenience, not the control: the backend denies these routes independently.
+ */
+export function PlatformPermissionRoute({
+  permission,
+  children,
+}: {
+  permission: string;
+  children: ReactNode;
+}) {
+  const mounted = useMounted();
+  const token = useAuthState((s) => s.accessToken);
+  const user = useAuthState((s) => s.user);
+  const { authz, isResolved } = usePlatformAuthz();
+
+  if (!mounted) return <FullPageSpinner />;
+  if (!token) { window.location.href = loginPathWithRedirect("/"); return <FullPageSpinner />; }
+  if (!user) return <FullPageSpinner />;
+  // Don't bounce while the answer is still in flight — that would flash admins to /dashboard.
+  if (!isResolved) return <FullPageSpinner />;
+  if (!authz.permissions.includes(permission)) {
+    window.location.href = "/dashboard";
+    return <FullPageSpinner />;
+  }
   return <>{children}</>;
 }
 

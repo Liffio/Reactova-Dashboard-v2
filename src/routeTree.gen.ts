@@ -25,6 +25,7 @@ import { Route as AppShortLinksRouteImport } from './routes/_app/short-links'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppSchedulerRouteImport } from './routes/_app/scheduler'
 import { Route as AppRbacMasterRouteImport } from './routes/_app/rbac-master'
+import { Route as AppPlatformAdminsRouteImport } from './routes/_app/platform-admins'
 import { Route as AppLeadsCapturedRouteImport } from './routes/_app/leads-captured'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppCreatorsProgramRouteImport } from './routes/_app/creators-program'
@@ -123,6 +124,11 @@ const AppSchedulerRoute = AppSchedulerRouteImport.update({
 const AppRbacMasterRoute = AppRbacMasterRouteImport.update({
   id: '/rbac-master',
   path: '/rbac-master',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPlatformAdminsRoute = AppPlatformAdminsRouteImport.update({
+  id: '/platform-admins',
+  path: '/platform-admins',
   getParentRoute: () => AppRoute,
 } as any)
 const AppLeadsCapturedRoute = AppLeadsCapturedRouteImport.update({
@@ -248,6 +254,7 @@ export interface FileRoutesByFullPath {
   '/creators-program': typeof AppCreatorsProgramRoute
   '/dashboard': typeof AppDashboardRoute
   '/leads-captured': typeof AppLeadsCapturedRoute
+  '/platform-admins': typeof AppPlatformAdminsRoute
   '/rbac-master': typeof AppRbacMasterRoute
   '/scheduler': typeof AppSchedulerRoute
   '/settings': typeof AppSettingsRoute
@@ -285,6 +292,7 @@ export interface FileRoutesByTo {
   '/creators-program': typeof AppCreatorsProgramRoute
   '/dashboard': typeof AppDashboardRoute
   '/leads-captured': typeof AppLeadsCapturedRoute
+  '/platform-admins': typeof AppPlatformAdminsRoute
   '/rbac-master': typeof AppRbacMasterRoute
   '/scheduler': typeof AppSchedulerRoute
   '/settings': typeof AppSettingsRoute
@@ -324,6 +332,7 @@ export interface FileRoutesById {
   '/_app/creators-program': typeof AppCreatorsProgramRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/leads-captured': typeof AppLeadsCapturedRoute
+  '/_app/platform-admins': typeof AppPlatformAdminsRoute
   '/_app/rbac-master': typeof AppRbacMasterRoute
   '/_app/scheduler': typeof AppSchedulerRoute
   '/_app/settings': typeof AppSettingsRoute
@@ -363,6 +372,7 @@ export interface FileRouteTypes {
     | '/creators-program'
     | '/dashboard'
     | '/leads-captured'
+    | '/platform-admins'
     | '/rbac-master'
     | '/scheduler'
     | '/settings'
@@ -400,6 +410,7 @@ export interface FileRouteTypes {
     | '/creators-program'
     | '/dashboard'
     | '/leads-captured'
+    | '/platform-admins'
     | '/rbac-master'
     | '/scheduler'
     | '/settings'
@@ -438,6 +449,7 @@ export interface FileRouteTypes {
     | '/_app/creators-program'
     | '/_app/dashboard'
     | '/_app/leads-captured'
+    | '/_app/platform-admins'
     | '/_app/rbac-master'
     | '/_app/scheduler'
     | '/_app/settings'
@@ -585,6 +597,13 @@ declare module '@tanstack/react-router' {
       path: '/rbac-master'
       fullPath: '/rbac-master'
       preLoaderRoute: typeof AppRbacMasterRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/platform-admins': {
+      id: '/_app/platform-admins'
+      path: '/platform-admins'
+      fullPath: '/platform-admins'
+      preLoaderRoute: typeof AppPlatformAdminsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/leads-captured': {
@@ -767,6 +786,7 @@ interface AppRouteChildren {
   AppCreatorsProgramRoute: typeof AppCreatorsProgramRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppLeadsCapturedRoute: typeof AppLeadsCapturedRoute
+  AppPlatformAdminsRoute: typeof AppPlatformAdminsRoute
   AppRbacMasterRoute: typeof AppRbacMasterRoute
   AppSchedulerRoute: typeof AppSchedulerRoute
   AppSettingsRoute: typeof AppSettingsRoute
@@ -791,6 +811,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCreatorsProgramRoute: AppCreatorsProgramRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppLeadsCapturedRoute: AppLeadsCapturedRoute,
+  AppPlatformAdminsRoute: AppPlatformAdminsRoute,
   AppRbacMasterRoute: AppRbacMasterRoute,
   AppSchedulerRoute: AppSchedulerRoute,
   AppSettingsRoute: AppSettingsRoute,

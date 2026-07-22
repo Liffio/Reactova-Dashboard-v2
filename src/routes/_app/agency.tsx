@@ -75,7 +75,9 @@ function AgencyPage() {
         {/* Billing summary */}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {dashboardQuery.isLoading ? (
-            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)
+            Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-2xl" />
+            ))
           ) : (
             <>
               <StatCard
@@ -146,8 +148,12 @@ function AgencyPage() {
                     <th className="px-6 py-3 font-medium">Client</th>
                     <th className="px-4 py-3 font-medium">Plan</th>
                     <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 text-right font-medium hidden sm:table-cell">Automations</th>
-                    <th className="px-4 py-3 text-right font-medium hidden md:table-cell">DMs (month)</th>
+                    <th className="px-4 py-3 text-right font-medium hidden sm:table-cell">
+                      Automations
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium hidden md:table-cell">
+                      DMs (month)
+                    </th>
                     <th className="px-6 py-3 font-medium" />
                   </tr>
                 </thead>

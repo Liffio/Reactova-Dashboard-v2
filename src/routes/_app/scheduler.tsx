@@ -76,7 +76,6 @@ import {
   getSchedulerAnalyticsPosts,
   getSchedulerCalendar,
   listPlatformAccounts,
-  listScheduledPosts,
   publishPostNow,
   searchMusic,
   syncSchedulerAnalytics,

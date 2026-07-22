@@ -82,8 +82,6 @@ export const apiUri = {
   team: {
     /** Paginated members. Resolves permissions for the page only — see server `teamSearch`. */
     membersSearch: `${V1}/team/members/search`,
-    /** @deprecated Unpaginated; resolves every member's permissions. Use `membersSearch`. */
-    members: `${V1}/team/members`,
     member: (userId: string) => `${V1}/team/members/${userId}`,
     invites: `${V1}/team/invites`,
     invite: (inviteId: string) => `${V1}/team/invites/${inviteId}`,
@@ -103,8 +101,6 @@ export const apiUri = {
     search: `${V1}/automations/search`,
     /** Tab tallies for the whole workspace, not the current page. */
     statusCounts: `${V1}/automations/status-counts`,
-    /** @deprecated Unpaginated. Use `search`. Removed once every consumer has moved. */
-    list: `${V1}/automations`,
     create: `${V1}/automations`,
     byId: (automationId: string) => `${V1}/automations/${automationId}`,
     wizardData: `${V1}/automations/wizard-data`,
@@ -141,8 +137,6 @@ export const apiUri = {
   shortlinks: {
     /** Paginated list. POST because the query travels as a body — it reads, despite the verb. */
     search: `${V1}/shortlinks/search`,
-    /** @deprecated Unpaginated. Use `search`. */
-    list: `${V1}/shortlinks`,
     create: `${V1}/shortlinks`,
     remove: (shortLinkId: string) => `${V1}/shortlinks/${shortLinkId}`,
     resolve: (slug: string) => `${V1}/shortlinks/resolve/${slug}`,
@@ -150,8 +144,6 @@ export const apiUri = {
 
   leads: {
     search: `${V1}/leads/search`,
-    /** @deprecated Uses limit/offset and an unescaped ILIKE. Use `search`. */
-    list: `${V1}/leads`,
     export: `${V1}/leads/export`,
   },
 

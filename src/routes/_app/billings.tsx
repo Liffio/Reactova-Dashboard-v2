@@ -1,12 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  CreditCard,
-  ExternalLink,
-  RefreshCw,
-  Zap,
-} from "lucide-react";
+import { CreditCard, ExternalLink, RefreshCw, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -118,7 +113,7 @@ function BillingPage() {
       toast.info("Checkout cancelled — no charge was made.");
     }
     void navigate({ to: "/billings", replace: true });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkoutStatus]);
 
   const checkoutMutation = useMutation({
@@ -147,7 +142,7 @@ function BillingPage() {
 
   const sub = subQuery.data;
   const plans = (configQuery.data?.plans ?? []).sort(
-    (a, b) => planOrder.indexOf(a.plan) - planOrder.indexOf(b.plan)
+    (a, b) => planOrder.indexOf(a.plan) - planOrder.indexOf(b.plan),
   );
   const invoices = invoicesQuery.data?.invoices ?? [];
   const currentPlanIndex = planOrder.indexOf(sub?.plan ?? "FREE");
@@ -198,9 +193,7 @@ function BillingPage() {
                 <Skeleton className="mt-1 h-7 w-32" />
               ) : (
                 <div className="mt-1 flex items-center gap-2">
-                  <h2 className="font-display text-2xl font-bold">
-                    {sub?.displayName ?? "Free"}
-                  </h2>
+                  <h2 className="font-display text-2xl font-bold">{sub?.displayName ?? "Free"}</h2>
                   {sub?.billingStatus && (
                     <Badge variant="outline" className={statusStyles[sub.billingStatus] ?? ""}>
                       {sub.billingStatus.toLowerCase().replace(/_/g, " ")}
@@ -259,7 +252,7 @@ function BillingPage() {
                 const isDowngrade = planIdx < currentPlanIndex;
                 const price =
                   interval === "yearly"
-                    ? plan.pricing.yearlyUsd ?? plan.pricing.monthlyUsd
+                    ? (plan.pricing.yearlyUsd ?? plan.pricing.monthlyUsd)
                     : plan.pricing.monthlyUsd;
                 return (
                   <div

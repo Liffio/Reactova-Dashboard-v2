@@ -45,7 +45,7 @@ export function WorkspaceIdChip({
       className={cn(
         "inline-flex items-center gap-1.5 rounded-md border bg-muted/50 font-mono text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
         size === "sm" ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs",
-        className
+        className,
       )}
     >
       <span className="max-w-[180px] truncate">{humanId}</span>

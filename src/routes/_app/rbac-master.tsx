@@ -52,7 +52,7 @@ function RbacMasterPage() {
     (r) =>
       !search ||
       r.name.toLowerCase().includes(search.toLowerCase()) ||
-      r.key.toLowerCase().includes(search.toLowerCase())
+      r.key.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -107,7 +107,7 @@ function RbacMasterPage() {
                     key={role.key}
                     role={role}
                     allPermissions={(data?.modules ?? []).flatMap((m) =>
-                      m.permissions.map((p) => ({ ...p, moduleName: m.name, moduleKey: m.key }))
+                      m.permissions.map((p) => ({ ...p, moduleName: m.name, moduleKey: m.key })),
                     )}
                     onUpdate={() =>
                       void queryClient.invalidateQueries({ queryKey: ["rbac-overview"] })
@@ -239,9 +239,7 @@ function RoleCard({
   });
 
   const toggle = (key: string) =>
-    setSelected((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    );
+    setSelected((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
 
   return (
     <div className="rounded-2xl border bg-card shadow-soft">
@@ -257,7 +255,9 @@ function RoleCard({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{role.permissions.length} permissions</span>
+          <span className="text-xs text-muted-foreground">
+            {role.permissions.length} permissions
+          </span>
           <span className="text-muted-foreground">{expanded ? "▲" : "▼"}</span>
         </div>
       </button>
@@ -358,7 +358,9 @@ function GrantPlanDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
           <Button
             disabled={mutation.isPending || !workspaceId.trim()}
             onClick={() => mutation.mutate()}

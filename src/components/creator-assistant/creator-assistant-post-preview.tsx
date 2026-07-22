@@ -67,7 +67,13 @@ export function PostPreviewCard({
   return (
     <div className="rounded-xl border bg-card p-3 text-sm">
       <div className="flex items-start gap-2">
-        {media && <img src={media.thumbnailUrl} alt="" className="h-12 w-12 shrink-0 rounded-md object-cover" />}
+        {media && (
+          <img
+            src={media.thumbnailUrl}
+            alt=""
+            className="h-12 w-12 shrink-0 rounded-md object-cover"
+          />
+        )}
         <div className="min-w-0 flex-1 space-y-1">
           <p className="line-clamp-3 whitespace-pre-wrap">{draft.caption || "No caption yet"}</p>
           {draft.hashtags.length > 0 && (
@@ -83,7 +89,8 @@ export function PostPreviewCard({
           {draft.automation.enabled && (
             <p className="flex items-center gap-1 text-xs text-muted-foreground">
               <MessageSquare className="h-3 w-3" />
-              Automation: {draft.automation.anyComment ? "any comment" : normalizedKeywords.join(", ") || "—"}
+              Automation:{" "}
+              {draft.automation.anyComment ? "any comment" : normalizedKeywords.join(", ") || "—"}
               {" → "}
               {effectiveDmMessage}
             </p>
@@ -108,7 +115,8 @@ export function PostPreviewCard({
         <p className="mt-1.5 text-center text-[11px] text-muted-foreground">{notReadyHint}</p>
       ) : (
         <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-          I'll take you to the scheduler and fill everything in — you confirm before anything is scheduled.
+          I'll take you to the scheduler and fill everything in — you confirm before anything is
+          scheduled.
         </p>
       )}
     </div>

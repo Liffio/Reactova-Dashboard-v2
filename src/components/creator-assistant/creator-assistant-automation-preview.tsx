@@ -40,9 +40,13 @@ export function AutomationPreviewCard({
           <p className="text-xs text-muted-foreground">
             {draft.anyComment ? "Any comment" : `Keyword: ${primary?.keyword || "—"}`}
           </p>
-          <p className="line-clamp-2 text-xs text-muted-foreground">DM: {primary?.dmMessage || "—"}</p>
+          <p className="line-clamp-2 text-xs text-muted-foreground">
+            DM: {primary?.dmMessage || "—"}
+          </p>
           {draft.followUps.length > 0 && (
-            <p className="text-xs text-muted-foreground">{draft.followUps.length} follow-up message(s)</p>
+            <p className="text-xs text-muted-foreground">
+              {draft.followUps.length} follow-up message(s)
+            </p>
           )}
         </div>
       </div>

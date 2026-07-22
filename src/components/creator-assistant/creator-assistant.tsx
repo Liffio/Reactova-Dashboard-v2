@@ -44,7 +44,10 @@ import {
 import { urlToDataUrl } from "@/lib/image-data-url";
 import { useNavigate } from "@tanstack/react-router";
 import { savePostHandoff, saveAutomationHandoff } from "@/lib/lyra-handoff";
-import { PostPreviewCard, type AttachedMedia } from "@/components/creator-assistant/creator-assistant-post-preview";
+import {
+  PostPreviewCard,
+  type AttachedMedia,
+} from "@/components/creator-assistant/creator-assistant-post-preview";
 import { AutomationPreviewCard } from "@/components/creator-assistant/creator-assistant-automation-preview";
 
 export type CopilotMessage = {
@@ -72,7 +75,7 @@ export function nowLocalString(): string {
 function friendlyLyraError(error: LyraError | null): string {
   switch (error?.code) {
     case "AI_TOKEN_LIMIT_REACHED":
-      return "You've used all your Lyra AI tokens for this billing period — upgrading your plan unlocks more. I can still answer quick workspace questions for free though, like \"how many leads this week?\" or \"what's my engagement?\"";
+      return 'You\'ve used all your Lyra AI tokens for this billing period — upgrading your plan unlocks more. I can still answer quick workspace questions for free though, like "how many leads this week?" or "what\'s my engagement?"';
     case "RATE_LIMITED":
       return "I'm handling a lot of requests right now — give it a few seconds and send that again.";
     default:
@@ -100,11 +103,13 @@ export function CreatorAssistant() {
     null,
   );
   const [draftText, setDraftText] = useState("");
-  const [postDraft, setPostDraft] = usePersistedState<Partial<LyraPostDraftFields>>(`${base}:post-draft`, {});
-  const [automationDraft, setAutomationDraft] = usePersistedState<Partial<LyraAutomationDraftFields>>(
-    `${base}:automation-draft`,
+  const [postDraft, setPostDraft] = usePersistedState<Partial<LyraPostDraftFields>>(
+    `${base}:post-draft`,
     {},
   );
+  const [automationDraft, setAutomationDraft] = usePersistedState<
+    Partial<LyraAutomationDraftFields>
+  >(`${base}:automation-draft`, {});
   const [lastIntent, setLastIntent] = usePersistedState<"post" | "automation" | "chat" | null>(
     `${base}:last-intent`,
     null,
@@ -112,9 +117,10 @@ export function CreatorAssistant() {
   /** Where the live preview card sits inside the message stream — pinned right
    *  after the assistant reply that produced the draft, so new messages push it
    *  up with the rest of the conversation instead of it floating at the bottom. */
-  const [previewAnchor, setPreviewAnchor] = usePersistedState<
-    { kind: "post" | "automation"; index: number } | null
-  >(`${base}:preview-anchor`, null);
+  const [previewAnchor, setPreviewAnchor] = usePersistedState<{
+    kind: "post" | "automation";
+    index: number;
+  } | null>(`${base}:preview-anchor`, null);
 
   const [attachedMedia, setAttachedMedia] = useState<AttachedMedia | null>(null);
   const [uploadingMedia, setUploadingMedia] = useState(false);
@@ -144,7 +150,10 @@ export function CreatorAssistant() {
     try {
       let id = conversationId;
       if (!id) {
-        const created = await createConversation(workspaceId, titleSeed.slice(0, 120) || "New chat");
+        const created = await createConversation(
+          workspaceId,
+          titleSeed.slice(0, 120) || "New chat",
+        );
         id = created.id;
         setConversationId(id);
         void queryClient.invalidateQueries({ queryKey: ["assistant-conversations", workspaceId] });
@@ -171,7 +180,11 @@ export function CreatorAssistant() {
       const isVideo = file.type.startsWith("video/");
       const postType = isVideo ? "REEL" : "FEED";
       const uploaded = await uploadSchedulerMedia(workspaceId, file, postType);
-      setAttachedMedia({ url: uploaded.primaryMediaUrl, thumbnailUrl: uploaded.thumbnailUrl, type: postType });
+      setAttachedMedia({
+        url: uploaded.primaryMediaUrl,
+        thumbnailUrl: uploaded.thumbnailUrl,
+        type: postType,
+      });
     } catch (err) {
       setMessages((prev) => [
         ...prev,
@@ -243,7 +256,11 @@ export function CreatorAssistant() {
 
     const nextMessages: CopilotMessage[] = [
       ...messages,
-      { role: "user", content: text, ...(sendingMedia ? { imageUrl: sendingMedia.thumbnailUrl } : {}) },
+      {
+        role: "user",
+        content: text,
+        ...(sendingMedia ? { imageUrl: sendingMedia.thumbnailUrl } : {}),
+      },
     ];
     setMessages(nextMessages);
     setDraftText("");
@@ -306,7 +323,10 @@ export function CreatorAssistant() {
         setPreviewAnchor({ kind: "automation", index: replyIndex });
       }
     } else if (result.status === "error") {
-      const errorReply: CopilotMessage = { role: "assistant", content: friendlyLyraError(result.error) };
+      const errorReply: CopilotMessage = {
+        role: "assistant",
+        content: friendlyLyraError(result.error),
+      };
       setMessages((prev) => [...prev, errorReply]);
       void persistTurn([userMessage, errorReply], text);
       lyra.reset();
@@ -344,7 +364,11 @@ export function CreatorAssistant() {
           },
         },
         media: attachedMedia
-          ? { url: attachedMedia.url, thumbnailUrl: attachedMedia.thumbnailUrl, type: attachedMedia.type }
+          ? {
+              url: attachedMedia.url,
+              thumbnailUrl: attachedMedia.thumbnailUrl,
+              type: attachedMedia.type,
+            }
           : null,
         accountId: selectedAccountId,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -352,13 +376,18 @@ export function CreatorAssistant() {
     } catch {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Hmm, I couldn't prepare the handoff just now — mind pressing that button again?" },
+        {
+          role: "assistant",
+          content:
+            "Hmm, I couldn't prepare the handoff just now — mind pressing that button again?",
+        },
       ]);
       return;
     }
     const bubble: CopilotMessage = {
       role: "assistant",
-      content: "Taking you to the scheduler — I'm filling everything in there. Review it and hit Schedule when you're happy ✨",
+      content:
+        "Taking you to the scheduler — I'm filling everything in there. Review it and hit Schedule when you're happy ✨",
     };
     setMessages((prev) => [...prev, bubble]);
     void persistTurn([bubble], "Scheduled post handoff");
@@ -388,13 +417,18 @@ export function CreatorAssistant() {
     } catch {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Hmm, I couldn't prepare the handoff just now — mind pressing that button again?" },
+        {
+          role: "assistant",
+          content:
+            "Hmm, I couldn't prepare the handoff just now — mind pressing that button again?",
+        },
       ]);
       return;
     }
     const bubble: CopilotMessage = {
       role: "assistant",
-      content: "Opening the automation builder — everything's filled in for you. Review it and hit Publish when it looks right ✨",
+      content:
+        "Opening the automation builder — everything's filled in for you. Review it and hit Publish when it looks right ✨",
     };
     setMessages((prev) => [...prev, bubble]);
     void persistTurn([bubble], "Automation handoff");
@@ -421,7 +455,10 @@ export function CreatorAssistant() {
         </span>
       </button>
 
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md [&>button]:hidden">
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col gap-0 p-0 sm:max-w-md [&>button]:hidden"
+      >
         <SheetTitle className="sr-only">Lyra AI</SheetTitle>
 
         <div className="flex items-center justify-between border-b px-3 py-2.5">
@@ -431,7 +468,9 @@ export function CreatorAssistant() {
               onClick={() => setTab("chat")}
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                tab === "chat" ? "bg-card shadow-soft" : "text-muted-foreground hover:text-foreground",
+                tab === "chat"
+                  ? "bg-card shadow-soft"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               Chat
@@ -441,7 +480,9 @@ export function CreatorAssistant() {
               onClick={() => setTab("history")}
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                tab === "history" ? "bg-card shadow-soft" : "text-muted-foreground hover:text-foreground",
+                tab === "history"
+                  ? "bg-card shadow-soft"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               History
@@ -470,9 +511,13 @@ export function CreatorAssistant() {
         {tab === "history" ? (
           <div className="flex-1 space-y-1.5 overflow-y-auto px-3 py-3">
             {conversationsQuery.isLoading ? (
-              <p className="px-1 py-6 text-center text-sm text-muted-foreground">Loading your chats…</p>
+              <p className="px-1 py-6 text-center text-sm text-muted-foreground">
+                Loading your chats…
+              </p>
             ) : conversations.length === 0 ? (
-              <p className="px-1 py-6 text-center text-sm text-muted-foreground">No past chats yet.</p>
+              <p className="px-1 py-6 text-center text-sm text-muted-foreground">
+                No past chats yet.
+              </p>
             ) : (
               conversations.map((c) => (
                 <div
@@ -535,31 +580,33 @@ export function CreatorAssistant() {
                     {m.content}
                   </div>
                 </div>
-                {previewAnchor?.index === i && previewAnchor.kind === "post" && postDraft.caption && (
-                  <PostPreviewCard
-                    draft={{
-                      caption: postDraft.caption ?? "",
-                      hashtags: postDraft.hashtags ?? [],
-                      scheduledLocal: postDraft.scheduledLocal ?? "",
-                      musicTitle: postDraft.musicTitle ?? "",
-                      musicArtist: postDraft.musicArtist ?? "",
-                      shareToFeed: postDraft.shareToFeed ?? true,
-                      automation: postDraft.automation ?? {
-                        enabled: false,
-                        name: "",
-                        keywords: [],
-                        anyComment: false,
-                        dmMessage: "",
-                        autoReply: false,
-                        replyMessages: [],
-                        dmButtonLabel: "",
-                        dmButtonUrl: "",
-                      },
-                    }}
-                    media={attachedMedia}
-                    onConfirm={handoffPost}
-                  />
-                )}
+                {previewAnchor?.index === i &&
+                  previewAnchor.kind === "post" &&
+                  postDraft.caption && (
+                    <PostPreviewCard
+                      draft={{
+                        caption: postDraft.caption ?? "",
+                        hashtags: postDraft.hashtags ?? [],
+                        scheduledLocal: postDraft.scheduledLocal ?? "",
+                        musicTitle: postDraft.musicTitle ?? "",
+                        musicArtist: postDraft.musicArtist ?? "",
+                        shareToFeed: postDraft.shareToFeed ?? true,
+                        automation: postDraft.automation ?? {
+                          enabled: false,
+                          name: "",
+                          keywords: [],
+                          anyComment: false,
+                          dmMessage: "",
+                          autoReply: false,
+                          replyMessages: [],
+                          dmButtonLabel: "",
+                          dmButtonUrl: "",
+                        },
+                      }}
+                      media={attachedMedia}
+                      onConfirm={handoffPost}
+                    />
+                  )}
                 {previewAnchor?.index === i &&
                 previewAnchor.kind === "automation" &&
                 automationDraft.triggerBlocks?.length ? (

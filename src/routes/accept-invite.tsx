@@ -49,7 +49,7 @@ function AcceptInvitePage() {
   useEffect(() => {
     if (mounted && !isLoggedIn && token) {
       window.location.replace(
-        loginPathWithRedirect(`/accept-invite?token=${encodeURIComponent(token)}`)
+        loginPathWithRedirect(`/accept-invite?token=${encodeURIComponent(token)}`),
       );
     }
   }, [mounted, isLoggedIn, token]);
@@ -138,8 +138,7 @@ function AcceptInvitePage() {
           <div>
             <h1 className="font-display text-xl font-semibold">You've been invited</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{inviterName}</span> invited you to
-              join
+              <span className="font-medium text-foreground">{inviterName}</span> invited you to join
             </p>
           </div>
         </div>

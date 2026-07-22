@@ -38,16 +38,6 @@ export type LeadsListParams = {
   offset?: number;
 };
 
-export function listLeads(workspaceId: string, params: LeadsListParams = {}) {
-  const qs = new URLSearchParams();
-  if (params.q) qs.set("q", params.q);
-  if (params.automationId) qs.set("automationId", params.automationId);
-  if (params.triggerType) qs.set("triggerType", params.triggerType);
-  qs.set("limit", String(params.limit ?? 100));
-  qs.set("offset", String(params.offset ?? 0));
-  return apiRequest<LeadsListResponse>(`${apiUri.leads.list}?${qs.toString()}`, { workspaceId });
-}
-
 /** Download the CSV export (returns a Blob the caller saves). */
 export async function exportLeadsCsv(workspaceId: string): Promise<Blob> {
   const token = authStore.getState().accessToken;

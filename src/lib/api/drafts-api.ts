@@ -27,12 +27,12 @@ export function listDrafts(workspaceId: string, module?: DraftModule) {
 export async function getDraft<TPayload = Record<string, unknown>>(
   workspaceId: string,
   module: DraftModule,
-  key: string
+  key: string,
 ): Promise<DraftDto<TPayload> | null> {
   try {
     const result = await apiRequest<{ draft: DraftDto<TPayload> }>(
       apiUri.drafts.item(module, key),
-      { workspaceId }
+      { workspaceId },
     );
     return result.draft;
   } catch {
@@ -45,7 +45,7 @@ export function saveDraft<TPayload extends Record<string, unknown>>(
   workspaceId: string,
   module: DraftModule,
   key: string,
-  payload: TPayload
+  payload: TPayload,
 ) {
   return apiRequest<{ draft: DraftDto<TPayload> }>(apiUri.drafts.item(module, key), {
     method: "PUT",

@@ -50,7 +50,7 @@ export function AuthShell({ children, maxWidth = "sm", aside = defaultAside }: A
         <div
           className={cn(
             "w-full rounded-2xl border bg-card p-6 shadow-soft sm:p-8",
-            maxWidth === "sm" ? "max-w-md" : "max-w-lg"
+            maxWidth === "sm" ? "max-w-md" : "max-w-lg",
           )}
         >
           {children}

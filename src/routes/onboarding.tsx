@@ -29,7 +29,7 @@ function OnboardingRedirect() {
     if (search.reason) url += `&reason=${encodeURIComponent(search.reason)}`;
     if (search.step) url += `&step=${search.step}`;
     window.location.replace(url);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

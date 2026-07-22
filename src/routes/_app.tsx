@@ -353,7 +353,9 @@ function TopBar() {
               className="cursor-pointer text-destructive focus:text-destructive"
               onClick={() =>
                 logoutMutation.mutate(undefined, {
-                  onSettled: () => { window.location.replace(loginPathWithRedirect("/")); },
+                  onSettled: () => {
+                    window.location.replace(loginPathWithRedirect("/"));
+                  },
                 })
               }
             >

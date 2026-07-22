@@ -28,7 +28,7 @@ export function useAuth() {
       user,
       workspace: workspaceId ? { id: workspaceId, role } : null,
     }),
-    [role, user, workspaceId]
+    [role, user, workspaceId],
   );
 }
 

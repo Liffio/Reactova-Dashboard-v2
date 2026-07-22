@@ -43,7 +43,9 @@ function GoogleAuthComplete() {
     const finish = async () => {
       authStore.setSession({
         accessToken: token,
-        accessTokenExpiresAt: Number.isFinite(search.expiresAt) ? (search.expiresAt as number) : null,
+        accessTokenExpiresAt: Number.isFinite(search.expiresAt)
+          ? (search.expiresAt as number)
+          : null,
       });
       const authMe = await getAuthMe({ token });
       authStore.setAuthMe(authMe);
@@ -51,7 +53,9 @@ function GoogleAuthComplete() {
       void navigate({ to: redirectTo as never, replace: true });
     };
 
-    finish().catch(() => { window.location.replace("/login?error=google_failed"); });
+    finish().catch(() => {
+      window.location.replace("/login?error=google_failed");
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -1142,43 +1142,44 @@ function TriggerBlockFields({
       </TimelineStep>
 
       {(features.block_button || features.dm_button) && (
-      <TimelineStep index={buttonStepIndex} title="Button (optional)" last>
-        <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
-          <span className="text-xs font-medium">Attach a tappable button under the DM</span>
-          <Switch checked={block.hasButton} onCheckedChange={(v) => onChange({ hasButton: v })} />
-        </div>
-        {block.hasButton && (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Button label</Label>
-              <Input
-                value={block.dmButtonLabel}
-                onChange={(e) =>
-                  onChange({ dmButtonLabel: e.target.value.slice(0, LIMITS.buttonLabel.max) })
-                }
-                maxLength={LIMITS.buttonLabel.max}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Button URL</Label>
-              <Input
-                type="url"
-                value={block.dmButtonUrl}
-                onChange={(e) =>
-                  onChange({ dmButtonUrl: e.target.value.slice(0, LIMITS.buttonUrl.max) })
-                }
-                maxLength={LIMITS.buttonUrl.max}
-                placeholder="https://yourlink.com"
-              />
-              {block.dmButtonUrl && urlError(block.dmButtonUrl, { max: LIMITS.buttonUrl.max }) && (
-                <p className="text-[11px] text-destructive">
-                  {urlError(block.dmButtonUrl, { max: LIMITS.buttonUrl.max })}
-                </p>
-              )}
-            </div>
+        <TimelineStep index={buttonStepIndex} title="Button (optional)" last>
+          <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
+            <span className="text-xs font-medium">Attach a tappable button under the DM</span>
+            <Switch checked={block.hasButton} onCheckedChange={(v) => onChange({ hasButton: v })} />
           </div>
-        )}
-      </TimelineStep>
+          {block.hasButton && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Button label</Label>
+                <Input
+                  value={block.dmButtonLabel}
+                  onChange={(e) =>
+                    onChange({ dmButtonLabel: e.target.value.slice(0, LIMITS.buttonLabel.max) })
+                  }
+                  maxLength={LIMITS.buttonLabel.max}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Button URL</Label>
+                <Input
+                  type="url"
+                  value={block.dmButtonUrl}
+                  onChange={(e) =>
+                    onChange({ dmButtonUrl: e.target.value.slice(0, LIMITS.buttonUrl.max) })
+                  }
+                  maxLength={LIMITS.buttonUrl.max}
+                  placeholder="https://yourlink.com"
+                />
+                {block.dmButtonUrl &&
+                  urlError(block.dmButtonUrl, { max: LIMITS.buttonUrl.max }) && (
+                    <p className="text-[11px] text-destructive">
+                      {urlError(block.dmButtonUrl, { max: LIMITS.buttonUrl.max })}
+                    </p>
+                  )}
+              </div>
+            </div>
+          )}
+        </TimelineStep>
       )}
     </div>
   );

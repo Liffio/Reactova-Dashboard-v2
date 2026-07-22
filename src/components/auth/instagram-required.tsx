@@ -53,12 +53,10 @@ function InstagramGate({
           oauthWorkspaceId: workspaceId,
           checkConnected: () => isWorkspaceInstagramConnected(workspaceId),
           verifyConnected: () => isWorkspaceInstagramConnected(workspaceId),
-        }
+        },
       );
       if (result.meta === "connected") {
-        toast.success(
-          result.igHandle ? `Connected as @${result.igHandle}` : "Instagram connected"
-        );
+        toast.success(result.igHandle ? `Connected as @${result.igHandle}` : "Instagram connected");
         void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
         void refreshAuth();
       } else if (result.reason && result.reason !== "user_canceled") {

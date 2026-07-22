@@ -1,13 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Copy,
-  DollarSign,
-  TrendingUp,
-  Users,
-  Wallet,
-} from "lucide-react";
+import { Copy, DollarSign, TrendingUp, Users, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -153,7 +147,9 @@ function AffiliatePage() {
         {/* Stats */}
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {dashboardQuery.isLoading ? (
-            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)
+            Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-2xl" />
+            ))
           ) : (
             <>
               <StatCard
@@ -214,12 +210,15 @@ function AffiliatePage() {
                       <Copy className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                ) : null
+                ) : null,
               )}
             </div>
           )}
           <p className="mt-3 text-xs text-muted-foreground">
-            Code: <span className="font-mono font-medium">{profile?.customCode ?? profile?.randomCode}</span>
+            Code:{" "}
+            <span className="font-mono font-medium">
+              {profile?.customCode ?? profile?.randomCode}
+            </span>
           </p>
         </div>
 
@@ -251,7 +250,11 @@ function AffiliatePage() {
                         <td className="px-4 py-3.5">
                           <Badge
                             variant="outline"
-                            className={r.isActive ? "border-success/30 bg-success/10 text-success" : "border-border bg-muted text-muted-foreground"}
+                            className={
+                              r.isActive
+                                ? "border-success/30 bg-success/10 text-success"
+                                : "border-border bg-muted text-muted-foreground"
+                            }
                           >
                             {r.isActive ? "Active" : "Inactive"}
                           </Badge>
@@ -266,7 +269,10 @@ function AffiliatePage() {
                     ))}
                     {(referralsQuery.data ?? []).length === 0 && !referralsQuery.isLoading && (
                       <tr>
-                        <td colSpan={4} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                        <td
+                          colSpan={4}
+                          className="px-6 py-8 text-center text-sm text-muted-foreground"
+                        >
                           No referrals yet. Share your link to start earning.
                         </td>
                       </tr>
@@ -295,9 +301,14 @@ function AffiliatePage() {
                       <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-6 py-3.5 text-muted-foreground">{c.workspace}</td>
                         <td className="px-4 py-3.5 capitalize text-xs">{c.plan.toLowerCase()}</td>
-                        <td className="px-4 py-3.5 tabular-nums font-medium">${c.amount.toFixed(2)}</td>
+                        <td className="px-4 py-3.5 tabular-nums font-medium">
+                          ${c.amount.toFixed(2)}
+                        </td>
                         <td className="px-4 py-3.5">
-                          <Badge variant="outline" className={commissionStatusStyles[c.status] ?? ""}>
+                          <Badge
+                            variant="outline"
+                            className={commissionStatusStyles[c.status] ?? ""}
+                          >
                             {c.status.toLowerCase()}
                           </Badge>
                         </td>
@@ -308,7 +319,10 @@ function AffiliatePage() {
                     ))}
                     {(dash?.recentCommissions ?? []).length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                        <td
+                          colSpan={5}
+                          className="px-6 py-8 text-center text-sm text-muted-foreground"
+                        >
                           No commissions yet.
                         </td>
                       </tr>
@@ -334,12 +348,17 @@ function AffiliatePage() {
                   <tbody>
                     {(payoutsQuery.data ?? []).map((p) => (
                       <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="px-6 py-3.5 font-medium tabular-nums">${p.amount.toFixed(2)}</td>
+                        <td className="px-6 py-3.5 font-medium tabular-nums">
+                          ${p.amount.toFixed(2)}
+                        </td>
                         <td className="px-4 py-3.5 capitalize text-xs text-muted-foreground">
                           {p.method.replace(/_/g, " ").toLowerCase()}
                         </td>
                         <td className="px-4 py-3.5">
-                          <Badge variant="outline" className={commissionStatusStyles[p.status] ?? ""}>
+                          <Badge
+                            variant="outline"
+                            className={commissionStatusStyles[p.status] ?? ""}
+                          >
                             {p.status.toLowerCase()}
                           </Badge>
                         </td>
@@ -350,7 +369,10 @@ function AffiliatePage() {
                     ))}
                     {(payoutsQuery.data ?? []).length === 0 && !payoutsQuery.isLoading && (
                       <tr>
-                        <td colSpan={4} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                        <td
+                          colSpan={4}
+                          className="px-6 py-8 text-center text-sm text-muted-foreground"
+                        >
                           No payouts yet.
                         </td>
                       </tr>
@@ -518,8 +540,13 @@ function CustomCodeDialog({
           />
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button disabled={mutation.isPending || code.length < 3} onClick={() => mutation.mutate()}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={mutation.isPending || code.length < 3}
+            onClick={() => mutation.mutate()}
+          >
             {mutation.isPending ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>

@@ -108,7 +108,7 @@ export function useLyraHandoffTheater() {
         }
       }, TICK_MS);
     },
-    [finish, skip]
+    [finish, skip],
   );
 
   /** Hide the toast immediately (e.g. the compose dialog was closed mid-review). */

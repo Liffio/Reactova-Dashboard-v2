@@ -22,6 +22,7 @@ import {
   persistActiveWorkspaceId,
   readStoredActiveWorkspaceId,
 } from "@/lib/workspace-preference";
+import { setActiveWorkspaceId } from "@/lib/api/active-workspace";
 import { clearLyraPersisted } from "@/lib/lyra-persist";
 import { safeIdentify } from "@/lib/analytics";
 import { authStore, useAuthState, type AuthorizationModule } from "@/lib/auth/auth-store";
@@ -211,6 +212,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       defaultWorkspace,
     [selectedWorkspaceId, workspaces],
   );
+
+  /**
+   * Publish the active workspace to the request layer.
+   *
+   * `apiRequest` reads it to attach `x-workspace-id` to every call, so a new endpoint is scoped
+   * correctly without each call site remembering to thread an id through. Written during render
+   * rather than in an effect on purpose: a request fired by a child's effect would otherwise run
+   * before this one and go out unscoped on the very first render after a workspace switch.
+   */
+  setActiveWorkspaceId(current.id);
 
   const persistActiveWorkspace = useCallback(
     async (workspaceId: string) => {

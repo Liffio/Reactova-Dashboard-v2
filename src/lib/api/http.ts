@@ -5,6 +5,7 @@
  */
 import { authStore } from "@/lib/auth/auth-store";
 import { SESSION_EXPIRED_EVENT } from "@/lib/session-events";
+import { getActiveWorkspaceId } from "./active-workspace";
 
 export const API_BASE: string =
   import.meta.env.VITE_API_URL ||
@@ -108,13 +109,38 @@ export function formatApiErrorBody(payload: unknown): string {
 export type ApiRequestConfig = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
-  workspaceId?: string;
+  /**
+   * Overrides the active workspace for this one request.
+   *
+   * Normally omitted — `x-workspace-id` is attached automatically from the active workspace, so a
+   * new call site is scoped correctly without having to remember. Pass this only when a request
+   * must target a *different* workspace than the one on screen, such as an agency acting on a
+   * client's behalf. Pass `null` to send no header at all.
+   */
+  workspaceId?: string | null;
   /** Pass `null` to force an unauthenticated request. */
   token?: string | null;
 };
 
+/**
+ * Which workspace this request is for.
+ *
+ * Explicit wins; otherwise the active workspace. Anonymous public reads send nothing — those
+ * endpoints are workspace-agnostic and a stray header on them is noise at best.
+ */
+function resolveWorkspaceHeader(
+  config: { workspaceId?: string | null },
+  isAnonymousPublicRead: boolean,
+): Record<string, string> {
+  if (isAnonymousPublicRead) return {};
+  if (config.workspaceId === null) return {};
+  const id = config.workspaceId ?? getActiveWorkspaceId();
+  return id ? { "x-workspace-id": id } : {};
+}
+
 export type ApiUploadConfig = {
-  workspaceId?: string;
+  /** Same semantics as `ApiRequestConfig.workspaceId` — omit to use the active workspace. */
+  workspaceId?: string | null;
   token?: string | null;
 };
 
@@ -139,7 +165,7 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
       headers: {
         ...(usesJsonBody ? { "Content-Type": "application/json" } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(config.workspaceId ? { "x-workspace-id": config.workspaceId } : {}),
+        ...resolveWorkspaceHeader(config, isAnonymousPublicRead),
       },
       ...(jsonBody !== undefined ? { body: JSON.stringify(jsonBody) } : {}),
     });
@@ -190,7 +216,7 @@ export async function apiUploadRequest<T>(
       credentials: "include",
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(config.workspaceId ? { "x-workspace-id": config.workspaceId } : {}),
+        ...resolveWorkspaceHeader(config, false),
       },
       body: formData,
     });

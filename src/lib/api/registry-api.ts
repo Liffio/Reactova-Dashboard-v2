@@ -17,10 +17,26 @@ export type ParentModule = {
   name: string;
   description: string | null;
   icon: string | null;
+  /** App route the sidebar entry opens. */
   route: string | null;
+  /** API surface the module owns. When `isEnabled` is false, everything under it answers 404. */
+  apiPrefix: string | null;
+  requiredPermission: string | null;
+  navGroup: string;
+  /** Presentation only — `auth` and `dev` are hidden yet fully functional. */
   showInSidebar: boolean;
+  /** The kill switch: off means API masked, gone from Access Management and from the sidebar. */
   isEnabled: boolean;
   sortOrder: number;
+};
+
+/** Blast radius of disabling a module, shown before the operator confirms. */
+export type DisableImpact = {
+  key: string;
+  name: string;
+  apiPrefix: string | null;
+  route: string | null;
+  capabilityCount: number;
 };
 
 export type ChildModule = {
@@ -72,12 +88,18 @@ export const createParentModule = (body: {
   description?: string | null;
   icon?: string | null;
   route?: string | null;
+  apiPrefix?: string | null;
+  requiredPermission?: string | null;
+  navGroup?: string;
   showInSidebar?: boolean;
   sortOrder?: number;
 }) => apiRequest<ParentModule>(apiUri.admin.registry.parents(), { method: "POST", body });
 
 export const updateParentModule = (id: string, body: Partial<Omit<ParentModule, "id" | "key">>) =>
   apiRequest<ParentModule>(apiUri.admin.registry.parent(id), { method: "PATCH", body });
+
+export const getDisableImpact = (id: string) =>
+  apiRequest<DisableImpact>(apiUri.admin.registry.parentImpact(id));
 
 export const listChildModules = (params: ListQuery & { parentModuleId?: string } = {}) =>
   apiRequest<Paged<ChildModule>>(apiUri.admin.registry.children(params));

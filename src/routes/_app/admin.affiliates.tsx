@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, DollarSign, ShieldCheck, Users, Wallet, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  DollarSign,
+  ShieldCheck,
+  Users,
+  Wallet,
+  XCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -74,7 +82,10 @@ function AdminAffiliatesPage() {
     queryKey: ["admin-affiliate-overview"],
     queryFn: getAdminAffiliateOverview,
   });
-  const listQuery = useQuery({ queryKey: ["admin-affiliate-list"], queryFn: () => listAdminAffiliates() });
+  const listQuery = useQuery({
+    queryKey: ["admin-affiliate-list"],
+    queryFn: () => listAdminAffiliates(),
+  });
   const payoutsQuery = useQuery({
     queryKey: ["admin-affiliate-payouts"],
     queryFn: listAdminAffiliatePayouts,
@@ -94,7 +105,8 @@ function AdminAffiliatesPage() {
     void queryClient.invalidateQueries({ queryKey: ["admin-affiliate-payouts"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-affiliate-overview"] });
   };
-  const invalidateList = () => void queryClient.invalidateQueries({ queryKey: ["admin-affiliate-list"] });
+  const invalidateList = () =>
+    void queryClient.invalidateQueries({ queryKey: ["admin-affiliate-list"] });
   const invalidateFlagged = () =>
     void queryClient.invalidateQueries({ queryKey: ["admin-affiliate-flagged"] });
   const invalidateKyc = () =>
@@ -187,7 +199,9 @@ function AdminAffiliatesPage() {
       <div className="space-y-6 p-4 sm:p-6 md:p-10">
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {overviewQuery.isLoading ? (
-            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)
+            Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-2xl" />
+            ))
           ) : (
             <>
               <StatCard
@@ -220,7 +234,10 @@ function AdminAffiliatesPage() {
               <ShieldCheck className="h-3.5 w-3.5" />
               KYC queue
               {(kycQueueQuery.data?.length ?? 0) > 0 && (
-                <Badge variant="outline" className="ml-1 border-warning/30 bg-warning/10 text-warning">
+                <Badge
+                  variant="outline"
+                  className="ml-1 border-warning/30 bg-warning/10 text-warning"
+                >
                   {kycQueueQuery.data?.length}
                 </Badge>
               )}
@@ -295,7 +312,10 @@ function AdminAffiliatesPage() {
                     ))}
                     {(kycQueueQuery.data ?? []).length === 0 && !kycQueueQuery.isLoading && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                        <td
+                          colSpan={5}
+                          className="px-6 py-8 text-center text-sm text-muted-foreground"
+                        >
                           No pending KYC submissions.
                         </td>
                       </tr>
@@ -322,7 +342,9 @@ function AdminAffiliatesPage() {
                   <tbody>
                     {(payoutsQuery.data?.payouts ?? []).map((p) => (
                       <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="px-6 py-3.5 font-medium tabular-nums">${p.amount.toFixed(2)}</td>
+                        <td className="px-6 py-3.5 font-medium tabular-nums">
+                          ${p.amount.toFixed(2)}
+                        </td>
                         <td className="px-4 py-3.5 text-xs text-muted-foreground">{p.method}</td>
                         <td className="px-4 py-3.5">
                           <Badge variant="outline">{p.status}</Badge>
@@ -352,7 +374,11 @@ function AdminAffiliatesPage() {
                               </>
                             )}
                             {p.status === "APPROVED" && (
-                              <Button size="sm" variant="outline" onClick={() => markPaidMutation.mutate(p.id)}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => markPaidMutation.mutate(p.id)}
+                              >
                                 Mark paid
                               </Button>
                             )}
@@ -362,7 +388,10 @@ function AdminAffiliatesPage() {
                     ))}
                     {(payoutsQuery.data?.payouts ?? []).length === 0 && !payoutsQuery.isLoading && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                        <td
+                          colSpan={5}
+                          className="px-6 py-8 text-center text-sm text-muted-foreground"
+                        >
                           No payouts to review.
                         </td>
                       </tr>
@@ -409,7 +438,11 @@ function AdminAffiliatesPage() {
                         <td className="px-6 py-3.5">
                           <div className="flex justify-end">
                             {a.isSuspended ? (
-                              <Button size="sm" variant="outline" onClick={() => unsuspendMutation.mutate(a.id)}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => unsuspendMutation.mutate(a.id)}
+                              >
                                 Unsuspend
                               </Button>
                             ) : (
@@ -428,7 +461,10 @@ function AdminAffiliatesPage() {
                     ))}
                     {(listQuery.data?.affiliates ?? []).length === 0 && !listQuery.isLoading && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                        <td
+                          colSpan={5}
+                          className="px-6 py-8 text-center text-sm text-muted-foreground"
+                        >
                           No affiliates yet.
                         </td>
                       </tr>
@@ -455,7 +491,9 @@ function AdminAffiliatesPage() {
                       <tr key={f.id} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-6 py-3.5 font-medium">{f.email ?? f.id}</td>
                         <td className="px-4 py-3.5 text-xs text-muted-foreground">
-                          {String((f as { referredUser?: { email?: string } }).referredUser?.email ?? "—")}
+                          {String(
+                            (f as { referredUser?: { email?: string } }).referredUser?.email ?? "—",
+                          )}
                         </td>
                         <td className="px-6 py-3.5">
                           <div className="flex justify-end">
@@ -472,7 +510,10 @@ function AdminAffiliatesPage() {
                     ))}
                     {(flaggedQuery.data?.flagged ?? []).length === 0 && !flaggedQuery.isLoading && (
                       <tr>
-                        <td colSpan={3} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                        <td
+                          colSpan={3}
+                          className="px-6 py-8 text-center text-sm text-muted-foreground"
+                        >
                           No flagged referrals.
                         </td>
                       </tr>

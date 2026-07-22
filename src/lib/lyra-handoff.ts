@@ -47,7 +47,7 @@ export type LyraAutomationHandoff = {
 
 export function savePostHandoff(
   workspaceId: string,
-  handoff: Omit<LyraPostHandoff, "version" | "source" | "createdAt">
+  handoff: Omit<LyraPostHandoff, "version" | "source" | "createdAt">,
 ) {
   const payload: LyraPostHandoff = {
     version: 1,
@@ -60,7 +60,7 @@ export function savePostHandoff(
 
 export function saveAutomationHandoff(
   workspaceId: string,
-  handoff: Omit<LyraAutomationHandoff, "version" | "source" | "createdAt">
+  handoff: Omit<LyraAutomationHandoff, "version" | "source" | "createdAt">,
 ) {
   const payload: LyraAutomationHandoff = {
     version: 1,
@@ -75,7 +75,7 @@ export async function getPostHandoff(workspaceId: string): Promise<LyraPostHando
   const draft = await getDraft<Record<string, unknown>>(
     workspaceId,
     POST_HANDOFF_MODULE,
-    LYRA_HANDOFF_KEY
+    LYRA_HANDOFF_KEY,
   );
   const payload = draft?.payload;
   if (payload && payload.version === 1 && payload.intent === "post" && payload.draft) {
@@ -93,12 +93,12 @@ export type AutomationHandoffResolution =
   | { kind: "none" };
 
 export async function resolveAutomationHandoff(
-  workspaceId: string
+  workspaceId: string,
 ): Promise<AutomationHandoffResolution> {
   const draft = await getDraft<Record<string, unknown>>(
     workspaceId,
     AUTOMATION_HANDOFF_MODULE,
-    LYRA_HANDOFF_KEY
+    LYRA_HANDOFF_KEY,
   );
   const payload = draft?.payload;
   if (!payload) return { kind: "none" };

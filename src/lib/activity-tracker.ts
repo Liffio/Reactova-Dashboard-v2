@@ -3,7 +3,14 @@
  * silently refresh active sessions and only log out truly idle ones —
  * never nagging an active user with a "session about to expire" prompt.
  */
-const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "wheel"] as const;
+const ACTIVITY_EVENTS = [
+  "mousemove",
+  "mousedown",
+  "keydown",
+  "touchstart",
+  "scroll",
+  "wheel",
+] as const;
 
 let lastActivityAt = Date.now();
 let listening = false;

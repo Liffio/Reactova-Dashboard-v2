@@ -122,7 +122,7 @@ export function createBioLinkItem(workspaceId: string, body: { title: string; ur
 export function updateBioLinkItem(
   workspaceId: string,
   id: string,
-  body: { title: string; url: string }
+  body: { title: string; url: string },
 ) {
   return apiRequest<BioLinkItem>(apiUri.biolink.linkItem(id), {
     method: "PUT",
@@ -160,11 +160,7 @@ export function createBioLinkSocial(workspaceId: string, body: BioLinkSocialInpu
   });
 }
 
-export function updateBioLinkSocial(
-  workspaceId: string,
-  id: string,
-  body: BioLinkSocialInput
-) {
+export function updateBioLinkSocial(workspaceId: string, id: string, body: BioLinkSocialInput) {
   return apiRequest<BioLinkSocialItem>(apiUri.biolink.socialItem(id), {
     method: "PUT",
     workspaceId,
@@ -191,6 +187,6 @@ export function resetBioLink(workspaceId: string) {
 export function getPublicBioLink(slug: string) {
   return apiRequest<PublicBioLinkPayload>(
     `${apiUri.public.biolink}?slug=${encodeURIComponent(slug)}`,
-    { token: null }
+    { token: null },
   );
 }

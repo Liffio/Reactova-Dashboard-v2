@@ -45,7 +45,7 @@ const warn = (...args: unknown[]) => console.warn("[meta-oauth:popup]", ...args)
 async function waitForConnectionConfirmation(
   checkConnected: (() => Promise<boolean>) | undefined,
   label: string,
-  maxWaitMs = 12_000
+  maxWaitMs = 12_000,
 ): Promise<boolean> {
   if (!checkConnected) {
     log("waitForConnectionConfirmation: no verifier provided — skipping, returning true");
@@ -127,18 +127,18 @@ function forceClosePopup(popup: Window) {
 function isTrustedOAuthMessage(data: unknown): data is MetaOAuthMessage {
   return Boolean(
     data &&
-      typeof data === "object" &&
-      (data as MetaOAuthMessage).type === META_OAUTH_MESSAGE_TYPE &&
-      (data as MetaOAuthMessage).payload &&
-      typeof (data as MetaOAuthMessage).payload === "object"
+    typeof data === "object" &&
+    (data as MetaOAuthMessage).type === META_OAUTH_MESSAGE_TYPE &&
+    (data as MetaOAuthMessage).payload &&
+    typeof (data as MetaOAuthMessage).payload === "object",
   );
 }
 
 function isOAuthCloseMessage(data: unknown): boolean {
   return Boolean(
     data &&
-      typeof data === "object" &&
-      (data as { type?: string }).type === META_OAUTH_CLOSE_MESSAGE_TYPE
+    typeof data === "object" &&
+    (data as { type?: string }).type === META_OAUTH_CLOSE_MESSAGE_TYPE,
   );
 }
 
@@ -149,7 +149,7 @@ function isOAuthCloseMessage(data: unknown): boolean {
  */
 export function openMetaOAuthPopup(
   fetchAuthorizeUrl: () => Promise<string>,
-  options: OpenMetaOAuthPopupOptions = {}
+  options: OpenMetaOAuthPopupOptions = {},
 ): Promise<MetaOAuthResult> {
   return new Promise((resolve, reject) => {
     const appOrigin = window.location.origin;
@@ -184,9 +184,8 @@ export function openMetaOAuthPopup(
 
     // BroadcastChannel fallback: Instagram severs window.opener via COOP headers.
     // The popup navigates to /oauth/meta/complete (same origin) which broadcasts here.
-    const bc = typeof BroadcastChannel !== "undefined"
-      ? new BroadcastChannel(META_OAUTH_BC_CHANNEL)
-      : null;
+    const bc =
+      typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(META_OAUTH_BC_CHANNEL) : null;
 
     if (bc) {
       log("BroadcastChannel listener registered on channel:", META_OAUTH_BC_CHANNEL);
@@ -205,7 +204,10 @@ export function openMetaOAuthPopup(
         const payload = data.payload;
         log("BC: trusted message payload:", JSON.stringify(payload));
         if (payload.meta === "connected" && !payload.workspaceId && options.oauthWorkspaceId) {
-          log("BC: payload missing workspaceId — falling back to oauthWorkspaceId:", options.oauthWorkspaceId);
+          log(
+            "BC: payload missing workspaceId — falling back to oauthWorkspaceId:",
+            options.oauthWorkspaceId,
+          );
           payload.workspaceId = options.oauthWorkspaceId;
         }
         void settleAfterVerification(payload, "broadcastChannel");
@@ -232,7 +234,10 @@ export function openMetaOAuthPopup(
       const payload = data.payload;
       log("postMessage: trusted message payload:", JSON.stringify(payload));
       if (payload.meta === "connected" && !payload.workspaceId && options.oauthWorkspaceId) {
-        log("postMessage: payload missing workspaceId — falling back to oauthWorkspaceId:", options.oauthWorkspaceId);
+        log(
+          "postMessage: payload missing workspaceId — falling back to oauthWorkspaceId:",
+          options.oauthWorkspaceId,
+        );
         payload.workspaceId = options.oauthWorkspaceId;
       }
       void settleAfterVerification(payload, "postMessage");
@@ -249,11 +254,14 @@ export function openMetaOAuthPopup(
         }
         if (connected) {
           log(`connectionPoll #${pollCount}: connection detected via polling`);
-          void settleAfterVerification({
-            meta: "connected",
-            step: 3,
-            workspaceId: options.oauthWorkspaceId,
-          }, "connectionPoll");
+          void settleAfterVerification(
+            {
+              meta: "connected",
+              step: 3,
+              workspaceId: options.oauthWorkspaceId,
+            },
+            "connectionPoll",
+          );
         }
       });
     }, 800);
@@ -269,11 +277,14 @@ export function openMetaOAuthPopup(
             const connected = await options.checkConnected();
             log("post-close checkConnected:", connected);
             if (connected) {
-              await settleAfterVerification({
-                meta: "connected",
-                step: 3,
-                workspaceId: options.oauthWorkspaceId,
-              }, "closedPoll:checkConnected");
+              await settleAfterVerification(
+                {
+                  meta: "connected",
+                  step: 3,
+                  workspaceId: options.oauthWorkspaceId,
+                },
+                "closedPoll:checkConnected",
+              );
               return;
             }
           } catch (e) {
@@ -286,11 +297,14 @@ export function openMetaOAuthPopup(
             const verified = await options.verifyConnected();
             log("post-close verifyConnected:", verified);
             if (verified) {
-              await settleAfterVerification({
-                meta: "connected",
-                step: 3,
-                workspaceId: options.oauthWorkspaceId,
-              }, "closedPoll:verifyConnected");
+              await settleAfterVerification(
+                {
+                  meta: "connected",
+                  step: 3,
+                  workspaceId: options.oauthWorkspaceId,
+                },
+                "closedPoll:verifyConnected",
+              );
               return;
             }
           } catch (e) {
@@ -332,7 +346,9 @@ export function openMetaOAuthPopup(
         // initiated OAuth (e.g. it finds an existing mapping). Always verify using the
         // workspace the backend actually updated, not just the originating workspace.
         const resultWorkspaceId = result.workspaceId ?? options.oauthWorkspaceId;
-        const usingWorkspaceAware = Boolean(resultWorkspaceId && options.verifyConnectedForWorkspace);
+        const usingWorkspaceAware = Boolean(
+          resultWorkspaceId && options.verifyConnectedForWorkspace,
+        );
 
         log(`settleAfterVerification [${source}]: verifying connection`, {
           resultWorkspaceId,
@@ -352,7 +368,9 @@ export function openMetaOAuthPopup(
 
         const confirmed = await waitForConnectionConfirmation(verify, verifierLabel);
         if (!confirmed) {
-          warn(`settleAfterVerification [${source}]: verification timed out — connection_not_persisted`);
+          warn(
+            `settleAfterVerification [${source}]: verification timed out — connection_not_persisted`,
+          );
           settle({ meta: "error", reason: "connection_not_persisted" });
           return;
         }

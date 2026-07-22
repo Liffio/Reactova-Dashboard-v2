@@ -87,7 +87,10 @@ function hydrate<K extends keyof LyraTaskMap>(persistKey: string | null): LyraSt
   return persisted;
 }
 
-function getEntry<K extends keyof LyraTaskMap>(key: string, persistKey: string | null): StoreEntry<K> {
+function getEntry<K extends keyof LyraTaskMap>(
+  key: string,
+  persistKey: string | null,
+): StoreEntry<K> {
   let entry = store.get(key) as StoreEntry<K> | undefined;
   if (!entry) {
     entry = { state: hydrate<K>(persistKey), listeners: new Set() };
@@ -105,7 +108,11 @@ function persistNow(persistKey: string | null, state: LyraState<keyof LyraTaskMa
   writeLyraPersisted(persistKey, state);
 }
 
-function schedulePersist(key: string, persistKey: string | null, state: LyraState<keyof LyraTaskMap>): void {
+function schedulePersist(
+  key: string,
+  persistKey: string | null,
+  state: LyraState<keyof LyraTaskMap>,
+): void {
   if (!persistKey) return;
   const existing = persistTimers.get(key);
   if (existing !== undefined) window.clearTimeout(existing);
@@ -114,7 +121,7 @@ function schedulePersist(key: string, persistKey: string | null, state: LyraStat
     window.setTimeout(() => {
       persistTimers.delete(key);
       persistNow(persistKey, state);
-    }, PERSIST_DEBOUNCE_MS)
+    }, PERSIST_DEBOUNCE_MS),
   );
 }
 
@@ -122,7 +129,7 @@ function updateEntry<K extends keyof LyraTaskMap>(
   key: string,
   persistKey: string | null,
   patch: Partial<LyraState<K>>,
-  opts?: { flush?: boolean }
+  opts?: { flush?: boolean },
 ): void {
   const entry = getEntry<K>(key, persistKey);
   entry.state = { ...entry.state, ...patch };
@@ -134,7 +141,7 @@ function updateEntry<K extends keyof LyraTaskMap>(
 async function runShared<K extends keyof LyraTaskMap>(
   key: string,
   persistKey: string | null,
-  config: LyraCallConfig<K>
+  config: LyraCallConfig<K>,
 ): Promise<LyraRunResult<K>> {
   controllers.get(key)?.abort();
   const controller = new AbortController();
@@ -158,18 +165,27 @@ async function runShared<K extends keyof LyraTaskMap>(
       {
         onDelta: (delta) => {
           acc += delta;
-          updateEntry<K>(key, persistKey, { text: acc, status: "streaming" } as Partial<LyraState<K>>);
+          updateEntry<K>(key, persistKey, { text: acc, status: "streaming" } as Partial<
+            LyraState<K>
+          >);
         },
         onComplete: () => {
-          updateEntry<K>(key, persistKey, { status: "complete" } as Partial<LyraState<K>>, { flush: true });
-        },
-        onError: (err) => {
-          streamError = err;
-          updateEntry<K>(key, persistKey, { status: "error", error: err } as Partial<LyraState<K>>, {
+          updateEntry<K>(key, persistKey, { status: "complete" } as Partial<LyraState<K>>, {
             flush: true,
           });
         },
-      }
+        onError: (err) => {
+          streamError = err;
+          updateEntry<K>(
+            key,
+            persistKey,
+            { status: "error", error: err } as Partial<LyraState<K>>,
+            {
+              flush: true,
+            },
+          );
+        },
+      },
     );
     outcome = controller.signal.aborted
       ? { status: "cancelled" }
@@ -183,7 +199,7 @@ async function runShared<K extends keyof LyraTaskMap>(
         key,
         persistKey,
         { content: result.content, status: "complete" } as Partial<LyraState<K>>,
-        { flush: true }
+        { flush: true },
       );
       outcome = { status: "complete", text: "", content: result.content };
     } catch (err) {
@@ -191,9 +207,14 @@ async function runShared<K extends keyof LyraTaskMap>(
         outcome = { status: "cancelled" };
       } else {
         const lyraErr = err as LyraError;
-        updateEntry<K>(key, persistKey, { status: "error", error: lyraErr } as Partial<LyraState<K>>, {
-          flush: true,
-        });
+        updateEntry<K>(
+          key,
+          persistKey,
+          { status: "error", error: lyraErr } as Partial<LyraState<K>>,
+          {
+            flush: true,
+          },
+        );
         outcome = { status: "error", error: lyraErr };
       }
     }
@@ -256,7 +277,7 @@ export function useLyra<K extends keyof LyraTaskMap>(options?: {
         entry.listeners.delete(onStoreChange);
       };
     },
-    [key, persistKey]
+    [key, persistKey],
   );
 
   const getSnapshot = useCallback(() => getEntry<K>(key, persistKey).state, [key, persistKey]);
@@ -265,7 +286,7 @@ export function useLyra<K extends keyof LyraTaskMap>(options?: {
 
   const run = useCallback(
     (config: LyraCallConfig<K>) => runShared<K>(key, persistKey, config),
-    [key, persistKey]
+    [key, persistKey],
   );
   const cancel = useCallback(() => cancelShared(key, persistKey), [key, persistKey]);
   const reset = useCallback(() => resetShared(key, persistKey), [key, persistKey]);

@@ -68,7 +68,7 @@ export function useModuleFeatures(moduleKey: string): Record<string, boolean> {
   const permissions = usePermissions();
   const prefix = `${moduleKey}:`;
   const held = new Set(
-    permissions.filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length))
+    permissions.filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length)),
   );
   return new Proxy(
     {},
@@ -77,7 +77,7 @@ export function useModuleFeatures(moduleKey: string): Record<string, boolean> {
       has: (_t, prop: string | symbol) => typeof prop === "string" && held.has(prop),
       ownKeys: () => Array.from(held),
       getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true, value: true }),
-    }
+    },
   ) as Record<string, boolean>;
 }
 

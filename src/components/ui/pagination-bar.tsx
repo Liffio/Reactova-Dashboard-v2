@@ -31,8 +31,11 @@ export function PaginationBar({
   return (
     <div className="flex flex-col items-center justify-between gap-3 border-t pt-3 sm:flex-row">
       <p className="text-xs text-muted-foreground">
-        Showing <span className="font-medium text-foreground">{from}–{to}</span> of{" "}
-        <span className="font-medium text-foreground">{total}</span> {label}
+        Showing{" "}
+        <span className="font-medium text-foreground">
+          {from}–{to}
+        </span>{" "}
+        of <span className="font-medium text-foreground">{total}</span> {label}
       </p>
       {pages > 1 && (
         <div className="flex items-center gap-1">

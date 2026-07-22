@@ -31,7 +31,10 @@ export type AffiliateCalculatorConfig = {
 
 export function getAffiliateCalculatorConfig(countryCode?: string) {
   const query = countryCode ? `?countryCode=${encodeURIComponent(countryCode)}` : "";
-  return apiRequest<AffiliateCalculatorConfig>(`${apiUri.marketing.affiliateCalculatorConfig}${query}`, {
-    token: null,
-  });
+  return apiRequest<AffiliateCalculatorConfig>(
+    `${apiUri.marketing.affiliateCalculatorConfig}${query}`,
+    {
+      token: null,
+    },
+  );
 }

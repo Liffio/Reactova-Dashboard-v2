@@ -10,9 +10,7 @@ export function isAffiliateProgramRedirect(path: string | null | undefined): boo
   try {
     const normalized = path.startsWith("/") ? path : `/${path}`;
     const pathname = new URL(normalized, "http://localhost").pathname;
-    return (
-      pathname === AFFILIATE_PROGRAM_PATH || pathname.startsWith(`${AFFILIATE_PROGRAM_PATH}/`)
-    );
+    return pathname === AFFILIATE_PROGRAM_PATH || pathname.startsWith(`${AFFILIATE_PROGRAM_PATH}/`);
   } catch {
     return false;
   }
@@ -23,7 +21,7 @@ const AUTH_ONLY_PATHS = ["/login", "/register", "/forgot-password", "/confirm-em
 /** Only allow same-origin relative paths (prevents open redirects and redirect loops). */
 export function sanitizeAuthRedirect(
   path: string | null | undefined,
-  fallback = "/dashboard"
+  fallback = "/dashboard",
 ): string {
   if (!path || !path.startsWith("/") || path.startsWith("//")) {
     return fallback;
@@ -38,7 +36,7 @@ export function sanitizeAuthRedirect(
 
 export const postAuthLandingPath = (
   auth: { emailVerified: boolean; isOnboarded: boolean },
-  fallback = "/dashboard"
+  fallback = "/dashboard",
 ): string => {
   const target = sanitizeAuthRedirect(fallback);
 

@@ -7,9 +7,10 @@ type ResolveResponse = { destination: string };
 
 export function ShortLinkRedirect() {
   const started = useRef(false);
-  const slug = typeof window !== "undefined"
-    ? window.location.pathname.replace(/^\/+/, "").split("/")[0]?.trim() ?? ""
-    : "";
+  const slug =
+    typeof window !== "undefined"
+      ? (window.location.pathname.replace(/^\/+/, "").split("/")[0]?.trim() ?? "")
+      : "";
 
   useEffect(() => {
     if (!slug || started.current) return;

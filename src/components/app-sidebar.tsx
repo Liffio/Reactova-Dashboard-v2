@@ -106,9 +106,29 @@ const nav: Array<{ group: string; items: NavItem[] }> = [
  * generic glyph instead of a crashed sidebar.
  */
 const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
-  LayoutDashboard, BarChart3, Zap, Users, CalendarDays, Link2, LinkIcon, Link: LinkIcon,
-  UsersRound, CreditCard, Gift, Building2, BookOpen, Sparkles, Settings, Boxes, Coins,
-  ShieldCheck, Database, Handshake, Mail, ClipboardCheck, KeyRound,
+  LayoutDashboard,
+  BarChart3,
+  Zap,
+  Users,
+  CalendarDays,
+  Link2,
+  LinkIcon,
+  Link: LinkIcon,
+  UsersRound,
+  CreditCard,
+  Gift,
+  Building2,
+  BookOpen,
+  Sparkles,
+  Settings,
+  Boxes,
+  Coins,
+  ShieldCheck,
+  Database,
+  Handshake,
+  Mail,
+  ClipboardCheck,
+  KeyRound,
 };
 
 const resolveNavIcon = (name: string | null): typeof LayoutDashboard =>

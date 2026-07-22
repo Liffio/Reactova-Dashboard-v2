@@ -164,7 +164,7 @@ function AccessManagementPage() {
 
   const unresolvedCount = useMemo(
     () => Array.from(mixedKeys).filter((k) => !resolved.has(k)).length,
-    [mixedKeys, resolved]
+    [mixedKeys, resolved],
   );
 
   const catalogue = catalogueQuery.data;
@@ -264,10 +264,9 @@ function AccessManagementPage() {
 
         {immutable.length > 0 && (
           <Banner tone="danger" icon={<AlertTriangle className="h-4 w-4" />}>
-            {immutable.map((i) => i.email).join(", ")}{" "}
-            {immutable.length === 1 ? "is" : "are"} an environment-configured super admin and cannot
-            be modified. Remove {immutable.length === 1 ? "them" : "those users"} from the selection
-            to continue.
+            {immutable.map((i) => i.email).join(", ")} {immutable.length === 1 ? "is" : "are"} an
+            environment-configured super admin and cannot be modified. Remove{" "}
+            {immutable.length === 1 ? "them" : "those users"} from the selection to continue.
           </Banner>
         )}
 
@@ -394,14 +393,24 @@ function AccessManagementPage() {
                                 <button
                                   type="button"
                                   className="text-[11px] text-primary underline underline-offset-2"
-                                  onClick={() => setFeatureGroup(features.map((f) => f.key), true)}
+                                  onClick={() =>
+                                    setFeatureGroup(
+                                      features.map((f) => f.key),
+                                      true,
+                                    )
+                                  }
                                 >
                                   Select all
                                 </button>
                                 <button
                                   type="button"
                                   className="text-[11px] text-muted-foreground underline underline-offset-2"
-                                  onClick={() => setFeatureGroup(features.map((f) => f.key), false)}
+                                  onClick={() =>
+                                    setFeatureGroup(
+                                      features.map((f) => f.key),
+                                      false,
+                                    )
+                                  }
                                 >
                                   Clear all
                                 </button>

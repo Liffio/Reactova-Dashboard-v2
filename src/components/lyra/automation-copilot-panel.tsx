@@ -15,7 +15,7 @@ type CopilotMessage = { role: "user" | "assistant"; content: string };
 const GREETING: CopilotMessage = {
   role: "assistant",
   content:
-    "Tell me what you want this automation to do — e.g. \"when someone comments PRICE, DM them our pricing link.\" I'll set it up and you can always tweak it by hand afterward.",
+    'Tell me what you want this automation to do — e.g. "when someone comments PRICE, DM them our pricing link." I\'ll set it up and you can always tweak it by hand afterward.',
 };
 
 /**
@@ -36,7 +36,9 @@ export function AutomationCopilotPanel({
 }) {
   const base = lyraStorageKey(userId, workspaceId, "automation-copilot");
   const [open, setOpen] = usePersistedState(`${base}:open`, false);
-  const [messages, setMessages] = usePersistedState<CopilotMessage[]>(`${base}:messages`, [GREETING]);
+  const [messages, setMessages] = usePersistedState<CopilotMessage[]>(`${base}:messages`, [
+    GREETING,
+  ]);
   const [draftText, setDraftText] = usePersistedState(`${base}:draft`, "");
   const lyra = useLyra<"automation_copilot">({ persistKey: `${base}:lyra` });
   const listRef = useRef<HTMLDivElement>(null);
@@ -84,7 +86,9 @@ export function AutomationCopilotPanel({
           </span>
           Build with Lyra
         </span>
-        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+        <ChevronDown
+          className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")}
+        />
       </button>
 
       <AnimatePresence initial={false}>
@@ -112,10 +116,20 @@ export function AutomationCopilotPanel({
                   </div>
                 ))}
                 {lyra.isActive && (
-                  <LyraThinking status="thinking" startedAt={lyra.startedAt} onCancel={lyra.cancel} size="sm" />
+                  <LyraThinking
+                    status="thinking"
+                    startedAt={lyra.startedAt}
+                    onCancel={lyra.cancel}
+                    size="sm"
+                  />
                 )}
                 {lyra.status === "error" && (
-                  <LyraThinking status="error" error={lyra.error} onRetry={() => void send()} size="sm" />
+                  <LyraThinking
+                    status="error"
+                    error={lyra.error}
+                    onRetry={() => void send()}
+                    size="sm"
+                  />
                 )}
               </div>
 
@@ -145,8 +159,8 @@ export function AutomationCopilotPanel({
                 </Button>
               </div>
               <p className="mt-2 text-[11px] text-muted-foreground">
-                Review your automation before activating — Lyra only fills the fields below, it never
-                publishes anything.
+                Review your automation before activating — Lyra only fills the fields below, it
+                never publishes anything.
               </p>
             </div>
           </motion.div>

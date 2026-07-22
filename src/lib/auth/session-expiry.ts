@@ -60,12 +60,12 @@ export async function forceSessionLogout(reason: SessionEndReason = "expired"): 
     {
       description: "Please log back in to continue — your unsaved work has been saved as a draft.",
       duration: 6000,
-    }
+    },
   );
 
   window.setTimeout(() => {
     window.location.replace(
-      loginPathWithRedirect(window.location.pathname + window.location.search)
+      loginPathWithRedirect(window.location.pathname + window.location.search),
     );
   }, 1200);
 }

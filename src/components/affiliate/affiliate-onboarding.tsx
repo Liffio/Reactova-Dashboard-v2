@@ -27,9 +27,9 @@ export function AffiliateOnboarding({ onGetStarted }: AffiliateOnboardingProps) 
               Earn {AFFILIATE_COMMISSION_RATE * 100}% on every referral
             </h2>
             <p className="text-sm sm:text-base text-muted-foreground mt-3 leading-relaxed">
-              Join the Liffio affiliate program, share your link, and earn lifetime recurring commission
-              when creators subscribe. Your referrals save {AFFILIATE_REFERRAL_DISCOUNT * 100}% on their
-              first payment.
+              Join the Liffio affiliate program, share your link, and earn lifetime recurring
+              commission when creators subscribe. Your referrals save{" "}
+              {AFFILIATE_REFERRAL_DISCOUNT * 100}% on their first payment.
             </p>
             <Button
               size="lg"

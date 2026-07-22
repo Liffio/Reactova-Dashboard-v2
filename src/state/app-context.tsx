@@ -24,11 +24,7 @@ import {
 } from "@/lib/workspace-preference";
 import { clearLyraPersisted } from "@/lib/lyra-persist";
 import { safeIdentify } from "@/lib/analytics";
-import {
-  authStore,
-  useAuthState,
-  type AuthorizationModule,
-} from "@/lib/auth/auth-store";
+import { authStore, useAuthState, type AuthorizationModule } from "@/lib/auth/auth-store";
 
 export type PlanName = "Free" | "Starter" | "Pro" | "Business" | "Agency";
 export type WorkspaceStatus = "active" | "paused" | "failed" | "disconnected";
@@ -95,7 +91,7 @@ const mapPlan = (planKey?: string): PlanName => {
 
 const pickWorkspaceId = (
   workspaces: Workspace[],
-  preferredId: string | null | undefined
+  preferredId: string | null | undefined,
 ): string => {
   if (preferredId && workspaces.some((workspace) => workspace.id === preferredId)) {
     return preferredId;
@@ -156,7 +152,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const storedWorkspaceId = readStoredActiveWorkspaceId(authUser?.id);
   const selectedWorkspaceId = pickWorkspaceId(
     workspaces,
-    currentId || storedWorkspaceId || authWorkspaceId || undefined
+    currentId || storedWorkspaceId || authWorkspaceId || undefined,
   );
 
   useEffect(() => {
@@ -185,7 +181,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // we requested (e.g. user lost access and the server fell back).
         if (authMeQuery.data.workspaceId !== selectedWorkspaceId) {
           setCurrentIdState((prev) =>
-            prev === authMeQuery.data.workspaceId ? prev : authMeQuery.data.workspaceId
+            prev === authMeQuery.data.workspaceId ? prev : authMeQuery.data.workspaceId,
           );
         }
       }
@@ -213,7 +209,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ??
       workspaces[0] ??
       defaultWorkspace,
-    [selectedWorkspaceId, workspaces]
+    [selectedWorkspaceId, workspaces],
   );
 
   const persistActiveWorkspace = useCallback(
@@ -237,7 +233,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [accessToken, authUser?.id]
+    [accessToken, authUser?.id],
   );
 
   const setCurrentId = useCallback(
@@ -250,7 +246,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       void persistActiveWorkspace(id);
       void queryClient.invalidateQueries({ queryKey: ["auth-me"] });
     },
-    [authUser?.id, persistActiveWorkspace, queryClient]
+    [authUser?.id, persistActiveWorkspace, queryClient],
   );
 
   // Invalidate all auth-me entries rather than refetching the captured query —
@@ -280,7 +276,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       accessToken,
       modules,
       refreshAuth,
-    ]
+    ],
   );
 
   return <Ctx.Provider value={ctxValue}>{children}</Ctx.Provider>;

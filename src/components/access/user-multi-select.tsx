@@ -77,11 +77,7 @@ export function UserMultiSelect({
         </PopoverTrigger>
         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
           <Command shouldFilter={false}>
-            <CommandInput
-              placeholder="Search users…"
-              value={query}
-              onValueChange={setQuery}
-            />
+            <CommandInput placeholder="Search users…" value={query} onValueChange={setQuery} />
             <CommandList>
               {usersQuery.isLoading ? (
                 <div className="py-6 text-center text-sm text-muted-foreground">Searching…</div>
@@ -99,7 +95,7 @@ export function UserMultiSelect({
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4 shrink-0",
-                          selectedIds.has(user.id) ? "opacity-100" : "opacity-0"
+                          selectedIds.has(user.id) ? "opacity-100" : "opacity-0",
                         )}
                       />
                       <span className="min-w-0">

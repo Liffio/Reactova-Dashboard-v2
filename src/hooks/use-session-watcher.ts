@@ -13,7 +13,11 @@
  */
 import { useEffect } from "react";
 import { useAuthState } from "@/lib/auth/auth-store";
-import { attemptSilentRefresh, forceSessionLogout, SESSION_EXPIRED_EVENT } from "@/lib/auth/session-expiry";
+import {
+  attemptSilentRefresh,
+  forceSessionLogout,
+  SESSION_EXPIRED_EVENT,
+} from "@/lib/auth/session-expiry";
 import { ensureActivityTracking, isRecentlyActive } from "@/lib/activity-tracker";
 
 /** How long before actual expiry we check in and (maybe) refresh. */
@@ -58,7 +62,10 @@ export function useSessionWatcher() {
       return;
     }
 
-    const timer = window.setTimeout(() => void runCheck(), Math.max(msUntilExpiry - REFRESH_LEAD_MS, 0));
+    const timer = window.setTimeout(
+      () => void runCheck(),
+      Math.max(msUntilExpiry - REFRESH_LEAD_MS, 0),
+    );
     return () => window.clearTimeout(timer);
   }, [accessToken, expiresAt]);
 

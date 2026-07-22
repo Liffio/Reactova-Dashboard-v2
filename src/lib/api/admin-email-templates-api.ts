@@ -59,7 +59,7 @@ export function deleteEmailTemplate(ref: string) {
 export function getEmailTemplateCodeHtml(ref: string) {
   const { category, key } = splitTemplateRef(ref);
   return apiRequest<{ html: string; hasOverride: boolean }>(
-    apiUri.admin.emailTemplates.codeHtml(category, key)
+    apiUri.admin.emailTemplates.codeHtml(category, key),
   );
 }
 
@@ -71,7 +71,7 @@ export function getEmailTemplateRenderedBase(ref: string) {
 export function getEmailTemplateBrevoHtml(ref: string) {
   const { category, key } = splitTemplateRef(ref);
   return apiRequest<{ html: string; templateId: number }>(
-    apiUri.admin.emailTemplates.brevoHtml(category, key)
+    apiUri.admin.emailTemplates.brevoHtml(category, key),
   );
 }
 

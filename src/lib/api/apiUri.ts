@@ -80,7 +80,8 @@ export const apiUri = {
   },
 
   team: {
-    members: `${V1}/team/members`,
+    /** Paginated members. Resolves permissions for the page only — see server `teamSearch`. */
+    membersSearch: `${V1}/team/members/search`,
     member: (userId: string) => `${V1}/team/members/${userId}`,
     invites: `${V1}/team/invites`,
     invite: (inviteId: string) => `${V1}/team/invites/${inviteId}`,
@@ -96,7 +97,10 @@ export const apiUri = {
   },
 
   automations: {
-    list: `${V1}/automations`,
+    /** Paginated list. POST because the query travels as a body — it reads, despite the verb. */
+    search: `${V1}/automations/search`,
+    /** Tab tallies for the whole workspace, not the current page. */
+    statusCounts: `${V1}/automations/status-counts`,
     create: `${V1}/automations`,
     byId: (automationId: string) => `${V1}/automations/${automationId}`,
     wizardData: `${V1}/automations/wizard-data`,
@@ -106,6 +110,8 @@ export const apiUri = {
     musicSearch: `${V1}/scheduler/music/search`,
     platformAccounts: `${V1}/scheduler/platform-accounts`,
     platformAccount: (accountId: string) => `${V1}/scheduler/platform-accounts/${accountId}`,
+    /** Paginated posts with text search over caption and hashtags. */
+    postsSearch: `${V1}/scheduler/posts/search`,
     posts: `${V1}/scheduler/posts`,
     post: (postId: string) => `${V1}/scheduler/posts/${postId}`,
     postsCalendar: `${V1}/scheduler/posts/calendar`,
@@ -129,14 +135,15 @@ export const apiUri = {
   },
 
   shortlinks: {
-    list: `${V1}/shortlinks`,
+    /** Paginated list. POST because the query travels as a body — it reads, despite the verb. */
+    search: `${V1}/shortlinks/search`,
     create: `${V1}/shortlinks`,
     remove: (shortLinkId: string) => `${V1}/shortlinks/${shortLinkId}`,
     resolve: (slug: string) => `${V1}/shortlinks/resolve/${slug}`,
   },
 
   leads: {
-    list: `${V1}/leads`,
+    search: `${V1}/leads/search`,
     export: `${V1}/leads/export`,
   },
 
@@ -226,8 +233,7 @@ export const apiUri = {
       permissions: `${V1}/admin/platform/permissions`,
       admins: (includeRevoked = false, q?: string) =>
         `${V1}/admin/platform/admins${listQs({ includeRevoked: includeRevoked || undefined, q })}`,
-      adminsLookup: (q: string) =>
-        `${V1}/admin/platform/admins/lookup?q=${encodeURIComponent(q)}`,
+      adminsLookup: (q: string) => `${V1}/admin/platform/admins/lookup?q=${encodeURIComponent(q)}`,
       admin: (userId: string) => `${V1}/admin/platform/admins/${userId}`,
     },
     audit: (params: Record<string, string | number | boolean | undefined> = {}) => {

@@ -145,9 +145,15 @@ export function VerifiedRoute({ children }: { children: ReactNode }) {
   const emailVerified = useAuthState((s) => s.emailVerified);
 
   if (!mounted) return <FullPageSpinner />;
-  if (!token) { window.location.href = loginPathWithRedirect("/"); return <FullPageSpinner />; }
+  if (!token) {
+    window.location.href = loginPathWithRedirect("/");
+    return <FullPageSpinner />;
+  }
   if (!user) return <FullPageSpinner />;
-  if (!emailVerified) { window.location.href = confirmEmailUrl(token); return <FullPageSpinner />; }
+  if (!emailVerified) {
+    window.location.href = confirmEmailUrl(token);
+    return <FullPageSpinner />;
+  }
   return <>{children}</>;
 }
 
@@ -157,7 +163,10 @@ export function AuthOnlyRoute({ children }: { children: ReactNode }) {
   const user = useAuthState((s) => s.user);
 
   if (!mounted) return <FullPageSpinner />;
-  if (!token) { window.location.href = loginPathWithRedirect("/"); return <FullPageSpinner />; }
+  if (!token) {
+    window.location.href = loginPathWithRedirect("/");
+    return <FullPageSpinner />;
+  }
   if (!user) return <FullPageSpinner />;
   return <>{children}</>;
 }
@@ -182,7 +191,10 @@ export function PlatformPermissionRoute({
   const { authz, isResolved } = usePlatformAuthz();
 
   if (!mounted) return <FullPageSpinner />;
-  if (!token) { window.location.href = loginPathWithRedirect("/"); return <FullPageSpinner />; }
+  if (!token) {
+    window.location.href = loginPathWithRedirect("/");
+    return <FullPageSpinner />;
+  }
   if (!user) return <FullPageSpinner />;
   // Don't bounce while the answer is still in flight — that would flash admins to /dashboard.
   if (!isResolved) return <FullPageSpinner />;
@@ -199,7 +211,10 @@ export function PlatformAdminRoute({ children }: { children: ReactNode }) {
   const isPlatformSuperAdmin = useAuthState((s) => s.isPlatformSuperAdmin);
 
   if (!mounted) return <FullPageSpinner />;
-  if (!token) { window.location.href = loginPathWithRedirect("/"); return <FullPageSpinner />; }
+  if (!token) {
+    window.location.href = loginPathWithRedirect("/");
+    return <FullPageSpinner />;
+  }
   if (!user) return <FullPageSpinner />;
   if (!isPlatformSuperAdmin) return <AccessDenied label="Platform admin" />;
   return <>{children}</>;

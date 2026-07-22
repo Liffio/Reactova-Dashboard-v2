@@ -134,8 +134,7 @@ export const getModuleConstants = (parentKey?: string) =>
 export const listPackages = (params: ListQuery = {}) =>
   apiRequest<Paged<PackageRow>>(apiUri.admin.packages.list(params));
 
-export const getPackage = (id: string) =>
-  apiRequest<PackageDetail>(apiUri.admin.packages.item(id));
+export const getPackage = (id: string) => apiRequest<PackageDetail>(apiUri.admin.packages.item(id));
 
 export const createPackage = (body: {
   name: string;
@@ -159,7 +158,7 @@ export const updatePackage = (
     isPublic: boolean;
     sortOrder: number;
     badge: string | null;
-  }>
+  }>,
 ) => apiRequest<PackageRow>(apiUri.admin.packages.item(id), { method: "PATCH", body });
 
 export const archivePackage = (id: string) =>
@@ -167,5 +166,9 @@ export const archivePackage = (id: string) =>
 
 export const setPackageFeatures = (
   id: string,
-  features: Array<{ parentKey: string; childKey: string | null }>
-) => apiRequest<PackageDetail>(apiUri.admin.packages.features(id), { method: "PUT", body: { features } });
+  features: Array<{ parentKey: string; childKey: string | null }>,
+) =>
+  apiRequest<PackageDetail>(apiUri.admin.packages.features(id), {
+    method: "PUT",
+    body: { features },
+  });

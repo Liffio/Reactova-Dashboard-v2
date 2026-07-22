@@ -17,7 +17,12 @@ export function getTokenBalance(workspaceId: string) {
 
 // ── Super-admin ────────────────────────────────────────────────────────────
 
-export type AiTokenLedgerEntryType = "CONSUMPTION" | "MANUAL_GRANT" | "PERIOD_RESET" | "REFUND" | "ADJUSTMENT";
+export type AiTokenLedgerEntryType =
+  | "CONSUMPTION"
+  | "MANUAL_GRANT"
+  | "PERIOD_RESET"
+  | "REFUND"
+  | "ADJUSTMENT";
 
 export type UpdatedByUser = { id: string; email: string } | null;
 
@@ -102,7 +107,9 @@ export function listAiFeatureRegistry() {
 
 export function updateAiFeatureMetering(
   featureKey: string,
-  body: Partial<Pick<AiFeatureRegistryRow, "isMetered" | "displayName" | "surface" | "description">>,
+  body: Partial<
+    Pick<AiFeatureRegistryRow, "isMetered" | "displayName" | "surface" | "description">
+  >,
 ) {
   return apiRequest<{ feature: AiFeatureRegistryRow }>(apiUri.admin.aiTokens.feature(featureKey), {
     method: "PUT",
@@ -124,7 +131,9 @@ export function listAiTokenWorkspaceUsage(
 }
 
 export function getAiTokenLedger(workspaceId: string) {
-  return apiRequest<{ ledger: AiTokenLedgerRow[] }>(apiUri.admin.aiTokens.workspaceLedger(workspaceId));
+  return apiRequest<{ ledger: AiTokenLedgerRow[] }>(
+    apiUri.admin.aiTokens.workspaceLedger(workspaceId),
+  );
 }
 
 export function listAiTokenLedger(
@@ -137,7 +146,9 @@ export function listAiTokenLedger(
     offset?: number;
   } = {},
 ) {
-  return apiRequest<{ ledger: AiTokenLedgerRow[]; total: number }>(apiUri.admin.aiTokens.ledger(params));
+  return apiRequest<{ ledger: AiTokenLedgerRow[]; total: number }>(
+    apiUri.admin.aiTokens.ledger(params),
+  );
 }
 
 export function grantAiTokens(workspaceId: string, body: { tokens: number; note: string }) {

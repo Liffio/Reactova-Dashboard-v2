@@ -54,10 +54,6 @@ export type UpdateMemberInput = {
   policyKeys: string[];
 };
 
-export function listTeamMembers(workspaceId: string) {
-  return apiRequest<TeamMember[]>(apiUri.team.members, { workspaceId });
-}
-
 export function listTeamInvites(workspaceId: string) {
   return apiRequest<WorkspaceInvite[]>(apiUri.team.invites, { workspaceId });
 }

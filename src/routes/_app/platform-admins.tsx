@@ -220,7 +220,10 @@ function AdminCard({
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-display font-semibold break-all">{admin.email}</span>
             {admin.isSuperAdmin ? (
-              <Badge className="gap-1 border-primary/40 bg-primary/10 text-primary" variant="outline">
+              <Badge
+                className="gap-1 border-primary/40 bg-primary/10 text-primary"
+                variant="outline"
+              >
                 <ShieldAlert className="h-3 w-3" />
                 Super admin
               </Badge>
@@ -311,7 +314,7 @@ function ScopeEditor({
 }) {
   const toggle = (key: string) =>
     onPermissionsChange(
-      permissions.includes(key) ? permissions.filter((k) => k !== key) : [...permissions, key]
+      permissions.includes(key) ? permissions.filter((k) => k !== key) : [...permissions, key],
     );
 
   return (
@@ -416,8 +419,8 @@ function GrantDialog({
         <DialogHeader>
           <DialogTitle>Grant platform access</DialogTitle>
           <DialogDescription>
-            Platform access spans every workspace on Liffio. Grant the narrowest scope that does
-            the job.
+            Platform access spans every workspace on Liffio. Grant the narrowest scope that does the
+            job.
           </DialogDescription>
         </DialogHeader>
 

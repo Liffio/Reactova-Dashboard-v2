@@ -54,7 +54,9 @@ function AuthHandoff() {
       void navigate({ to: redirectTo as never, replace: true });
     };
 
-    finish().catch(() => { window.location.replace(loginPathWithRedirect("/")); });
+    finish().catch(() => {
+      window.location.replace(loginPathWithRedirect("/"));
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

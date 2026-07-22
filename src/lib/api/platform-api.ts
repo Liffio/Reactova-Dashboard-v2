@@ -71,7 +71,7 @@ export function grantPlatformAdmin(body: {
 
 export function updatePlatformAdminScope(
   userId: string,
-  body: { isSuperAdmin?: boolean; permissions?: PlatformPermissionKey[]; notes?: string | null }
+  body: { isSuperAdmin?: boolean; permissions?: PlatformPermissionKey[]; notes?: string | null },
 ) {
   return apiRequest<{ ok: true; id: string }>(apiUri.admin.platform.admin(userId), {
     method: "PATCH",

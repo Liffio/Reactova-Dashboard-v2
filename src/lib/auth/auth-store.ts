@@ -170,6 +170,6 @@ export function useAuthState<T>(selector?: (state: AuthState) => T) {
   return useSyncExternalStore(
     authStore.subscribe,
     selector ? () => selector(authStore.getState()) : authStore.getState,
-    selector ? () => selector(getServerSnapshot()) : getServerSnapshot
+    selector ? () => selector(getServerSnapshot()) : getServerSnapshot,
   );
 }

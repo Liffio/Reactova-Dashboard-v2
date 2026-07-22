@@ -45,7 +45,7 @@ export function LyraHandoffToast({
             <span
               className={cn(
                 "mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-primary/10",
-                !done && "animate-pulse"
+                !done && "animate-pulse",
               )}
             >
               <Sparkles className="h-4 w-4 text-primary" />
@@ -83,7 +83,7 @@ export function LyraHandoffToast({
                       ? "text-foreground"
                       : active
                         ? "text-foreground"
-                        : "text-muted-foreground/60"
+                        : "text-muted-foreground/60",
                   )}
                 >
                   <span
@@ -93,7 +93,7 @@ export function LyraHandoffToast({
                         ? "bg-success/15 text-success"
                         : active
                           ? "text-primary"
-                          : "bg-muted"
+                          : "bg-muted",
                     )}
                   >
                     {stepDone ? (
@@ -115,7 +115,7 @@ export function LyraHandoffToast({
             <div
               className={cn(
                 "h-full rounded-full transition-all duration-500",
-                done ? "bg-success" : "bg-brand-gradient"
+                done ? "bg-success" : "bg-brand-gradient",
               )}
               style={{
                 width: `${steps.length === 0 ? 100 : Math.round(((done ? steps.length : currentIndex) / steps.length) * 100)}%`,

@@ -27,6 +27,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Search,
   Send,
   X,
 } from "lucide-react";
@@ -75,7 +76,6 @@ import {
   getSchedulerAnalyticsPosts,
   getSchedulerCalendar,
   listPlatformAccounts,
-  listScheduledPosts,
   publishPostNow,
   searchMusic,
   syncSchedulerAnalytics,
@@ -91,6 +91,9 @@ import {
   type ScheduledPost,
   type ScheduledPostType,
 } from "@/lib/api/scheduler-api";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { apiUri } from "@/lib/api/apiUri";
+import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
 import { cn } from "@/lib/utils";
 import { CaptionAssist } from "@/components/lyra/caption-assist";
@@ -875,9 +878,19 @@ function SchedulerPage() {
     enabled: Boolean(workspaceId) && workspaceId !== "default",
   });
 
-  const listQuery = useQuery({
-    queryKey: ["scheduler-list", workspaceId, fromIso, toIso],
-    queryFn: () => listScheduledPosts(workspaceId, { limit: 50, offset: 0 }),
+  /**
+   * The post list, now searched and paged in SQL.
+   *
+   * It previously fetched a hardcoded first 50 with no search, so anything older than the 50th
+   * post was simply unreachable from this tab — and it passed an `offset` the endpoint never
+   * accepted, which is one of the repo's standing type errors.
+   */
+  const postList = useServerList<ScheduledPost>({
+    path: apiUri.scheduler.postsSearch,
+    queryKey: "scheduler-list",
+    workspaceId,
+    defaultSort: { key: "scheduledAt", dir: "asc" },
+    defaultLimit: 25,
     enabled: Boolean(workspaceId) && workspaceId !== "default",
   });
 
@@ -1533,125 +1546,169 @@ function SchedulerPage() {
                 )}
               </div>
             ) : (
-              <div className="rounded-2xl border bg-card shadow-soft overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-[600px]">
-                    <thead>
-                      <tr className="border-b text-left text-xs text-muted-foreground">
-                        <th className="px-4 py-3 font-medium">Preview</th>
-                        <th className="px-4 py-3 font-medium">Caption</th>
-                        <th className="px-4 py-3 font-medium hidden sm:table-cell">Type</th>
-                        <th className="px-4 py-3 font-medium">When</th>
-                        <th className="px-4 py-3 font-medium">Status</th>
-                        <th className="px-4 py-3 font-medium text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {listQuery.isLoading
-                        ? Array.from({ length: 5 }).map((_, i) => (
-                            <tr key={i} className="border-b">
-                              <td colSpan={6} className="px-4 py-3">
-                                <Skeleton className="h-10 w-full" />
-                              </td>
-                            </tr>
-                          ))
-                        : (listQuery.data?.posts ?? []).map((p) => (
-                            <tr
-                              key={p.id}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => {
-                                setDetailPostId(p.id);
-                                setDetailOpen(true);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
+              <div className="space-y-4">
+                <div className="relative w-full sm:max-w-sm">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Search caption or hashtag…"
+                    value={postList.search}
+                    onChange={(e) => postList.setSearch(e.target.value)}
+                  />
+                </div>
+
+                <div className="rounded-2xl border bg-card shadow-soft overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[600px]">
+                      <thead>
+                        <tr className="border-b text-left text-xs text-muted-foreground">
+                          <th className="px-4 py-3 font-medium">Preview</th>
+                          <th className="px-4 py-3 font-medium">Caption</th>
+                          <th className="px-4 py-3 font-medium hidden sm:table-cell">Type</th>
+                          <th className="px-4 py-3 font-medium">When</th>
+                          <th className="px-4 py-3 font-medium">Status</th>
+                          <th className="px-4 py-3 font-medium text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {postList.isLoading
+                          ? Array.from({ length: 5 }).map((_, i) => (
+                              <tr key={i} className="border-b">
+                                <td colSpan={6} className="px-4 py-3">
+                                  <Skeleton className="h-10 w-full" />
+                                </td>
+                              </tr>
+                            ))
+                          : postList.items.map((p) => (
+                              <tr
+                                key={p.id}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
                                   setDetailPostId(p.id);
                                   setDetailOpen(true);
-                                }
-                              }}
-                              className="border-b last:border-0 cursor-pointer hover:bg-muted/30"
-                            >
-                              <td className="px-4 py-3">
-                                <SchedulerMediaThumb
-                                  url={p.thumbnailUrl}
-                                  className="h-10 w-10"
-                                  imgClassName="h-10 w-10 rounded-md"
-                                />
-                              </td>
-                              <td className="px-4 py-3 max-w-xs">
-                                <div className="font-medium line-clamp-2">{p.caption ?? "—"}</div>
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
-                                {p.type}
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
-                                {p.scheduledAt
-                                  ? format(new Date(p.scheduledAt), "MMM d, HH:mm")
-                                  : p.publishedAt
-                                    ? format(new Date(p.publishedAt), "MMM d, HH:mm")
-                                    : "—"}
-                              </td>
-                              <td className="px-4 py-3">
-                                <Badge
-                                  variant="outline"
-                                  className={cn("text-xs", statusStyles[p.status] ?? "")}
-                                >
-                                  {p.status.toLowerCase().replace(/_/g, " ")}
-                                </Badge>
-                              </td>
-                              <td className="px-4 py-3 text-right space-x-1 whitespace-nowrap">
-                                {canPublishNow(p) && (
-                                  <Button
-                                    size="sm"
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    setDetailPostId(p.id);
+                                    setDetailOpen(true);
+                                  }
+                                }}
+                                className="border-b last:border-0 cursor-pointer hover:bg-muted/30"
+                              >
+                                <td className="px-4 py-3">
+                                  <SchedulerMediaThumb
+                                    url={p.thumbnailUrl}
+                                    className="h-10 w-10"
+                                    imgClassName="h-10 w-10 rounded-md"
+                                  />
+                                </td>
+                                <td className="px-4 py-3 max-w-xs">
+                                  <div className="font-medium line-clamp-2">{p.caption ?? "—"}</div>
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
+                                  {p.type}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
+                                  {p.scheduledAt
+                                    ? format(new Date(p.scheduledAt), "MMM d, HH:mm")
+                                    : p.publishedAt
+                                      ? format(new Date(p.publishedAt), "MMM d, HH:mm")
+                                      : "—"}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <Badge
                                     variant="outline"
-                                    disabled={publishNowMutation.isPending}
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      await publishNowMutation.mutateAsync(p.id);
-                                    }}
+                                    className={cn("text-xs", statusStyles[p.status] ?? "")}
                                   >
-                                    Publish now
-                                  </Button>
-                                )}
-                                {(p.status === "SCHEDULED" ||
-                                  p.status === "DRAFT" ||
-                                  p.status === "FAILED") && (
+                                    {p.status.toLowerCase().replace(/_/g, " ")}
+                                  </Badge>
+                                </td>
+                                <td className="px-4 py-3 text-right space-x-1 whitespace-nowrap">
+                                  {canPublishNow(p) && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={publishNowMutation.isPending}
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        await publishNowMutation.mutateAsync(p.id);
+                                      }}
+                                    >
+                                      Publish now
+                                    </Button>
+                                  )}
+                                  {(p.status === "SCHEDULED" ||
+                                    p.status === "DRAFT" ||
+                                    p.status === "FAILED") && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-destructive hover:bg-destructive/10"
+                                      disabled={cancelMutation.isPending}
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        await cancelMutation.mutateAsync(p.id);
+                                      }}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                        {!postList.isLoading && postList.items.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={6}
+                              className="px-4 py-10 text-center text-muted-foreground"
+                            >
+                              {postList.isNarrowed ? (
+                                <>
+                                  No posts match that search.
                                   <Button
                                     size="sm"
-                                    variant="ghost"
-                                    className="text-destructive hover:bg-destructive/10"
-                                    disabled={cancelMutation.isPending}
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      await cancelMutation.mutateAsync(p.id);
-                                    }}
+                                    variant="link"
+                                    className="ml-1"
+                                    onClick={postList.clear}
                                   >
-                                    Cancel
+                                    Clear
                                   </Button>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                      {!listQuery.isLoading && (listQuery.data?.posts.length ?? 0) === 0 && (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                            No posts this month.
-                            <Button
-                              size="sm"
-                              variant="link"
-                              className="ml-1"
-                              onClick={() => setComposeOpen(true)}
-                            >
-                              Create a post
-                            </Button>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                                </>
+                              ) : (
+                                <>
+                                  {/* The list is no longer month-scoped — it pages the whole
+                                    workspace, so the old "this month" copy would be misleading. */}
+                                  No posts yet.
+                                  <Button
+                                    size="sm"
+                                    variant="link"
+                                    className="ml-1"
+                                    onClick={() => setComposeOpen(true)}
+                                  >
+                                    Create a post
+                                  </Button>
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
+
+                {postList.total > 0 && (
+                  <PaginationBar
+                    page={postList.page}
+                    pages={postList.pages}
+                    total={postList.total}
+                    limit={postList.limit}
+                    onPageChange={postList.setPage}
+                    label="posts"
+                  />
+                )}
               </div>
             )}
           </TabsContent>

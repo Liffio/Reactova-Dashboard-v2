@@ -41,7 +41,7 @@ export function listAdminAffiliates(params: { q?: string; page?: number } = {}) 
   if (params.page) qs.set("page", String(params.page));
   const suffix = qs.toString();
   return apiRequest<{ affiliates: AdminAffiliateRow[]; total?: number }>(
-    `${apiUri.admin.affiliate.list}${suffix ? `?${suffix}` : ""}`
+    `${apiUri.admin.affiliate.list}${suffix ? `?${suffix}` : ""}`,
   );
 }
 

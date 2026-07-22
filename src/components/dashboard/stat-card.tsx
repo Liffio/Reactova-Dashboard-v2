@@ -42,7 +42,11 @@ export function StatCard({ label, value, delta, icon: Icon, hint }: StatCardProp
               positive ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive",
             )}
           >
-            {positive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+            {positive ? (
+              <ArrowUpRight className="h-3 w-3" />
+            ) : (
+              <ArrowDownRight className="h-3 w-3" />
+            )}
             {(positive ? "+" : "") + (delta * 100).toFixed(1)}%
           </span>
         )}

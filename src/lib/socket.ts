@@ -10,10 +10,22 @@ import { API_BASE } from "@/lib/api/http";
  * user's events. Workspace rooms are requested explicitly and re-checked server-side.
  */
 
+/** One capability gained or lost, named the way an operator would recognise it. */
+export type AccessChangeItem = { key: string; label: string; module: string };
+
 export type AccessChangedPayload = {
   workspaceId: string | null;
   message: string;
   changedAt: string;
+  /**
+   * Present when the server can say what changed — a package edit knows exactly which capabilities
+   * came and went. Absent for changes where it cannot, so the modal degrades to the message alone.
+   */
+  changes?: {
+    added: AccessChangeItem[];
+    removed: AccessChangeItem[];
+    packageName?: string;
+  };
 };
 
 type ServerToClientEvents = {

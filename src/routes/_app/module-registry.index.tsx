@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Boxes, ChevronRight, Code2, Copy, Plus, Search } from "lucide-react";
+import { BookOpen, Boxes, ChevronRight, Code2, Copy, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -77,6 +77,12 @@ function ModuleRegistryPage() {
         description="Define product areas and the sub-functions inside them. Drives the sidebar, the package builder, access control and your generated code."
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" asChild className="gap-1.5">
+              <Link to="/module-registry/docs">
+                <BookOpen className="h-3.5 w-3.5" />
+                Developer guide
+              </Link>
+            </Button>
             <Button
               size="sm"
               variant="outline"

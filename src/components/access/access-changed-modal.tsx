@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert } from "lucide-react";
+import { Minus, Plus, ShieldAlert } from "lucide-react";
 
 import {
   AlertDialog,
@@ -11,7 +11,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { disconnectSocket, getSocket, type AccessChangedPayload } from "@/lib/socket";
+import {
+  disconnectSocket,
+  getSocket,
+  type AccessChangeItem,
+  type AccessChangedPayload,
+} from "@/lib/socket";
 import { authStore, useAuthState } from "@/lib/auth/auth-store";
 import { getAuthMe } from "@/lib/api/auth-api";
 import { PLATFORM_AUTHZ_QUERY_KEY } from "@/hooks/use-platform-authz";
@@ -78,11 +83,43 @@ export function AccessChangedModal() {
           <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
             <ShieldAlert className="h-5 w-5 text-primary" />
           </div>
-          <AlertDialogTitle>Your access has been changed</AlertDialogTitle>
+          <AlertDialogTitle>
+            {payload?.changes?.packageName
+              ? `Your ${payload.changes.packageName} plan changed`
+              : "Your access has been changed"}
+          </AlertDialogTitle>
           <AlertDialogDescription>
             {payload?.message ?? "Your permissions have been updated."}
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        {/*
+          The specifics, when the server knows them. "Your access changed" alone leaves someone
+          unable to tell whether the thing they were about to use just disappeared — and removals
+          matter more than additions, so they come first.
+        */}
+        {payload?.changes &&
+          (payload.changes.removed.length > 0 || payload.changes.added.length > 0) && (
+            <div className="max-h-64 space-y-3 overflow-y-auto rounded-lg border bg-muted/30 p-3 text-sm">
+              {payload.changes.removed.length > 0 && (
+                <ChangeList
+                  title="No longer available"
+                  items={payload.changes.removed}
+                  tone="text-destructive"
+                  icon={<Minus className="h-3 w-3" />}
+                />
+              )}
+              {payload.changes.added.length > 0 && (
+                <ChangeList
+                  title="Now available"
+                  items={payload.changes.added}
+                  tone="text-emerald-600 dark:text-emerald-400"
+                  icon={<Plus className="h-3 w-3" />}
+                />
+              )}
+            </div>
+          )}
+
         <AlertDialogFooter>
           <AlertDialogAction onClick={acknowledge} className="w-full sm:w-auto">
             OK
@@ -90,5 +127,47 @@ export function AccessChangedModal() {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+/**
+ * A titled group of capabilities, grouped by the module they belong to.
+ *
+ * Grouping matters when a plan change touches a dozen capabilities: a flat list of names means
+ * nothing, whereas "Scheduler: Bulk upload, Alt text" tells you which part of the product moved.
+ */
+function ChangeList({
+  title,
+  items,
+  tone,
+  icon,
+}: {
+  title: string;
+  items: AccessChangeItem[];
+  tone: string;
+  icon: React.ReactNode;
+}) {
+  const byModule = new Map<string, AccessChangeItem[]>();
+  for (const item of items) {
+    const list = byModule.get(item.module) ?? [];
+    list.push(item);
+    byModule.set(item.module, list);
+  }
+
+  return (
+    <div>
+      <p className={`mb-1.5 flex items-center gap-1 text-xs font-medium ${tone}`}>
+        {icon}
+        {title}
+      </p>
+      <ul className="space-y-1">
+        {[...byModule.entries()].map(([module, moduleItems]) => (
+          <li key={module} className="text-xs">
+            <span className="text-muted-foreground">{module}: </span>
+            <span>{moduleItems.map((i) => i.label).join(", ")}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

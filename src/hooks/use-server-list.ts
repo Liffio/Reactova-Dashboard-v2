@@ -100,6 +100,12 @@ export type UseServerListOptions = {
   path: string;
   /** react-query cache key prefix. Request state is appended automatically. */
   queryKey: string;
+  /**
+   * Required for workspace-scoped endpoints: `apiRequest` only sends `x-workspace-id` when it is
+   * given one, and `workspaceMiddleware` rejects the request without that header. It also joins the
+   * cache key, so switching workspace refetches rather than showing the previous tenant's page.
+   */
+  workspaceId?: string;
   defaultSort: SortState;
   defaultLimit?: number;
   /** Filters the screen controls rather than the user, e.g. a fixed tab. Not URL-persisted. */
@@ -112,6 +118,7 @@ export type UseServerListOptions = {
 export function useServerList<T>({
   path,
   queryKey,
+  workspaceId,
   defaultSort,
   defaultLimit = 25,
   fixedFilters,
@@ -170,8 +177,8 @@ export function useServerList<T>({
   );
 
   const query = useQuery({
-    queryKey: [queryKey, body],
-    queryFn: () => apiRequest<Paged<T>>(path, { method: "POST", body }),
+    queryKey: [queryKey, workspaceId, body],
+    queryFn: () => apiRequest<Paged<T>>(path, { method: "POST", body, workspaceId }),
     // Keeps the current page on screen while the next loads, rather than collapsing to a skeleton
     // on every keystroke.
     placeholderData: keepPreviousData,

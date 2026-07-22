@@ -96,6 +96,11 @@ export const apiUri = {
   },
 
   automations: {
+    /** Paginated list. POST because the query travels as a body — it reads, despite the verb. */
+    search: `${V1}/automations/search`,
+    /** Tab tallies for the whole workspace, not the current page. */
+    statusCounts: `${V1}/automations/status-counts`,
+    /** @deprecated Unpaginated. Use `search`. Removed once every consumer has moved. */
     list: `${V1}/automations`,
     create: `${V1}/automations`,
     byId: (automationId: string) => `${V1}/automations/${automationId}`,
@@ -226,8 +231,7 @@ export const apiUri = {
       permissions: `${V1}/admin/platform/permissions`,
       admins: (includeRevoked = false, q?: string) =>
         `${V1}/admin/platform/admins${listQs({ includeRevoked: includeRevoked || undefined, q })}`,
-      adminsLookup: (q: string) =>
-        `${V1}/admin/platform/admins/lookup?q=${encodeURIComponent(q)}`,
+      adminsLookup: (q: string) => `${V1}/admin/platform/admins/lookup?q=${encodeURIComponent(q)}`,
       admin: (userId: string) => `${V1}/admin/platform/admins/${userId}`,
     },
     audit: (params: Record<string, string | number | boolean | undefined> = {}) => {

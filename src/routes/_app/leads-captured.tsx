@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { Download, Search, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,7 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { exportLeadsCsv, listLeads } from "@/lib/api/leads-api";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { exportLeadsCsv, type Lead } from "@/lib/api/leads-api";
+import { apiUri } from "@/lib/api/apiUri";
+import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
 import { LIMITS } from "@/lib/validation";
 
@@ -33,23 +35,29 @@ const PAGE_SIZE = 25;
 function LeadsPage() {
   const { current } = useApp();
   const workspaceId = current.id;
-  const [search, setSearch] = useState("");
-  const [page, setPage] = useState(0);
   const [exporting, setExporting] = useState(false);
 
-  const leadsQuery = useQuery({
-    queryKey: ["leads", workspaceId, search, page],
-    queryFn: () => listLeads(workspaceId, { q: search || undefined, limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+  /**
+   * Moved onto the shared contract from a hand-rolled `limit`/`offset` query.
+   *
+   * The old version put the raw search term straight into the query key, so it fired a request on
+   * every keystroke — typing "welcome" cost seven round trips, each running an unescaped `ILIKE`.
+   * The hook debounces, and the server escapes.
+   */
+  const list = useServerList<Lead>({
+    path: apiUri.leads.search,
+    queryKey: "leads",
+    workspaceId,
+    defaultSort: { key: "lastInteractionAt", dir: "desc" },
+    defaultLimit: PAGE_SIZE,
     enabled: Boolean(workspaceId) && workspaceId !== "default",
   });
 
-  useEffect(() => { setPage(0); }, [search]);
-
-  const leads = leadsQuery.data?.leads ?? [];
-  const total = leadsQuery.data?.total ?? 0;
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const rangeStart = total === 0 ? 0 : page * PAGE_SIZE + 1;
-  const rangeEnd = Math.min((page + 1) * PAGE_SIZE, total);
+  const leads = list.items;
+  const total = list.total;
+  // The hook is 1-based, matching PaginationBar and every other list.
+  const rangeStart = total === 0 ? 0 : (list.page - 1) * list.limit + 1;
+  const rangeEnd = Math.min(list.page * list.limit, total);
 
   const handleExport = async () => {
     setExporting(true);
@@ -95,19 +103,19 @@ function LeadsPage() {
           <Input
             placeholder="Search by username or email…"
             className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value.slice(0, LIMITS.genericName.max))}
+            value={list.search}
+            onChange={(e) => list.setSearch(e.target.value.slice(0, LIMITS.genericName.max))}
             maxLength={LIMITS.genericName.max}
           />
         </div>
 
-        {leadsQuery.isError && (
+        {list.error && (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-            {(leadsQuery.error as Error).message}
+            {list.error.message}
           </div>
         )}
 
-        {leadsQuery.isLoading ? (
+        {list.isLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 8 }).map((_, i) => (
               <Skeleton key={i} className="h-14 rounded-xl" />
@@ -116,9 +124,11 @@ function LeadsPage() {
         ) : leads.length === 0 ? (
           <div className="rounded-2xl border bg-card p-10 text-center shadow-soft">
             <UserPlus className="mx-auto h-8 w-8 text-muted-foreground" />
-            <h3 className="mt-3 font-display text-lg font-semibold">No leads yet</h3>
+            <h3 className="mt-3 font-display text-lg font-semibold">
+              {list.isNarrowed ? "No leads match" : "No leads yet"}
+            </h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              {search
+              {list.isNarrowed
                 ? "No leads match your search."
                 : "Leads are captured when someone clicks your DM link. Activate an automation to start capturing."}
             </p>
@@ -153,10 +163,12 @@ function LeadsPage() {
                             </Avatar>
                             <div className="min-w-0">
                               <p className="truncate font-medium">
-                                {lead.igUsername ? `${lead.igUsername}` : lead.displayName ?? "—"}
+                                {lead.igUsername ? `${lead.igUsername}` : (lead.displayName ?? "—")}
                               </p>
                               {lead.email && (
-                                <p className="truncate text-xs text-muted-foreground">{lead.email}</p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {lead.email}
+                                </p>
                               )}
                             </div>
                           </div>
@@ -204,20 +216,20 @@ function LeadsPage() {
           </div>
         )}
 
-        {total > PAGE_SIZE && (
-          <div className="flex items-center justify-between gap-4">
+        {total > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <span className="text-xs text-muted-foreground">
               {rangeStart}–{rangeEnd} of {total.toLocaleString()}
             </span>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" disabled={page <= 0} onClick={() => setPage((p) => p - 1)}>
-                Previous
-              </Button>
-              <span className="text-xs text-muted-foreground">{page + 1} / {pageCount}</span>
-              <Button size="sm" variant="outline" disabled={page >= pageCount - 1} onClick={() => setPage((p) => p + 1)}>
-                Next
-              </Button>
-            </div>
+            {/* Replaces a hand-rolled prev/next pair with the shared control every other list uses. */}
+            <PaginationBar
+              page={list.page}
+              pages={list.pages}
+              total={total}
+              limit={list.limit}
+              onPageChange={list.setPage}
+              label="leads"
+            />
           </div>
         )}
       </div>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MailPlus, MoreHorizontal, Trash2, UserMinus, UserPlus, Users } from "lucide-react";
+import { MailPlus, MoreHorizontal, Search, Trash2, UserMinus, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -36,15 +36,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import {
   createTeamInvite,
   getTeamOptions,
   listTeamInvites,
-  listTeamMembers,
   removeTeamMember,
   revokeTeamInvite,
   type TeamMember,
 } from "@/lib/api/team-api";
+import { apiUri } from "@/lib/api/apiUri";
+import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { LIMITS, emailError, duplicateAliasError } from "@/lib/validation";
@@ -77,9 +79,16 @@ function TeamPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [removingMember, setRemovingMember] = useState<TeamMember | null>(null);
 
-  const membersQuery = useQuery({
-    queryKey: ["team-members", workspaceId],
-    queryFn: () => listTeamMembers(workspaceId),
+  /**
+   * Paged server-side. The old endpoint resolved every member's full permission set — roles,
+   * grants, overrides and ABAC — for the whole workspace on every load, to render this list.
+   */
+  const memberList = useServerList<TeamMember>({
+    path: apiUri.team.membersSearch,
+    queryKey: "team-members",
+    workspaceId,
+    defaultSort: { key: "createdAt", dir: "asc" },
+    defaultLimit: 25,
     enabled: Boolean(workspaceId) && workspaceId !== "default",
   });
 
@@ -109,7 +118,9 @@ function TeamPage() {
     onSuccess: () => {
       toast.success("Member removed");
       setRemovingMember(null);
-      void queryClient.invalidateQueries({ queryKey: ["team-members", workspaceId] });
+      // Key prefix only — the hook appends workspace and request state, so a scoped key would
+      // miss every page but the first.
+      void queryClient.invalidateQueries({ queryKey: ["team-members"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -132,7 +143,7 @@ function TeamPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
-  const members = membersQuery.data ?? [];
+  const members = memberList.items;
   const invites = invitesQuery.data ?? [];
 
   return (
@@ -158,7 +169,8 @@ function TeamPage() {
           <TabsList className="mb-4">
             <TabsTrigger value="members" className="gap-1.5">
               <Users className="h-3.5 w-3.5" />
-              Members ({members.length})
+              {/* The workspace total from the server, not the page length. */}
+              Members ({memberList.total})
             </TabsTrigger>
             <TabsTrigger value="invites" className="gap-1.5">
               <MailPlus className="h-3.5 w-3.5" />
@@ -167,7 +179,17 @@ function TeamPage() {
           </TabsList>
 
           <TabsContent value="members">
-            {membersQuery.isLoading ? (
+            <div className="relative mb-4 w-full sm:max-w-sm">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Search members by name or email…"
+                value={memberList.search}
+                onChange={(e) => memberList.setSearch(e.target.value)}
+              />
+            </div>
+
+            {memberList.isLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <Skeleton key={i} className="h-16 rounded-xl" />
@@ -206,7 +228,9 @@ function TeamPage() {
                               </Badge>
                             )}
                           </div>
-                          <p className="truncate text-xs text-muted-foreground">{member.user.email}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {member.user.email}
+                          </p>
                         </div>
                         <Badge variant="outline" className="shrink-0">
                           {member.role.name}
@@ -233,10 +257,25 @@ function TeamPage() {
                   })}
                   {members.length === 0 && (
                     <div className="py-10 text-center text-sm text-muted-foreground">
-                      No team members yet.
+                      {memberList.isNarrowed
+                        ? "No members match that search."
+                        : "No team members yet."}
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {memberList.total > 0 && (
+              <div className="mt-4">
+                <PaginationBar
+                  page={memberList.page}
+                  pages={memberList.pages}
+                  total={memberList.total}
+                  limit={memberList.limit}
+                  onPageChange={memberList.setPage}
+                  label="members"
+                />
               </div>
             )}
           </TabsContent>
@@ -269,7 +308,10 @@ function TeamPage() {
                             {inv.baseRole.name}
                           </td>
                           <td className="px-4 py-3.5">
-                            <Badge variant="outline" className={inviteStatusStyles[inv.status] ?? ""}>
+                            <Badge
+                              variant="outline"
+                              className={inviteStatusStyles[inv.status] ?? ""}
+                            >
                               {inv.status.toLowerCase()}
                             </Badge>
                           </td>
@@ -291,7 +333,10 @@ function TeamPage() {
                       ))}
                       {invites.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                          <td
+                            colSpan={5}
+                            className="px-6 py-8 text-center text-sm text-muted-foreground"
+                          >
                             No invites sent yet.
                           </td>
                         </tr>
@@ -357,7 +402,7 @@ function InviteDialog({
   existingEmails?: string[];
 }) {
   const [email, setEmail] = useState("");
-  const error = email ? (emailError(email) || duplicateAliasError(email, existingEmails)) : null;
+  const error = email ? emailError(email) || duplicateAliasError(email, existingEmails) : null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

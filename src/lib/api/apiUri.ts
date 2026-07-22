@@ -80,6 +80,9 @@ export const apiUri = {
   },
 
   team: {
+    /** Paginated members. Resolves permissions for the page only — see server `teamSearch`. */
+    membersSearch: `${V1}/team/members/search`,
+    /** @deprecated Unpaginated; resolves every member's permissions. Use `membersSearch`. */
     members: `${V1}/team/members`,
     member: (userId: string) => `${V1}/team/members/${userId}`,
     invites: `${V1}/team/invites`,
@@ -111,6 +114,8 @@ export const apiUri = {
     musicSearch: `${V1}/scheduler/music/search`,
     platformAccounts: `${V1}/scheduler/platform-accounts`,
     platformAccount: (accountId: string) => `${V1}/scheduler/platform-accounts/${accountId}`,
+    /** Paginated posts with text search over caption and hashtags. */
+    postsSearch: `${V1}/scheduler/posts/search`,
     posts: `${V1}/scheduler/posts`,
     post: (postId: string) => `${V1}/scheduler/posts/${postId}`,
     postsCalendar: `${V1}/scheduler/posts/calendar`,
@@ -134,6 +139,9 @@ export const apiUri = {
   },
 
   shortlinks: {
+    /** Paginated list. POST because the query travels as a body — it reads, despite the verb. */
+    search: `${V1}/shortlinks/search`,
+    /** @deprecated Unpaginated. Use `search`. */
     list: `${V1}/shortlinks`,
     create: `${V1}/shortlinks`,
     remove: (shortLinkId: string) => `${V1}/shortlinks/${shortLinkId}`,
@@ -141,6 +149,8 @@ export const apiUri = {
   },
 
   leads: {
+    search: `${V1}/leads/search`,
+    /** @deprecated Uses limit/offset and an unescaped ILIKE. Use `search`. */
     list: `${V1}/leads`,
     export: `${V1}/leads/export`,
   },

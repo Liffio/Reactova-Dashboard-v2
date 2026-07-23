@@ -38,6 +38,17 @@ import {
   type PackageDetail,
   type PackageLimit,
 } from "@/lib/api/registry-api";
+import { useTouched } from "@/hooks/use-touched";
+import { lengthError } from "@/lib/validation";
+
+/** Optional price field: blank is fine; a present value must be a non-negative number. */
+function priceError(value: string): string | null {
+  if (!value.trim()) return null;
+  const n = Number(value);
+  if (Number.isNaN(n)) return "Enter a number.";
+  if (n < 0) return "Price can't be negative.";
+  return null;
+}
 
 const PACKAGE_MANAGE = "platform:package_manage";
 
@@ -111,6 +122,13 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
   const featureState = usePackageFeatureSelection(pkg.features);
   const [selection, setSelection] = useState<FeatureSelection[]>(pkg.features);
   const [limits, setLimits] = useState<PackageLimit[]>(pkg.limits);
+
+  const touched = useTouched();
+  const nameErr = lengthError(name, "Name", { min: 1, max: 255 });
+  const usdErr = priceError(usd);
+  const inrErr = priceError(inr);
+  const badgeErr = badge.trim().length > 64 ? "Badge must be 64 characters or fewer." : null;
+  const isValid = !nameErr && !usdErr && !inrErr && !badgeErr;
 
   // Re-seed the checklist when a refetch brings new contents, so a save elsewhere is reflected
   // rather than silently overwritten by this page's stale sets on the next save.
@@ -207,8 +225,12 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
       <div className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6 md:p-10">
         <FormSection title="Details">
           <div className="space-y-4">
-            <Field label="Name" required>
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            <Field label="Name" required error={touched.visible("name") ? (nameErr ?? undefined) : undefined}>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={touched.onBlur("name")}
+              />
             </Field>
             <Field label="Description">
               <Textarea
@@ -218,10 +240,11 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
                 placeholder="Who this package is for."
               />
             </Field>
-            <Field label="Badge">
+            <Field label="Badge" error={touched.visible("badge") ? (badgeErr ?? undefined) : undefined}>
               <Input
                 value={badge}
                 onChange={(e) => setBadge(e.target.value)}
+                onBlur={touched.onBlur("badge")}
                 placeholder="Most popular"
               />
             </Field>
@@ -233,23 +256,25 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
           description="Entered in whole currency; stored in minor units."
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Monthly (USD)">
+            <Field label="Monthly (USD)" error={touched.visible("usd") ? (usdErr ?? undefined) : undefined}>
               <Input
                 type="number"
                 min={0}
                 step="0.01"
                 value={usd}
                 onChange={(e) => setUsd(e.target.value)}
+                onBlur={touched.onBlur("usd")}
                 placeholder="49.00"
               />
             </Field>
-            <Field label="Monthly (INR)">
+            <Field label="Monthly (INR)" error={touched.visible("inr") ? (inrErr ?? undefined) : undefined}>
               <Input
                 type="number"
                 min={0}
                 step="0.01"
                 value={inr}
                 onChange={(e) => setInr(e.target.value)}
+                onBlur={touched.onBlur("inr")}
                 placeholder="3999.00"
               />
             </Field>
@@ -307,9 +332,12 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
         >
           <SaveCancel
             onCancel={() => void navigate({ to: "/packages" })}
-            onSave={() => save.mutate()}
+            onSave={() => {
+              touched.submit();
+              if (isValid) save.mutate();
+            }}
             saving={save.isPending}
-            disabled={!dirty || !name.trim()}
+            disabled={!dirty}
           />
         </FormActions>
       </div>

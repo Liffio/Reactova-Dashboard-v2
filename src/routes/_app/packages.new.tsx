@@ -23,6 +23,17 @@ import {
   type FeatureSelection,
 } from "@/hooks/use-package-features";
 import { createPackage, setPackageFeatures } from "@/lib/api/registry-api";
+import { useTouched } from "@/hooks/use-touched";
+import { lengthError } from "@/lib/validation";
+
+/** Optional price field: blank is fine; a present value must be a non-negative number. */
+function priceError(value: string): string | null {
+  if (!value.trim()) return null;
+  const n = Number(value);
+  if (Number.isNaN(n)) return "Enter a number.";
+  if (n < 0) return "Price can't be negative.";
+  return null;
+}
 
 const PACKAGE_MANAGE = "platform:package_manage";
 
@@ -52,6 +63,13 @@ function NewPackagePage() {
 
   const featureState = usePackageFeatureSelection();
   const [selection, setSelection] = useState<FeatureSelection[]>([]);
+
+  const touched = useTouched();
+  const nameErr = lengthError(name, "Name", { min: 1, max: 255 });
+  const usdErr = priceError(usd);
+  const inrErr = priceError(inr);
+  const badgeErr = badge.trim().length > 64 ? "Badge must be 64 characters or fewer." : null;
+  const isValid = !nameErr && !usdErr && !inrErr && !badgeErr;
 
   /**
    * Two calls, because creating a package and setting its contents are separate endpoints.
@@ -107,11 +125,12 @@ function NewPackagePage() {
       <div className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6 md:p-10">
         <FormSection title="Details">
           <div className="space-y-4">
-            <Field label="Name" required>
+            <Field label="Name" required error={touched.visible("name") ? (nameErr ?? undefined) : undefined}>
               <Input
                 autoFocus
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                onBlur={touched.onBlur("name")}
                 placeholder="Growth Pro"
               />
             </Field>
@@ -123,10 +142,15 @@ function NewPackagePage() {
                 placeholder="For teams running more than one brand."
               />
             </Field>
-            <Field label="Badge" hint="Optional ribbon on the pricing page, e.g. Most popular.">
+            <Field
+              label="Badge"
+              hint="Optional ribbon on the pricing page, e.g. Most popular."
+              error={touched.visible("badge") ? (badgeErr ?? undefined) : undefined}
+            >
               <Input
                 value={badge}
                 onChange={(e) => setBadge(e.target.value)}
+                onBlur={touched.onBlur("badge")}
                 placeholder="Most popular"
               />
             </Field>
@@ -138,23 +162,25 @@ function NewPackagePage() {
           description="Entered in whole currency; stored in minor units."
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Monthly (USD)">
+            <Field label="Monthly (USD)" error={touched.visible("usd") ? (usdErr ?? undefined) : undefined}>
               <Input
                 type="number"
                 min={0}
                 step="0.01"
                 value={usd}
                 onChange={(e) => setUsd(e.target.value)}
+                onBlur={touched.onBlur("usd")}
                 placeholder="49.00"
               />
             </Field>
-            <Field label="Monthly (INR)">
+            <Field label="Monthly (INR)" error={touched.visible("inr") ? (inrErr ?? undefined) : undefined}>
               <Input
                 type="number"
                 min={0}
                 step="0.01"
                 value={inr}
                 onChange={(e) => setInr(e.target.value)}
+                onBlur={touched.onBlur("inr")}
                 placeholder="3999.00"
               />
             </Field>
@@ -191,9 +217,12 @@ function NewPackagePage() {
         >
           <SaveCancel
             onCancel={() => void navigate({ to: "/packages" })}
-            onSave={() => create.mutate()}
+            onSave={() => {
+              // Reveal every field's error at once, then only proceed if the form is valid.
+              touched.submit();
+              if (isValid) create.mutate();
+            }}
             saving={create.isPending}
-            disabled={!canSave}
             saveLabel="Create package"
             savingLabel="Creating…"
           />

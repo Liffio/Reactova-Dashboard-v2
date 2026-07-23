@@ -25,7 +25,7 @@ import { openMetaOAuthPopup } from "@/lib/meta-oauth-popup";
 import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 import { staggerContainer, staggerItem } from "@/lib/motion";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { InsightsCard } from "@/components/lyra/insights-card";
 import {
   InsightSummary,

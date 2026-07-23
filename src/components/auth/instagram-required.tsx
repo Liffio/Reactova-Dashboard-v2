@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Instagram, Lock } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 import { Button } from "@/components/ui/button";
 import { openMetaOAuthPopup } from "@/lib/meta-oauth-popup";

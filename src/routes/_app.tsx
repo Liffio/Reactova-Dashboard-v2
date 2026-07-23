@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, LogOut, Moon, Settings, Sun, UserRound } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import {

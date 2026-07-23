@@ -11,7 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { Toaster } from "@/components/ui/sonner";
+import { ToastProvider } from "@/lib/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider } from "@/state/app-context";
 import { RouteProgress } from "@/components/route-progress";
@@ -185,7 +185,7 @@ function RootComponent() {
           <BetaBanner />
           <RouteProgress />
           <Outlet />
-          <Toaster />
+          <ToastProvider />
         </AppProvider>
       </TooltipProvider>
     </QueryClientProvider>

@@ -6,7 +6,7 @@
  * (http -> session-expiry -> auth-api -> http); http.ts only ever reaches
  * this indirectly via the `liffio:session-expired` window event.
  */
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { authStore } from "@/lib/auth/auth-store";
 import { loginPathWithRedirect } from "@/lib/auth/auth-navigation";
 import { ApiError } from "@/lib/api/http";

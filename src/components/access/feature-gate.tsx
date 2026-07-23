@@ -27,6 +27,7 @@ export function FeatureGate({
   children,
   message,
   className,
+  block = false,
 }: {
   module: string;
   action: string;
@@ -34,22 +35,25 @@ export function FeatureGate({
   /** Overrides the default "not in your plan" copy. */
   message?: string;
   className?: string;
+  /** Use a block-level wrapper for a whole section; the default inline wrapper suits a single control. */
+  block?: boolean;
 }) {
   const allowed = useCan(module, action);
   if (allowed) return <>{children}</>;
 
+  const Wrapper = block ? "div" : "span";
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={`relative inline-flex ${className ?? ""}`}>
+        <Wrapper className={`relative ${block ? "block" : "inline-flex"} ${className ?? ""}`}>
           {/* The real control, shown but inert — the operator sees what they'd get by upgrading. */}
-          <span className="pointer-events-none select-none opacity-40" aria-hidden>
+          <span className="pointer-events-none block select-none opacity-40" aria-hidden>
             {children}
           </span>
           <span className="absolute inset-0 flex items-center justify-center">
             <Lock className="h-3.5 w-3.5 text-muted-foreground" />
           </span>
-        </span>
+        </Wrapper>
       </TooltipTrigger>
       <TooltipContent side="top">
         <p className="max-w-[220px] text-xs leading-relaxed">

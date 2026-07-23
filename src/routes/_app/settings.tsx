@@ -63,6 +63,7 @@ import {
 } from "@/lib/api/team-api";
 import { useServerList } from "@/hooks/use-server-list";
 import { LIMITS, emailError, lengthError, duplicateAliasError } from "@/lib/validation";
+import { useTouched } from "@/hooks/use-touched";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings — Liffio" }] }),
@@ -131,6 +132,7 @@ function GeneralSettings() {
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState(current.name);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const touched = useTouched();
 
   useEffect(() => {
     setDisplayName(current.name);
@@ -170,12 +172,13 @@ function GeneralSettings() {
               id="ws-name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value.slice(0, LIMITS.workspaceName.max))}
+              onBlur={touched.onBlur("name")}
               maxLength={LIMITS.workspaceName.max}
-              aria-invalid={Boolean(nameError)}
+              aria-invalid={touched.visible("name") && Boolean(nameError)}
             />
             <div className="flex items-center justify-between text-xs">
               <span className="text-destructive">
-                {nameError && displayName !== current.name ? nameError : ""}
+                {touched.visible("name") && nameError ? nameError : ""}
               </span>
               <span className="text-muted-foreground">
                 {displayName.length}/{LIMITS.workspaceName.max}
@@ -680,6 +683,7 @@ function TeamSettings() {
 
   const [email, setEmail] = useState("");
   const [roleKey, setRoleKey] = useState("MEMBER");
+  const touched = useTouched();
 
   const memberLimit = PLAN_TEAM_LIMITS[current.plan] ?? 2;
   // Server total, not the page length — a page-length count would report a workspace as under its
@@ -771,6 +775,7 @@ function TeamSettings() {
             placeholder="member@company.com"
             value={email}
             onChange={(e) => setEmail(e.target.value.slice(0, LIMITS.email.max))}
+            onBlur={touched.onBlur("email")}
             maxLength={LIMITS.email.max}
             disabled={atLimit}
             className="flex-1"
@@ -795,7 +800,9 @@ function TeamSettings() {
             <Plus className="h-4 w-4" /> Invite
           </Button>
         </div>
-        {inviteEmailError && <p className="text-xs text-destructive">{inviteEmailError}</p>}
+        {touched.visible("email") && inviteEmailError && (
+          <p className="text-xs text-destructive">{inviteEmailError}</p>
+        )}
       </div>
 
       {/* Members */}

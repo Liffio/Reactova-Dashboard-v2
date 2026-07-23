@@ -21,6 +21,8 @@ import { API_BASE, ApiError } from "@/lib/api/http";
 import { apiUri } from "@/lib/api/apiUri";
 import { postAuthLandingPath, sanitizeAuthRedirect } from "@/lib/auth/auth-navigation";
 import { authStore } from "@/lib/auth/auth-store";
+import { useTouched } from "@/hooks/use-touched";
+import { emailError } from "@/lib/validation";
 
 /** Strips technical detail so a network hiccup never reads as a stack trace to the user. */
 function friendlyErrorMessage(error: unknown): string {
@@ -40,6 +42,8 @@ export function LocalLoginForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const touched = useTouched();
+  const emailErr = email ? emailError(email) : null;
   const [mfaPreAuthToken, setMfaPreAuthToken] = useState<string | null>(null);
   const [mfaMethod, setMfaMethod] = useState<"authenticator" | "email">("authenticator");
   const [otp, setOtp] = useState("");
@@ -226,7 +230,12 @@ export function LocalLoginForm({
                     autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    onBlur={touched.onBlur("email")}
+                    aria-invalid={touched.visible("email") && Boolean(emailErr)}
                   />
+                  {touched.visible("email") && emailErr && (
+                    <p className="text-xs text-destructive">{emailErr}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">

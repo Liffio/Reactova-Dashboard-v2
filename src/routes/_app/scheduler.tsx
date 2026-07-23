@@ -65,6 +65,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LIMITS, urlError } from "@/lib/validation";
+import { FeatureGate } from "@/components/access/feature-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -2247,6 +2248,7 @@ function SchedulerPage() {
 
               {/* Music (inline) */}
               <div className="rounded-xl border p-3 space-y-3">
+                <FeatureGate module="scheduler" action="music" block>
                 <div className="flex items-center gap-2">
                   <Music2 className="h-4 w-4 text-muted-foreground" />
                   <Label>Music</Label>
@@ -2304,6 +2306,7 @@ function SchedulerPage() {
                     )}
                   </div>
                 )}
+                </FeatureGate>
                 {form.type === "REEL" && (
                   <div className="flex items-center justify-between gap-3">
                     <Label className="text-sm">Share to feed</Label>

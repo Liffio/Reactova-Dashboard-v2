@@ -270,6 +270,9 @@ export const apiUri = {
         `${V1}/admin/packages${listQs(p)}`,
       item: (id: string) => `${V1}/admin/packages/${id}`,
       features: (id: string) => `${V1}/admin/packages/${id}/features`,
+      limits: (id: string) => `${V1}/admin/packages/${id}/limits`,
+      publishStatus: (id: string) => `${V1}/admin/packages/${id}/publish-status`,
+      publish: (id: string) => `${V1}/admin/packages/${id}/publish`,
     },
     /** Per-user access matrix (module × action) for a workspace. */
     access: {

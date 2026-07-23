@@ -66,10 +66,14 @@ export type PackageRow = {
   createdAt: string;
 };
 
+/** One numeric quota a package overrides. `value` of -1 means unlimited. */
+export type PackageLimit = { key: string; value: number };
+
 export type PackageDetail = PackageRow & {
   yearlyPriceUsdCents: number | null;
   yearlyPriceInrPaise: number | null;
   features: Array<{ parentKey: string; childKey: string | null }>;
+  limits: PackageLimit[];
 };
 
 export type ListQuery = { page?: number; limit?: number; q?: string };
@@ -171,4 +175,81 @@ export const setPackageFeatures = (
   apiRequest<PackageDetail>(apiUri.admin.packages.features(id), {
     method: "PUT",
     body: { features },
+  });
+
+/** The limit keys a package may override, matching the server's `LIMIT_KEYS`. */
+export const PACKAGE_LIMIT_KEYS = [
+  "workflows",
+  "dmFollowUps",
+  "teamMembers",
+  "workspacesIncluded",
+  "maxApiCredentials",
+  "apiRequestsPerDay",
+  "schedulerPostsPerDay",
+  "automationsPerDay",
+] as const;
+
+export const setPackageLimits = (id: string, limits: PackageLimit[]) =>
+  apiRequest<PackageLimit[]>(apiUri.admin.packages.limits(id), {
+    method: "PUT",
+    body: { limits },
+  });
+
+// ── Publishing to payment providers ─────────────────────────────────────────────────────────────
+
+export type BillingProvider = "STRIPE" | "RAZORPAY";
+export type BillingInterval = "MONTHLY" | "QUARTERLY" | "YEARLY";
+
+/** Where one provider stands relative to what the package currently declares. */
+export type ProviderSyncStatus = {
+  provider: BillingProvider;
+  configured: boolean;
+  /** "test" | "live", or null when the provider isn't configured here. */
+  mode: string | null;
+  /** The mode this package's objects were first published in, if any. */
+  storedMode: string | null;
+  /** The configured key's mode no longer matches what the package was published in — publishing is blocked. */
+  modeMismatch: boolean;
+};
+
+/** One pending change on a (provider, interval, currency) axis. */
+export type PublishStatusAction = {
+  kind: "unchanged" | "create" | "archive";
+  provider: BillingProvider;
+  interval: BillingInterval;
+  currency: string;
+  /** New amount for create/unchanged; the retiring amount for archive. Minor units. */
+  amount: number;
+  /** Present only on a create: null for a first-time price, or the local price id being repriced. */
+  replacesPriceId?: string | null;
+  /** Present on archive: the local price id being retired. */
+  priceId?: string;
+  /** Active subscriptions grandfathered on the price being retired (archive / reprice). */
+  grandfatheredSubscribers?: number;
+  /** The amount currently charged, on a reprice — for a "from → to" diff. */
+  previousAmount?: number;
+};
+
+export type PublishStatus = {
+  packageId: string;
+  packageKey: string;
+  providers: ProviderSyncStatus[];
+  actions: PublishStatusAction[];
+};
+
+export type PublishResult = {
+  created: number;
+  repriced: number;
+  archived: number;
+  unchanged: number;
+  skippedProviders: BillingProvider[];
+};
+
+export const getPublishStatus = (id: string) =>
+  apiRequest<PublishStatus>(apiUri.admin.packages.publishStatus(id));
+
+export const publishPackage = (id: string, providers?: BillingProvider[]) =>
+  apiRequest<PublishResult>(apiUri.admin.packages.publish(id), {
+    method: "POST",
+    body: providers ? { providers } : {},
   });

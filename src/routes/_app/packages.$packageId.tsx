@@ -23,6 +23,8 @@ import {
   ToggleRow,
 } from "@/components/admin/form-page";
 import { PackageFeaturePicker } from "@/components/admin/package-feature-picker";
+import { PackageLimitsEditor } from "@/components/admin/package-limits-editor";
+import { PackagePublish } from "@/components/admin/package-publish";
 import {
   summarise,
   usePackageFeatureSelection,
@@ -31,8 +33,10 @@ import {
 import {
   getPackage,
   setPackageFeatures,
+  setPackageLimits,
   updatePackage,
   type PackageDetail,
+  type PackageLimit,
 } from "@/lib/api/registry-api";
 
 const PACKAGE_MANAGE = "platform:package_manage";
@@ -106,6 +110,7 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
 
   const featureState = usePackageFeatureSelection(pkg.features);
   const [selection, setSelection] = useState<FeatureSelection[]>(pkg.features);
+  const [limits, setLimits] = useState<PackageLimit[]>(pkg.limits);
 
   // Re-seed the checklist when a refetch brings new contents, so a save elsewhere is reflected
   // rather than silently overwritten by this page's stale sets on the next save.
@@ -115,11 +120,18 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pkg.features]);
 
+  useEffect(() => {
+    setLimits(pkg.limits);
+  }, [pkg.limits]);
+
+  const pricingDirty =
+    usd !== (pkg.monthlyPriceUsdCents ? String(pkg.monthlyPriceUsdCents / 100) : "") ||
+    inr !== (pkg.monthlyPriceInrPaise != null ? String(pkg.monthlyPriceInrPaise / 100) : "");
+
   const detailsDirty =
     name !== pkg.name ||
     description !== (pkg.description ?? "") ||
-    usd !== (pkg.monthlyPriceUsdCents ? String(pkg.monthlyPriceUsdCents / 100) : "") ||
-    inr !== (pkg.monthlyPriceInrPaise != null ? String(pkg.monthlyPriceInrPaise / 100) : "") ||
+    pricingDirty ||
     badge !== (pkg.badge ?? "") ||
     isPublic !== pkg.isPublic ||
     isActive !== pkg.isActive;
@@ -130,7 +142,15 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
       .sort()
       .join("|");
   const featuresDirty = sortFeatures(selection) !== sortFeatures(pkg.features);
-  const dirty = detailsDirty || featuresDirty;
+
+  const sortLimits = (l: PackageLimit[]) =>
+    [...l]
+      .map((x) => `${x.key}=${x.value}`)
+      .sort()
+      .join("|");
+  const limitsDirty = sortLimits(limits) !== sortLimits(pkg.limits);
+
+  const dirty = detailsDirty || featuresDirty || limitsDirty;
 
   /**
    * Saves details and contents together, skipping whichever is unchanged.
@@ -154,11 +174,16 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
       if (featuresDirty) {
         await setPackageFeatures(pkg.id, selection);
       }
+      if (limitsDirty) {
+        await setPackageLimits(pkg.id, limits);
+      }
     },
     onSuccess: () => {
       toast.success("Package saved");
       void queryClient.invalidateQueries({ queryKey: ["packages"] });
       void queryClient.invalidateQueries({ queryKey: ["package-detail", pkg.id] });
+      // So the publish diff below reflects the prices just saved, not the ones it loaded with.
+      void queryClient.invalidateQueries({ queryKey: ["package-publish-status", pkg.id] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -245,6 +270,14 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
           </div>
         </FormSection>
 
+        {pricingDirty && (
+          <p className="-mt-2 px-1 text-xs text-amber-600 dark:text-amber-500">
+            You have unsaved price changes. Publishing below acts on the saved package — save first
+            for the change to appear here.
+          </p>
+        )}
+        <PackagePublish packageId={pkg.id} packageKey={pkg.key} />
+
         <FormSection
           title="What's included"
           description="Ticking a sub-function includes its module automatically. Only enabled modules can be sold."
@@ -256,6 +289,13 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
             setChildren={featureState.setChildren}
             onSelectionChange={setSelection}
           />
+        </FormSection>
+
+        <FormSection
+          title="Usage limits"
+          description="Numeric caps for this package. An overridden limit replaces the plan's; anything left to inherit uses the plan value. Changes roll out live to every workspace on this package."
+        >
+          <PackageLimitsEditor value={limits} onChange={setLimits} />
         </FormSection>
 
         <FormActions

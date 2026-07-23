@@ -106,7 +106,20 @@ export function PackageFeaturePicker({
   };
 
   const toggleParent = (parentKey: string, childKeys: string[]) => {
-    const allOn = childKeys.length > 0 && childKeys.every((k) => children.has(k));
+    // A page with no sub-functions is a plain on/off toggle of the parent itself. Without this
+    // branch the "all on" test below is never true for a childless module, so it could only ever
+    // be added and never removed — which is exactly why 0-feature pages couldn't be unselected.
+    if (childKeys.length === 0) {
+      setParents((prev) => {
+        const next = new Set(prev);
+        if (next.has(parentKey)) next.delete(parentKey);
+        else next.add(parentKey);
+        return next;
+      });
+      return;
+    }
+
+    const allOn = childKeys.every((k) => children.has(k));
     setParents((prev) => {
       const next = new Set(prev);
       if (allOn && next.has(parentKey)) next.delete(parentKey);

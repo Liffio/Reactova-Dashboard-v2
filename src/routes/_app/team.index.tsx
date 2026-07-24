@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MailPlus, MoreHorizontal, Search, Trash2, UserMinus, UserPlus, Users } from "lucide-react";
+import { MailPlus, MoreHorizontal, RefreshCw, Search, Trash2, UserMinus, Users } from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -9,17 +9,9 @@ import { ProtectedRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,10 +30,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import {
-  createTeamInvite,
-  getTeamOptions,
   listTeamInvites,
   removeTeamMember,
+  resendTeamInvite,
   revokeTeamInvite,
   type TeamMember,
 } from "@/lib/api/team-api";
@@ -49,9 +40,8 @@ import { apiUri } from "@/lib/api/apiUri";
 import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
 import { useAuthState } from "@/lib/auth/auth-store";
-import { LIMITS, emailError, duplicateAliasError } from "@/lib/validation";
 
-export const Route = createFileRoute("/_app/team")({
+export const Route = createFileRoute("/_app/team/")({
   head: () => ({ meta: [{ title: "Team — Liffio" }] }),
   component: TeamRoute,
 });
@@ -74,9 +64,9 @@ const inviteStatusStyles: Record<string, string> = {
 function TeamPage() {
   const { current } = useApp();
   const workspaceId = current.id;
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const currentUserId = useAuthState((s) => s.user?.id);
-  const [inviteOpen, setInviteOpen] = useState(false);
   const [removingMember, setRemovingMember] = useState<TeamMember | null>(null);
 
   /**
@@ -98,16 +88,19 @@ function TeamPage() {
     enabled: Boolean(workspaceId) && workspaceId !== "default",
   });
 
-  const optionsQuery = useQuery({
-    queryKey: ["team-options", workspaceId],
-    queryFn: () => getTeamOptions(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
-  });
-
   const revokeMutation = useMutation({
     mutationFn: (inviteId: string) => revokeTeamInvite(workspaceId, inviteId),
     onSuccess: () => {
       toast.success("Invite revoked");
+      void queryClient.invalidateQueries({ queryKey: ["team-invites", workspaceId] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const resendMutation = useMutation({
+    mutationFn: (inviteId: string) => resendTeamInvite(workspaceId, inviteId),
+    onSuccess: () => {
+      toast.success("Invite resent");
       void queryClient.invalidateQueries({ queryKey: ["team-invites", workspaceId] });
     },
     onError: (e) => toast.error((e as Error).message),
@@ -125,24 +118,6 @@ function TeamPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
-  const inviteMutation = useMutation({
-    mutationFn: (email: string) =>
-      createTeamInvite(workspaceId, {
-        email,
-        roleKey: optionsQuery.data?.roles[0]?.key ?? "MEMBER",
-        moduleAccess: [],
-        permissionKeys: [],
-        policyKeys: [],
-        expiresInDays: 7,
-      }),
-    onSuccess: () => {
-      toast.success("Invite sent");
-      setInviteOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ["team-invites", workspaceId] });
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
-
   const members = memberList.items;
   const invites = invitesQuery.data ?? [];
 
@@ -156,7 +131,7 @@ function TeamPage() {
           <Button
             size="sm"
             className="gap-1.5 bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
-            onClick={() => setInviteOpen(true)}
+            onClick={() => void navigate({ to: "/team/invite" })}
           >
             <MailPlus className="h-4 w-4" />
             Invite member
@@ -320,13 +295,23 @@ function TeamPage() {
                           </td>
                           <td className="px-6 py-3.5">
                             {inv.status === "PENDING" && (
-                              <button
-                                className="text-muted-foreground hover:text-destructive"
-                                title="Revoke"
-                                onClick={() => revokeMutation.mutate(inv.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+                                  title="Resend"
+                                  disabled={resendMutation.isPending}
+                                  onClick={() => resendMutation.mutate(inv.id)}
+                                >
+                                  <RefreshCw className="h-4 w-4" />
+                                </button>
+                                <button
+                                  className="text-muted-foreground hover:text-destructive"
+                                  title="Revoke"
+                                  onClick={() => revokeMutation.mutate(inv.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -349,17 +334,6 @@ function TeamPage() {
           </TabsContent>
         </Tabs>
       </div>
-
-      <InviteDialog
-        open={inviteOpen}
-        onOpenChange={setInviteOpen}
-        isPending={inviteMutation.isPending}
-        onSubmit={(email) => inviteMutation.mutate(email)}
-        existingEmails={[
-          ...members.map((m) => m.user.email),
-          ...invites.filter((i) => i.status === "PENDING").map((i) => i.email),
-        ]}
-      />
 
       <AlertDialog
         open={Boolean(removingMember)}
@@ -385,63 +359,5 @@ function TeamPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-function InviteDialog({
-  open,
-  onOpenChange,
-  isPending,
-  onSubmit,
-  existingEmails = [],
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  isPending: boolean;
-  onSubmit: (email: string) => void;
-  existingEmails?: string[];
-}) {
-  const [email, setEmail] = useState("");
-  const error = email ? emailError(email) || duplicateAliasError(email, existingEmails) : null;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (error) return;
-    onSubmit(email.trim());
-    setEmail("");
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Invite team member</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="invite-email">Email address</Label>
-            <Input
-              id="invite-email"
-              type="email"
-              placeholder="colleague@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value.slice(0, LIMITS.email.max))}
-              maxLength={LIMITS.email.max}
-              aria-invalid={Boolean(error)}
-              required
-            />
-            {error && <p className="text-xs text-destructive">{error}</p>}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isPending || Boolean(error)}>
-              {isPending ? "Sending…" : "Send invite"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

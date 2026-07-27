@@ -65,7 +65,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LIMITS, urlError } from "@/lib/validation";
-import { FeatureGate } from "@/components/access/feature-gate";
+import { FeatureGate, useFeatureGate } from "@/components/access/feature-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -130,6 +130,40 @@ function SchedulerRoute() {
         <SchedulerPage />
       </InstagramRequired>
     </ProtectedRoute>
+  );
+}
+
+/**
+ * A post type the workspace's package may or may not include.
+ *
+ * Disabled rather than wrapped in `<FeatureGate>`: Radix `Select` requires `SelectItem` as direct
+ * children of `SelectContent` for keyboard navigation and typeahead, so the gate's overlay wrapper
+ * would break the control it is trying to protect. A disabled item with the reason in its label
+ * conveys the same thing and keeps the select working.
+ *
+ * Each item calls the hook itself, which keeps this to a JSX swap rather than threading four
+ * booleans through a 2000-line component.
+ *
+ * These four capabilities are the ones `capability_routes` already enforces on
+ * `POST /api/v1/scheduler/posts` — so the disabled option and the 403 agree. Gating a control in
+ * the UI that the server still allows is theatre; gating one the server refuses without saying so
+ * is a bug report.
+ */
+function GatedPostTypeItem({
+  value,
+  action,
+  label,
+}: {
+  value: string;
+  action: string;
+  label: string;
+}) {
+  const { allowed } = useFeatureGate("scheduler", action);
+  return (
+    <SelectItem value={value} disabled={!allowed}>
+      {label}
+      {!allowed && <span className="ml-1 text-muted-foreground">— not in your plan</span>}
+    </SelectItem>
   );
 }
 
@@ -2034,10 +2068,14 @@ function SchedulerPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="FEED">Feed (image)</SelectItem>
-                    <SelectItem value="REEL">Reel (MP4/MOV or image)</SelectItem>
-                    <SelectItem value="CAROUSEL">Carousel</SelectItem>
-                    <SelectItem value="STORY">Story</SelectItem>
+                    <GatedPostTypeItem value="FEED" action="post_feed" label="Feed (image)" />
+                    <GatedPostTypeItem
+                      value="REEL"
+                      action="post_reel"
+                      label="Reel (MP4/MOV or image)"
+                    />
+                    <GatedPostTypeItem value="CAROUSEL" action="post_carousel" label="Carousel" />
+                    <GatedPostTypeItem value="STORY" action="post_story" label="Story" />
                   </SelectContent>
                 </Select>
               </div>

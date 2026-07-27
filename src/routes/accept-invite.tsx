@@ -162,6 +162,20 @@ function AcceptInvitePage() {
           <div className="flex flex-col items-center gap-2 py-2">
             <CheckCircle className="h-8 w-8 text-success" />
             <p className="text-sm font-medium">You've joined {workspaceName}!</p>
+            {acceptMutation.data?.dropped && acceptMutation.data.dropped.length > 0 && (
+              <div className="w-full rounded-lg border border-warning/30 bg-warning/10 p-3 text-left text-xs text-muted-foreground">
+                <p className="mb-1 font-medium text-foreground">
+                  Some access could not be granted and was skipped:
+                </p>
+                <ul className="list-inside list-disc">
+                  {acceptMutation.data.dropped.map((d) => (
+                    <li key={d.key}>
+                      {d.key} <span className="opacity-70">({d.reason})</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <Button asChild className="mt-1 w-full">
               <Link to="/dashboard">Go to dashboard</Link>
             </Button>

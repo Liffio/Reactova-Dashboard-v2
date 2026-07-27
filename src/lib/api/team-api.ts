@@ -42,11 +42,53 @@ export type TeamOptions = {
 export type CreateInviteInput = {
   email: string;
   roleKey: string;
+  customizeAccess?: boolean;
   moduleAccess: Array<{ moduleKey: string; actions: string[] }>;
   permissionKeys: string[];
   policyKeys: string[];
   expiresInDays?: number;
 };
+
+export type GrantReason = "not_held" | "not_entitled" | "module_disabled" | "protected";
+
+export type GrantableItem = {
+  key: string;
+  moduleKey: string;
+  action: string;
+  label: string | null;
+  grantable: boolean;
+  reason: GrantReason | null;
+};
+
+export type GrantablePolicy = {
+  key: string;
+  moduleKey: string | null;
+  action: string | null;
+  effect: "ALLOW" | "DENY";
+  grantable: boolean;
+  reason: GrantReason | null;
+};
+
+export type InviteSeatInfo = {
+  limit: number | null;
+  members: number;
+  pendingInvites: number;
+  remaining: number | null;
+};
+
+export type GrantableRole = { key: string; name: string; grantKeys: string[] };
+
+export type GrantableAccess = {
+  inviterRole: { id: string; key: string; name: string } | null;
+  packageName: string | null;
+  roles: GrantableRole[];
+  permissions: GrantableItem[];
+  capabilities: GrantableItem[];
+  policies: GrantablePolicy[];
+  seats: InviteSeatInfo;
+};
+
+export type InviteRejection = { key: string; kind: "permission" | "policy"; reason: GrantReason | "unknown"; message: string };
 
 export type UpdateMemberInput = {
   roleKey?: string;
@@ -62,18 +104,29 @@ export function getTeamOptions(workspaceId: string) {
   return apiRequest<TeamOptions>(apiUri.team.options, { workspaceId });
 }
 
+/** The exact access this inviter may confer, each item annotated grantable/reason, plus live seats. */
+export function getGrantableAccess(workspaceId: string) {
+  return apiRequest<GrantableAccess>(apiUri.team.grantable, { workspaceId });
+}
+
 export function createTeamInvite(workspaceId: string, body: CreateInviteInput) {
   return apiRequest<{
     id: string;
     status: string;
     expiresAt: string;
     emailSent?: boolean;
-    inAppNotified?: boolean;
   }>(apiUri.team.invites, { method: "POST", workspaceId, body });
 }
 
 export function revokeTeamInvite(workspaceId: string, inviteId: string) {
   return apiRequest<void>(apiUri.team.invite(inviteId), { method: "DELETE", workspaceId });
+}
+
+export function resendTeamInvite(workspaceId: string, inviteId: string) {
+  return apiRequest<{ id: string; resendCount: number; expiresAt: string; emailSent: boolean }>(
+    apiUri.team.inviteResend(inviteId),
+    { method: "POST", workspaceId }
+  );
 }
 
 export function updateTeamMember(workspaceId: string, userId: string, body: UpdateMemberInput) {

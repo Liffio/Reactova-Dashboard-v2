@@ -196,18 +196,25 @@ export function getMyPendingInvites() {
   return apiRequest<PendingInvite[]>(apiUri.auth.invites.mine);
 }
 
+export type InviteDrop = { key: string; kind: "permission" | "policy"; reason: string };
+export type AcceptInviteResult = {
+  ok: boolean;
+  workspaceId: string;
+  authorization: unknown;
+  dropped?: InviteDrop[];
+};
+
 export function acceptInviteByToken(token: string) {
-  return apiRequest<{ ok: boolean; workspaceId: string; authorization: unknown }>(
-    apiUri.auth.invites.accept,
-    { method: "POST", body: { token } },
-  );
+  return apiRequest<AcceptInviteResult>(apiUri.auth.invites.accept, {
+    method: "POST",
+    body: { token },
+  });
 }
 
 export function acceptInviteById(inviteId: string) {
-  return apiRequest<{ ok: boolean; workspaceId: string; authorization: unknown }>(
-    apiUri.auth.invites.acceptById(inviteId),
-    { method: "POST" },
-  );
+  return apiRequest<AcceptInviteResult>(apiUri.auth.invites.acceptById(inviteId), {
+    method: "POST",
+  });
 }
 
 // ── Inbox (cross-workspace notifications) ──────────────────────────────────

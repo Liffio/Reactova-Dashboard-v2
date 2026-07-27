@@ -85,6 +85,10 @@ export const apiUri = {
     member: (userId: string) => `${V1}/team/members/${userId}`,
     invites: `${V1}/team/invites`,
     invite: (inviteId: string) => `${V1}/team/invites/${inviteId}`,
+    inviteResend: (inviteId: string) => `${V1}/team/invites/${inviteId}/resend`,
+    invitesSearch: `${V1}/team/invites/search`,
+    invitesSearchSpec: `${V1}/team/invites/search-spec`,
+    grantable: `${V1}/team/invites/grantable`,
     options: `${V1}/team/options`,
   },
 

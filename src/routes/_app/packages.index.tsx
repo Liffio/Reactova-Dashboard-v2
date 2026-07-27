@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, ChevronRight, Package as PackageIcon, Plus, Search } from "lucide-react";
+import {
+  Archive,
+  ChevronRight,
+  Package as PackageIcon,
+  PackageCheck,
+  Plus,
+  Search,
+} from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -79,16 +86,26 @@ function PackagesPage() {
         title="Packages"
         description="Build and price what you sell. Contents come straight from the module registry."
         actions={
-          <Button
-            size="sm"
-            asChild
-            className="gap-1.5 bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
-          >
-            <Link to="/packages/new">
-              <Plus className="h-3.5 w-3.5" />
-              New package
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Composing a package and applying it are separate jobs, so both are reachable from
+                here. Assigning is the one that makes a package do anything at all. */}
+            <Button size="sm" variant="outline" asChild className="gap-1.5">
+              <Link to="/packages/assign">
+                <PackageCheck className="h-3.5 w-3.5" />
+                Assign to workspace
+              </Link>
+            </Button>
+            <Button
+              size="sm"
+              asChild
+              className="gap-1.5 bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
+            >
+              <Link to="/packages/new">
+                <Plus className="h-3.5 w-3.5" />
+                New package
+              </Link>
+            </Button>
+          </div>
         }
       />
 

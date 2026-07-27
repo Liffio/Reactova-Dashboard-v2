@@ -19,6 +19,7 @@ import {
   KeyRound,
   Boxes,
   Package as PackageIcon,
+  PackageCheck,
   Mail,
   Handshake,
   BookOpen,
@@ -157,6 +158,15 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
         platformPermission: "platform:package_manage",
       },
       {
+        // Its own entry rather than only a link off the Packages list: assigning is the action that
+        // makes a package mean anything, and it was previously reachable only by typing the URL.
+        // Same permission as Packages — an operator who can compose a package can apply it.
+        title: "Assign packages",
+        url: "/packages/assign",
+        icon: PackageCheck,
+        platformPermission: "platform:package_manage",
+      },
+      {
         title: "Access Management",
         url: "/access-management",
         icon: KeyRound,
@@ -178,7 +188,7 @@ export function AppSidebar() {
   const isPlatformSuperAdmin = useAuthState((s) => s.isPlatformSuperAdmin);
   const { authz: platformAuthz } = usePlatformAuthz();
   const { current } = useApp();
-  const isActive = (url: string) => pathname === url || pathname.startsWith(`${url}/`);
+  const matchesPath = (url: string) => pathname === url || pathname.startsWith(`${url}/`);
 
   const canSee = (item: NavItem) => {
     if (item.platformPermission) {
@@ -262,6 +272,19 @@ export function AppSidebar() {
     ...adminSections.map((section) => ({ ...section, items: section.items.filter(canSee) })),
   ].filter((section) => section.items.length > 0);
 
+  /**
+   * Exactly one entry highlights: the longest URL that matches.
+   *
+   * A plain prefix test lights up every ancestor, so `/packages/assign` highlighted both "Packages"
+   * and "Assign packages". Picking the most specific match keeps `/packages/new` and
+   * `/packages/<id>` under "Packages" — they have no entry of their own — while a nested route that
+   * *does* have one claims it.
+   */
+  const activeUrl = sections
+    .flatMap((s) => s.items.map((i) => i.url))
+    .filter(matchesPath)
+    .reduce<string | null>((best, url) => (best && best.length >= url.length ? best : url), null);
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-3 py-4">
@@ -295,7 +318,11 @@ export function AppSidebar() {
                     }}
                   >
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={item.url === activeUrl}
+                        tooltip={item.title}
+                      >
                         <Link to={item.url} className="flex items-center gap-2.5">
                           <item.icon className="h-4 w-4" />
                           <span>{item.title}</span>

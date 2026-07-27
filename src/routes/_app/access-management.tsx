@@ -169,6 +169,43 @@ function AccessManagementPage() {
 
   const catalogue = catalogueQuery.data;
 
+  /**
+   * The matrix, split by surface.
+   *
+   * Workspace modules and the platform control plane are rendered as separate tables rather than
+   * one list. `platform:impersonate` and `scheduler:music` are not comparable decisions, and the
+   * "All Modules" bulk row is the specific hazard: a single tick across one combined table would
+   * hand out platform administration alongside a scheduler feature. Each group gets its own bulk
+   * row, scoped to that group.
+   *
+   * A group with no modules is dropped, so an environment with no platform capabilities in the
+   * registry shows exactly what it did before.
+   */
+  const surfaceGroups = useMemo(() => {
+    const all = catalogue?.modules ?? [];
+    return (
+      [
+        {
+          surface: "workspace" as const,
+          title: "Workspace modules",
+          blurb: "What this user can do inside the selected workspace.",
+          modules: all.filter((m) => m.surface !== "platform"),
+        },
+        {
+          surface: "platform" as const,
+          title: "Platform administration",
+          blurb: "Control-plane permissions. These apply across every tenant, not just this workspace.",
+          modules: all.filter((m) => m.surface === "platform"),
+        },
+      ] satisfies Array<{
+        surface: "workspace" | "platform";
+        title: string;
+        blurb: string;
+        modules: typeof all;
+      }>
+    ).filter((g) => g.modules.length > 0);
+  }, [catalogue]);
+
   const mutation = useMutation({
     mutationFn: () =>
       applyAccessMatrix({
@@ -293,6 +330,12 @@ function AccessManagementPage() {
             hasWorkspace={!!workspaceId}
           />
         ) : (
+          surfaceGroups.map((group) => (
+          <div key={group.surface} className="space-y-2">
+            <div className="flex items-baseline gap-2">
+              <h2 className="font-display text-sm font-semibold">{group.title}</h2>
+              <p className="text-xs text-muted-foreground">{group.blurb}</p>
+            </div>
           <div className="overflow-hidden rounded-2xl border bg-card shadow-soft">
             {/* The matrix is intentionally wide; it scrolls inside this container so the page
                 body never scrolls sideways on a phone. */}
@@ -313,7 +356,7 @@ function AccessManagementPage() {
                 <tbody>
                   <AllModulesRow
                     actions={catalogue!.actions}
-                    modules={catalogue!.modules}
+                    modules={group.modules}
                     ticked={ticked!}
                     onBulk={(keys, next) => {
                       setResolved((prev) => {
@@ -328,7 +371,7 @@ function AccessManagementPage() {
                       });
                     }}
                   />
-                  {catalogue!.modules.map((mod) => {
+                  {group.modules.map((mod) => {
                     const features = mod.features ?? [];
                     const expanded = openModules.has(mod.key);
                     const onCount = features.filter((f) => ticked!.has(f.key)).length;
@@ -448,6 +491,8 @@ function AccessManagementPage() {
               </table>
             </div>
           </div>
+          </div>
+          ))
         )}
 
         {ready && (

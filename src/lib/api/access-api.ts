@@ -18,7 +18,21 @@ export type AccessCatalogueModule = {
   key: string;
   name: string;
   isEnabled: boolean;
-  /** CRUD permissions — the matrix columns. */
+  /**
+   * Whether this module's capabilities are workspace-scoped or platform-wide.
+   *
+   * Rendered as two separate tables. Granting someone `platform:impersonate` and granting them
+   * `scheduler:music` are not the same kind of decision, and an operator scanning one long
+   * undifferentiated list is exactly how the wrong box gets ticked.
+   */
+  surface: "workspace" | "platform";
+  /**
+   * CRUD permissions — the matrix columns.
+   *
+   * Empty for registry-only modules (Settings, Dashboard, Creator Program, Platform). Those have
+   * no RBAC module behind them, so every action column renders as "—" and the real decisions live
+   * in the feature checklist.
+   */
   permissions: Array<{ key: string; action: string }>;
   /** Capability permissions — an expandable checklist under the module row. */
   features: AccessCatalogueFeature[];

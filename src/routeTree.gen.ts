@@ -43,6 +43,7 @@ import { Route as AppAutomationsIndexRouteImport } from './routes/_app/automatio
 import { Route as OauthMetaCompleteRouteImport } from './routes/oauth.meta.complete'
 import { Route as AuthGoogleCompleteRouteImport } from './routes/auth.google.complete'
 import { Route as AppPackagesNewRouteImport } from './routes/_app/packages.new'
+import { Route as AppPackagesAssignRouteImport } from './routes/_app/packages.assign'
 import { Route as AppPackagesPackageIdRouteImport } from './routes/_app/packages.$packageId'
 import { Route as AppModuleRegistryNewRouteImport } from './routes/_app/module-registry.new'
 import { Route as AppModuleRegistryDocsRouteImport } from './routes/_app/module-registry.docs'
@@ -224,6 +225,11 @@ const AppPackagesNewRoute = AppPackagesNewRouteImport.update({
   path: '/packages/new',
   getParentRoute: () => AppRoute,
 } as any)
+const AppPackagesAssignRoute = AppPackagesAssignRouteImport.update({
+  id: '/packages/assign',
+  path: '/packages/assign',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppPackagesPackageIdRoute = AppPackagesPackageIdRouteImport.update({
   id: '/packages/$packageId',
   path: '/packages/$packageId',
@@ -321,6 +327,7 @@ export interface FileRoutesByFullPath {
   '/module-registry/docs': typeof AppModuleRegistryDocsRoute
   '/module-registry/new': typeof AppModuleRegistryNewRoute
   '/packages/$packageId': typeof AppPackagesPackageIdRoute
+  '/packages/assign': typeof AppPackagesAssignRoute
   '/packages/new': typeof AppPackagesNewRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
@@ -367,6 +374,7 @@ export interface FileRoutesByTo {
   '/module-registry/docs': typeof AppModuleRegistryDocsRoute
   '/module-registry/new': typeof AppModuleRegistryNewRoute
   '/packages/$packageId': typeof AppPackagesPackageIdRoute
+  '/packages/assign': typeof AppPackagesAssignRoute
   '/packages/new': typeof AppPackagesNewRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
@@ -415,6 +423,7 @@ export interface FileRoutesById {
   '/_app/module-registry/docs': typeof AppModuleRegistryDocsRoute
   '/_app/module-registry/new': typeof AppModuleRegistryNewRoute
   '/_app/packages/$packageId': typeof AppPackagesPackageIdRoute
+  '/_app/packages/assign': typeof AppPackagesAssignRoute
   '/_app/packages/new': typeof AppPackagesNewRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
@@ -463,6 +472,7 @@ export interface FileRouteTypes {
     | '/module-registry/docs'
     | '/module-registry/new'
     | '/packages/$packageId'
+    | '/packages/assign'
     | '/packages/new'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
@@ -509,6 +519,7 @@ export interface FileRouteTypes {
     | '/module-registry/docs'
     | '/module-registry/new'
     | '/packages/$packageId'
+    | '/packages/assign'
     | '/packages/new'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
@@ -556,6 +567,7 @@ export interface FileRouteTypes {
     | '/_app/module-registry/docs'
     | '/_app/module-registry/new'
     | '/_app/packages/$packageId'
+    | '/_app/packages/assign'
     | '/_app/packages/new'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
@@ -822,6 +834,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPackagesNewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/packages/assign': {
+      id: '/_app/packages/assign'
+      path: '/packages/assign'
+      fullPath: '/packages/assign'
+      preLoaderRoute: typeof AppPackagesAssignRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/packages/$packageId': {
       id: '/_app/packages/$packageId'
       path: '/packages/$packageId'
@@ -955,6 +974,7 @@ interface AppRouteChildren {
   AppModuleRegistryDocsRoute: typeof AppModuleRegistryDocsRoute
   AppModuleRegistryNewRoute: typeof AppModuleRegistryNewRoute
   AppPackagesPackageIdRoute: typeof AppPackagesPackageIdRoute
+  AppPackagesAssignRoute: typeof AppPackagesAssignRoute
   AppPackagesNewRoute: typeof AppPackagesNewRoute
   AppAutomationsIndexRoute: typeof AppAutomationsIndexRoute
   AppModuleRegistryIndexRoute: typeof AppModuleRegistryIndexRoute
@@ -988,6 +1008,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppModuleRegistryDocsRoute: AppModuleRegistryDocsRoute,
   AppModuleRegistryNewRoute: AppModuleRegistryNewRoute,
   AppPackagesPackageIdRoute: AppPackagesPackageIdRoute,
+  AppPackagesAssignRoute: AppPackagesAssignRoute,
   AppPackagesNewRoute: AppPackagesNewRoute,
   AppAutomationsIndexRoute: AppAutomationsIndexRoute,
   AppModuleRegistryIndexRoute: AppModuleRegistryIndexRoute,

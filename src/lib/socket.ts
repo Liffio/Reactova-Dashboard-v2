@@ -28,11 +28,28 @@ export type AccessChangedPayload = {
   };
 };
 
+/**
+ * A workspace record changed.
+ *
+ * `push` carries the row **already projected server-side** for this session's access level — two
+ * members of one workspace can receive different fields for the same row. `invalidate` carries
+ * identifiers only, sent when the payload was oversized or this socket was behind, and means
+ * "refetch through the normal API".
+ */
+export type WorkspaceEventPayload = {
+  t: "push" | "invalidate";
+  resource: string;
+  op: "created" | "updated" | "deleted";
+  id: string;
+  data?: Record<string, unknown>;
+};
+
 type ServerToClientEvents = {
   "socket:error": (payload: { message: string }) => void;
   "notification:new": (payload: Record<string, unknown>) => void;
   "token-balance-updated": (payload: Record<string, unknown>) => void;
   "access:changed": (payload: AccessChangedPayload) => void;
+  "workspace:event": (payload: WorkspaceEventPayload) => void;
 };
 
 type ClientToServerEvents = {

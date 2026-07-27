@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package as PackageIcon } from "lucide-react";
+import { Package as PackageIcon, Zap } from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -31,6 +31,7 @@ import {
   type FeatureSelection,
 } from "@/hooks/use-package-features";
 import {
+  applyPackageLive,
   getPackage,
   setPackageFeatures,
   setPackageLimits,
@@ -38,6 +39,16 @@ import {
   type PackageDetail,
   type PackageLimit,
 } from "@/lib/api/registry-api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useTouched } from "@/hooks/use-touched";
 import { lengthError } from "@/lib/validation";
 
@@ -206,6 +217,35 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  const [confirmApplyLive, setConfirmApplyLive] = useState(false);
+
+  /**
+   * Forcing the saved contents live.
+   *
+   * Deliberately independent of the save mutation. Bundling them would make every save fan out to
+   * every tenant on the package synchronously, which is exactly what the queued path exists to
+   * avoid — and would make an ordinary description edit page a few thousand members.
+   */
+  const applyLive = useMutation({
+    mutationFn: () => applyPackageLive(pkg.id),
+    onSuccess: (r) => {
+      if (r.workspacesUpdated === 0) {
+        toast.info(`${r.packageName} has no workspaces assigned — nothing to apply.`);
+      } else {
+        toast.success(
+          `${r.packageName} applied to ${r.workspacesUpdated} workspace${r.workspacesUpdated === 1 ? "" : "s"} · ${r.membersNotified} member${r.membersNotified === 1 ? "" : "s"} notified`,
+        );
+      }
+      if (r.truncated) {
+        toast.warning(
+          "More workspaces are on this package than one run covers — the rest propagate in the background.",
+        );
+      }
+      setConfirmApplyLive(false);
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
   const counts = summarise(selection);
 
   return (
@@ -220,7 +260,53 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
             {!pkg.isActive && <Badge variant="outline">Inactive</Badge>}
           </span>
         }
+        actions={
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            disabled={applyLive.isPending}
+            onClick={() => setConfirmApplyLive(true)}
+          >
+            <Zap className="h-4 w-4" />
+            {applyLive.isPending ? "Applying…" : "Apply live now"}
+          </Button>
+        }
       />
+
+      <AlertDialog open={confirmApplyLive} onOpenChange={setConfirmApplyLive}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apply {pkg.name} live now?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Re-resolves entitlement for every workspace on this package and notifies their
+                  members immediately. Connected sessions refresh their permissions on the spot.
+                </p>
+                <p className="text-muted-foreground">
+                  Saving already propagates in the background and defers removals to each billing
+                  cycle&apos;s end. Use this when you need the saved contents to take hold now
+                  instead. It touches no payment provider — that is Publish.
+                </p>
+                <p className="font-medium">Unsaved edits on this page are not included.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                applyLive.mutate();
+              }}
+              disabled={applyLive.isPending}
+            >
+              {applyLive.isPending ? "Applying…" : "Apply live"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6 md:p-10">
         <FormSection title="Details">

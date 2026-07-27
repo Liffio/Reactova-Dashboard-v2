@@ -187,6 +187,24 @@ export type WorkspacePackageAssignment = {
 } | null;
 
 /**
+ * Result of forcing a package live.
+ *
+ * `truncated` means the package is on more workspaces than one inline call will touch; the rest is
+ * left to the queued path. Reported rather than hidden, so "done" never overstates what happened.
+ */
+export type ApplyLiveResult = {
+  packageId: string;
+  packageName: string;
+  workspacesUpdated: number;
+  membersNotified: number;
+  capabilityCount: number;
+  truncated: boolean;
+};
+
+export const applyPackageLive = (id: string) =>
+  apiRequest<ApplyLiveResult>(apiUri.admin.packages.applyLive(id), { method: "POST" });
+
+/**
  * A workspace as the assign screen needs it: identity, current package, member count.
  *
  * `packageId` is null when nothing is assigned, which means unrestricted rather than empty.

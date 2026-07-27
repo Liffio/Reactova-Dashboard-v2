@@ -278,6 +278,13 @@ export const apiUri = {
       publishStatus: (id: string) => `${V1}/admin/packages/${id}/publish-status`,
       publish: (id: string) => `${V1}/admin/packages/${id}/publish`,
       /**
+       * Force the saved contents live for every workspace on this package, now.
+       *
+       * Distinct from `publish`, which pushes prices to Stripe/Razorpay. This one touches no
+       * provider — it reconciles entitlement and tells connected members.
+       */
+      applyLive: (id: string) => `${V1}/admin/packages/${id}/apply-live`,
+      /**
        * Workspace ↔ package assignment. Keyed by workspace, not by package, because a workspace
        * has at most one package — the unique index on `workspace_packages.workspace_id` is what
        * makes "which package is this tenant on" a question with one answer.

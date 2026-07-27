@@ -17,6 +17,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AccessChangedModal } from "@/components/access/access-changed-modal";
+import {
+  AccessChangeList,
+  readAccessChanges,
+} from "@/components/access/access-change-detail";
 import { WorkspaceIdChip } from "@/components/workspace-id-chip";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { PageTransition } from "@/components/page-transition";
@@ -233,6 +237,12 @@ function NotificationsMenu() {
                     </Button>
                   ) : null;
                 })()}
+
+                {/* An access-change notification carries the diff on the row, so opening it shows
+                    exactly what moved rather than repeating the one-line summary above. Renders
+                    nothing for notifications that carry no diff, including rows written before the
+                    server started storing one. */}
+                <AccessChangeList changes={readAccessChanges(selected)} />
               </div>
               <div className="flex items-center justify-between pt-1">
                 <span className="text-xs text-muted-foreground">Origin: {selected.origin}</span>

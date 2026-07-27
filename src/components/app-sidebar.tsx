@@ -220,24 +220,47 @@ export function AppSidebar() {
   });
 
   const registryGroups = navQuery.data?.groups ?? [];
-  const tenantSections: Array<{ group: string; items: NavItem[] }> =
-    registryGroups.length > 0
-      ? registryGroups.map((g) => ({
-          group: g.group,
-          items: g.items
-            .filter((m) => m.route)
-            .map((m) => ({
-              title: m.name,
-              url: m.route!,
-              icon: resolveNavIcon(m.icon),
-              module: m.key,
-            })),
-        }))
-      : nav;
+  const fromRegistry = registryGroups.length > 0;
 
-  const sections = [...tenantSections, ...adminSections]
-    .map((section) => ({ ...section, items: section.items.filter(canSee) }))
-    .filter((section) => section.items.length > 0);
+  const tenantSections: Array<{ group: string; items: NavItem[] }> = fromRegistry
+    ? registryGroups.map((g) => ({
+        group: g.group,
+        items: g.items
+          .filter((m) => m.route)
+          .map((m) => ({
+            title: m.name,
+            url: m.route!,
+            icon: resolveNavIcon(m.icon),
+            module: m.key,
+          })),
+      }))
+    : nav;
+
+  /**
+   * Registry items are **not** re-filtered here.
+   *
+   * `GET /api/v1/navigation` already filtered them against each module's `required_permission`,
+   * which is deliberately decoupled from the module key: Post Scheduler is gated on
+   * `automation:read`, and Team, API, Creator Program and Settings on `workspace:read`, because no
+   * role is granted `scheduler:read`, `team:read`, `api:read`, `creator_program:read` or
+   * `settings:read`.
+   *
+   * Re-checking `<key>:read` on the client therefore deleted exactly those five entries from every
+   * tenant sidebar, no matter what the registry said — the operator-facing switch looked connected
+   * and wasn't. It also broke the standing rule that the UI never hardcodes a permission: the
+   * server is the only place that knows which permission gates a page.
+   *
+   * The hardcoded `nav` fallback still needs `canSee`, since nothing has filtered it. Same for the
+   * admin sections, which are platform tooling rather than registry-driven.
+   */
+  const filteredTenantSections = fromRegistry
+    ? tenantSections
+    : tenantSections.map((section) => ({ ...section, items: section.items.filter(canSee) }));
+
+  const sections = [
+    ...filteredTenantSections,
+    ...adminSections.map((section) => ({ ...section, items: section.items.filter(canSee) })),
+  ].filter((section) => section.items.length > 0);
 
   return (
     <Sidebar collapsible="icon">

@@ -21,11 +21,13 @@ export const MODULES = {
   AUTOMATION: "automation",
   BILLING: "billing",
   BIOLINK: "biolink",
+  CREATOR_PROGRAM: "creator_program",
+  DASHBOARD: "dashboard",
   DEV: "dev",
   LEAD: "lead",
-  NAV_CREATOR_PROGRAM: "nav_creator_program",
-  NAV_SETTINGS: "nav_settings",
+  PLATFORM: "platform",
   SCHEDULER: "scheduler",
+  SETTINGS: "settings",
   SHORTLINK: "shortlink",
   TEAM: "team",
   WORKSPACE: "workspace",
@@ -125,6 +127,17 @@ export const BIOLINK_CAPABILITIES = {
   SOCIAL_ORDERING: "biolink:social_ordering",
 } as const;
 
+/** Creator Program capabilities. */
+export const CREATOR_PROGRAM_CAPABILITIES = {
+  APPLY: "creator_program:apply",
+  VIEW_STATUS: "creator_program:view_status",
+} as const;
+
+/** Dashboard capabilities. */
+export const DASHBOARD_CAPABILITIES = {
+  AI_INSIGHTS: "dashboard:ai_insights",
+} as const;
+
 /** Leads capabilities. */
 export const LEAD_CAPABILITIES = {
   CLICK_STATE: "lead:click_state",
@@ -135,6 +148,21 @@ export const LEAD_CAPABILITIES = {
   TRIGGER_PROVENANCE: "lead:trigger_provenance",
   VIEW_EMAIL: "lead:view_email",
   VIEW_IDENTITY: "lead:view_identity",
+} as const;
+
+/** Platform Administration capabilities. */
+export const PLATFORM_CAPABILITIES = {
+  ADMIN_MANAGE: "platform:admin_manage",
+  AFFILIATE_MANAGE: "platform:affiliate_manage",
+  AI_TOKENS_MANAGE: "platform:ai_tokens_manage",
+  AUDIT_READ: "platform:audit_read",
+  BILLING_MANAGE: "platform:billing_manage",
+  CREATOR_PROGRAM_MANAGE: "platform:creator_program_manage",
+  IMPERSONATE: "platform:impersonate",
+  MODULE_MANAGE: "platform:module_manage",
+  PACKAGE_MANAGE: "platform:package_manage",
+  USER_MANAGE: "platform:user_manage",
+  WORKSPACE_MANAGE: "platform:workspace_manage",
 } as const;
 
 /** Post Scheduler capabilities. */
@@ -160,6 +188,12 @@ export const SCHEDULER_CAPABILITIES = {
   SHARE_TO_FEED: "scheduler:share_to_feed",
   THUMBNAIL_OFFSET: "scheduler:thumbnail_offset",
   TIMEZONE_SCHEDULING: "scheduler:timezone_scheduling",
+} as const;
+
+/** Settings capabilities. */
+export const SETTINGS_CAPABILITIES = {
+  NOTIFICATIONS: "settings:notifications",
+  TWO_FACTOR: "settings:two_factor",
 } as const;
 
 /** Short Links capabilities. */
@@ -198,8 +232,12 @@ export const CAPABILITIES_BY_MODULE = {
   [MODULES.AUTOMATION]: AUTOMATION_CAPABILITIES,
   [MODULES.BILLING]: BILLING_CAPABILITIES,
   [MODULES.BIOLINK]: BIOLINK_CAPABILITIES,
+  [MODULES.CREATOR_PROGRAM]: CREATOR_PROGRAM_CAPABILITIES,
+  [MODULES.DASHBOARD]: DASHBOARD_CAPABILITIES,
   [MODULES.LEAD]: LEAD_CAPABILITIES,
+  [MODULES.PLATFORM]: PLATFORM_CAPABILITIES,
   [MODULES.SCHEDULER]: SCHEDULER_CAPABILITIES,
+  [MODULES.SETTINGS]: SETTINGS_CAPABILITIES,
   [MODULES.SHORTLINK]: SHORTLINK_CAPABILITIES,
   [MODULES.TEAM]: TEAM_CAPABILITIES,
   [MODULES.WORKSPACE]: WORKSPACE_CAPABILITIES,
@@ -271,6 +309,9 @@ export const ALL_CAPABILITY_KEYS = [
   "biolink:profile",
   "biolink:social_links",
   "biolink:social_ordering",
+  "creator_program:apply",
+  "creator_program:view_status",
+  "dashboard:ai_insights",
   "lead:click_state",
   "lead:export_data",
   "lead:follow_state",
@@ -279,6 +320,17 @@ export const ALL_CAPABILITY_KEYS = [
   "lead:trigger_provenance",
   "lead:view_email",
   "lead:view_identity",
+  "platform:admin_manage",
+  "platform:affiliate_manage",
+  "platform:ai_tokens_manage",
+  "platform:audit_read",
+  "platform:billing_manage",
+  "platform:creator_program_manage",
+  "platform:impersonate",
+  "platform:module_manage",
+  "platform:package_manage",
+  "platform:user_manage",
+  "platform:workspace_manage",
   "scheduler:activity_log",
   "scheduler:alt_text",
   "scheduler:approval_workflow",
@@ -300,6 +352,8 @@ export const ALL_CAPABILITY_KEYS = [
   "scheduler:share_to_feed",
   "scheduler:thumbnail_offset",
   "scheduler:timezone_scheduling",
+  "settings:notifications",
+  "settings:two_factor",
   "shortlink:click_tracking",
   "shortlink:custom_domain",
   "shortlink:custom_slug",

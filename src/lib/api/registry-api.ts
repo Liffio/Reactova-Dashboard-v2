@@ -168,6 +168,61 @@ export const updatePackage = (
 export const archivePackage = (id: string) =>
   apiRequest<{ ok: true }>(apiUri.admin.packages.item(id), { method: "DELETE" });
 
+/**
+ * The package a workspace is on, or `null` for none.
+ *
+ * `null` means **unrestricted**, not "entitled to nothing". Production has 45 workspaces and zero
+ * assignments, so the opposite reading would revoke access for every tenant. A package is a
+ * ceiling that exists only once applied.
+ */
+export type WorkspacePackageAssignment = {
+  id: string;
+  packageId: string;
+  packageKey: string;
+  packageName: string;
+  packageHumanId: string | null;
+  capabilityCount: number;
+  note: string | null;
+  assignedAt: string;
+} | null;
+
+/**
+ * A workspace as the assign screen needs it: identity, current package, member count.
+ *
+ * `packageId` is null when nothing is assigned, which means unrestricted rather than empty.
+ */
+export type AssignableWorkspace = {
+  id: string;
+  name: string;
+  humanId: string | null;
+  packageId: string | null;
+  packageKey: string | null;
+  packageName: string | null;
+  memberCount: number;
+};
+
+export const listAssignableWorkspaces = (params: ListQuery = {}) =>
+  apiRequest<Paged<AssignableWorkspace>>(apiUri.admin.packages.assignments(params));
+
+export const getWorkspacePackageAssignment = (workspaceId: string) =>
+  apiRequest<{ assignment: WorkspacePackageAssignment }>(
+    apiUri.admin.packages.assignment(workspaceId),
+  );
+
+export const assignWorkspacePackage = (
+  workspaceId: string,
+  body: { packageId: string; note?: string | null },
+) =>
+  apiRequest<{ assigned: true; packageId: string }>(
+    apiUri.admin.packages.assignment(workspaceId),
+    { method: "PUT", body },
+  );
+
+export const clearWorkspacePackage = (workspaceId: string) =>
+  apiRequest<{ cleared: boolean }>(apiUri.admin.packages.assignment(workspaceId), {
+    method: "DELETE",
+  });
+
 export const setPackageFeatures = (
   id: string,
   features: Array<{ parentKey: string; childKey: string | null }>,

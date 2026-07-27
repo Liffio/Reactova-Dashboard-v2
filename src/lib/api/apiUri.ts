@@ -273,6 +273,18 @@ export const apiUri = {
       limits: (id: string) => `${V1}/admin/packages/${id}/limits`,
       publishStatus: (id: string) => `${V1}/admin/packages/${id}/publish-status`,
       publish: (id: string) => `${V1}/admin/packages/${id}/publish`,
+      /**
+       * Workspace ↔ package assignment. Keyed by workspace, not by package, because a workspace
+       * has at most one package — the unique index on `workspace_packages.workspace_id` is what
+       * makes "which package is this tenant on" a question with one answer.
+       *
+       * A workspace with no assignment is **unrestricted**, not entitled to nothing. These three
+       * endpoints are the only way a ceiling ever comes into existence.
+       */
+      assignment: (workspaceId: string) => `${V1}/admin/packages/assignments/${workspaceId}`,
+      /** Workspaces with their current package and member count; server-side search and paging. */
+      assignments: (p: { page?: number; limit?: number; q?: string } = {}) =>
+        `${V1}/admin/packages/assignments${listQs(p)}`,
     },
     /** Per-user access matrix (module × action) for a workspace. */
     access: {

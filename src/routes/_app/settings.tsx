@@ -713,9 +713,11 @@ function TeamSettings() {
         policyKeys: [],
       }),
     onSuccess: (data) => {
+      // `inAppNotified` used to be branched on here. The server deliberately stopped returning it
+      // (see `routes/team.ts` — reporting whether the invitee already had an account turns
+      // invite-create into an account-enumeration oracle). Only `emailSent` is reported now, and
+      // an email is attempted for every address regardless, so it leaks nothing.
       if (data.emailSent) toast.success(`Invitation sent to ${email}`);
-      else if (data.inAppNotified)
-        toast.success(`Invite created for ${email} — they were notified in-app`);
       else toast.warning(`Invite created for ${email} but email could not be sent`);
       setEmail("");
       invalidate();

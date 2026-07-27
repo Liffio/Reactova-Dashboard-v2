@@ -20,7 +20,6 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LeadsCapturedSlugRouteImport } from './routes/leads-captured.$slug'
 import { Route as AuthHandoffRouteImport } from './routes/auth.handoff'
-import { Route as AppTeamRouteImport } from './routes/_app/team'
 import { Route as AppShortLinksRouteImport } from './routes/_app/short-links'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppSchedulerRouteImport } from './routes/_app/scheduler'
@@ -37,11 +36,13 @@ import { Route as AppAiTokensMasterRouteImport } from './routes/_app/ai-tokens-m
 import { Route as AppAgencyRouteImport } from './routes/_app/agency'
 import { Route as AppAffiliateRouteImport } from './routes/_app/affiliate'
 import { Route as AppAccessManagementRouteImport } from './routes/_app/access-management'
+import { Route as AppTeamIndexRouteImport } from './routes/_app/team.index'
 import { Route as AppPackagesIndexRouteImport } from './routes/_app/packages.index'
 import { Route as AppModuleRegistryIndexRouteImport } from './routes/_app/module-registry.index'
 import { Route as AppAutomationsIndexRouteImport } from './routes/_app/automations.index'
 import { Route as OauthMetaCompleteRouteImport } from './routes/oauth.meta.complete'
 import { Route as AuthGoogleCompleteRouteImport } from './routes/auth.google.complete'
+import { Route as AppTeamInviteRouteImport } from './routes/_app/team.invite'
 import { Route as AppPackagesNewRouteImport } from './routes/_app/packages.new'
 import { Route as AppPackagesAssignRouteImport } from './routes/_app/packages.assign'
 import { Route as AppPackagesPackageIdRouteImport } from './routes/_app/packages.$packageId'
@@ -109,11 +110,6 @@ const AuthHandoffRoute = AuthHandoffRouteImport.update({
   id: '/auth/handoff',
   path: '/auth/handoff',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AppTeamRoute = AppTeamRouteImport.update({
-  id: '/team',
-  path: '/team',
-  getParentRoute: () => AppRoute,
 } as any)
 const AppShortLinksRoute = AppShortLinksRouteImport.update({
   id: '/short-links',
@@ -195,6 +191,11 @@ const AppAccessManagementRoute = AppAccessManagementRouteImport.update({
   path: '/access-management',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTeamIndexRoute = AppTeamIndexRouteImport.update({
+  id: '/team/',
+  path: '/team/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppPackagesIndexRoute = AppPackagesIndexRouteImport.update({
   id: '/packages/',
   path: '/packages/',
@@ -219,6 +220,11 @@ const AuthGoogleCompleteRoute = AuthGoogleCompleteRouteImport.update({
   id: '/auth/google/complete',
   path: '/auth/google/complete',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppTeamInviteRoute = AppTeamInviteRouteImport.update({
+  id: '/team/invite',
+  path: '/team/invite',
+  getParentRoute: () => AppRoute,
 } as any)
 const AppPackagesNewRoute = AppPackagesNewRouteImport.update({
   id: '/packages/new',
@@ -315,7 +321,6 @@ export interface FileRoutesByFullPath {
   '/scheduler': typeof AppSchedulerRoute
   '/settings': typeof AppSettingsRoute
   '/short-links': typeof AppShortLinksRoute
-  '/team': typeof AppTeamRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
@@ -329,11 +334,13 @@ export interface FileRoutesByFullPath {
   '/packages/$packageId': typeof AppPackagesPackageIdRoute
   '/packages/assign': typeof AppPackagesAssignRoute
   '/packages/new': typeof AppPackagesNewRoute
+  '/team/invite': typeof AppTeamInviteRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
   '/automations/': typeof AppAutomationsIndexRoute
   '/module-registry/': typeof AppModuleRegistryIndexRoute
   '/packages/': typeof AppPackagesIndexRoute
+  '/team/': typeof AppTeamIndexRoute
   '/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
   '/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
 }
@@ -362,7 +369,6 @@ export interface FileRoutesByTo {
   '/scheduler': typeof AppSchedulerRoute
   '/settings': typeof AppSettingsRoute
   '/short-links': typeof AppShortLinksRoute
-  '/team': typeof AppTeamRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
@@ -376,11 +382,13 @@ export interface FileRoutesByTo {
   '/packages/$packageId': typeof AppPackagesPackageIdRoute
   '/packages/assign': typeof AppPackagesAssignRoute
   '/packages/new': typeof AppPackagesNewRoute
+  '/team/invite': typeof AppTeamInviteRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
   '/automations': typeof AppAutomationsIndexRoute
   '/module-registry': typeof AppModuleRegistryIndexRoute
   '/packages': typeof AppPackagesIndexRoute
+  '/team': typeof AppTeamIndexRoute
   '/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
   '/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
 }
@@ -411,7 +419,6 @@ export interface FileRoutesById {
   '/_app/scheduler': typeof AppSchedulerRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/short-links': typeof AppShortLinksRoute
-  '/_app/team': typeof AppTeamRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/_app/admin/affiliates': typeof AppAdminAffiliatesRoute
@@ -425,11 +432,13 @@ export interface FileRoutesById {
   '/_app/packages/$packageId': typeof AppPackagesPackageIdRoute
   '/_app/packages/assign': typeof AppPackagesAssignRoute
   '/_app/packages/new': typeof AppPackagesNewRoute
+  '/_app/team/invite': typeof AppTeamInviteRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
   '/_app/automations/': typeof AppAutomationsIndexRoute
   '/_app/module-registry/': typeof AppModuleRegistryIndexRoute
   '/_app/packages/': typeof AppPackagesIndexRoute
+  '/_app/team/': typeof AppTeamIndexRoute
   '/_app/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
   '/_app/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
 }
@@ -460,7 +469,6 @@ export interface FileRouteTypes {
     | '/scheduler'
     | '/settings'
     | '/short-links'
-    | '/team'
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
@@ -474,11 +482,13 @@ export interface FileRouteTypes {
     | '/packages/$packageId'
     | '/packages/assign'
     | '/packages/new'
+    | '/team/invite'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
     | '/automations/'
     | '/module-registry/'
     | '/packages/'
+    | '/team/'
     | '/admin/creator-management/$profileId'
     | '/admin/creators/$profileId'
   fileRoutesByTo: FileRoutesByTo
@@ -507,7 +517,6 @@ export interface FileRouteTypes {
     | '/scheduler'
     | '/settings'
     | '/short-links'
-    | '/team'
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
@@ -521,11 +530,13 @@ export interface FileRouteTypes {
     | '/packages/$packageId'
     | '/packages/assign'
     | '/packages/new'
+    | '/team/invite'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
     | '/automations'
     | '/module-registry'
     | '/packages'
+    | '/team'
     | '/admin/creator-management/$profileId'
     | '/admin/creators/$profileId'
   id:
@@ -555,7 +566,6 @@ export interface FileRouteTypes {
     | '/_app/scheduler'
     | '/_app/settings'
     | '/_app/short-links'
-    | '/_app/team'
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/_app/admin/affiliates'
@@ -569,11 +579,13 @@ export interface FileRouteTypes {
     | '/_app/packages/$packageId'
     | '/_app/packages/assign'
     | '/_app/packages/new'
+    | '/_app/team/invite'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
     | '/_app/automations/'
     | '/_app/module-registry/'
     | '/_app/packages/'
+    | '/_app/team/'
     | '/_app/admin/creator-management/$profileId'
     | '/_app/admin/creators/$profileId'
   fileRoutesById: FileRoutesById
@@ -672,13 +684,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/auth/handoff'
       preLoaderRoute: typeof AuthHandoffRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_app/team': {
-      id: '/_app/team'
-      path: '/team'
-      fullPath: '/team'
-      preLoaderRoute: typeof AppTeamRouteImport
-      parentRoute: typeof AppRoute
     }
     '/_app/short-links': {
       id: '/_app/short-links'
@@ -792,6 +797,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAccessManagementRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/team/': {
+      id: '/_app/team/'
+      path: '/team'
+      fullPath: '/team/'
+      preLoaderRoute: typeof AppTeamIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/packages/': {
       id: '/_app/packages/'
       path: '/packages'
@@ -826,6 +838,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/auth/google/complete'
       preLoaderRoute: typeof AuthGoogleCompleteRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/team/invite': {
+      id: '/_app/team/invite'
+      path: '/team/invite'
+      fullPath: '/team/invite'
+      preLoaderRoute: typeof AppTeamInviteRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/packages/new': {
       id: '/_app/packages/new'
@@ -964,7 +983,6 @@ interface AppRouteChildren {
   AppSchedulerRoute: typeof AppSchedulerRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppShortLinksRoute: typeof AppShortLinksRoute
-  AppTeamRoute: typeof AppTeamRoute
   AppAdminAffiliatesRoute: typeof AppAdminAffiliatesRoute
   AppAdminCreatorManagementRoute: typeof AppAdminCreatorManagementRouteWithChildren
   AppAdminCreatorsRoute: typeof AppAdminCreatorsRouteWithChildren
@@ -976,9 +994,11 @@ interface AppRouteChildren {
   AppPackagesPackageIdRoute: typeof AppPackagesPackageIdRoute
   AppPackagesAssignRoute: typeof AppPackagesAssignRoute
   AppPackagesNewRoute: typeof AppPackagesNewRoute
+  AppTeamInviteRoute: typeof AppTeamInviteRoute
   AppAutomationsIndexRoute: typeof AppAutomationsIndexRoute
   AppModuleRegistryIndexRoute: typeof AppModuleRegistryIndexRoute
   AppPackagesIndexRoute: typeof AppPackagesIndexRoute
+  AppTeamIndexRoute: typeof AppTeamIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -998,7 +1018,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppSchedulerRoute: AppSchedulerRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppShortLinksRoute: AppShortLinksRoute,
-  AppTeamRoute: AppTeamRoute,
   AppAdminAffiliatesRoute: AppAdminAffiliatesRoute,
   AppAdminCreatorManagementRoute: AppAdminCreatorManagementRouteWithChildren,
   AppAdminCreatorsRoute: AppAdminCreatorsRouteWithChildren,
@@ -1010,9 +1029,11 @@ const AppRouteChildren: AppRouteChildren = {
   AppPackagesPackageIdRoute: AppPackagesPackageIdRoute,
   AppPackagesAssignRoute: AppPackagesAssignRoute,
   AppPackagesNewRoute: AppPackagesNewRoute,
+  AppTeamInviteRoute: AppTeamInviteRoute,
   AppAutomationsIndexRoute: AppAutomationsIndexRoute,
   AppModuleRegistryIndexRoute: AppModuleRegistryIndexRoute,
   AppPackagesIndexRoute: AppPackagesIndexRoute,
+  AppTeamIndexRoute: AppTeamIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

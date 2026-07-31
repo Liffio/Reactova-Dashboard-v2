@@ -259,10 +259,18 @@ export function getSchedulerAnalyticsPosts(
 }
 
 export function syncSchedulerAnalytics(workspaceId: string) {
-  return apiRequest<{ upserted: number; skippedRateLimit: boolean; insightsFailed: number }>(
-    apiUri.scheduler.analyticsSync,
-    { method: "POST", workspaceId },
-  );
+  return apiRequest<{
+    upserted: number;
+    skippedRateLimit: boolean;
+    /** Retryable — a later sync may succeed for these. */
+    insightsFailed: number;
+    /** Permanent (e.g. a post predates the account's business conversion) — retrying
+     *  can't help. Rolling out alongside firstUnavailableReason; absent on responses
+     *  from before the rollout finishes, so treat missing as 0. */
+    insightsUnavailable?: number;
+    firstInsightsError: string | null;
+    firstUnavailableReason: string | null;
+  }>(apiUri.scheduler.analyticsSync, { method: "POST", workspaceId });
 }
 
 export function uploadSchedulerMedia(workspaceId: string, file: File, postType: ScheduledPostType) {

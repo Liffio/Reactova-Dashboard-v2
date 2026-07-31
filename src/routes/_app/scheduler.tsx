@@ -1011,17 +1011,33 @@ function SchedulerPage() {
   const syncMutation = useMutation({
     mutationFn: () => syncSchedulerAnalytics(workspaceId),
     onSuccess: (r) => {
+      // Missing on responses from before the insightsUnavailable rollout finishes.
+      const insightsUnavailable = r.insightsUnavailable ?? 0;
       if (r.skippedRateLimit) {
         toast.info("Sync rate limited", { description: "Try again in a few minutes." });
-      } else if (r.insightsFailed > 0) {
-        toast.warning(
-          `Synced ${r.upserted} posts, but ${r.insightsFailed} insight fetch${r.insightsFailed === 1 ? "" : "es"} failed`,
-          {
-            description: "Instagram didn't return data for some posts. Try syncing again shortly.",
-          },
-        );
       } else {
-        toast.success(`Synced ${r.upserted} posts`);
+        if (r.insightsFailed > 0) {
+          toast.warning(
+            `Synced ${r.upserted} posts, but ${r.insightsFailed} insight fetch${r.insightsFailed === 1 ? "" : "es"} failed`,
+            {
+              description:
+                r.firstInsightsError ??
+                "Instagram didn't return data for some posts. Try syncing again shortly.",
+            },
+          );
+        }
+        if (insightsUnavailable > 0) {
+          toast.info(
+            `Insights unavailable for ${insightsUnavailable} post${insightsUnavailable === 1 ? "" : "s"}`,
+            {
+              description:
+                r.firstUnavailableReason ?? "Instagram has no insights data for these posts.",
+            },
+          );
+        }
+        if (r.insightsFailed === 0 && insightsUnavailable === 0) {
+          toast.success(`Synced ${r.upserted} posts`);
+        }
       }
       void queryClient.invalidateQueries({ queryKey: ["scheduler-overview", workspaceId] });
       void queryClient.invalidateQueries({ queryKey: ["scheduler-analytics-posts", workspaceId] });
@@ -1213,16 +1229,21 @@ function SchedulerPage() {
     return matches.reduce((sum, c) => sum + c.avgEngagement, 0) / matches.length;
   };
 
+  const heatHourValue = (day: number, hour: number) => {
+    const found = overviewQuery.data?.bestTimeToPost.find(
+      (c) => c.dayOfWeek === day && c.hour === hour,
+    );
+    return found ? found.avgEngagement : null;
+  };
+
+  // Scaled off raw per-hour values (not the band averages) — averaging softens peaks,
+  // so using it here would make the banded view read less intense than the true max.
   const heatMax = useMemo(() => {
-    const values = WEEK_LABELS.flatMap((_, day) =>
-      HOUR_BANDS.map((_, bandIndex) => heatBandAverage(day, bandIndex)),
-    ).filter((v): v is number => v != null);
-    return Math.max(...values, 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- heatBandAverage closes over overviewQuery.data, the actual dependency
+    const v = overviewQuery.data?.bestTimeToPost ?? [];
+    return Math.max(...v.map((x) => x.avgEngagement), 1);
   }, [overviewQuery.data?.bestTimeToPost]);
 
-  const heatCell = (day: number, bandIndex: number) => {
-    const avg = heatBandAverage(day, bandIndex);
+  const heatCellFromValue = (key: string, avg: number | null) => {
     const intensity = avg != null ? Math.min(1, avg / heatMax) : 0;
     const heatClass =
       intensity < 0.15
@@ -1236,12 +1257,18 @@ function SchedulerPage() {
               : "bg-primary/85";
     return (
       <div
-        key={`${day}-${bandIndex}`}
-        className={cn("min-w-6 min-h-6 rounded-sm border border-border", heatClass)}
+        key={key}
+        className={cn("min-w-6 min-h-6 w-full rounded-sm border border-border", heatClass)}
         title={avg != null ? `Avg engagement ${avg.toFixed(1)}%` : "No data"}
       />
     );
   };
+
+  const heatCellHour = (day: number, hour: number) =>
+    heatCellFromValue(`${day}-${hour}`, heatHourValue(day, hour));
+
+  const heatCellBand = (day: number, bandIndex: number) =>
+    heatCellFromValue(`${day}-${bandIndex}`, heatBandAverage(day, bandIndex));
 
   const onChangePostType = (nextType: ScheduledPostType) => {
     setForm((f) => {
@@ -1942,10 +1969,11 @@ function SchedulerPage() {
 
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold text-muted-foreground">
-                    {`Instagram account performance — all ${analyticsPostsQuery.data?.total ?? 0} posts`}
+                    Instagram account performance
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {[
+                      { label: "Posts", value: analyticsPostsQuery.data?.total ?? 0 },
                       {
                         label: "Reach",
                         value:
@@ -2061,25 +2089,51 @@ function SchedulerPage() {
                       Engagement by time of day (UTC)
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-4 sm:p-6 pt-0 overflow-x-auto">
-                    <div className="inline-flex flex-col gap-1 min-w-max">
-                      <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] gap-1 text-[10px] text-muted-foreground">
+                  <CardContent className="p-4 sm:p-6 pt-0">
+                    {/* md+: full 24-hour precision. The heatmap only has 7 rows now
+                        (transposed), so there's enough vertical room for hourly columns
+                        without the grid turning into a wall of near-empty cells. */}
+                    <div className="hidden md:flex md:flex-col gap-1 w-full">
+                      <div className="grid grid-cols-[2.5rem_repeat(24,minmax(0,1fr))] gap-1 text-[9px] text-muted-foreground">
                         <div />
-                        {WEEK_LABELS.map((d) => (
-                          <div key={d} className="text-center">
-                            {d}
+                        {Array.from({ length: 24 }, (_, hour) => (
+                          <div key={hour} className="text-center">
+                            {hour}
                           </div>
                         ))}
                       </div>
-                      {HOUR_BANDS.map((band, bandIndex) => (
+                      {WEEK_LABELS.map((day, dayIdx) => (
                         <div
-                          key={band.label}
-                          className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] gap-1 items-center"
+                          key={day}
+                          className="grid grid-cols-[2.5rem_repeat(24,minmax(0,1fr))] gap-1 items-center"
                         >
                           <div className="text-[10px] text-muted-foreground text-right pr-1">
+                            {day}
+                          </div>
+                          {Array.from({ length: 24 }, (_, hour) => heatCellHour(dayIdx, hour))}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* below md: 24 columns get too cramped to read, fall back to 3-hour bands */}
+                    <div className="flex flex-col gap-1 w-full md:hidden">
+                      <div className="grid grid-cols-[2.5rem_repeat(8,minmax(0,1fr))] gap-1 text-[9px] text-muted-foreground">
+                        <div />
+                        {HOUR_BANDS.map((band) => (
+                          <div key={band.label} className="text-center">
                             {band.label}
                           </div>
-                          {WEEK_LABELS.map((_, dayIdx) => heatCell(dayIdx, bandIndex))}
+                        ))}
+                      </div>
+                      {WEEK_LABELS.map((day, dayIdx) => (
+                        <div
+                          key={day}
+                          className="grid grid-cols-[2.5rem_repeat(8,minmax(0,1fr))] gap-1 items-center"
+                        >
+                          <div className="text-[10px] text-muted-foreground text-right pr-1">
+                            {day}
+                          </div>
+                          {HOUR_BANDS.map((_, bandIndex) => heatCellBand(dayIdx, bandIndex))}
                         </div>
                       ))}
                     </div>

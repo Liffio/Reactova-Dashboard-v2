@@ -52,13 +52,31 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Retries on network failure or a gateway-level (502/503/504) response, up to `MAX_RETRIES` times. */
+/** True if a retryable-status response body is an application error (`{ error: ... }`)
+ *  rather than an empty/HTML gateway body — e.g. the scheduler resync's 502 "every
+ *  insights call failed". Peeks via `clone()` so the original body is still readable
+ *  by the caller. */
+async function isApplicationErrorBody(res: Response): Promise<boolean> {
+  const payload = await res
+    .clone()
+    .json()
+    .catch(() => null);
+  return Boolean(payload && typeof payload === "object" && "error" in payload);
+}
+
+/** Retries on network failure or a gateway-level (502/503/504) response, up to `MAX_RETRIES` times.
+ *  Does NOT retry a retryable status whose body is an application error — that's a deterministic
+ *  failure (e.g. "every insights call failed"), not a transient blip, and retrying it can re-hit
+ *  a cooldown/rate-limit on the same endpoint and mask the real error behind a 429. */
 async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const res = await fetch(url, init);
       if (RETRYABLE_STATUSES.has(res.status) && attempt < MAX_RETRIES) {
+        if (await isApplicationErrorBody(res)) {
+          return res;
+        }
         await delay(RETRY_DELAY_MS * (attempt + 1));
         continue;
       }
@@ -150,7 +168,15 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
 
   if (!res.ok) {
     if (RETRYABLE_STATUSES.has(res.status)) {
-      throw new ApiError(NETWORK_ERROR_MESSAGE, "SERVER_UNAVAILABLE");
+      // A retryable status can still carry a meaningful application error (e.g. the
+      // scheduler resync's 502 "every insights call failed" body) rather than being a
+      // bare gateway blip — surface that instead of the generic offline message when present.
+      const retryablePayload = await res.json().catch(() => null);
+      if (retryablePayload && typeof retryablePayload === "object" && "error" in retryablePayload) {
+        const retryableCode = (retryablePayload as { code?: string }).code;
+        throw new ApiError(formatApiErrorBody(retryablePayload), retryableCode, res.status);
+      }
+      throw new ApiError(NETWORK_ERROR_MESSAGE, "SERVER_UNAVAILABLE", res.status);
     }
     const payload = await res.json().catch(() => ({}));
     const code = (payload as { code?: string })?.code;

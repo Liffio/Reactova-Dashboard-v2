@@ -10,6 +10,7 @@ import {
   startOfMonth,
 } from "date-fns";
 import {
+  AlertTriangle,
   BarChart2,
   Bookmark,
   CalendarDays,
@@ -91,6 +92,7 @@ import {
   type ScheduledPost,
   type ScheduledPostType,
 } from "@/lib/api/scheduler-api";
+import { ApiError } from "@/lib/api/http";
 import { useApp } from "@/state/app-context";
 import { cn } from "@/lib/utils";
 import { CaptionAssist } from "@/components/lyra/caption-assist";
@@ -829,9 +831,9 @@ function SchedulerPage() {
   const [mainTab, setMainTab] = useState<"planner" | "analytics">("planner");
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [cursorMonth, setCursorMonth] = useState(() => startOfMonth(new Date()));
-  const [sortBy, setSortBy] = useState<
-    "impressions" | "engagement" | "likes" | "comments" | "saves"
-  >("impressions");
+  const [sortBy, setSortBy] = useState<"engagement" | "likes" | "comments" | "saves" | "views">(
+    "likes",
+  );
   const [composeOpen, setComposeOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailPostId, setDetailPostId] = useState<string | null>(null);
@@ -910,13 +912,26 @@ function SchedulerPage() {
     onSuccess: (r) => {
       if (r.skippedRateLimit) {
         toast.info("Sync rate limited", { description: "Try again in a few minutes." });
+      } else if (r.insightsFailed > 0) {
+        toast.warning(
+          `Synced ${r.upserted} posts, but ${r.insightsFailed} insight fetch${r.insightsFailed === 1 ? "" : "es"} failed`,
+          {
+            description: "Instagram didn't return data for some posts. Try syncing again shortly.",
+          },
+        );
       } else {
         toast.success(`Synced ${r.upserted} posts`);
       }
       void queryClient.invalidateQueries({ queryKey: ["scheduler-overview", workspaceId] });
       void queryClient.invalidateQueries({ queryKey: ["scheduler-analytics-posts", workspaceId] });
     },
-    onError: (e) => toast.error((e as Error).message),
+    onError: (e) => {
+      const err = e as ApiError;
+      toast.error(
+        err.status === 502 ? "Instagram insights are unavailable right now" : err.message,
+        err.status === 502 ? { description: err.message } : undefined,
+      );
+    },
   });
 
   const createMutation = useMutation({
@@ -1531,19 +1546,30 @@ function SchedulerPage() {
           {/* ── Analytics tab ────────────────────────────────────────────── */}
           <TabsContent value="analytics" className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
-              <Button
-                variant="outline"
-                className="gap-2"
-                disabled={syncMutation.isPending}
-                onClick={() => syncMutation.mutate()}
-              >
-                {syncMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
+              <div className="flex flex-col gap-1">
+                <Button
+                  variant={syncMutation.isError ? "destructive" : "outline"}
+                  className="gap-2"
+                  disabled={syncMutation.isPending}
+                  onClick={() => syncMutation.mutate()}
+                >
+                  {syncMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : syncMutation.isError ? (
+                    <AlertTriangle className="h-4 w-4" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  {syncMutation.isError ? "Sync failed — retry" : "Sync from Instagram"}
+                </Button>
+                {syncMutation.isError && (
+                  <span className="text-xs text-destructive max-w-xs">
+                    {(syncMutation.error as ApiError).status === 502
+                      ? "Instagram insights are unavailable right now."
+                      : (syncMutation.error as ApiError).message}
+                  </span>
                 )}
-                Sync from Instagram
-              </Button>
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground shrink-0">Sort posts</span>
                 <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
@@ -1551,11 +1577,11 @@ function SchedulerPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="impressions">Impressions</SelectItem>
                     <SelectItem value="engagement">Engagement rate</SelectItem>
                     <SelectItem value="likes">Likes</SelectItem>
                     <SelectItem value="comments">Comments</SelectItem>
                     <SelectItem value="saves">Saves</SelectItem>
+                    <SelectItem value="views">Views</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1620,8 +1646,34 @@ function SchedulerPage() {
                     { label: "Scheduled", value: overviewQuery.data?.scheduledPosts ?? 0 },
                     { label: "Published", value: overviewQuery.data?.publishedPosts ?? 0 },
                     { label: "Failed", value: overviewQuery.data?.failedPosts ?? 0 },
-                    { label: "Impressions", value: overviewQuery.data?.totalImpressions ?? 0 },
-                    { label: "Reach", value: overviewQuery.data?.totalReach ?? 0 },
+                    {
+                      label: "Reach",
+                      value:
+                        overviewQuery.data?.totalReach != null
+                          ? overviewQuery.data.totalReach
+                          : "—",
+                    },
+                    {
+                      label: "Views",
+                      value:
+                        overviewQuery.data?.totalViews != null
+                          ? overviewQuery.data.totalViews
+                          : "—",
+                    },
+                    {
+                      label: "Saves",
+                      value:
+                        overviewQuery.data?.totalSaves != null
+                          ? overviewQuery.data.totalSaves
+                          : "—",
+                    },
+                    {
+                      label: "Shares",
+                      value:
+                        overviewQuery.data?.totalShares != null
+                          ? overviewQuery.data.totalShares
+                          : "—",
+                    },
                     { label: "Likes", value: overviewQuery.data?.totalLikes ?? 0 },
                     {
                       label: "Avg engagement %",
@@ -1674,11 +1726,11 @@ function SchedulerPage() {
                           />
                           <Line
                             type="monotone"
-                            dataKey="impressions"
+                            dataKey="views"
                             stroke="hsl(var(--primary))"
                             strokeWidth={2}
                             dot={false}
-                            name="Impressions"
+                            name="Views"
                           />
                           <Line
                             type="monotone"
@@ -1746,7 +1798,6 @@ function SchedulerPage() {
                             <th className="px-4 py-3 font-medium hidden md:table-cell">
                               Published
                             </th>
-                            <th className="px-4 py-3 font-medium">Impr.</th>
                             <th className="px-4 py-3 font-medium hidden sm:table-cell">Reach</th>
                             <th className="px-4 py-3 font-medium">Likes</th>
                             <th className="px-4 py-3 font-medium hidden lg:table-cell">ER %</th>
@@ -1766,9 +1817,6 @@ function SchedulerPage() {
                                   ? format(new Date(String(row.publishedAt)), "MMM d, yyyy")
                                   : "—"}
                               </td>
-                              <td className="px-4 py-3 font-mono text-xs">
-                                {row.impressions != null ? String(row.impressions) : "—"}
-                              </td>
                               <td className="px-4 py-3 font-mono text-xs hidden sm:table-cell">
                                 {row.reach != null ? String(row.reach) : "—"}
                               </td>
@@ -1786,7 +1834,7 @@ function SchedulerPage() {
                             (analyticsPostsQuery.data?.posts.length ?? 0) === 0 && (
                               <tr>
                                 <td
-                                  colSpan={6}
+                                  colSpan={5}
                                   className="px-4 py-10 text-center text-muted-foreground"
                                 >
                                   Run a sync to load analytics for your Instagram posts.

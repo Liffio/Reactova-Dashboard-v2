@@ -109,17 +109,23 @@ export type SchedulerOverview = {
   scheduledPosts: number;
   publishedPosts: number;
   failedPosts: number;
-  totalImpressions: number;
-  totalReach: number;
+  /** null when insights were never fetched for the range — distinct from a real 0. */
+  totalReach: number | null;
+  totalViews: number | null;
+  totalSaves: number | null;
+  totalShares: number | null;
   totalLikes: number;
   totalComments: number;
-  totalSaves: number;
   avgEngagementRate: number | null;
+  /** True once at least one post in range has fetched insights. */
+  insightsAvailable: boolean;
+  /** ISO timestamp of the last successful insights fetch for this range, or null if never. */
+  insightsFetchedAt: string | null;
   topPerformingPost: Record<string, unknown> | null;
   bestTimeToPost: Array<{ hour: number; dayOfWeek: number; avgEngagement: number }>;
   dmsSentFromPosts: number;
   clicksFromDmPosts: number;
-  dailySeries: Array<{ date: string; impressions: number; reach: number; likes: number }>;
+  dailySeries: Array<{ date: string; views: number | null; reach: number | null; likes: number }>;
 };
 
 export type SchedulerPostMediaUploadResponse = {
@@ -239,7 +245,7 @@ export function getSchedulerAnalyticsOverview(
 
 export function getSchedulerAnalyticsPosts(
   workspaceId: string,
-  sortBy: "impressions" | "engagement" | "likes" | "comments" | "saves",
+  sortBy: "engagement" | "likes" | "comments" | "saves" | "views",
   fromIso?: string,
   toIso?: string
 ) {
@@ -253,7 +259,7 @@ export function getSchedulerAnalyticsPosts(
 }
 
 export function syncSchedulerAnalytics(workspaceId: string) {
-  return apiRequest<{ upserted: number; skippedRateLimit: boolean }>(
+  return apiRequest<{ upserted: number; skippedRateLimit: boolean; insightsFailed: number }>(
     apiUri.scheduler.analyticsSync,
     { method: "POST", workspaceId }
   );

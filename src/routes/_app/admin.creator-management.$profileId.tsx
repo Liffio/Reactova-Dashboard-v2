@@ -572,23 +572,19 @@ function MetricsHistoryChart({ rows }: { rows: Array<Record<string, unknown>> })
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={points}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 11 }}
-                stroke="hsl(var(--muted-foreground))"
-              />
-              <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" width={40} />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" />
+              <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" width={40} />
               <Tooltip
                 contentStyle={{
-                  background: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
+                  background: "var(--card)",
+                  border: "1px solid var(--border)",
                   borderRadius: 8,
                 }}
               />
               <Line
                 type="monotone"
                 dataKey="followers"
-                stroke="hsl(var(--primary))"
+                stroke="var(--primary)"
                 strokeWidth={2}
                 dot={false}
                 name="Followers"
@@ -597,7 +593,7 @@ function MetricsHistoryChart({ rows }: { rows: Array<Record<string, unknown>> })
               <Line
                 type="monotone"
                 dataKey="engagement"
-                stroke="hsl(var(--success))"
+                stroke="var(--success)"
                 strokeWidth={2}
                 dot={false}
                 name="Engagement rate"

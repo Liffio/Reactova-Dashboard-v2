@@ -227,6 +227,22 @@ export function getSchedulerAnalyticsOverview(
   );
 }
 
+export type SchedulerAnalyticsPost = {
+  id: string;
+  caption: string | null;
+  publishedAt: string | null;
+  postType: ScheduledPostType;
+  reach: number | null;
+  likes: number | null;
+  engagementRate: number | null;
+  /** Image posts: the image. Video/Reel: the MP4 file — never render this in an <img>
+   *  for those, use `thumbnailUrl` instead. Carousels: null (Meta puts media on the
+   *  children, not the parent post). */
+  mediaUrl: string | null;
+  /** Video/Reel: poster frame. Image posts: absent. */
+  thumbnailUrl: string | null;
+};
+
 export function getSchedulerAnalyticsPosts(
   workspaceId: string,
   sortBy: "engagement" | "likes" | "comments" | "saves" | "views",
@@ -236,7 +252,7 @@ export function getSchedulerAnalyticsPosts(
   const qs = new URLSearchParams({ sortBy, page: "1", limit: "50" });
   if (fromIso) qs.set("from", fromIso);
   if (toIso) qs.set("to", toIso);
-  return apiRequest<{ posts: Array<Record<string, unknown>>; total: number; page: number }>(
+  return apiRequest<{ posts: SchedulerAnalyticsPost[]; total: number; page: number }>(
     `${apiUri.scheduler.analyticsPosts}?${qs.toString()}`,
     { workspaceId },
   );

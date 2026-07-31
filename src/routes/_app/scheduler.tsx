@@ -92,6 +92,7 @@ import {
   type InstagramMusicTrack,
   type ScheduledPost,
   type ScheduledPostType,
+  type SchedulerAnalyticsPost,
 } from "@/lib/api/scheduler-api";
 import { ApiError } from "@/lib/api/http";
 import { PaginationBar } from "@/components/ui/pagination-bar";
@@ -172,6 +173,18 @@ function GatedPostTypeItem({
 // ─── constants ───────────────────────────────────────────────────────────────
 
 const WEEK_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+/** 3-hour bands for the engagement heatmap — 8 rows instead of 24, so each cell
+ *  aggregates enough posts to be non-empty even with a small sample. */
+const HOUR_BANDS = [
+  { label: "12–3a", hours: [0, 1, 2] },
+  { label: "3–6a", hours: [3, 4, 5] },
+  { label: "6–9a", hours: [6, 7, 8] },
+  { label: "9–12p", hours: [9, 10, 11] },
+  { label: "12–3p", hours: [12, 13, 14] },
+  { label: "3–6p", hours: [15, 16, 17] },
+  { label: "6–9p", hours: [18, 19, 20] },
+  { label: "9p–12a", hours: [21, 22, 23] },
+] as const;
 const CAROUSEL_MEDIA_MAX = 10;
 const TIMEZONES = [
   "UTC",
@@ -243,6 +256,38 @@ function canPublishNow(p: { type: string; status: string }): boolean {
   return (
     (p.type === "FEED" || p.type === "REEL") &&
     (p.status === "DRAFT" || p.status === "FAILED" || p.status === "SCHEDULED")
+  );
+}
+
+/** Reels: `mediaUrl` is the raw MP4 — never put that in an <img>, use the poster
+ *  frame (`thumbnailUrl`) instead. Everything else: `mediaUrl` is the image itself,
+ *  falling back to `thumbnailUrl` if for some reason it's missing. Carousels are
+ *  expected to have both null (Meta puts media on the children, not the parent
+ *  post) and fall through to the placeholder — not a bug. */
+function analyticsPostImageUrl(row: SchedulerAnalyticsPost): string | null {
+  return row.postType === "REEL" ? row.thumbnailUrl : (row.mediaUrl ?? row.thumbnailUrl);
+}
+
+/** Instagram CDN thumbnail URLs are signed and expire — onError falling back to a
+ *  placeholder is the normal path here, not an edge case. Renders nothing at all
+ *  when no URL is present (e.g. carousels, where Meta puts media on the children). */
+function AnalyticsPostThumbnail({ src }: { src: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!src) return null;
+  if (failed) {
+    return (
+      <div className="h-11 w-11 shrink-0 rounded bg-muted flex items-center justify-center text-muted-foreground">
+        <Images className="h-4 w-4" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      className="h-11 w-11 shrink-0 rounded object-cover"
+      onError={() => setFailed(true)}
+    />
   );
 }
 
@@ -1159,16 +1204,26 @@ function SchedulerPage() {
     };
   }, [accountsQuery.data?.accounts, current.igHandle]);
 
+  const heatBandAverage = (day: number, bandIndex: number) => {
+    const hours: readonly number[] = HOUR_BANDS[bandIndex].hours;
+    const matches = (overviewQuery.data?.bestTimeToPost ?? []).filter(
+      (c) => c.dayOfWeek === day && hours.includes(c.hour),
+    );
+    if (matches.length === 0) return null;
+    return matches.reduce((sum, c) => sum + c.avgEngagement, 0) / matches.length;
+  };
+
   const heatMax = useMemo(() => {
-    const v = overviewQuery.data?.bestTimeToPost ?? [];
-    return Math.max(...v.map((x) => x.avgEngagement), 1);
+    const values = WEEK_LABELS.flatMap((_, day) =>
+      HOUR_BANDS.map((_, bandIndex) => heatBandAverage(day, bandIndex)),
+    ).filter((v): v is number => v != null);
+    return Math.max(...values, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- heatBandAverage closes over overviewQuery.data, the actual dependency
   }, [overviewQuery.data?.bestTimeToPost]);
 
-  const heatCell = (day: number, hour: number) => {
-    const found = overviewQuery.data?.bestTimeToPost.find(
-      (c) => c.dayOfWeek === day && c.hour === hour,
-    );
-    const intensity = found ? Math.min(1, found.avgEngagement / heatMax) : 0;
+  const heatCell = (day: number, bandIndex: number) => {
+    const avg = heatBandAverage(day, bandIndex);
+    const intensity = avg != null ? Math.min(1, avg / heatMax) : 0;
     const heatClass =
       intensity < 0.15
         ? "bg-primary/10"
@@ -1181,9 +1236,9 @@ function SchedulerPage() {
               : "bg-primary/85";
     return (
       <div
-        key={`${day}-${hour}`}
+        key={`${day}-${bandIndex}`}
         className={cn("min-w-6 min-h-6 rounded-sm border border-border", heatClass)}
-        title={found ? `Avg engagement ${found.avgEngagement.toFixed(1)}%` : "No data"}
+        title={avg != null ? `Avg engagement ${avg.toFixed(1)}%` : "No data"}
       />
     );
   };
@@ -1860,60 +1915,86 @@ function SchedulerPage() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[
-                    { label: "Tracked posts", value: overviewQuery.data?.totalPosts ?? 0 },
-                    { label: "Scheduled", value: overviewQuery.data?.scheduledPosts ?? 0 },
-                    { label: "Published", value: overviewQuery.data?.publishedPosts ?? 0 },
-                    { label: "Failed", value: overviewQuery.data?.failedPosts ?? 0 },
-                    {
-                      label: "Reach",
-                      value:
-                        overviewQuery.data?.totalReach != null
-                          ? overviewQuery.data.totalReach
-                          : "—",
-                    },
-                    {
-                      label: "Views",
-                      value:
-                        overviewQuery.data?.totalViews != null
-                          ? overviewQuery.data.totalViews
-                          : "—",
-                    },
-                    {
-                      label: "Saves",
-                      value:
-                        overviewQuery.data?.totalSaves != null
-                          ? overviewQuery.data.totalSaves
-                          : "—",
-                    },
-                    {
-                      label: "Shares",
-                      value:
-                        overviewQuery.data?.totalShares != null
-                          ? overviewQuery.data.totalShares
-                          : "—",
-                    },
-                    { label: "Likes", value: overviewQuery.data?.totalLikes ?? 0 },
-                    {
-                      label: "Avg engagement %",
-                      value:
-                        overviewQuery.data?.avgEngagementRate != null
-                          ? overviewQuery.data.avgEngagementRate.toFixed(1)
-                          : "—",
-                    },
-                  ].map((s) => (
-                    <Card key={s.label} className="shadow-soft">
-                      <CardHeader className="p-4 pb-2">
-                        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                          {s.label}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-4 pt-0">
-                        <div className="font-display text-2xl font-bold">{s.value}</div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-muted-foreground">
+                    Posts scheduled via Liffio
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                      { label: "Tracked posts", value: overviewQuery.data?.totalPosts ?? 0 },
+                      { label: "Scheduled", value: overviewQuery.data?.scheduledPosts ?? 0 },
+                      { label: "Published", value: overviewQuery.data?.publishedPosts ?? 0 },
+                      { label: "Failed", value: overviewQuery.data?.failedPosts ?? 0 },
+                    ].map((s) => (
+                      <Card key={s.label} className="shadow-soft">
+                        <CardHeader className="p-4 pb-2">
+                          <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            {s.label}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 pt-0">
+                          <div className="font-display text-2xl font-bold">{s.value}</div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-muted-foreground">
+                    {`Instagram account performance — all ${analyticsPostsQuery.data?.total ?? 0} posts`}
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                      {
+                        label: "Reach",
+                        value:
+                          overviewQuery.data?.totalReach != null
+                            ? overviewQuery.data.totalReach
+                            : "—",
+                      },
+                      {
+                        label: "Views",
+                        value:
+                          overviewQuery.data?.totalViews != null
+                            ? overviewQuery.data.totalViews
+                            : "—",
+                      },
+                      {
+                        label: "Saves",
+                        value:
+                          overviewQuery.data?.totalSaves != null
+                            ? overviewQuery.data.totalSaves
+                            : "—",
+                      },
+                      {
+                        label: "Shares",
+                        value:
+                          overviewQuery.data?.totalShares != null
+                            ? overviewQuery.data.totalShares
+                            : "—",
+                      },
+                      { label: "Likes", value: overviewQuery.data?.totalLikes ?? 0 },
+                      {
+                        label: "Avg engagement %",
+                        value:
+                          overviewQuery.data?.avgEngagementRate != null
+                            ? overviewQuery.data.avgEngagementRate.toFixed(1)
+                            : "—",
+                      },
+                    ].map((s) => (
+                      <Card key={s.label} className="shadow-soft">
+                        <CardHeader className="p-4 pb-2">
+                          <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            {s.label}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 pt-0">
+                          <div className="font-display text-2xl font-bold">{s.value}</div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
 
                 <Card className="shadow-soft">
@@ -1930,24 +2011,24 @@ function SchedulerPage() {
                           <XAxis
                             dataKey="date"
                             tick={{ fontSize: 11 }}
-                            stroke="hsl(var(--muted-foreground))"
+                            stroke="var(--muted-foreground)"
                           />
                           <YAxis
                             tick={{ fontSize: 11 }}
-                            stroke="hsl(var(--muted-foreground))"
+                            stroke="var(--muted-foreground)"
                             width={40}
                           />
                           <Tooltip
                             contentStyle={{
-                              background: "hsl(var(--card))",
-                              border: "1px solid hsl(var(--border))",
+                              background: "var(--card)",
+                              border: "1px solid var(--border)",
                               borderRadius: 8,
                             }}
                           />
                           <Line
                             type="monotone"
                             dataKey="views"
-                            stroke="hsl(var(--primary))"
+                            stroke="var(--primary)"
                             strokeWidth={2}
                             dot={false}
                             name="Views"
@@ -1955,7 +2036,7 @@ function SchedulerPage() {
                           <Line
                             type="monotone"
                             dataKey="reach"
-                            stroke="hsl(var(--accent))"
+                            stroke="var(--accent)"
                             strokeWidth={2}
                             dot={false}
                             name="Reach"
@@ -1963,7 +2044,7 @@ function SchedulerPage() {
                           <Line
                             type="monotone"
                             dataKey="likes"
-                            stroke="hsl(var(--success))"
+                            stroke="var(--success)"
                             strokeWidth={2}
                             dot={false}
                             name="Likes"
@@ -1977,12 +2058,12 @@ function SchedulerPage() {
                 <Card className="shadow-soft">
                   <CardHeader className="p-4 sm:p-6">
                     <CardTitle className="text-sm font-semibold">
-                      Engagement by hour (UTC)
+                      Engagement by time of day (UTC)
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 sm:p-6 pt-0 overflow-x-auto">
                     <div className="inline-flex flex-col gap-1 min-w-max">
-                      <div className="grid grid-cols-[2rem_repeat(7,minmax(0,1fr))] gap-1 text-[10px] text-muted-foreground">
+                      <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] gap-1 text-[10px] text-muted-foreground">
                         <div />
                         {WEEK_LABELS.map((d) => (
                           <div key={d} className="text-center">
@@ -1990,15 +2071,15 @@ function SchedulerPage() {
                           </div>
                         ))}
                       </div>
-                      {Array.from({ length: 24 }, (_, hour) => (
+                      {HOUR_BANDS.map((band, bandIndex) => (
                         <div
-                          key={hour}
-                          className="grid grid-cols-[2rem_repeat(7,minmax(0,1fr))] gap-1 items-center"
+                          key={band.label}
+                          className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] gap-1 items-center"
                         >
                           <div className="text-[10px] text-muted-foreground text-right pr-1">
-                            {hour}
+                            {band.label}
                           </div>
-                          {WEEK_LABELS.map((_, dayIdx) => heatCell(dayIdx, hour))}
+                          {WEEK_LABELS.map((_, dayIdx) => heatCell(dayIdx, bandIndex))}
                         </div>
                       ))}
                     </div>
@@ -2007,7 +2088,9 @@ function SchedulerPage() {
 
                 <Card className="shadow-soft">
                   <CardHeader className="p-4 sm:p-6">
-                    <CardTitle className="text-sm font-semibold">Posts</CardTitle>
+                    <CardTitle className="text-sm font-semibold">
+                      {`Instagram account performance — all ${analyticsPostsQuery.data?.total ?? 0} posts`}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="overflow-x-auto">
@@ -2029,8 +2112,11 @@ function SchedulerPage() {
                               key={String(row.id)}
                               className="border-b last:border-0 hover:bg-muted/30"
                             >
-                              <td className="px-4 py-3 line-clamp-2 max-w-xs">
-                                {String(row.caption ?? "—")}
+                              <td className="px-4 py-3 max-w-xs">
+                                <div className="flex items-start gap-3">
+                                  <AnalyticsPostThumbnail src={analyticsPostImageUrl(row)} />
+                                  <div className="line-clamp-2">{String(row.caption ?? "—")}</div>
+                                </div>
                               </td>
                               <td className="px-4 py-3 text-muted-foreground hidden md:table-cell whitespace-nowrap">
                                 {row.publishedAt

@@ -53,18 +53,18 @@ export function getApiPlanCatalog() {
 
 export function createApiCredential(
   workspaceId: string,
-  body: { name: string; neverExpires?: boolean }
+  body: { name: string; neverExpires?: boolean },
 ) {
   return apiRequest<{ credential: ApiCredentialItem; secretKey: string; message: string }>(
     apiUri.apiCredentials.create,
-    { method: "POST", workspaceId, body }
+    { method: "POST", workspaceId, body },
   );
 }
 
 export function updateApiCredential(
   workspaceId: string,
   id: string,
-  body: { neverExpires: boolean }
+  body: { neverExpires: boolean },
 ) {
   return apiRequest<{ credentials: ApiCredentialItem[] }>(apiUri.apiCredentials.item(id), {
     method: "PATCH",

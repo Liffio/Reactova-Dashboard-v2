@@ -53,8 +53,16 @@ export function emailError(value: string): string | null {
 // two genuinely different mailboxes.
 const DOT_INSENSITIVE_DOMAINS = new Set(["gmail.com", "googlemail.com"]);
 const PLUS_ALIAS_DOMAINS = new Set([
-  "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com",
-  "yahoo.com", "protonmail.com", "proton.me", "fastmail.com", "icloud.com",
+  "gmail.com",
+  "googlemail.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "yahoo.com",
+  "protonmail.com",
+  "proton.me",
+  "fastmail.com",
+  "icloud.com",
 ]);
 
 /**
@@ -109,7 +117,10 @@ export function isValidUrl(value: string): boolean {
   }
 }
 
-export function urlError(value: string, opts: { required?: boolean; max?: number } = {}): string | null {
+export function urlError(
+  value: string,
+  opts: { required?: boolean; max?: number } = {},
+): string | null {
   const v = value.trim();
   if (!v) return opts.required ? "URL is required." : null;
   const max = opts.max ?? LIMITS.url.max;
@@ -121,7 +132,7 @@ export function urlError(value: string, opts: { required?: boolean; max?: number
 export function lengthError(
   value: string,
   label: string,
-  { min = 0, max }: { min?: number; max: number }
+  { min = 0, max }: { min?: number; max: number },
 ): string | null {
   const v = value.trim();
   if (v.length < min) {

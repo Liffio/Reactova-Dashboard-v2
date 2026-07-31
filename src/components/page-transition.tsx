@@ -19,32 +19,15 @@ export function PageTransition({ children, keyProp }: { children: ReactNode; key
   );
 }
 
-export function AnimatedGrid({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+export function AnimatedGrid({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <motion.div
-      variants={staggerContainer}
-      initial="hidden"
-      animate="show"
-      className={className}
-    >
+    <motion.div variants={staggerContainer} initial="hidden" animate="show" className={className}>
       {children}
     </motion.div>
   );
 }
 
-export function AnimatedItem({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+export function AnimatedItem({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <motion.div variants={staggerItem} className={className}>
       {children}

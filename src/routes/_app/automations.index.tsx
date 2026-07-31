@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -12,7 +12,7 @@ import {
   Trash2,
   Zap,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProtectedRoute } from "@/components/auth/guards";
@@ -37,13 +37,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import {
   deleteAutomation,
-  listAutomations,
+  getAutomationStatusCounts,
   updateAutomation,
   type Automation,
   type AutomationStatus,
 } from "@/lib/api/automations-api";
+import { apiUri } from "@/lib/api/apiUri";
+import { useServerList } from "@/hooks/use-server-list";
 import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 import { motion } from "framer-motion";
@@ -70,24 +73,52 @@ const statusStyles: Record<AutomationStatus, string> = {
   DRAFT: "border-border bg-muted text-muted-foreground",
 };
 
-type Filter = "All" | "Active" | "Paused" | "Drafts";
+/** Tab label → the status it filters on. `All` clears the filter rather than sending one. */
+const TABS = [
+  { label: "All", status: null },
+  { label: "Active", status: "ACTIVE" },
+  { label: "Paused", status: "PAUSED" },
+  { label: "Drafts", status: "DRAFT" },
+] as const;
 
 function AutomationsPage() {
   const { current } = useApp();
   const workspaceId = current.id;
   const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filter, setFilter] = useState<Filter>("All");
   const [deleting, setDeleting] = useState<Automation | null>(null);
 
-  const automationsQuery = useQuery({
-    queryKey: ["automations", workspaceId],
-    queryFn: () => listAutomations(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+  const workspaceReady = Boolean(workspaceId) && workspaceId !== "default";
+
+  /**
+   * Search, status filter, sort and paging all resolve in SQL. This holds one page — there is no
+   * full list in the browser to narrow, which is the whole point of the change.
+   */
+  const list = useServerList<Automation>({
+    path: apiUri.automations.search,
+    queryKey: "automations",
+    workspaceId,
+    defaultSort: { key: "createdAt", dir: "desc" },
+    defaultLimit: 24,
+    enabled: workspaceReady,
   });
 
+  /**
+   * Tab counts come from their own aggregate rather than the current page.
+   *
+   * Deriving them from `list.items` would make each tab report how many of *this page's* 24 rows
+   * matched, so "Active (7)" would change as you paged. The counts describe the workspace.
+   */
+  const countsQuery = useQuery({
+    queryKey: ["automation-status-counts", workspaceId],
+    queryFn: () => getAutomationStatusCounts(workspaceId),
+    enabled: workspaceReady,
+  });
+
+  const activeStatus = (list.getFilter("status") as AutomationStatus | undefined) ?? null;
+
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ["automations", workspaceId] });
+    void queryClient.invalidateQueries({ queryKey: ["automations"] });
+    void queryClient.invalidateQueries({ queryKey: ["automation-status-counts", workspaceId] });
     void queryClient.invalidateQueries({ queryKey: ["dashboard", workspaceId] });
   };
 
@@ -111,22 +142,7 @@ function AutomationsPage() {
     onError: (error) => toast.error((error as Error).message),
   });
 
-  const automations = useMemo(() => {
-    let list = automationsQuery.data ?? [];
-    if (filter !== "All") {
-      const status = filter === "Drafts" ? "DRAFT" : filter.toUpperCase();
-      list = list.filter((a) => a.status === status);
-    }
-    const q = searchTerm.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (a) =>
-          a.name.toLowerCase().includes(q) ||
-          a.keywords.some((k) => k.toLowerCase().includes(q))
-      );
-    }
-    return list;
-  }, [automationsQuery.data, filter, searchTerm]);
+  const automations = list.items;
 
   return (
     <div>
@@ -153,33 +169,46 @@ function AutomationsPage() {
           <div className="relative max-w-sm flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search automations…"
+              placeholder="Search name or keyword…"
               className="pl-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={list.search}
+              onChange={(e) => list.setSearch(e.target.value)}
             />
+            {/* The term is typed but not yet sent. Without this the list looks unresponsive
+                during the debounce, and people retype. */}
+            {list.searchPending && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                …
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
-            {(["All", "Active", "Paused", "Drafts"] as Filter[]).map((t) => (
+            {TABS.map((t) => (
               <Button
-                key={t}
-                variant={filter === t ? "default" : "outline"}
+                key={t.label}
+                variant={activeStatus === t.status ? "default" : "outline"}
                 size="sm"
-                onClick={() => setFilter(t)}
+                className="gap-1.5"
+                onClick={() => list.setFilter("status", "eq", t.status ?? undefined)}
               >
-                {t}
+                {t.label}
+                {countsQuery.data && (
+                  <span className="text-[10px] opacity-70">
+                    {t.status ? (countsQuery.data[t.status] ?? 0) : countsQuery.data.all}
+                  </span>
+                )}
               </Button>
             ))}
           </div>
         </div>
 
-        {automationsQuery.isError && (
+        {list.error && (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-            {(automationsQuery.error as Error).message}
+            {list.error.message}
           </div>
         )}
 
-        {automationsQuery.isLoading ? (
+        {list.isLoading ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} className="h-56 rounded-2xl" />
@@ -188,18 +217,28 @@ function AutomationsPage() {
         ) : automations.length === 0 ? (
           <div className="rounded-2xl border bg-card p-10 text-center shadow-soft">
             <Zap className="mx-auto h-8 w-8 text-muted-foreground" />
-            <h3 className="mt-3 font-display text-lg font-semibold">No automations found</h3>
+            <h3 className="mt-3 font-display text-lg font-semibold">
+              {list.isNarrowed ? "No automations match" : "No automations yet"}
+            </h3>
+            {/* `isNarrowed` rather than a row count: with server-side paging an empty page no
+                longer tells you whether the workspace is empty or the filter is just too narrow. */}
             <p className="mt-1 text-sm text-muted-foreground">
-              {automationsQuery.data?.length
+              {list.isNarrowed
                 ? "Try a different search or filter."
                 : "Create your first automation to start turning comments into DMs."}
             </p>
-            <Button asChild size="sm" className="mt-4 gap-1.5">
-              <Link to="/automations/new">
-                <Plus className="h-4 w-4" />
-                New automation
-              </Link>
-            </Button>
+            {list.isNarrowed ? (
+              <Button size="sm" variant="outline" className="mt-4" onClick={list.clear}>
+                Clear filters
+              </Button>
+            ) : (
+              <Button asChild size="sm" className="mt-4 gap-1.5">
+                <Link to="/automations/new">
+                  <Plus className="h-4 w-4" />
+                  New automation
+                </Link>
+              </Button>
+            )}
           </div>
         ) : (
           <motion.div
@@ -264,14 +303,18 @@ function AutomationsPage() {
                       {a.status === "ACTIVE" ? (
                         <DropdownMenuItem
                           className="cursor-pointer"
-                          onClick={() => toggleStatusMutation.mutate({ id: a.id, status: "PAUSED" })}
+                          onClick={() =>
+                            toggleStatusMutation.mutate({ id: a.id, status: "PAUSED" })
+                          }
                         >
                           <Pause className="mr-2 h-4 w-4" /> Pause
                         </DropdownMenuItem>
                       ) : (
                         <DropdownMenuItem
                           className="cursor-pointer"
-                          onClick={() => toggleStatusMutation.mutate({ id: a.id, status: "ACTIVE" })}
+                          onClick={() =>
+                            toggleStatusMutation.mutate({ id: a.id, status: "ACTIVE" })
+                          }
                         >
                           <Play className="mr-2 h-4 w-4" /> Activate
                         </DropdownMenuItem>
@@ -288,6 +331,17 @@ function AutomationsPage() {
               </motion.article>
             ))}
           </motion.div>
+        )}
+
+        {list.total > 0 && (
+          <PaginationBar
+            page={list.page}
+            pages={list.pages}
+            total={list.total}
+            limit={list.limit}
+            onPageChange={list.setPage}
+            label="automations"
+          />
         )}
       </div>
 

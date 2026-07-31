@@ -58,7 +58,7 @@ export function markAllNotificationsRead(workspaceId: string) {
 
 export function updateNotificationPreference(
   workspaceId: string,
-  body: { type: NotificationType; isEnabled: boolean }
+  body: { type: NotificationType; isEnabled: boolean },
 ) {
   return apiRequest<void>(apiUri.notifications.preferences, {
     method: "PATCH",

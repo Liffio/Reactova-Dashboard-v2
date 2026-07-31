@@ -19,11 +19,11 @@ export function PublicBioLinkApp() {
 function PublicBioLinkInner() {
   const pathSlug =
     typeof window !== "undefined"
-      ? window.location.pathname.replace(/^\/+/, "").split("/")[0] ?? ""
+      ? (window.location.pathname.replace(/^\/+/, "").split("/")[0] ?? "")
       : "";
   const querySlug =
     typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("slug") ?? ""
+      ? (new URLSearchParams(window.location.search).get("slug") ?? "")
       : "";
   const slug = (pathSlug || querySlug).trim();
 
@@ -98,7 +98,7 @@ function PublicBioLinkInner() {
                   rel="noreferrer"
                   className={cn(
                     "block w-full text-center px-4 py-3 font-medium transition-opacity hover:opacity-90",
-                    styles.className
+                    styles.className,
                   )}
                   style={styles.style}
                 >
@@ -112,7 +112,7 @@ function PublicBioLinkInner() {
               className={cn(
                 data.socialLayout === "horizontal"
                   ? "flex flex-wrap justify-center gap-2"
-                  : "flex flex-col gap-3"
+                  : "flex flex-col gap-3",
               )}
             >
               {data.socials.map((item) => (
@@ -124,7 +124,7 @@ function PublicBioLinkInner() {
                   className={cn(
                     "text-center px-4 py-2 font-medium transition-opacity hover:opacity-90 inline-flex items-center justify-center gap-1",
                     data.socialLayout === "horizontal" ? "min-w-[80px]" : "w-full",
-                    styles.className
+                    styles.className,
                   )}
                   style={styles.style}
                 >
@@ -133,20 +133,14 @@ function PublicBioLinkInner() {
                 </a>
               ))}
             </div>
-          )
+          ),
         )}
       </div>
     </BioFrame>
   );
 }
 
-function BioFrame({
-  data,
-  children,
-}: {
-  data?: PublicBioLinkPayload;
-  children: React.ReactNode;
-}) {
+function BioFrame({ data, children }: { data?: PublicBioLinkPayload; children: React.ReactNode }) {
   const bg = data
     ? data.backgroundType === "gradient"
       ? `linear-gradient(135deg, ${data.backgroundColor}, ${data.backgroundColorTo})`

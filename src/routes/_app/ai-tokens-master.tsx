@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Coins } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { z } from "zod";
 
 import { cn } from "@/lib/utils";
@@ -15,7 +15,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -84,7 +91,12 @@ function Pagination({
         <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage(page - 1)}>
           Previous
         </Button>
-        <Button size="sm" variant="outline" disabled={page >= lastPage} onClick={() => setPage(page + 1)}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={page >= lastPage}
+          onClick={() => setPage(page + 1)}
+        >
           Next
         </Button>
       </div>
@@ -173,9 +185,10 @@ function PlansTab() {
   const queryClient = useQueryClient();
   const plansQuery = useQuery({ queryKey: ["ai-token-plans"], queryFn: listAiTokenPlans });
   const [draft, setDraft] = useState<Record<string, Partial<AiTokenPlanConfig>>>({});
-  const [pendingSave, setPendingSave] = useState<{ planKey: string; body: Partial<AiTokenPlanConfig> } | null>(
-    null,
-  );
+  const [pendingSave, setPendingSave] = useState<{
+    planKey: string;
+    body: Partial<AiTokenPlanConfig>;
+  } | null>(null);
 
   const mutation = useMutation({
     mutationFn: ({ planKey, body }: { planKey: string; body: Partial<AiTokenPlanConfig> }) =>
@@ -232,7 +245,10 @@ function PlansTab() {
                     onChange={(e) =>
                       setDraft((prev) => ({
                         ...prev,
-                        [plan.planKey]: { ...prev[plan.planKey], monthlyTokenAllocation: Number(e.target.value) },
+                        [plan.planKey]: {
+                          ...prev[plan.planKey],
+                          monthlyTokenAllocation: Number(e.target.value),
+                        },
                       }))
                     }
                   />
@@ -249,7 +265,8 @@ function PlansTab() {
                         ...prev,
                         [plan.planKey]: {
                           ...prev[plan.planKey],
-                          charsPerTokenOverride: e.target.value === "" ? null : Number(e.target.value),
+                          charsPerTokenOverride:
+                            e.target.value === "" ? null : Number(e.target.value),
                         },
                       }))
                     }
@@ -259,7 +276,10 @@ function PlansTab() {
                   <Switch
                     defaultChecked={plan.rolloverEnabled}
                     onCheckedChange={(checked) =>
-                      setDraft((prev) => ({ ...prev, [plan.planKey]: { ...prev[plan.planKey], rolloverEnabled: checked } }))
+                      setDraft((prev) => ({
+                        ...prev,
+                        [plan.planKey]: { ...prev[plan.planKey], rolloverEnabled: checked },
+                      }))
                     }
                   />
                 </TableCell>
@@ -267,7 +287,10 @@ function PlansTab() {
                   <Switch
                     defaultChecked={plan.isActive}
                     onCheckedChange={(checked) =>
-                      setDraft((prev) => ({ ...prev, [plan.planKey]: { ...prev[plan.planKey], isActive: checked } }))
+                      setDraft((prev) => ({
+                        ...prev,
+                        [plan.planKey]: { ...prev[plan.planKey], isActive: checked },
+                      }))
                     }
                   />
                 </TableCell>
@@ -290,14 +313,17 @@ function PlansTab() {
         </TableBody>
       </Table>
 
-      <AlertDialog open={Boolean(pendingSave)} onOpenChange={(open) => !open && setPendingSave(null)}>
+      <AlertDialog
+        open={Boolean(pendingSave)}
+        onOpenChange={(open) => !open && setPendingSave(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Reduce {pendingSave?.planKey} access?</AlertDialogTitle>
             <AlertDialogDescription>
               This lowers the monthly token allocation or disables rollover for{" "}
-              <span className="font-medium">{pendingSave?.planKey}</span> — workspaces on this plan will
-              have less headroom starting next period. This can be changed back at any time.
+              <span className="font-medium">{pendingSave?.planKey}</span> — workspaces on this plan
+              will have less headroom starting next period. This can be changed back at any time.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -332,7 +358,10 @@ const settingsSchema = z.object({
 
 function SettingsTab() {
   const queryClient = useQueryClient();
-  const settingsQuery = useQuery({ queryKey: ["ai-token-settings"], queryFn: getAiTokenGlobalSettings });
+  const settingsQuery = useQuery({
+    queryKey: ["ai-token-settings"],
+    queryFn: getAiTokenGlobalSettings,
+  });
   const [form, setForm] = useState<{
     defaultCharsPerToken?: number;
     minTokensPerGeneration?: number;
@@ -375,7 +404,8 @@ function SettingsTab() {
           <p className="text-xs text-destructive">{fieldErrors.defaultCharsPerToken[0]}</p>
         )}
         <p className="text-xs text-muted-foreground">
-          Used by any plan without a per-plan override. Applies on the next generation call — no deploy needed.
+          Used by any plan without a per-plan override. Applies on the next generation call — no
+          deploy needed.
         </p>
       </div>
       <div className="space-y-2">
@@ -383,7 +413,9 @@ function SettingsTab() {
         <Input
           type="number"
           defaultValue={settings?.minTokensPerGeneration}
-          onChange={(e) => setForm((p) => ({ ...p, minTokensPerGeneration: Number(e.target.value) }))}
+          onChange={(e) =>
+            setForm((p) => ({ ...p, minTokensPerGeneration: Number(e.target.value) }))
+          }
         />
         {fieldErrors.minTokensPerGeneration?.[0] && (
           <p className="text-xs text-destructive">{fieldErrors.minTokensPerGeneration[0]}</p>
@@ -422,7 +454,11 @@ function SettingsTab() {
 
 // ── Tab 3: Workspace usage ─────────────────────────────────────────────────────
 
-function usagePercent(row: { allocatedTokens: number; consumedTokens: number; bonusTokens: number }): number | null {
+function usagePercent(row: {
+  allocatedTokens: number;
+  consumedTokens: number;
+  bonusTokens: number;
+}): number | null {
   if (row.allocatedTokens === -1) return null;
   const total = row.allocatedTokens + row.bonusTokens;
   if (total <= 0) return 100;
@@ -516,7 +552,9 @@ function WorkspacesTab({ onViewLedger }: { onViewLedger: (workspaceId: string) =
                     <TableCell className="font-mono text-xs">{row.workspaceId}</TableCell>
                     <TableCell>{row.planKeySnapshot}</TableCell>
                     <TableCell>
-                      {row.allocatedTokens === -1 ? "Unlimited" : row.allocatedTokens.toLocaleString()}
+                      {row.allocatedTokens === -1
+                        ? "Unlimited"
+                        : row.allocatedTokens.toLocaleString()}
                     </TableCell>
                     <TableCell>{row.consumedTokens.toLocaleString()}</TableCell>
                     <TableCell>{row.bonusTokens.toLocaleString()}</TableCell>
@@ -527,7 +565,10 @@ function WorkspacesTab({ onViewLedger }: { onViewLedger: (workspaceId: string) =
                         <div className="flex items-center gap-2">
                           <Progress
                             value={pct}
-                            className={cn("h-1.5 w-20", pct >= 80 && "bg-destructive/15 [&>div]:bg-destructive")}
+                            className={cn(
+                              "h-1.5 w-20",
+                              pct >= 80 && "bg-destructive/15 [&>div]:bg-destructive",
+                            )}
                           />
                           <span className="text-xs text-muted-foreground">{pct}%</span>
                         </div>
@@ -535,7 +576,11 @@ function WorkspacesTab({ onViewLedger }: { onViewLedger: (workspaceId: string) =
                     </TableCell>
                     <TableCell>{new Date(row.periodEnd).toLocaleDateString()}</TableCell>
                     <TableCell className="flex justify-end gap-2">
-                      <Button size="sm" variant="outline" onClick={() => onViewLedger(row.workspaceId)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onViewLedger(row.workspaceId)}
+                      >
                         View ledger
                       </Button>
                       <Button size="sm" onClick={() => setGrantTarget(row.workspaceId)}>
@@ -547,7 +592,12 @@ function WorkspacesTab({ onViewLedger }: { onViewLedger: (workspaceId: string) =
               })}
             </TableBody>
           </Table>
-          <Pagination page={page} setPage={setPage} total={usageQuery.data?.total ?? 0} pageSize={PAGE_SIZE} />
+          <Pagination
+            page={page}
+            setPage={setPage}
+            total={usageQuery.data?.total ?? 0}
+            pageSize={PAGE_SIZE}
+          />
         </div>
       )}
 
@@ -568,7 +618,11 @@ function WorkspacesTab({ onViewLedger }: { onViewLedger: (workspaceId: string) =
             </div>
             <div className="space-y-2">
               <Label>Note</Label>
-              <Input value={grantNote} onChange={(e) => setGrantNote(e.target.value)} placeholder="Reason for grant" />
+              <Input
+                value={grantNote}
+                onChange={(e) => setGrantNote(e.target.value)}
+                placeholder="Reason for grant"
+              />
             </div>
           </div>
           <DialogFooter>
@@ -605,7 +659,11 @@ function FeaturesTab() {
       const previous = queryClient.getQueryData<FeatureListResponse>(FEATURES_QUERY_KEY);
       queryClient.setQueryData<FeatureListResponse>(FEATURES_QUERY_KEY, (old) =>
         old
-          ? { features: old.features.map((f) => (f.featureKey === featureKey ? { ...f, isMetered } : f)) }
+          ? {
+              features: old.features.map((f) =>
+                f.featureKey === featureKey ? { ...f, isMetered } : f,
+              ),
+            }
           : old,
       );
       return { previous };
@@ -623,13 +681,12 @@ function FeaturesTab() {
     return <Skeleton className="h-64 rounded-2xl" />;
   }
 
-  const bySurface = (featuresQuery.data?.features ?? []).reduce<Record<string, AiFeatureRegistryRow[]>>(
-    (acc, f) => {
-      (acc[f.surface] ??= []).push(f);
-      return acc;
-    },
-    {},
-  );
+  const bySurface = (featuresQuery.data?.features ?? []).reduce<
+    Record<string, AiFeatureRegistryRow[]>
+  >((acc, f) => {
+    (acc[f.surface] ??= []).push(f);
+    return acc;
+  }, {});
 
   return (
     <div className="space-y-6">
@@ -656,7 +713,9 @@ function FeaturesTab() {
                   <TableCell>
                     <Switch
                       checked={f.isMetered}
-                      onCheckedChange={(checked) => mutation.mutate({ featureKey: f.featureKey, isMetered: checked })}
+                      onCheckedChange={(checked) =>
+                        mutation.mutate({ featureKey: f.featureKey, isMetered: checked })
+                      }
                     />
                   </TableCell>
                   <TableCell>
@@ -790,7 +849,9 @@ function LedgerTab({
                 <TableRow key={entry.id}>
                   <TableCell className="font-mono text-xs">{entry.workspaceId ?? "—"}</TableCell>
                   <TableCell>{entry.entryType}</TableCell>
-                  <TableCell className={entry.tokensDelta < 0 ? "text-destructive" : "text-success"}>
+                  <TableCell
+                    className={entry.tokensDelta < 0 ? "text-destructive" : "text-success"}
+                  >
                     {entry.tokensDelta > 0 ? "+" : ""}
                     {entry.tokensDelta}
                   </TableCell>
@@ -808,7 +869,12 @@ function LedgerTab({
               )}
             </TableBody>
           </Table>
-          <Pagination page={page} setPage={setPage} total={ledgerQuery.data?.total ?? 0} pageSize={PAGE_SIZE} />
+          <Pagination
+            page={page}
+            setPage={setPage}
+            total={ledgerQuery.data?.total ?? 0}
+            pageSize={PAGE_SIZE}
+          />
         </div>
       )}
     </>

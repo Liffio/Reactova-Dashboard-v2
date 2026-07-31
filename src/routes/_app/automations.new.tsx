@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProtectedRoute } from "@/components/auth/guards";
@@ -49,14 +49,35 @@ import {
 } from "@/lib/api/automations-api";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useApp } from "@/state/app-context";
+import { useAutomationFeatures } from "@/hooks/use-features";
 import { LIMITS, urlError, lengthError } from "@/lib/validation";
 import { KeywordSuggest } from "@/components/lyra/keyword-suggest";
 import { DmMessageAssist } from "@/components/lyra/dm-message-assist";
 import { AutomationCopilotPanel } from "@/components/lyra/automation-copilot-panel";
+import { LyraHandoffToast } from "@/components/lyra/lyra-handoff-toast";
+import { useLyraHandoffTheater, type TheaterStep } from "@/hooks/use-lyra-handoff-theater";
+import {
+  LYRA_HANDOFF_KEY,
+  resolveAutomationHandoff,
+  type LyraAutomationHandoff,
+} from "@/lib/lyra-handoff";
+import { getDraft } from "@/lib/api/drafts-api";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { LyraAutomationCopilotOutput, LyraAutomationDraftFields } from "@/lib/api/lyra-api";
 
 export const Route = createFileRoute("/_app/automations/new")({
   head: () => ({ meta: [{ title: "New automation — Liffio" }] }),
+  // `?lyraDraft=true` — arrival from the Ask AI drawer: load the Lyra handoff
+  // and prefill the wizard with the step-by-step theater.
+  validateSearch: (search: Record<string, unknown>): { lyraDraft?: boolean } => ({
+    lyraDraft: search.lyraDraft === true || search.lyraDraft === "true" ? true : undefined,
+  }),
   component: AutomationBuilderRoute,
 });
 
@@ -148,6 +169,9 @@ function AutomationBuilder() {
   const navigate = useNavigate();
   const { current, user } = useApp();
   const workspaceId = current.id;
+  // Backend-resolved capability flags. Controls for features this account lacks are not rendered
+  // at all — the server enforces the same set independently.
+  const features = useAutomationFeatures();
   const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set());
 
   const [form, setForm] = useState<BuilderForm>(defaultForm);
@@ -157,10 +181,17 @@ function AutomationBuilder() {
   const [restoredBannerDismissed, setRestoredBannerDismissed] = useState(false);
   const firstChangeRef = useRef(false);
 
+  // Lyra handoff mode (?lyraDraft=true): the wizard runs against the separate
+  // `lyra-handoff` draft slot so the user's own autosaved draft (key "new") is
+  // never touched — accepting Lyra's draft and editing it autosaves into Lyra's
+  // slot; declining flips the key back to "new" and normal restore takes over.
+  const { lyraDraft } = Route.useSearch();
+  const handoffMode = Boolean(lyraDraft);
+
   const autosave = useAutosave<BuilderForm>({
     workspaceId,
     module: "automation",
-    draftKey: "new",
+    draftKey: handoffMode ? LYRA_HANDOFF_KEY : "new",
   });
 
   const wizardData = useQuery({
@@ -197,10 +228,130 @@ function AutomationBuilder() {
   };
 
   const showRestoreBanner =
+    !handoffMode &&
     autosave.draftLoaded &&
     autosave.draft !== null &&
     !restoredBannerDismissed &&
     !firstChangeRef.current;
+
+  // ── Lyra handoff arrival ────────────────────────────────────────────────────
+  const theater = useLyraHandoffTheater();
+  const [pendingHandoff, setPendingHandoff] = useState<LyraAutomationHandoff | null>(null);
+  const [conflictOpen, setConflictOpen] = useState(false);
+  const handoffConsumedRef = useRef(false);
+
+  /** Plays Lyra's draft into the form step by step, reusing the copilot's
+   *  highlight styling so each section glows as it lands. */
+  const runHandoffTheater = (handoff: LyraAutomationHandoff) => {
+    const d = handoff.draft;
+    const blocks = (d.anyComment ? d.triggerBlocks.slice(0, 1) : d.triggerBlocks).map((b) =>
+      createTriggerBlock({ ...b, keyword: d.anyComment ? "" : b.keyword.trim().toUpperCase() }),
+    );
+
+    const glow = (field: string) => setHighlightedFields((prev) => new Set(prev).add(field));
+    const steps: TheaterStep[] = [];
+
+    steps.push({
+      label: `Naming it "${d.name || "New automation"}"`,
+      apply: () => {
+        update({ name: d.name || "New automation" });
+        glow("name");
+      },
+    });
+    steps.push({
+      label:
+        d.postScope === "any"
+          ? "Listening on all your posts"
+          : d.postScope === "next"
+            ? "Listening on your next post"
+            : "Listening on a post you'll pick",
+      apply: () => {
+        update({ postScope: d.postScope, anyComment: d.anyComment });
+        glow("postScope");
+        glow("anyComment");
+      },
+    });
+    blocks.forEach((block, i) => {
+      steps.push({
+        label: d.anyComment
+          ? "Writing the reply & DM"
+          : `Adding the "${block.keyword || "keyword"}" trigger`,
+        apply: () => {
+          const next = blocks.slice(0, i + 1);
+          update({ triggerBlocks: next });
+          setExpandedBlockIds(next.map((b) => b.id));
+          glow("triggerBlocks");
+        },
+      });
+    });
+    if (d.followBeforeDm) {
+      steps.push({
+        label: "Turning on the follow-first gate",
+        apply: () => {
+          update({ followBeforeDm: true });
+          glow("followBeforeDm");
+        },
+      });
+    }
+    if (d.followUps.length > 0) {
+      steps.push({
+        label: `Adding ${d.followUps.length} follow-up message${d.followUps.length === 1 ? "" : "s"}`,
+        apply: () => {
+          update({
+            followUps: d.followUps.map((f, i) => ({
+              id: `fu-${Date.now()}-${i}`,
+              delayMinutes: f.delayMinutes,
+              message: f.message,
+            })),
+          });
+          glow("followUps");
+        },
+      });
+    }
+    steps.push({ label: "Double-checking everything", apply: () => {} });
+
+    theater.start(steps, {
+      onDone: () => {
+        window.setTimeout(() => setHighlightedFields(new Set()), 2500);
+      },
+    });
+  };
+
+  useEffect(() => {
+    if (!handoffMode || !workspaceId || workspaceId === "default" || handoffConsumedRef.current) {
+      return;
+    }
+    handoffConsumedRef.current = true;
+
+    void resolveAutomationHandoff(workspaceId).then(async (resolution) => {
+      if (resolution.kind === "none") {
+        toast.error("Couldn't load Lyra's draft", {
+          description: "It may have expired — ask Lyra to prepare it again.",
+        });
+        void navigate({ to: "/automations/new", search: {}, replace: true });
+        return;
+      }
+      // Mid-review edits were autosaved into Lyra's slot — restore them silently.
+      if (resolution.kind === "form") {
+        const restored = { ...defaultForm, ...(resolution.form as Partial<BuilderForm>) };
+        setForm(restored);
+        setExpandedBlockIds(restored.triggerBlocks.map((b) => b.id));
+        firstChangeRef.current = true;
+        return;
+      }
+      // A genuine handoff: if the user has their own in-progress draft, ask
+      // before showing Lyra's — their draft lives in its own slot and is safe
+      // either way.
+      const ownDraft = await getDraft(workspaceId, "automation", "new").catch(() => null);
+      if (ownDraft) {
+        setPendingHandoff(resolution.handoff);
+        setConflictOpen(true);
+        return;
+      }
+      runHandoffTheater(resolution.handoff);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoffMode, workspaceId]);
 
   const buildPayload = (status: "ACTIVE" | "DRAFT"): CreateAutomationInput => {
     const normalizedBlocks = form.triggerBlocks.map((block) => ({
@@ -390,6 +541,63 @@ function AutomationBuilder() {
 
   return (
     <div>
+      <LyraHandoffToast
+        visible={theater.visible}
+        phase={theater.phase}
+        steps={theater.steps}
+        currentIndex={theater.currentIndex}
+        title="Lyra is building your automation"
+        doneTitle="All set — over to you ✨"
+        doneMessage="Review every step, then hit Publish to make it live."
+        onDismiss={theater.dismiss}
+      />
+
+      <Dialog
+        open={conflictOpen}
+        onOpenChange={(open) => {
+          setConflictOpen(open);
+          if (!open && pendingHandoff) {
+            // Dismissing counts as "keep my draft" — never silently overwrite.
+            setPendingHandoff(null);
+            void navigate({ to: "/automations/new", search: {}, replace: true });
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Load Lyra's draft?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            You already have an automation draft in progress. Lyra's draft opens in its own slot —
+            your draft stays saved either way.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setConflictOpen(false);
+                setPendingHandoff(null);
+                void navigate({ to: "/automations/new", search: {}, replace: true });
+              }}
+            >
+              Keep my draft
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                const handoff = pendingHandoff;
+                setConflictOpen(false);
+                setPendingHandoff(null);
+                if (handoff) runHandoffTheater(handoff);
+              }}
+            >
+              Load Lyra's draft
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <PageHeader
         eyebrow="Automations"
         title="New automation"
@@ -499,25 +707,27 @@ function AutomationBuilder() {
             <div className="inline-flex w-full rounded-lg border bg-background p-1">
               {(
                 [
-                  { v: "any", l: "All posts" },
-                  { v: "next", l: "Next post only" },
-                  { v: "specific", l: "Pick a post" },
-                ] as Array<{ v: PostScope; l: string }>
-              ).map((o) => (
-                <button
-                  key={o.v}
-                  type="button"
-                  onClick={() => update({ postScope: o.v })}
-                  className={cn(
-                    "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                    form.postScope === o.v
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {o.l}
-                </button>
-              ))}
+                  { v: "any", l: "All posts", allowed: features.post_scope_any },
+                  { v: "next", l: "Next post only", allowed: features.post_scope_next },
+                  { v: "specific", l: "Pick a post", allowed: features.post_scope_specific },
+                ] as Array<{ v: PostScope; l: string; allowed: boolean }>
+              )
+                .filter((o) => o.allowed)
+                .map((o) => (
+                  <button
+                    key={o.v}
+                    type="button"
+                    onClick={() => update({ postScope: o.v })}
+                    className={cn(
+                      "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                      form.postScope === o.v
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {o.l}
+                  </button>
+                ))}
             </div>
 
             {form.postScope === "specific" && (
@@ -561,17 +771,21 @@ function AutomationBuilder() {
               </>
             )}
 
-            <Separator />
+            {features.any_comment && (
+              <>
+                <Separator />
 
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Trigger on any comment</p>
-                <p className="text-xs text-muted-foreground">
-                  Skip keyword matching — every comment receives the DM.
-                </p>
-              </div>
-              <Switch checked={form.anyComment} onCheckedChange={setAnyComment} />
-            </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Trigger on any comment</p>
+                    <p className="text-xs text-muted-foreground">
+                      Skip keyword matching — every comment receives the DM.
+                    </p>
+                  </div>
+                  <Switch checked={form.anyComment} onCheckedChange={setAnyComment} />
+                </div>
+              </>
+            )}
           </section>
 
           {/* Keyword triggers */}
@@ -591,7 +805,9 @@ function AutomationBuilder() {
                     : "Each keyword gets its own reply, DM message, and button."
                 }
               />
-              {!form.anyComment && (
+              {/* Adding a second keyword is what makes an automation multi-response, so the
+                  control belongs to the trigger-blocks capability rather than to keywords. */}
+              {!form.anyComment && features.trigger_blocks && (
                 <Button
                   type="button"
                   size="sm"
@@ -674,20 +890,24 @@ function AutomationBuilder() {
               title="Audience growth"
               subtitle="Ask for a follow first, then re-engage automatically."
             />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Ask to follow before DM</p>
-                <p className="text-xs text-muted-foreground">
-                  The link is delivered after they follow your account.
-                </p>
-              </div>
-              <Switch
-                checked={form.followBeforeDm}
-                onCheckedChange={(v) => update({ followBeforeDm: v })}
-              />
-            </div>
+            {features.follow_before_dm && (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Ask to follow before DM</p>
+                    <p className="text-xs text-muted-foreground">
+                      The link is delivered after they follow your account.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={form.followBeforeDm}
+                    onCheckedChange={(v) => update({ followBeforeDm: v })}
+                  />
+                </div>
 
-            <Separator />
+                <Separator />
+              </>
+            )}
 
             <div>
               <p className="text-sm font-medium">Follow-up sequence</p>
@@ -829,10 +1049,13 @@ function TriggerBlockFields({
   showKeywordStep: boolean;
   onChange: (patch: Partial<TriggerBlock>) => void;
 }) {
+  const features = useAutomationFeatures();
   let step = 1;
   const keywordStepIndex = showKeywordStep ? step++ : 0;
   const messageStepIndex = step++;
-  const buttonStepIndex = step++;
+  // The button step only takes a number when it is actually rendered, otherwise the visible
+  // steps would be numbered 1, 2, 4.
+  const buttonStepIndex = features.block_button || features.dm_button ? step++ : 0;
 
   return (
     <div>
@@ -861,11 +1084,13 @@ function TriggerBlockFields({
       )}
 
       <TimelineStep index={messageStepIndex} title="Reply & DM message">
-        <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
-          <span className="text-xs font-medium">Public auto-reply on the comment</span>
-          <Switch checked={block.autoReply} onCheckedChange={(v) => onChange({ autoReply: v })} />
-        </div>
-        {block.autoReply && (
+        {(features.block_auto_reply || features.public_auto_reply) && (
+          <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
+            <span className="text-xs font-medium">Public auto-reply on the comment</span>
+            <Switch checked={block.autoReply} onCheckedChange={(v) => onChange({ autoReply: v })} />
+          </div>
+        )}
+        {block.autoReply && (features.block_auto_reply || features.public_auto_reply) && (
           <div className="space-y-1">
             <div className="flex justify-end">
               <DmMessageAssist
@@ -916,43 +1141,46 @@ function TriggerBlockFields({
         </div>
       </TimelineStep>
 
-      <TimelineStep index={buttonStepIndex} title="Button (optional)" last>
-        <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
-          <span className="text-xs font-medium">Attach a tappable button under the DM</span>
-          <Switch checked={block.hasButton} onCheckedChange={(v) => onChange({ hasButton: v })} />
-        </div>
-        {block.hasButton && (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Button label</Label>
-              <Input
-                value={block.dmButtonLabel}
-                onChange={(e) =>
-                  onChange({ dmButtonLabel: e.target.value.slice(0, LIMITS.buttonLabel.max) })
-                }
-                maxLength={LIMITS.buttonLabel.max}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Button URL</Label>
-              <Input
-                type="url"
-                value={block.dmButtonUrl}
-                onChange={(e) =>
-                  onChange({ dmButtonUrl: e.target.value.slice(0, LIMITS.buttonUrl.max) })
-                }
-                maxLength={LIMITS.buttonUrl.max}
-                placeholder="https://yourlink.com"
-              />
-              {block.dmButtonUrl && urlError(block.dmButtonUrl, { max: LIMITS.buttonUrl.max }) && (
-                <p className="text-[11px] text-destructive">
-                  {urlError(block.dmButtonUrl, { max: LIMITS.buttonUrl.max })}
-                </p>
-              )}
-            </div>
+      {(features.block_button || features.dm_button) && (
+        <TimelineStep index={buttonStepIndex} title="Button (optional)" last>
+          <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
+            <span className="text-xs font-medium">Attach a tappable button under the DM</span>
+            <Switch checked={block.hasButton} onCheckedChange={(v) => onChange({ hasButton: v })} />
           </div>
-        )}
-      </TimelineStep>
+          {block.hasButton && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Button label</Label>
+                <Input
+                  value={block.dmButtonLabel}
+                  onChange={(e) =>
+                    onChange({ dmButtonLabel: e.target.value.slice(0, LIMITS.buttonLabel.max) })
+                  }
+                  maxLength={LIMITS.buttonLabel.max}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Button URL</Label>
+                <Input
+                  type="url"
+                  value={block.dmButtonUrl}
+                  onChange={(e) =>
+                    onChange({ dmButtonUrl: e.target.value.slice(0, LIMITS.buttonUrl.max) })
+                  }
+                  maxLength={LIMITS.buttonUrl.max}
+                  placeholder="https://yourlink.com"
+                />
+                {block.dmButtonUrl &&
+                  urlError(block.dmButtonUrl, { max: LIMITS.buttonUrl.max }) && (
+                    <p className="text-[11px] text-destructive">
+                      {urlError(block.dmButtonUrl, { max: LIMITS.buttonUrl.max })}
+                    </p>
+                  )}
+              </div>
+            </div>
+          )}
+        </TimelineStep>
+      )}
     </div>
   );
 }

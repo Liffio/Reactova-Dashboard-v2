@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, LogOut, Moon, Settings, Sun, UserRound } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import {
@@ -16,6 +16,12 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AppSidebar } from "@/components/app-sidebar";
+import { AccessChangedModal } from "@/components/access/access-changed-modal";
+import {
+  AccessChangeList,
+  readAccessChanges,
+} from "@/components/access/access-change-detail";
+import { WorkspaceIdChip } from "@/components/workspace-id-chip";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { PageTransition } from "@/components/page-transition";
 import { useTheme } from "@/state/theme-store";
@@ -231,6 +237,12 @@ function NotificationsMenu() {
                     </Button>
                   ) : null;
                 })()}
+
+                {/* An access-change notification carries the diff on the row, so opening it shows
+                    exactly what moved rather than repeating the one-line summary above. Renders
+                    nothing for notifications that carry no diff, including rows written before the
+                    server started storing one. */}
+                <AccessChangeList changes={readAccessChanges(selected)} />
               </div>
               <div className="flex items-center justify-between pt-1">
                 <span className="text-xs text-muted-foreground">Origin: {selected.origin}</span>
@@ -304,6 +316,9 @@ function TopBar() {
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur md:px-6">
       <SidebarTrigger className="-ml-1" />
       <div className="hidden h-5 w-px bg-border md:block" />
+      {/* Hidden on the narrowest screens: the topbar there is already tight, and the id is
+          always available on the Settings page. */}
+      <WorkspaceIdChip humanId={current.humanId} className="hidden sm:inline-flex" />
       <div className="min-w-0 flex-1" />
       <div className="ml-auto flex items-center gap-2">
         <CreatorAssistant />
@@ -348,7 +363,9 @@ function TopBar() {
               className="cursor-pointer text-destructive focus:text-destructive"
               onClick={() =>
                 logoutMutation.mutate(undefined, {
-                  onSettled: () => { window.location.replace(loginPathWithRedirect("/")); },
+                  onSettled: () => {
+                    window.location.replace(loginPathWithRedirect("/"));
+                  },
                 })
               }
             >
@@ -368,6 +385,9 @@ function AppLayout() {
 
   return (
     <ProtectedRoute>
+      {/* Mounted once for the whole authenticated shell so an access change interrupts the user
+          wherever they are, not only on permission-related pages. */}
+      <AccessChangedModal />
       <SidebarProvider>
         <div className="flex min-h-screen w-full bg-background">
           <AppSidebar />

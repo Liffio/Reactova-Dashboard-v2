@@ -9,6 +9,16 @@
 
 const V1 = "/api/v1";
 
+/** Serialises list params, dropping empties so a blank search box isn't sent as `q=`. */
+const listQs = (params: Record<string, string | number | boolean | undefined>): string => {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "" && v !== null) qs.set(k, String(v));
+  }
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+};
+
 /**
  * Creator Eligibility System — deliberately versioned separately from the
  * rest of the API (`/api/creator/v1/...` not `/api/v1/creators`), per
@@ -59,6 +69,9 @@ export const apiUri = {
     },
   },
 
+  /** Registry-driven tenant sidebar; server filters it to what the caller can read. */
+  navigation: `${V1}/navigation`,
+
   workspaces: {
     list: `${V1}/workspaces`,
     create: `${V1}/workspaces`,
@@ -67,15 +80,31 @@ export const apiUri = {
   },
 
   team: {
-    members: `${V1}/team/members`,
+    /** Paginated members. Resolves permissions for the page only — see server `teamSearch`. */
+    membersSearch: `${V1}/team/members/search`,
     member: (userId: string) => `${V1}/team/members/${userId}`,
     invites: `${V1}/team/invites`,
     invite: (inviteId: string) => `${V1}/team/invites/${inviteId}`,
+    inviteResend: (inviteId: string) => `${V1}/team/invites/${inviteId}/resend`,
+    invitesSearch: `${V1}/team/invites/search`,
+    invitesSearchSpec: `${V1}/team/invites/search-spec`,
+    grantable: `${V1}/team/invites/grantable`,
     options: `${V1}/team/options`,
   },
 
+  assistant: {
+    quick: `${V1}/assistant/quick`,
+    conversations: `${V1}/assistant/conversations`,
+    conversation: (conversationId: string) => `${V1}/assistant/conversations/${conversationId}`,
+    conversationMessages: (conversationId: string) =>
+      `${V1}/assistant/conversations/${conversationId}/messages`,
+  },
+
   automations: {
-    list: `${V1}/automations`,
+    /** Paginated list. POST because the query travels as a body — it reads, despite the verb. */
+    search: `${V1}/automations/search`,
+    /** Tab tallies for the whole workspace, not the current page. */
+    statusCounts: `${V1}/automations/status-counts`,
     create: `${V1}/automations`,
     byId: (automationId: string) => `${V1}/automations/${automationId}`,
     wizardData: `${V1}/automations/wizard-data`,
@@ -85,6 +114,8 @@ export const apiUri = {
     musicSearch: `${V1}/scheduler/music/search`,
     platformAccounts: `${V1}/scheduler/platform-accounts`,
     platformAccount: (accountId: string) => `${V1}/scheduler/platform-accounts/${accountId}`,
+    /** Paginated posts with text search over caption and hashtags. */
+    postsSearch: `${V1}/scheduler/posts/search`,
     posts: `${V1}/scheduler/posts`,
     post: (postId: string) => `${V1}/scheduler/posts/${postId}`,
     postsCalendar: `${V1}/scheduler/posts/calendar`,
@@ -108,14 +139,15 @@ export const apiUri = {
   },
 
   shortlinks: {
-    list: `${V1}/shortlinks`,
+    /** Paginated list. POST because the query travels as a body — it reads, despite the verb. */
+    search: `${V1}/shortlinks/search`,
     create: `${V1}/shortlinks`,
     remove: (shortLinkId: string) => `${V1}/shortlinks/${shortLinkId}`,
     resolve: (slug: string) => `${V1}/shortlinks/resolve/${slug}`,
   },
 
   leads: {
-    list: `${V1}/leads`,
+    search: `${V1}/leads/search`,
     export: `${V1}/leads/export`,
   },
 
@@ -195,6 +227,86 @@ export const apiUri = {
   },
 
   admin: {
+    /**
+     * Superadmin control plane. `platform:*` permissions are a different axis from workspace
+     * RBAC — these endpoints are gated by the platform permission catalogue, not by
+     * `module:action`, and never by a hardcoded superadmin flag on the client.
+     */
+    platform: {
+      me: `${V1}/admin/platform/me`,
+      permissions: `${V1}/admin/platform/permissions`,
+      admins: (includeRevoked = false, q?: string) =>
+        `${V1}/admin/platform/admins${listQs({ includeRevoked: includeRevoked || undefined, q })}`,
+      adminsLookup: (q: string) => `${V1}/admin/platform/admins/lookup?q=${encodeURIComponent(q)}`,
+      admin: (userId: string) => `${V1}/admin/platform/admins/${userId}`,
+    },
+    audit: (params: Record<string, string | number | boolean | undefined> = {}) => {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined && v !== "") qs.set(k, String(v));
+      }
+      const suffix = qs.toString();
+      return `${V1}/admin/audit${suffix ? `?${suffix}` : ""}`;
+    },
+    auditActions: `${V1}/admin/audit/actions`,
+    /**
+     * Module registry + packages. Lists take page/limit/q — the server filters and counts in SQL,
+     * so the client never fetches a table to search it locally.
+     */
+    registry: {
+      tree: `${V1}/admin/registry/tree`,
+      parents: (p: { page?: number; limit?: number; q?: string } = {}) =>
+        `${V1}/admin/registry/parents${listQs(p)}`,
+      parent: (id: string) => `${V1}/admin/registry/parents/${id}`,
+      /** What disabling this module would take offline — backs the confirmation dialog. */
+      parentImpact: (id: string) => `${V1}/admin/registry/parents/${id}/impact`,
+      children: (p: { page?: number; limit?: number; q?: string; parentModuleId?: string } = {}) =>
+        `${V1}/admin/registry/children${listQs(p)}`,
+      child: (id: string) => `${V1}/admin/registry/children/${id}`,
+      mappings: `${V1}/admin/registry/mappings`,
+      mapping: (parentModuleId: string, childModuleId: string) =>
+        `${V1}/admin/registry/mappings?parentModuleId=${parentModuleId}&childModuleId=${childModuleId}`,
+      codegen: (parentKey?: string) =>
+        `${V1}/admin/registry/codegen${parentKey ? `?parentKey=${encodeURIComponent(parentKey)}` : ""}`,
+    },
+    packages: {
+      list: (p: { page?: number; limit?: number; q?: string } = {}) =>
+        `${V1}/admin/packages${listQs(p)}`,
+      item: (id: string) => `${V1}/admin/packages/${id}`,
+      features: (id: string) => `${V1}/admin/packages/${id}/features`,
+      limits: (id: string) => `${V1}/admin/packages/${id}/limits`,
+      publishStatus: (id: string) => `${V1}/admin/packages/${id}/publish-status`,
+      publish: (id: string) => `${V1}/admin/packages/${id}/publish`,
+      /**
+       * Force the saved contents live for every workspace on this package, now.
+       *
+       * Distinct from `publish`, which pushes prices to Stripe/Razorpay. This one touches no
+       * provider — it reconciles entitlement and tells connected members.
+       */
+      applyLive: (id: string) => `${V1}/admin/packages/${id}/apply-live`,
+      /**
+       * Workspace ↔ package assignment. Keyed by workspace, not by package, because a workspace
+       * has at most one package — the unique index on `workspace_packages.workspace_id` is what
+       * makes "which package is this tenant on" a question with one answer.
+       *
+       * A workspace with no assignment is **unrestricted**, not entitled to nothing. These three
+       * endpoints are the only way a ceiling ever comes into existence.
+       */
+      assignment: (workspaceId: string) => `${V1}/admin/packages/assignments/${workspaceId}`,
+      /** Workspaces with their current package and member count; server-side search and paging. */
+      assignments: (p: { page?: number; limit?: number; q?: string } = {}) =>
+        `${V1}/admin/packages/assignments${listQs(p)}`,
+    },
+    /** Per-user access matrix (module × action) for a workspace. */
+    access: {
+      catalogue: `${V1}/admin/access/catalogue`,
+      users: (q: string) => `${V1}/admin/access/users?q=${encodeURIComponent(q)}`,
+      workspaces: (userIds: string[]) =>
+        `${V1}/admin/access/workspaces?userIds=${encodeURIComponent(userIds.join(","))}`,
+      state: (userIds: string[], workspaceId: string) =>
+        `${V1}/admin/access/state?userIds=${encodeURIComponent(userIds.join(","))}&workspaceId=${workspaceId}`,
+      matrix: `${V1}/admin/access/matrix`,
+    },
     rbac: {
       overview: `${V1}/admin/rbac/overview`,
       rolePermissions: (roleKey: string) => `${V1}/admin/rbac/roles/${roleKey}/permissions`,

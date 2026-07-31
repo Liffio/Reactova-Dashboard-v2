@@ -68,8 +68,11 @@ export type AutomationWizardData = {
   }>;
 };
 
-export function listAutomations(workspaceId: string) {
-  return apiRequest<Automation[]>(apiUri.automations.list, { workspaceId });
+/** Tallies for the filter tabs, across the workspace rather than the current page. */
+export function getAutomationStatusCounts(workspaceId: string) {
+  return apiRequest<Record<AutomationStatus | "all", number>>(apiUri.automations.statusCounts, {
+    workspaceId,
+  });
 }
 
 export function getAutomationWizardData(workspaceId: string) {
@@ -87,7 +90,7 @@ export function createAutomation(workspaceId: string, body: CreateAutomationInpu
 export function updateAutomation(
   workspaceId: string,
   automationId: string,
-  body: Partial<CreateAutomationInput>
+  body: Partial<CreateAutomationInput>,
 ) {
   return apiRequest<Automation>(apiUri.automations.byId(automationId), {
     method: "PATCH",

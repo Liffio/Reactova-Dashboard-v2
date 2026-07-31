@@ -21,6 +21,8 @@ import { API_BASE, ApiError } from "@/lib/api/http";
 import { apiUri } from "@/lib/api/apiUri";
 import { postAuthLandingPath, sanitizeAuthRedirect } from "@/lib/auth/auth-navigation";
 import { authStore } from "@/lib/auth/auth-store";
+import { useTouched } from "@/hooks/use-touched";
+import { emailError } from "@/lib/validation";
 
 /** Strips technical detail so a network hiccup never reads as a stack trace to the user. */
 function friendlyErrorMessage(error: unknown): string {
@@ -30,10 +32,18 @@ function friendlyErrorMessage(error: unknown): string {
   return "Something went wrong signing you in. Please try again.";
 }
 
-export function LocalLoginForm({ redirectTo, initialError }: { redirectTo: string; initialError?: string }) {
+export function LocalLoginForm({
+  redirectTo,
+  initialError,
+}: {
+  redirectTo: string;
+  initialError?: string;
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const touched = useTouched();
+  const emailErr = email ? emailError(email) : null;
   const [mfaPreAuthToken, setMfaPreAuthToken] = useState<string | null>(null);
   const [mfaMethod, setMfaMethod] = useState<"authenticator" | "email">("authenticator");
   const [otp, setOtp] = useState("");
@@ -80,12 +90,14 @@ export function LocalLoginForm({ redirectTo, initialError }: { redirectTo: strin
 
   const onSendEmailOtp = async () => {
     if (!mfaPreAuthToken) return;
-    const result = await mfaEmailSendMutation.mutateAsync({ preAuthToken: mfaPreAuthToken }).catch(() => null);
+    const result = await mfaEmailSendMutation
+      .mutateAsync({ preAuthToken: mfaPreAuthToken })
+      .catch(() => null);
     if (result) setResendIn(result.retryAfterSec);
   };
 
   const googleUrl = `${API_BASE}${apiUri.auth.google}?redirect=${encodeURIComponent(target)}&fe=${encodeURIComponent(
-    typeof window !== "undefined" ? window.location.origin : ""
+    typeof window !== "undefined" ? window.location.origin : "",
   )}`;
 
   const activeError =
@@ -149,7 +161,11 @@ export function LocalLoginForm({ redirectTo, initialError }: { redirectTo: strin
                   disabled={mfaEmailSendMutation.isPending || resendIn > 0}
                   onClick={() => void onSendEmailOtp()}
                 >
-                  {mfaEmailSendMutation.isPending ? "Sending…" : resendIn > 0 ? `Resend in ${resendIn}s` : "Send OTP"}
+                  {mfaEmailSendMutation.isPending
+                    ? "Sending…"
+                    : resendIn > 0
+                      ? `Resend in ${resendIn}s`
+                      : "Send OTP"}
                 </Button>
               )}
 
@@ -163,7 +179,9 @@ export function LocalLoginForm({ redirectTo, initialError }: { redirectTo: strin
                 </InputOTP>
               </div>
 
-              {activeError && <p className="text-xs text-destructive">{friendlyErrorMessage(activeError)}</p>}
+              {activeError && (
+                <p className="text-xs text-destructive">{friendlyErrorMessage(activeError)}</p>
+              )}
 
               <Button
                 type="button"
@@ -212,7 +230,12 @@ export function LocalLoginForm({ redirectTo, initialError }: { redirectTo: strin
                     autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    onBlur={touched.onBlur("email")}
+                    aria-invalid={touched.visible("email") && Boolean(emailErr)}
                   />
+                  {touched.visible("email") && emailErr && (
+                    <p className="text-xs text-destructive">{emailErr}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -238,7 +261,9 @@ export function LocalLoginForm({ redirectTo, initialError }: { redirectTo: strin
                   </div>
                 </div>
 
-                {activeError && <p className="text-xs text-destructive">{friendlyErrorMessage(activeError)}</p>}
+                {activeError && (
+                  <p className="text-xs text-destructive">{friendlyErrorMessage(activeError)}</p>
+                )}
 
                 <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
                   {loginMutation.isPending ? "Signing in…" : "Sign in"}

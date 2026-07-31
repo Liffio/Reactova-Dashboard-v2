@@ -22,13 +22,10 @@ import {
   persistActiveWorkspaceId,
   readStoredActiveWorkspaceId,
 } from "@/lib/workspace-preference";
+import { setActiveWorkspaceId } from "@/lib/api/active-workspace";
 import { clearLyraPersisted } from "@/lib/lyra-persist";
 import { safeIdentify } from "@/lib/analytics";
-import {
-  authStore,
-  useAuthState,
-  type AuthorizationModule,
-} from "@/lib/auth/auth-store";
+import { authStore, useAuthState, type AuthorizationModule } from "@/lib/auth/auth-store";
 
 export type PlanName = "Free" | "Starter" | "Pro" | "Business" | "Agency";
 export type WorkspaceStatus = "active" | "paused" | "failed" | "disconnected";
@@ -37,6 +34,7 @@ export interface Workspace {
   id: string;
   handle: string;
   igHandle: string | null;
+  humanId: string | null;
   name: string;
   plan: PlanName;
   status: WorkspaceStatus;
@@ -65,6 +63,7 @@ const defaultWorkspace: Workspace = {
   id: "default",
   handle: "@workspace",
   igHandle: null,
+  humanId: null,
   name: "Workspace",
   plan: "Free",
   status: "active",
@@ -93,7 +92,7 @@ const mapPlan = (planKey?: string): PlanName => {
 
 const pickWorkspaceId = (
   workspaces: Workspace[],
-  preferredId: string | null | undefined
+  preferredId: string | null | undefined,
 ): string => {
   if (preferredId && workspaces.some((workspace) => workspace.id === preferredId)) {
     return preferredId;
@@ -128,6 +127,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: workspace.id,
         handle: label,
         igHandle,
+        humanId: workspace.humanId ?? null,
         name: label,
         plan: mapPlan(workspace.plan),
         status:
@@ -153,7 +153,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const storedWorkspaceId = readStoredActiveWorkspaceId(authUser?.id);
   const selectedWorkspaceId = pickWorkspaceId(
     workspaces,
-    currentId || storedWorkspaceId || authWorkspaceId || undefined
+    currentId || storedWorkspaceId || authWorkspaceId || undefined,
   );
 
   useEffect(() => {
@@ -182,7 +182,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // we requested (e.g. user lost access and the server fell back).
         if (authMeQuery.data.workspaceId !== selectedWorkspaceId) {
           setCurrentIdState((prev) =>
-            prev === authMeQuery.data.workspaceId ? prev : authMeQuery.data.workspaceId
+            prev === authMeQuery.data.workspaceId ? prev : authMeQuery.data.workspaceId,
           );
         }
       }
@@ -210,8 +210,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ??
       workspaces[0] ??
       defaultWorkspace,
-    [selectedWorkspaceId, workspaces]
+    [selectedWorkspaceId, workspaces],
   );
+
+  /**
+   * Publish the active workspace to the request layer.
+   *
+   * `apiRequest` reads it to attach `x-workspace-id` to every call, so a new endpoint is scoped
+   * correctly without each call site remembering to thread an id through. Written during render
+   * rather than in an effect on purpose: a request fired by a child's effect would otherwise run
+   * before this one and go out unscoped on the very first render after a workspace switch.
+   */
+  setActiveWorkspaceId(current.id);
 
   const persistActiveWorkspace = useCallback(
     async (workspaceId: string) => {
@@ -234,7 +244,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [accessToken, authUser?.id]
+    [accessToken, authUser?.id],
   );
 
   const setCurrentId = useCallback(
@@ -247,7 +257,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       void persistActiveWorkspace(id);
       void queryClient.invalidateQueries({ queryKey: ["auth-me"] });
     },
-    [authUser?.id, persistActiveWorkspace, queryClient]
+    [authUser?.id, persistActiveWorkspace, queryClient],
   );
 
   // Invalidate all auth-me entries rather than refetching the captured query —
@@ -277,7 +287,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       accessToken,
       modules,
       refreshAuth,
-    ]
+    ],
   );
 
   return <Ctx.Provider value={ctxValue}>{children}</Ctx.Provider>;

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileText, ScrollText, ShieldCheck, Sparkles } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +26,11 @@ type AffiliateConsentDialogProps = {
   onAccepted: () => void;
 };
 
-export function AffiliateConsentDialog({ open, onOpenChange, onAccepted }: AffiliateConsentDialogProps) {
+export function AffiliateConsentDialog({
+  open,
+  onOpenChange,
+  onAccepted,
+}: AffiliateConsentDialogProps) {
   const queryClient = useQueryClient();
   const acceptConsent = useMutation({
     mutationFn: () =>
@@ -48,7 +52,11 @@ export function AffiliateConsentDialog({ open, onOpenChange, onAccepted }: Affil
   const [acceptedPayout, setAcceptedPayout] = useState(false);
 
   const canSubmit =
-    scrolledToEnd && acceptedTerms && acceptedCommission && acceptedPayout && !acceptConsent.isPending;
+    scrolledToEnd &&
+    acceptedTerms &&
+    acceptedCommission &&
+    acceptedPayout &&
+    !acceptConsent.isPending;
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -129,8 +137,8 @@ export function AffiliateConsentDialog({ open, onOpenChange, onAccepted }: Affil
                   Affiliate program agreement
                 </DialogTitle>
                 <DialogDescription className="text-left text-sm mt-1.5 text-white/85 leading-relaxed">
-                  Scroll through the terms below, then confirm each item to unlock your referral dashboard.
-                  Recorded once per account (v{AFFILIATE_CONSENT_VERSION}).
+                  Scroll through the terms below, then confirm each item to unlock your referral
+                  dashboard. Recorded once per account (v{AFFILIATE_CONSENT_VERSION}).
                 </DialogDescription>
               </div>
             </div>
@@ -183,7 +191,7 @@ export function AffiliateConsentDialog({ open, onOpenChange, onAccepted }: Affil
                 className={cn(
                   "flex items-start gap-3 rounded-xl border px-3.5 py-3 transition-colors",
                   item.checked ? "border-primary/35 bg-primary/5" : "bg-card",
-                  !scrolledToEnd && "opacity-60"
+                  !scrolledToEnd && "opacity-60",
                 )}
               >
                 <Checkbox
@@ -193,7 +201,10 @@ export function AffiliateConsentDialog({ open, onOpenChange, onAccepted }: Affil
                   onCheckedChange={(v) => item.onChange(v === true)}
                   className="mt-0.5"
                 />
-                <Label htmlFor={item.id} className="text-sm leading-snug cursor-pointer font-normal">
+                <Label
+                  htmlFor={item.id}
+                  className="text-sm leading-snug cursor-pointer font-normal"
+                >
                   {item.label}
                 </Label>
               </div>

@@ -42,7 +42,7 @@ export function updateRolePermissions(roleKey: string, permissionKeys: string[])
 export function updateUserWorkspaceAccess(
   userId: string,
   workspaceId: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
 ) {
   return apiRequest<void>(apiUri.admin.rbac.userWorkspaceAccess(userId, workspaceId), {
     method: "PUT",

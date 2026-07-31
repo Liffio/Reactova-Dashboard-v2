@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code2, Eye, Mail, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PlatformAdminRoute } from "@/components/auth/guards";
@@ -151,7 +151,10 @@ function EmailTemplatesPage() {
                           ))}
                         {filtered.length === 0 && (
                           <tr>
-                            <td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                            <td
+                              colSpan={5}
+                              className="px-6 py-8 text-center text-sm text-muted-foreground"
+                            >
                               No {cat} templates.
                             </td>
                           </tr>
@@ -168,9 +171,21 @@ function EmailTemplatesPage() {
 
       {previewRef && <PreviewDialog ref_={previewRef} onClose={() => setPreviewRef(null)} />}
       {editorRef && editorTemplate && (
-        <TemplateEditorDialog template={editorTemplate} onClose={() => setEditorRef(null)} onSuccess={invalidate} />
+        <TemplateEditorDialog
+          template={editorTemplate}
+          onClose={() => setEditorRef(null)}
+          onSuccess={invalidate}
+        />
       )}
-      {createOpen && <CreateTemplateDialog onClose={() => setCreateOpen(false)} onSuccess={() => { setCreateOpen(false); invalidate(); }} />}
+      {createOpen && (
+        <CreateTemplateDialog
+          onClose={() => setCreateOpen(false)}
+          onSuccess={() => {
+            setCreateOpen(false);
+            invalidate();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -216,10 +231,7 @@ function TemplateRow({
         </div>
       </td>
       <td className="px-4 py-3.5">
-        <Badge
-          variant="outline"
-          className={categoryStyles[template.category] ?? ""}
-        >
+        <Badge variant="outline" className={categoryStyles[template.category] ?? ""}>
           {template.category}
         </Badge>
       </td>
@@ -251,16 +263,34 @@ function TemplateRow({
       </td>
       <td className="px-6 py-3.5">
         <div className="flex items-center gap-2">
-          <button className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted" title="Preview" onClick={onPreview}>
+          <button
+            className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+            title="Preview"
+            onClick={onPreview}
+          >
             <Eye className="h-4 w-4" />
           </button>
-          <button className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted" title="Edit HTML" onClick={onEdit}>
+          <button
+            className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+            title="Edit HTML"
+            onClick={onEdit}
+          >
             <Code2 className="h-4 w-4" />
           </button>
-          <button className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted" title="Sync to Brevo" disabled={syncMutation.isPending} onClick={() => syncMutation.mutate()}>
+          <button
+            className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted"
+            title="Sync to Brevo"
+            disabled={syncMutation.isPending}
+            onClick={() => syncMutation.mutate()}
+          >
             <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
           </button>
-          <button className="rounded-md p-1.5 text-muted-foreground hover:text-primary hover:bg-muted" title="Publish" disabled={publishMutation.isPending} onClick={() => publishMutation.mutate()}>
+          <button
+            className="rounded-md p-1.5 text-muted-foreground hover:text-primary hover:bg-muted"
+            title="Publish"
+            disabled={publishMutation.isPending}
+            onClick={() => publishMutation.mutate()}
+          >
             <Send className="h-4 w-4" />
           </button>
         </div>
@@ -284,31 +314,58 @@ function PreviewDialog({ ref_, onClose }: { ref_: string; onClose: () => void })
             <span>Preview: {ref_}</span>
             <div className="flex gap-1">
               {(["desktop", "mobile"] as const).map((v) => (
-                <button key={v} onClick={() => setView(v)} className={`rounded px-2 py-0.5 text-xs capitalize ${view === v ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}>{v}</button>
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`rounded px-2 py-0.5 text-xs capitalize ${view === v ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+                >
+                  {v}
+                </button>
               ))}
             </div>
           </DialogTitle>
         </DialogHeader>
         <div className="flex justify-center">
-          <div className={`rounded-lg border bg-white overflow-hidden transition-all ${view === "mobile" ? "w-[375px] h-[600px]" : "w-full h-[500px]"}`}>
+          <div
+            className={`rounded-lg border bg-white overflow-hidden transition-all ${view === "mobile" ? "w-[375px] h-[600px]" : "w-full h-[500px]"}`}
+          >
             {previewQuery.isLoading ? (
-              <div className="flex h-full items-center justify-center"><Skeleton className="h-full w-full" /></div>
+              <div className="flex h-full items-center justify-center">
+                <Skeleton className="h-full w-full" />
+              </div>
             ) : previewQuery.data?.html ? (
-              <iframe srcDoc={previewQuery.data.html} className="h-full w-full border-0" title="Email preview" sandbox="allow-same-origin" />
+              <iframe
+                srcDoc={previewQuery.data.html}
+                className="h-full w-full border-0"
+                title="Email preview"
+                sandbox="allow-same-origin"
+              />
             ) : (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No preview available.</div>
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                No preview available.
+              </div>
             )}
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-function TemplateEditorDialog({ template, onClose, onSuccess }: { template: EmailTemplateEntry; onClose: () => void; onSuccess: () => void }) {
+function TemplateEditorDialog({
+  template,
+  onClose,
+  onSuccess,
+}: {
+  template: EmailTemplateEntry;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
   const [editorTab, setEditorTab] = useState<"code" | "brevo">("code");
   const [html, setHtml] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -335,19 +392,30 @@ function TemplateEditorDialog({ template, onClose, onSuccess }: { template: Emai
       await saveEmailTemplateCodeHtml(template.ref, html);
       await syncEmailTemplateBrevo(template.ref);
     },
-    onSuccess: () => { toast.success("Template saved and synced to Brevo"); onSuccess(); },
+    onSuccess: () => {
+      toast.success("Template saved and synced to Brevo");
+      onSuccess();
+    },
     onError: (e) => toast.error((e as Error).message),
   });
 
   const deleteOverrideMutation = useMutation({
     mutationFn: () => deleteEmailTemplateCodeOverride(template.ref),
-    onSuccess: () => { toast.success("Override deleted — using default template"); setDeleteOpen(false); onSuccess(); onClose(); },
+    onSuccess: () => {
+      toast.success("Override deleted — using default template");
+      setDeleteOpen(false);
+      onSuccess();
+      onClose();
+    },
     onError: (e) => toast.error((e as Error).message),
   });
 
   const sourceMutation = useMutation({
     mutationFn: (source: "code" | "brevo") => setEmailTemplateSource(template.ref, source),
-    onSuccess: () => { toast.success("Active source updated"); onSuccess(); },
+    onSuccess: () => {
+      toast.success("Active source updated");
+      onSuccess();
+    },
     onError: (e) => toast.error((e as Error).message),
   });
 
@@ -362,7 +430,14 @@ function TemplateEditorDialog({ template, onClose, onSuccess }: { template: Emai
                 <span className="text-muted-foreground">Active source:</span>
                 <div className="flex gap-1">
                   {(["code", "brevo"] as const).map((src) => (
-                    <button key={src} onClick={() => sourceMutation.mutate(src)} disabled={sourceMutation.isPending} className={`rounded px-2 py-0.5 uppercase transition-colors ${template.activeSource === src ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}>{src}</button>
+                    <button
+                      key={src}
+                      onClick={() => sourceMutation.mutate(src)}
+                      disabled={sourceMutation.isPending}
+                      className={`rounded px-2 py-0.5 uppercase transition-colors ${template.activeSource === src ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+                    >
+                      {src}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -405,22 +480,39 @@ function TemplateEditorDialog({ template, onClose, onSuccess }: { template: Emai
                 <Skeleton className="h-80 rounded-lg" />
               ) : brevoHtmlQuery.data?.html ? (
                 <div className="h-80 overflow-hidden rounded-lg border bg-white">
-                  <iframe srcDoc={brevoHtmlQuery.data.html} className="h-full w-full border-0" title="Brevo template" sandbox="allow-same-origin" />
+                  <iframe
+                    srcDoc={brevoHtmlQuery.data.html}
+                    className="h-full w-full border-0"
+                    title="Brevo template"
+                    sandbox="allow-same-origin"
+                  />
                 </div>
               ) : (
-                <div className="h-80 flex items-center justify-center rounded-lg border text-sm text-muted-foreground">No Brevo template available.</div>
+                <div className="h-80 flex items-center justify-center rounded-lg border text-sm text-muted-foreground">
+                  No Brevo template available.
+                </div>
               )}
             </TabsContent>
           </Tabs>
 
           <DialogFooter className="gap-2">
             {template.hasCodeOverride && (
-              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive mr-auto gap-1" onClick={() => setDeleteOpen(true)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive mr-auto gap-1"
+                onClick={() => setDeleteOpen(true)}
+              >
                 <Trash2 className="h-3.5 w-3.5" /> Delete override
               </Button>
             )}
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button disabled={saveMutation.isPending || editorTab !== "code"} onClick={() => saveMutation.mutate()}>
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              disabled={saveMutation.isPending || editorTab !== "code"}
+              onClick={() => saveMutation.mutate()}
+            >
               {saveMutation.isPending ? "Saving…" : "Save & sync to Brevo"}
             </Button>
           </DialogFooter>
@@ -431,11 +523,17 @@ function TemplateEditorDialog({ template, onClose, onSuccess }: { template: Emai
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete code override?</AlertDialogTitle>
-            <AlertDialogDescription>The template will revert to its default compiled HTML.</AlertDialogDescription>
+            <AlertDialogDescription>
+              The template will revert to its default compiled HTML.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={deleteOverrideMutation.isPending} onClick={() => deleteOverrideMutation.mutate()}>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteOverrideMutation.isPending}
+              onClick={() => deleteOverrideMutation.mutate()}
+            >
               {deleteOverrideMutation.isPending ? "Deleting…" : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -445,7 +543,13 @@ function TemplateEditorDialog({ template, onClose, onSuccess }: { template: Emai
   );
 }
 
-function CreateTemplateDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+function CreateTemplateDialog({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
   const [label, setLabel] = useState("");
   const [subject, setSubject] = useState("");
   const [slug, setSlug] = useState("");
@@ -459,7 +563,10 @@ function CreateTemplateDialog({ onClose, onSuccess }: { onClose: () => void; onS
         label,
         subject,
         slug: slug || undefined,
-        variables: variables.split(",").map((v) => v.trim()).filter(Boolean),
+        variables: variables
+          .split(",")
+          .map((v) => v.trim())
+          .filter(Boolean),
       });
       if (html.trim()) {
         await saveEmailTemplateCodeHtml(created.ref, html);
@@ -481,27 +588,56 @@ function CreateTemplateDialog({ onClose, onSuccess }: { onClose: () => void; onS
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-3xl">
-        <DialogHeader><DialogTitle>New email template</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>New email template</DialogTitle>
+        </DialogHeader>
         <div className="grid gap-6 sm:grid-cols-2">
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Label</Label>
-              <Input placeholder="My Custom Template" value={label} onChange={(e) => setLabel(e.target.value.slice(0, LIMITS.genericName.max))} maxLength={LIMITS.genericName.max} />
+              <Input
+                placeholder="My Custom Template"
+                value={label}
+                onChange={(e) => setLabel(e.target.value.slice(0, LIMITS.genericName.max))}
+                maxLength={LIMITS.genericName.max}
+              />
               {labelErr && <p className="text-xs text-destructive">{labelErr}</p>}
             </div>
             <div className="space-y-2">
               <Label>Subject</Label>
-              <Input placeholder="Subject line" value={subject} onChange={(e) => setSubject(e.target.value.slice(0, LIMITS.emailSubject.max))} maxLength={LIMITS.emailSubject.max} />
+              <Input
+                placeholder="Subject line"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value.slice(0, LIMITS.emailSubject.max))}
+                maxLength={LIMITS.emailSubject.max}
+              />
               {subjectErr && <p className="text-xs text-destructive">{subjectErr}</p>}
             </div>
             <div className="space-y-2">
               <Label>Slug (optional)</Label>
-              <Input placeholder="my-template" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, LIMITS.shortLinkSlug.max))} maxLength={LIMITS.shortLinkSlug.max} />
+              <Input
+                placeholder="my-template"
+                value={slug}
+                onChange={(e) =>
+                  setSlug(
+                    e.target.value
+                      .toLowerCase()
+                      .replace(/[^a-z0-9-]/g, "-")
+                      .slice(0, LIMITS.shortLinkSlug.max),
+                  )
+                }
+                maxLength={LIMITS.shortLinkSlug.max}
+              />
               {slugErr && <p className="text-xs text-destructive">{slugErr}</p>}
             </div>
             <div className="space-y-2">
               <Label>Variables (comma-separated)</Label>
-              <Input placeholder="name, email, link" value={variables} onChange={(e) => setVariables(e.target.value.slice(0, LIMITS.genericNote.max))} maxLength={LIMITS.genericNote.max} />
+              <Input
+                placeholder="name, email, link"
+                value={variables}
+                onChange={(e) => setVariables(e.target.value.slice(0, LIMITS.genericNote.max))}
+                maxLength={LIMITS.genericNote.max}
+              />
             </div>
             <div className="space-y-2">
               <Label>HTML (optional — leave blank to start from the default template)</Label>
@@ -534,8 +670,20 @@ function CreateTemplateDialog({ onClose, onSuccess }: { onClose: () => void; onS
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button disabled={createMutation.isPending || !label.trim() || !subject.trim() || Boolean(labelErr) || Boolean(subjectErr) || Boolean(slugErr)} onClick={() => createMutation.mutate()}>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={
+              createMutation.isPending ||
+              !label.trim() ||
+              !subject.trim() ||
+              Boolean(labelErr) ||
+              Boolean(subjectErr) ||
+              Boolean(slugErr)
+            }
+            onClick={() => createMutation.mutate()}
+          >
             {createMutation.isPending ? "Creating…" : "Create template"}
           </Button>
         </DialogFooter>

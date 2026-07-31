@@ -2,9 +2,13 @@ import { useEffect } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Instagram } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
-import { META_OAUTH_MESSAGE_TYPE, META_OAUTH_BC_CHANNEL, type MetaOAuthResult } from "@/lib/meta-oauth-popup";
+import {
+  META_OAUTH_MESSAGE_TYPE,
+  META_OAUTH_BC_CHANNEL,
+  type MetaOAuthResult,
+} from "@/lib/meta-oauth-popup";
 import { isWorkspaceInstagramConnected } from "@/lib/api/integrations-api";
 import { useApp } from "@/state/app-context";
 
@@ -75,14 +79,16 @@ function MetaOAuthComplete() {
         log("window.opener is alive — sending postMessage and closing popup");
         window.opener.postMessage(
           { type: META_OAUTH_MESSAGE_TYPE, payload: enriched },
-          window.location.origin
+          window.location.origin,
         );
         window.close();
         return;
       }
 
       // --- PATH 2: no opener (Instagram COOP) — BroadcastChannel ---
-      log("window.opener is null/closed (expected: Instagram COOP severs it) — using BroadcastChannel");
+      log(
+        "window.opener is null/closed (expected: Instagram COOP severs it) — using BroadcastChannel",
+      );
       try {
         if (typeof BroadcastChannel !== "undefined") {
           const bc = new BroadcastChannel(META_OAUTH_BC_CHANNEL);
@@ -116,7 +122,10 @@ function MetaOAuthComplete() {
             return;
           }
           if (!persisted) {
-            warn("connection_not_persisted: isWorkspaceInstagramConnected returned false for", workspaceId);
+            warn(
+              "connection_not_persisted: isWorkspaceInstagramConnected returned false for",
+              workspaceId,
+            );
             const reason = "connection_not_persisted";
             void navigate({
               to: returnTo === "settings" ? "/settings" : "/onboarding",
@@ -131,7 +140,7 @@ function MetaOAuthComplete() {
         if (cancelled) return;
 
         toast.success(
-          igHandle ? `Instagram connected as ${igHandle}` : "Instagram connected successfully"
+          igHandle ? `Instagram connected as ${igHandle}` : "Instagram connected successfully",
         );
         log("navigating to:", returnTo);
         if (returnTo === "settings") {

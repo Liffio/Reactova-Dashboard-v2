@@ -25,7 +25,7 @@ import {
   User,
   Youtube,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 import { ProtectedRoute } from "@/components/auth/guards";
 import { StatCard } from "@/components/dashboard/stat-card";

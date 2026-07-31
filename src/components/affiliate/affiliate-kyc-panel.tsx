@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Clock, ShieldCheck, XCircle } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +20,10 @@ const TIER_LABEL: Record<KycTier, string> = {
   L3: "Tier 3 — Full",
 };
 
-const TIER_DOCS: Record<KycTier, Array<{ key: "pan" | "aadhaar" | "bankAccount"; label: string }>> = {
+const TIER_DOCS: Record<
+  KycTier,
+  Array<{ key: "pan" | "aadhaar" | "bankAccount"; label: string }>
+> = {
   L1: [{ key: "pan", label: "PAN card" }],
   L2: [
     { key: "pan", label: "PAN card" },
@@ -100,9 +103,7 @@ export function AffiliateKycPanel() {
       </div>
 
       {!latest && (
-        <p className="text-sm text-muted-foreground">
-          You haven't submitted KYC documents yet.
-        </p>
+        <p className="text-sm text-muted-foreground">You haven't submitted KYC documents yet.</p>
       )}
 
       {latest?.status === "REJECTED" && latest.rejectionReason && (
@@ -112,9 +113,7 @@ export function AffiliateKycPanel() {
       )}
 
       {latest?.status === "APPROVED" ? (
-        <p className="text-sm text-success">
-          Your {TIER_LABEL[latest.tier]} KYC is verified.
-        </p>
+        <p className="text-sm text-success">Your {TIER_LABEL[latest.tier]} KYC is verified.</p>
       ) : isPending ? (
         <p className="text-sm text-muted-foreground">
           Your {TIER_LABEL[latest!.tier]} submission is under review. We'll notify you once it's

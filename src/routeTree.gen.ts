@@ -20,11 +20,11 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LeadsCapturedSlugRouteImport } from './routes/leads-captured.$slug'
 import { Route as AuthHandoffRouteImport } from './routes/auth.handoff'
-import { Route as AppTeamRouteImport } from './routes/_app/team'
 import { Route as AppShortLinksRouteImport } from './routes/_app/short-links'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppSchedulerRouteImport } from './routes/_app/scheduler'
 import { Route as AppRbacMasterRouteImport } from './routes/_app/rbac-master'
+import { Route as AppPlatformAdminsRouteImport } from './routes/_app/platform-admins'
 import { Route as AppLeadsCapturedRouteImport } from './routes/_app/leads-captured'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppCreatorsProgramRouteImport } from './routes/_app/creators-program'
@@ -35,9 +35,20 @@ import { Route as AppAnalyticsRouteImport } from './routes/_app/analytics'
 import { Route as AppAiTokensMasterRouteImport } from './routes/_app/ai-tokens-master'
 import { Route as AppAgencyRouteImport } from './routes/_app/agency'
 import { Route as AppAffiliateRouteImport } from './routes/_app/affiliate'
+import { Route as AppAccessManagementRouteImport } from './routes/_app/access-management'
+import { Route as AppTeamIndexRouteImport } from './routes/_app/team.index'
+import { Route as AppPackagesIndexRouteImport } from './routes/_app/packages.index'
+import { Route as AppModuleRegistryIndexRouteImport } from './routes/_app/module-registry.index'
 import { Route as AppAutomationsIndexRouteImport } from './routes/_app/automations.index'
 import { Route as OauthMetaCompleteRouteImport } from './routes/oauth.meta.complete'
 import { Route as AuthGoogleCompleteRouteImport } from './routes/auth.google.complete'
+import { Route as AppTeamInviteRouteImport } from './routes/_app/team.invite'
+import { Route as AppPackagesNewRouteImport } from './routes/_app/packages.new'
+import { Route as AppPackagesAssignRouteImport } from './routes/_app/packages.assign'
+import { Route as AppPackagesPackageIdRouteImport } from './routes/_app/packages.$packageId'
+import { Route as AppModuleRegistryNewRouteImport } from './routes/_app/module-registry.new'
+import { Route as AppModuleRegistryDocsRouteImport } from './routes/_app/module-registry.docs'
+import { Route as AppModuleRegistryParentIdRouteImport } from './routes/_app/module-registry.$parentId'
 import { Route as AppAutomationsNewRouteImport } from './routes/_app/automations.new'
 import { Route as AppAdminEmailTemplatesRouteImport } from './routes/_app/admin.email-templates'
 import { Route as AppAdminCreatorsRouteImport } from './routes/_app/admin.creators'
@@ -100,11 +111,6 @@ const AuthHandoffRoute = AuthHandoffRouteImport.update({
   path: '/auth/handoff',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppTeamRoute = AppTeamRouteImport.update({
-  id: '/team',
-  path: '/team',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppShortLinksRoute = AppShortLinksRouteImport.update({
   id: '/short-links',
   path: '/short-links',
@@ -123,6 +129,11 @@ const AppSchedulerRoute = AppSchedulerRouteImport.update({
 const AppRbacMasterRoute = AppRbacMasterRouteImport.update({
   id: '/rbac-master',
   path: '/rbac-master',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPlatformAdminsRoute = AppPlatformAdminsRouteImport.update({
+  id: '/platform-admins',
+  path: '/platform-admins',
   getParentRoute: () => AppRoute,
 } as any)
 const AppLeadsCapturedRoute = AppLeadsCapturedRouteImport.update({
@@ -175,6 +186,26 @@ const AppAffiliateRoute = AppAffiliateRouteImport.update({
   path: '/affiliate',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAccessManagementRoute = AppAccessManagementRouteImport.update({
+  id: '/access-management',
+  path: '/access-management',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTeamIndexRoute = AppTeamIndexRouteImport.update({
+  id: '/team/',
+  path: '/team/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPackagesIndexRoute = AppPackagesIndexRouteImport.update({
+  id: '/packages/',
+  path: '/packages/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppModuleRegistryIndexRoute = AppModuleRegistryIndexRouteImport.update({
+  id: '/module-registry/',
+  path: '/module-registry/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAutomationsIndexRoute = AppAutomationsIndexRouteImport.update({
   id: '/automations/',
   path: '/automations/',
@@ -190,6 +221,42 @@ const AuthGoogleCompleteRoute = AuthGoogleCompleteRouteImport.update({
   path: '/auth/google/complete',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppTeamInviteRoute = AppTeamInviteRouteImport.update({
+  id: '/team/invite',
+  path: '/team/invite',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPackagesNewRoute = AppPackagesNewRouteImport.update({
+  id: '/packages/new',
+  path: '/packages/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPackagesAssignRoute = AppPackagesAssignRouteImport.update({
+  id: '/packages/assign',
+  path: '/packages/assign',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPackagesPackageIdRoute = AppPackagesPackageIdRouteImport.update({
+  id: '/packages/$packageId',
+  path: '/packages/$packageId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppModuleRegistryNewRoute = AppModuleRegistryNewRouteImport.update({
+  id: '/module-registry/new',
+  path: '/module-registry/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppModuleRegistryDocsRoute = AppModuleRegistryDocsRouteImport.update({
+  id: '/module-registry/docs',
+  path: '/module-registry/docs',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppModuleRegistryParentIdRoute =
+  AppModuleRegistryParentIdRouteImport.update({
+    id: '/module-registry/$parentId',
+    path: '/module-registry/$parentId',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppAutomationsNewRoute = AppAutomationsNewRouteImport.update({
   id: '/automations/new',
   path: '/automations/new',
@@ -238,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/register': typeof RegisterRoute
+  '/access-management': typeof AppAccessManagementRoute
   '/affiliate': typeof AppAffiliateRoute
   '/agency': typeof AppAgencyRoute
   '/ai-tokens-master': typeof AppAiTokensMasterRoute
@@ -248,11 +316,11 @@ export interface FileRoutesByFullPath {
   '/creators-program': typeof AppCreatorsProgramRoute
   '/dashboard': typeof AppDashboardRoute
   '/leads-captured': typeof AppLeadsCapturedRoute
+  '/platform-admins': typeof AppPlatformAdminsRoute
   '/rbac-master': typeof AppRbacMasterRoute
   '/scheduler': typeof AppSchedulerRoute
   '/settings': typeof AppSettingsRoute
   '/short-links': typeof AppShortLinksRoute
-  '/team': typeof AppTeamRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
@@ -260,9 +328,19 @@ export interface FileRoutesByFullPath {
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/automations/new': typeof AppAutomationsNewRoute
+  '/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
+  '/module-registry/docs': typeof AppModuleRegistryDocsRoute
+  '/module-registry/new': typeof AppModuleRegistryNewRoute
+  '/packages/$packageId': typeof AppPackagesPackageIdRoute
+  '/packages/assign': typeof AppPackagesAssignRoute
+  '/packages/new': typeof AppPackagesNewRoute
+  '/team/invite': typeof AppTeamInviteRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
   '/automations/': typeof AppAutomationsIndexRoute
+  '/module-registry/': typeof AppModuleRegistryIndexRoute
+  '/packages/': typeof AppPackagesIndexRoute
+  '/team/': typeof AppTeamIndexRoute
   '/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
   '/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
 }
@@ -275,6 +353,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/register': typeof RegisterRoute
+  '/access-management': typeof AppAccessManagementRoute
   '/affiliate': typeof AppAffiliateRoute
   '/agency': typeof AppAgencyRoute
   '/ai-tokens-master': typeof AppAiTokensMasterRoute
@@ -285,11 +364,11 @@ export interface FileRoutesByTo {
   '/creators-program': typeof AppCreatorsProgramRoute
   '/dashboard': typeof AppDashboardRoute
   '/leads-captured': typeof AppLeadsCapturedRoute
+  '/platform-admins': typeof AppPlatformAdminsRoute
   '/rbac-master': typeof AppRbacMasterRoute
   '/scheduler': typeof AppSchedulerRoute
   '/settings': typeof AppSettingsRoute
   '/short-links': typeof AppShortLinksRoute
-  '/team': typeof AppTeamRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
@@ -297,9 +376,19 @@ export interface FileRoutesByTo {
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/automations/new': typeof AppAutomationsNewRoute
+  '/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
+  '/module-registry/docs': typeof AppModuleRegistryDocsRoute
+  '/module-registry/new': typeof AppModuleRegistryNewRoute
+  '/packages/$packageId': typeof AppPackagesPackageIdRoute
+  '/packages/assign': typeof AppPackagesAssignRoute
+  '/packages/new': typeof AppPackagesNewRoute
+  '/team/invite': typeof AppTeamInviteRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
   '/automations': typeof AppAutomationsIndexRoute
+  '/module-registry': typeof AppModuleRegistryIndexRoute
+  '/packages': typeof AppPackagesIndexRoute
+  '/team': typeof AppTeamIndexRoute
   '/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
   '/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
 }
@@ -314,6 +403,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/register': typeof RegisterRoute
+  '/_app/access-management': typeof AppAccessManagementRoute
   '/_app/affiliate': typeof AppAffiliateRoute
   '/_app/agency': typeof AppAgencyRoute
   '/_app/ai-tokens-master': typeof AppAiTokensMasterRoute
@@ -324,11 +414,11 @@ export interface FileRoutesById {
   '/_app/creators-program': typeof AppCreatorsProgramRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/leads-captured': typeof AppLeadsCapturedRoute
+  '/_app/platform-admins': typeof AppPlatformAdminsRoute
   '/_app/rbac-master': typeof AppRbacMasterRoute
   '/_app/scheduler': typeof AppSchedulerRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/short-links': typeof AppShortLinksRoute
-  '/_app/team': typeof AppTeamRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/_app/admin/affiliates': typeof AppAdminAffiliatesRoute
@@ -336,9 +426,19 @@ export interface FileRoutesById {
   '/_app/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/_app/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/_app/automations/new': typeof AppAutomationsNewRoute
+  '/_app/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
+  '/_app/module-registry/docs': typeof AppModuleRegistryDocsRoute
+  '/_app/module-registry/new': typeof AppModuleRegistryNewRoute
+  '/_app/packages/$packageId': typeof AppPackagesPackageIdRoute
+  '/_app/packages/assign': typeof AppPackagesAssignRoute
+  '/_app/packages/new': typeof AppPackagesNewRoute
+  '/_app/team/invite': typeof AppTeamInviteRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
   '/_app/automations/': typeof AppAutomationsIndexRoute
+  '/_app/module-registry/': typeof AppModuleRegistryIndexRoute
+  '/_app/packages/': typeof AppPackagesIndexRoute
+  '/_app/team/': typeof AppTeamIndexRoute
   '/_app/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
   '/_app/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
 }
@@ -353,6 +453,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/register'
+    | '/access-management'
     | '/affiliate'
     | '/agency'
     | '/ai-tokens-master'
@@ -363,11 +464,11 @@ export interface FileRouteTypes {
     | '/creators-program'
     | '/dashboard'
     | '/leads-captured'
+    | '/platform-admins'
     | '/rbac-master'
     | '/scheduler'
     | '/settings'
     | '/short-links'
-    | '/team'
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
@@ -375,9 +476,19 @@ export interface FileRouteTypes {
     | '/admin/creators'
     | '/admin/email-templates'
     | '/automations/new'
+    | '/module-registry/$parentId'
+    | '/module-registry/docs'
+    | '/module-registry/new'
+    | '/packages/$packageId'
+    | '/packages/assign'
+    | '/packages/new'
+    | '/team/invite'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
     | '/automations/'
+    | '/module-registry/'
+    | '/packages/'
+    | '/team/'
     | '/admin/creator-management/$profileId'
     | '/admin/creators/$profileId'
   fileRoutesByTo: FileRoutesByTo
@@ -390,6 +501,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/register'
+    | '/access-management'
     | '/affiliate'
     | '/agency'
     | '/ai-tokens-master'
@@ -400,11 +512,11 @@ export interface FileRouteTypes {
     | '/creators-program'
     | '/dashboard'
     | '/leads-captured'
+    | '/platform-admins'
     | '/rbac-master'
     | '/scheduler'
     | '/settings'
     | '/short-links'
-    | '/team'
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
@@ -412,9 +524,19 @@ export interface FileRouteTypes {
     | '/admin/creators'
     | '/admin/email-templates'
     | '/automations/new'
+    | '/module-registry/$parentId'
+    | '/module-registry/docs'
+    | '/module-registry/new'
+    | '/packages/$packageId'
+    | '/packages/assign'
+    | '/packages/new'
+    | '/team/invite'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
     | '/automations'
+    | '/module-registry'
+    | '/packages'
+    | '/team'
     | '/admin/creator-management/$profileId'
     | '/admin/creators/$profileId'
   id:
@@ -428,6 +550,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/register'
+    | '/_app/access-management'
     | '/_app/affiliate'
     | '/_app/agency'
     | '/_app/ai-tokens-master'
@@ -438,11 +561,11 @@ export interface FileRouteTypes {
     | '/_app/creators-program'
     | '/_app/dashboard'
     | '/_app/leads-captured'
+    | '/_app/platform-admins'
     | '/_app/rbac-master'
     | '/_app/scheduler'
     | '/_app/settings'
     | '/_app/short-links'
-    | '/_app/team'
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/_app/admin/affiliates'
@@ -450,9 +573,19 @@ export interface FileRouteTypes {
     | '/_app/admin/creators'
     | '/_app/admin/email-templates'
     | '/_app/automations/new'
+    | '/_app/module-registry/$parentId'
+    | '/_app/module-registry/docs'
+    | '/_app/module-registry/new'
+    | '/_app/packages/$packageId'
+    | '/_app/packages/assign'
+    | '/_app/packages/new'
+    | '/_app/team/invite'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
     | '/_app/automations/'
+    | '/_app/module-registry/'
+    | '/_app/packages/'
+    | '/_app/team/'
     | '/_app/admin/creator-management/$profileId'
     | '/_app/admin/creators/$profileId'
   fileRoutesById: FileRoutesById
@@ -552,13 +685,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthHandoffRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app/team': {
-      id: '/_app/team'
-      path: '/team'
-      fullPath: '/team'
-      preLoaderRoute: typeof AppTeamRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/short-links': {
       id: '/_app/short-links'
       path: '/short-links'
@@ -585,6 +711,13 @@ declare module '@tanstack/react-router' {
       path: '/rbac-master'
       fullPath: '/rbac-master'
       preLoaderRoute: typeof AppRbacMasterRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/platform-admins': {
+      id: '/_app/platform-admins'
+      path: '/platform-admins'
+      fullPath: '/platform-admins'
+      preLoaderRoute: typeof AppPlatformAdminsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/leads-captured': {
@@ -657,6 +790,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAffiliateRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/access-management': {
+      id: '/_app/access-management'
+      path: '/access-management'
+      fullPath: '/access-management'
+      preLoaderRoute: typeof AppAccessManagementRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/team/': {
+      id: '/_app/team/'
+      path: '/team'
+      fullPath: '/team/'
+      preLoaderRoute: typeof AppTeamIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/packages/': {
+      id: '/_app/packages/'
+      path: '/packages'
+      fullPath: '/packages/'
+      preLoaderRoute: typeof AppPackagesIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/module-registry/': {
+      id: '/_app/module-registry/'
+      path: '/module-registry'
+      fullPath: '/module-registry/'
+      preLoaderRoute: typeof AppModuleRegistryIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/automations/': {
       id: '/_app/automations/'
       path: '/automations'
@@ -677,6 +838,55 @@ declare module '@tanstack/react-router' {
       fullPath: '/auth/google/complete'
       preLoaderRoute: typeof AuthGoogleCompleteRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/team/invite': {
+      id: '/_app/team/invite'
+      path: '/team/invite'
+      fullPath: '/team/invite'
+      preLoaderRoute: typeof AppTeamInviteRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/packages/new': {
+      id: '/_app/packages/new'
+      path: '/packages/new'
+      fullPath: '/packages/new'
+      preLoaderRoute: typeof AppPackagesNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/packages/assign': {
+      id: '/_app/packages/assign'
+      path: '/packages/assign'
+      fullPath: '/packages/assign'
+      preLoaderRoute: typeof AppPackagesAssignRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/packages/$packageId': {
+      id: '/_app/packages/$packageId'
+      path: '/packages/$packageId'
+      fullPath: '/packages/$packageId'
+      preLoaderRoute: typeof AppPackagesPackageIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/module-registry/new': {
+      id: '/_app/module-registry/new'
+      path: '/module-registry/new'
+      fullPath: '/module-registry/new'
+      preLoaderRoute: typeof AppModuleRegistryNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/module-registry/docs': {
+      id: '/_app/module-registry/docs'
+      path: '/module-registry/docs'
+      fullPath: '/module-registry/docs'
+      preLoaderRoute: typeof AppModuleRegistryDocsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/module-registry/$parentId': {
+      id: '/_app/module-registry/$parentId'
+      path: '/module-registry/$parentId'
+      fullPath: '/module-registry/$parentId'
+      preLoaderRoute: typeof AppModuleRegistryParentIdRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/automations/new': {
       id: '/_app/automations/new'
@@ -757,6 +967,7 @@ const AppAdminCreatorsRouteWithChildren =
   AppAdminCreatorsRoute._addFileChildren(AppAdminCreatorsRouteChildren)
 
 interface AppRouteChildren {
+  AppAccessManagementRoute: typeof AppAccessManagementRoute
   AppAffiliateRoute: typeof AppAffiliateRoute
   AppAgencyRoute: typeof AppAgencyRoute
   AppAiTokensMasterRoute: typeof AppAiTokensMasterRoute
@@ -767,20 +978,31 @@ interface AppRouteChildren {
   AppCreatorsProgramRoute: typeof AppCreatorsProgramRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppLeadsCapturedRoute: typeof AppLeadsCapturedRoute
+  AppPlatformAdminsRoute: typeof AppPlatformAdminsRoute
   AppRbacMasterRoute: typeof AppRbacMasterRoute
   AppSchedulerRoute: typeof AppSchedulerRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppShortLinksRoute: typeof AppShortLinksRoute
-  AppTeamRoute: typeof AppTeamRoute
   AppAdminAffiliatesRoute: typeof AppAdminAffiliatesRoute
   AppAdminCreatorManagementRoute: typeof AppAdminCreatorManagementRouteWithChildren
   AppAdminCreatorsRoute: typeof AppAdminCreatorsRouteWithChildren
   AppAdminEmailTemplatesRoute: typeof AppAdminEmailTemplatesRoute
   AppAutomationsNewRoute: typeof AppAutomationsNewRoute
+  AppModuleRegistryParentIdRoute: typeof AppModuleRegistryParentIdRoute
+  AppModuleRegistryDocsRoute: typeof AppModuleRegistryDocsRoute
+  AppModuleRegistryNewRoute: typeof AppModuleRegistryNewRoute
+  AppPackagesPackageIdRoute: typeof AppPackagesPackageIdRoute
+  AppPackagesAssignRoute: typeof AppPackagesAssignRoute
+  AppPackagesNewRoute: typeof AppPackagesNewRoute
+  AppTeamInviteRoute: typeof AppTeamInviteRoute
   AppAutomationsIndexRoute: typeof AppAutomationsIndexRoute
+  AppModuleRegistryIndexRoute: typeof AppModuleRegistryIndexRoute
+  AppPackagesIndexRoute: typeof AppPackagesIndexRoute
+  AppTeamIndexRoute: typeof AppTeamIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAccessManagementRoute: AppAccessManagementRoute,
   AppAffiliateRoute: AppAffiliateRoute,
   AppAgencyRoute: AppAgencyRoute,
   AppAiTokensMasterRoute: AppAiTokensMasterRoute,
@@ -791,17 +1013,27 @@ const AppRouteChildren: AppRouteChildren = {
   AppCreatorsProgramRoute: AppCreatorsProgramRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppLeadsCapturedRoute: AppLeadsCapturedRoute,
+  AppPlatformAdminsRoute: AppPlatformAdminsRoute,
   AppRbacMasterRoute: AppRbacMasterRoute,
   AppSchedulerRoute: AppSchedulerRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppShortLinksRoute: AppShortLinksRoute,
-  AppTeamRoute: AppTeamRoute,
   AppAdminAffiliatesRoute: AppAdminAffiliatesRoute,
   AppAdminCreatorManagementRoute: AppAdminCreatorManagementRouteWithChildren,
   AppAdminCreatorsRoute: AppAdminCreatorsRouteWithChildren,
   AppAdminEmailTemplatesRoute: AppAdminEmailTemplatesRoute,
   AppAutomationsNewRoute: AppAutomationsNewRoute,
+  AppModuleRegistryParentIdRoute: AppModuleRegistryParentIdRoute,
+  AppModuleRegistryDocsRoute: AppModuleRegistryDocsRoute,
+  AppModuleRegistryNewRoute: AppModuleRegistryNewRoute,
+  AppPackagesPackageIdRoute: AppPackagesPackageIdRoute,
+  AppPackagesAssignRoute: AppPackagesAssignRoute,
+  AppPackagesNewRoute: AppPackagesNewRoute,
+  AppTeamInviteRoute: AppTeamInviteRoute,
   AppAutomationsIndexRoute: AppAutomationsIndexRoute,
+  AppModuleRegistryIndexRoute: AppModuleRegistryIndexRoute,
+  AppPackagesIndexRoute: AppPackagesIndexRoute,
+  AppTeamIndexRoute: AppTeamIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

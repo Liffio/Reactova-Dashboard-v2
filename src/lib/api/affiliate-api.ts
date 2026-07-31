@@ -147,10 +147,12 @@ export function submitAffiliateKyc(input: {
   if (input.pan) formData.set("pan", input.pan);
   if (input.aadhaar) formData.set("aadhaar", input.aadhaar);
   if (input.bankAccount) formData.set("bankAccount", input.bankAccount);
-  return apiUploadRequest<{ id: string; tier: KycTier; status: KycSubmissionStatus; submittedAt: string }>(
-    apiUri.affiliate.kycSubmit,
-    formData
-  );
+  return apiUploadRequest<{
+    id: string;
+    tier: KycTier;
+    status: KycSubmissionStatus;
+    submittedAt: string;
+  }>(apiUri.affiliate.kycSubmit, formData);
 }
 
 export function validateAffiliateCode(code: string) {

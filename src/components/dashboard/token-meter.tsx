@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, Sparkles, X } from "lucide-react";
 import { motion } from "framer-motion";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -115,7 +115,9 @@ export function TokenMeter({ workspaceId }: { workspaceId: string }) {
       {atLimit && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          <span className="flex-1">Token limit reached — Lyra generation is blocked until reset.</span>
+          <span className="flex-1">
+            Token limit reached — Lyra generation is blocked until reset.
+          </span>
           <Link
             to="/billings"
             className="shrink-0 rounded-full border border-destructive/30 px-2 py-0.5 font-medium transition-colors hover:bg-destructive/20"

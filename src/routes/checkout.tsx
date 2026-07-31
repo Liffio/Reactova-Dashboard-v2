@@ -2,17 +2,13 @@ import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowRight, Check, Zap } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 import { Logo } from "@/components/logo";
 import { VerifiedRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  createBillingCheckout,
-  getBillingConfig,
-  type CheckoutInput,
-} from "@/lib/api/billing-api";
+import { createBillingCheckout, getBillingConfig, type CheckoutInput } from "@/lib/api/billing-api";
 import { useAuthState } from "@/lib/auth/auth-store";
 
 type Interval = "monthly" | "quarterly" | "yearly";
@@ -124,7 +120,7 @@ function PostRegistrationCheckout() {
   ];
 
   const availableIntervals = intervals.filter(
-    (i) => planConfig?.checkout?.stripe?.[i.value] ?? false
+    (i) => planConfig?.checkout?.stripe?.[i.value] ?? false,
   );
 
   return (
@@ -162,7 +158,7 @@ function PostRegistrationCheckout() {
                       "flex-1 rounded-md py-1.5 text-xs font-medium transition-colors",
                       interval === i.value
                         ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     {i.label}

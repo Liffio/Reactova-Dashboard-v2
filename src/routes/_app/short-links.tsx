@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, ExternalLink, Link2, Plus, Trash2 } from "lucide-react";
-import { toast } from "sonner";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Copy, ExternalLink, Link2, Plus, Search, Trash2 } from "lucide-react";
+import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProtectedRoute } from "@/components/auth/guards";
@@ -27,7 +27,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { createShortLink, deleteShortLink, listShortLinks, type ShortLinkItem } from "@/lib/api/shortlinks-api";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { createShortLink, deleteShortLink, type ShortLinkItem } from "@/lib/api/shortlinks-api";
+import { apiUri } from "@/lib/api/apiUri";
+import { useServerList } from "@/hooks/use-server-list";
 import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 import { LIMITS, lengthError, urlError } from "@/lib/validation";
@@ -52,9 +55,16 @@ function ShortLinksPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [deleting, setDeleting] = useState<ShortLinkItem | null>(null);
 
-  const linksQuery = useQuery({
-    queryKey: ["short-links", workspaceId],
-    queryFn: () => listShortLinks(workspaceId),
+  /**
+   * Search, sort and paging resolve in SQL. This screen had no search at all before — the whole
+   * workspace's links were rendered and you scrolled to find one.
+   */
+  const list = useServerList<ShortLinkItem>({
+    path: apiUri.shortlinks.search,
+    queryKey: "short-links",
+    workspaceId,
+    defaultSort: { key: "createdAt", dir: "desc" },
+    defaultLimit: 25,
     enabled: Boolean(workspaceId) && workspaceId !== "default",
   });
 
@@ -63,7 +73,7 @@ function ShortLinksPage() {
       createShortLink(workspaceId, body),
     onSuccess: () => {
       toast.success("Short link created");
-      void queryClient.invalidateQueries({ queryKey: ["short-links", workspaceId] });
+      void queryClient.invalidateQueries({ queryKey: ["short-links"] });
       setCreateOpen(false);
     },
     onError: (e) => toast.error((e as Error).message),
@@ -74,12 +84,12 @@ function ShortLinksPage() {
     onSuccess: () => {
       toast.success("Link deleted");
       setDeleting(null);
-      void queryClient.invalidateQueries({ queryKey: ["short-links", workspaceId] });
+      void queryClient.invalidateQueries({ queryKey: ["short-links"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
 
-  const links = linksQuery.data ?? [];
+  const links = list.items;
 
   return (
     <div>
@@ -100,13 +110,23 @@ function ShortLinksPage() {
       />
 
       <div className="space-y-5 p-4 sm:p-6 md:p-10">
-        {linksQuery.isError && (
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Search name, slug or destination…"
+            value={list.search}
+            onChange={(e) => list.setSearch(e.target.value)}
+          />
+        </div>
+
+        {list.error && (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-            {(linksQuery.error as Error).message}
+            {list.error.message}
           </div>
         )}
 
-        {linksQuery.isLoading ? (
+        {list.isLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="h-16 rounded-xl" />
@@ -115,14 +135,25 @@ function ShortLinksPage() {
         ) : links.length === 0 ? (
           <div className="rounded-2xl border bg-card p-10 text-center shadow-soft">
             <Link2 className="mx-auto h-8 w-8 text-muted-foreground" />
-            <h3 className="mt-3 font-display text-lg font-semibold">No short links yet</h3>
+            {/* An empty page no longer means an empty workspace, so the two say different things. */}
+            <h3 className="mt-3 font-display text-lg font-semibold">
+              {list.isNarrowed ? "No links match" : "No short links yet"}
+            </h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Create your first short link to start tracking clicks.
+              {list.isNarrowed
+                ? "Try a different search."
+                : "Create your first short link to start tracking clicks."}
             </p>
-            <Button size="sm" className="mt-4 gap-1.5" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              New link
-            </Button>
+            {list.isNarrowed ? (
+              <Button size="sm" variant="outline" className="mt-4" onClick={list.clear}>
+                Clear search
+              </Button>
+            ) : (
+              <Button size="sm" className="mt-4 gap-1.5" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" />
+                New link
+              </Button>
+            )}
           </div>
         ) : (
           <div className="rounded-2xl border bg-card shadow-soft">
@@ -189,6 +220,17 @@ function ShortLinksPage() {
             </div>
           </div>
         )}
+
+        {list.total > 0 && (
+          <PaginationBar
+            page={list.page}
+            pages={list.pages}
+            total={list.total}
+            limit={list.limit}
+            onPageChange={list.setPage}
+            label="short links"
+          />
+        )}
       </div>
 
       <CreateLinkDialog
@@ -238,13 +280,19 @@ function CreateLinkDialog({
   const [slug, setSlug] = useState("");
 
   const nameErr = name ? lengthError(name, "Name", LIMITS.genericName) : null;
-  const destErr = destination ? urlError(destination, { required: true, max: LIMITS.shortLinkDestination.max }) : null;
+  const destErr = destination
+    ? urlError(destination, { required: true, max: LIMITS.shortLinkDestination.max })
+    : null;
   const slugErr = slug ? lengthError(slug, "Slug", LIMITS.shortLinkSlug) : null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !destination.trim() || nameErr || destErr || slugErr) return;
-    onSubmit({ name: name.trim(), destination: destination.trim(), slug: slug.trim() || undefined });
+    onSubmit({
+      name: name.trim(),
+      destination: destination.trim(),
+      slug: slug.trim() || undefined,
+    });
     setName("");
     setDestination("");
     setSlug("");
@@ -277,7 +325,9 @@ function CreateLinkDialog({
               type="url"
               placeholder="https://example.com/product"
               value={destination}
-              onChange={(e) => setDestination(e.target.value.slice(0, LIMITS.shortLinkDestination.max))}
+              onChange={(e) =>
+                setDestination(e.target.value.slice(0, LIMITS.shortLinkDestination.max))
+              }
               maxLength={LIMITS.shortLinkDestination.max}
               aria-invalid={Boolean(destErr)}
               required
@@ -286,8 +336,7 @@ function CreateLinkDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="link-slug">
-              Custom slug{" "}
-              <span className="text-xs text-muted-foreground">(optional)</span>
+              Custom slug <span className="text-xs text-muted-foreground">(optional)</span>
             </Label>
             <Input
               id="link-slug"
@@ -303,7 +352,10 @@ function CreateLinkDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending || Boolean(nameErr) || Boolean(destErr) || Boolean(slugErr)}>
+            <Button
+              type="submit"
+              disabled={isPending || Boolean(nameErr) || Boolean(destErr) || Boolean(slugErr)}
+            >
               {isPending ? "Creating…" : "Create link"}
             </Button>
           </DialogFooter>

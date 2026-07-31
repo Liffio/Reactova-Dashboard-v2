@@ -6,7 +6,7 @@
  * (http -> session-expiry -> auth-api -> http); http.ts only ever reaches
  * this indirectly via the `liffio:session-expired` window event.
  */
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { authStore } from "@/lib/auth/auth-store";
 import { loginPathWithRedirect } from "@/lib/auth/auth-navigation";
 import { ApiError } from "@/lib/api/http";
@@ -60,12 +60,12 @@ export async function forceSessionLogout(reason: SessionEndReason = "expired"): 
     {
       description: "Please log back in to continue — your unsaved work has been saved as a draft.",
       duration: 6000,
-    }
+    },
   );
 
   window.setTimeout(() => {
     window.location.replace(
-      loginPathWithRedirect(window.location.pathname + window.location.search)
+      loginPathWithRedirect(window.location.pathname + window.location.search),
     );
   }, 1200);
 }

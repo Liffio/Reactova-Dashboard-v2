@@ -47,7 +47,13 @@ export function AffiliateProfitCalculator() {
     );
   }
 
-  const { currency, currencyLabel, planMonthly, monthlyCommissionPerReferral, commissionRatePercent } = config;
+  const {
+    currency,
+    currencyLabel,
+    planMonthly,
+    monthlyCommissionPerReferral,
+    commissionRatePercent,
+  } = config;
 
   return (
     <section className="affiliate-earnings-calculator relative overflow-hidden rounded-2xl border border-primary/20 bg-card shadow-soft">
@@ -96,8 +102,8 @@ export function AffiliateProfitCalculator() {
         <p className="mt-4 text-xs sm:text-sm text-muted-foreground leading-relaxed max-w-xl">
           *Based on {commissionRatePercent}% commission on the {config.planName} plan (
           {formatRegionalAmount(planMonthly, currency)}/mo per referral →{" "}
-          {formatRegionalAmount(monthlyCommissionPerReferral, currency)}/mo to you). Pricing shown in{" "}
-          {config.region === "india" ? "Indian rupees" : "US dollars"}
+          {formatRegionalAmount(monthlyCommissionPerReferral, currency)}/mo to you). Pricing shown
+          in {config.region === "india" ? "Indian rupees" : "US dollars"}
           {config.regionSource === "ip"
             ? " based on your location"
             : config.regionSource === "profile"

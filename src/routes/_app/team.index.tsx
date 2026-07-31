@@ -1,25 +1,17 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MailPlus, MoreHorizontal, Trash2, UserMinus, UserPlus, Users } from "lucide-react";
-import { toast } from "sonner";
+import { MailPlus, MoreHorizontal, RefreshCw, Search, Trash2, UserMinus, Users } from "lucide-react";
+import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,20 +28,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { PaginationBar } from "@/components/ui/pagination-bar";
 import {
-  createTeamInvite,
-  getTeamOptions,
   listTeamInvites,
-  listTeamMembers,
   removeTeamMember,
+  resendTeamInvite,
   revokeTeamInvite,
   type TeamMember,
 } from "@/lib/api/team-api";
+import { apiUri } from "@/lib/api/apiUri";
+import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
 import { useAuthState } from "@/lib/auth/auth-store";
-import { LIMITS, emailError, duplicateAliasError } from "@/lib/validation";
 
-export const Route = createFileRoute("/_app/team")({
+export const Route = createFileRoute("/_app/team/")({
   head: () => ({ meta: [{ title: "Team — Liffio" }] }),
   component: TeamRoute,
 });
@@ -72,26 +64,27 @@ const inviteStatusStyles: Record<string, string> = {
 function TeamPage() {
   const { current } = useApp();
   const workspaceId = current.id;
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const currentUserId = useAuthState((s) => s.user?.id);
-  const [inviteOpen, setInviteOpen] = useState(false);
   const [removingMember, setRemovingMember] = useState<TeamMember | null>(null);
 
-  const membersQuery = useQuery({
-    queryKey: ["team-members", workspaceId],
-    queryFn: () => listTeamMembers(workspaceId),
+  /**
+   * Paged server-side. The old endpoint resolved every member's full permission set — roles,
+   * grants, overrides and ABAC — for the whole workspace on every load, to render this list.
+   */
+  const memberList = useServerList<TeamMember>({
+    path: apiUri.team.membersSearch,
+    queryKey: "team-members",
+    workspaceId,
+    defaultSort: { key: "createdAt", dir: "asc" },
+    defaultLimit: 25,
     enabled: Boolean(workspaceId) && workspaceId !== "default",
   });
 
   const invitesQuery = useQuery({
     queryKey: ["team-invites", workspaceId],
     queryFn: () => listTeamInvites(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
-  });
-
-  const optionsQuery = useQuery({
-    queryKey: ["team-options", workspaceId],
-    queryFn: () => getTeamOptions(workspaceId),
     enabled: Boolean(workspaceId) && workspaceId !== "default",
   });
 
@@ -104,35 +97,28 @@ function TeamPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
-  const removeMutation = useMutation({
-    mutationFn: (userId: string) => removeTeamMember(workspaceId, userId),
+  const resendMutation = useMutation({
+    mutationFn: (inviteId: string) => resendTeamInvite(workspaceId, inviteId),
     onSuccess: () => {
-      toast.success("Member removed");
-      setRemovingMember(null);
-      void queryClient.invalidateQueries({ queryKey: ["team-members", workspaceId] });
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
-
-  const inviteMutation = useMutation({
-    mutationFn: (email: string) =>
-      createTeamInvite(workspaceId, {
-        email,
-        roleKey: optionsQuery.data?.roles[0]?.key ?? "MEMBER",
-        moduleAccess: [],
-        permissionKeys: [],
-        policyKeys: [],
-        expiresInDays: 7,
-      }),
-    onSuccess: () => {
-      toast.success("Invite sent");
-      setInviteOpen(false);
+      toast.success("Invite resent");
       void queryClient.invalidateQueries({ queryKey: ["team-invites", workspaceId] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
 
-  const members = membersQuery.data ?? [];
+  const removeMutation = useMutation({
+    mutationFn: (userId: string) => removeTeamMember(workspaceId, userId),
+    onSuccess: () => {
+      toast.success("Member removed");
+      setRemovingMember(null);
+      // Key prefix only — the hook appends workspace and request state, so a scoped key would
+      // miss every page but the first.
+      void queryClient.invalidateQueries({ queryKey: ["team-members"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const members = memberList.items;
   const invites = invitesQuery.data ?? [];
 
   return (
@@ -145,7 +131,7 @@ function TeamPage() {
           <Button
             size="sm"
             className="gap-1.5 bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
-            onClick={() => setInviteOpen(true)}
+            onClick={() => void navigate({ to: "/team/invite" })}
           >
             <MailPlus className="h-4 w-4" />
             Invite member
@@ -158,7 +144,8 @@ function TeamPage() {
           <TabsList className="mb-4">
             <TabsTrigger value="members" className="gap-1.5">
               <Users className="h-3.5 w-3.5" />
-              Members ({members.length})
+              {/* The workspace total from the server, not the page length. */}
+              Members ({memberList.total})
             </TabsTrigger>
             <TabsTrigger value="invites" className="gap-1.5">
               <MailPlus className="h-3.5 w-3.5" />
@@ -167,7 +154,17 @@ function TeamPage() {
           </TabsList>
 
           <TabsContent value="members">
-            {membersQuery.isLoading ? (
+            <div className="relative mb-4 w-full sm:max-w-sm">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Search members by name or email…"
+                value={memberList.search}
+                onChange={(e) => memberList.setSearch(e.target.value)}
+              />
+            </div>
+
+            {memberList.isLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <Skeleton key={i} className="h-16 rounded-xl" />
@@ -206,7 +203,9 @@ function TeamPage() {
                               </Badge>
                             )}
                           </div>
-                          <p className="truncate text-xs text-muted-foreground">{member.user.email}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {member.user.email}
+                          </p>
                         </div>
                         <Badge variant="outline" className="shrink-0">
                           {member.role.name}
@@ -233,10 +232,25 @@ function TeamPage() {
                   })}
                   {members.length === 0 && (
                     <div className="py-10 text-center text-sm text-muted-foreground">
-                      No team members yet.
+                      {memberList.isNarrowed
+                        ? "No members match that search."
+                        : "No team members yet."}
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {memberList.total > 0 && (
+              <div className="mt-4">
+                <PaginationBar
+                  page={memberList.page}
+                  pages={memberList.pages}
+                  total={memberList.total}
+                  limit={memberList.limit}
+                  onPageChange={memberList.setPage}
+                  label="members"
+                />
               </div>
             )}
           </TabsContent>
@@ -269,7 +283,10 @@ function TeamPage() {
                             {inv.baseRole.name}
                           </td>
                           <td className="px-4 py-3.5">
-                            <Badge variant="outline" className={inviteStatusStyles[inv.status] ?? ""}>
+                            <Badge
+                              variant="outline"
+                              className={inviteStatusStyles[inv.status] ?? ""}
+                            >
                               {inv.status.toLowerCase()}
                             </Badge>
                           </td>
@@ -278,20 +295,33 @@ function TeamPage() {
                           </td>
                           <td className="px-6 py-3.5">
                             {inv.status === "PENDING" && (
-                              <button
-                                className="text-muted-foreground hover:text-destructive"
-                                title="Revoke"
-                                onClick={() => revokeMutation.mutate(inv.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+                                  title="Resend"
+                                  disabled={resendMutation.isPending}
+                                  onClick={() => resendMutation.mutate(inv.id)}
+                                >
+                                  <RefreshCw className="h-4 w-4" />
+                                </button>
+                                <button
+                                  className="text-muted-foreground hover:text-destructive"
+                                  title="Revoke"
+                                  onClick={() => revokeMutation.mutate(inv.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
                       ))}
                       {invites.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                          <td
+                            colSpan={5}
+                            className="px-6 py-8 text-center text-sm text-muted-foreground"
+                          >
                             No invites sent yet.
                           </td>
                         </tr>
@@ -304,17 +334,6 @@ function TeamPage() {
           </TabsContent>
         </Tabs>
       </div>
-
-      <InviteDialog
-        open={inviteOpen}
-        onOpenChange={setInviteOpen}
-        isPending={inviteMutation.isPending}
-        onSubmit={(email) => inviteMutation.mutate(email)}
-        existingEmails={[
-          ...members.map((m) => m.user.email),
-          ...invites.filter((i) => i.status === "PENDING").map((i) => i.email),
-        ]}
-      />
 
       <AlertDialog
         open={Boolean(removingMember)}
@@ -340,63 +359,5 @@ function TeamPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-function InviteDialog({
-  open,
-  onOpenChange,
-  isPending,
-  onSubmit,
-  existingEmails = [],
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  isPending: boolean;
-  onSubmit: (email: string) => void;
-  existingEmails?: string[];
-}) {
-  const [email, setEmail] = useState("");
-  const error = email ? (emailError(email) || duplicateAliasError(email, existingEmails)) : null;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (error) return;
-    onSubmit(email.trim());
-    setEmail("");
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Invite team member</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="invite-email">Email address</Label>
-            <Input
-              id="invite-email"
-              type="email"
-              placeholder="colleague@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value.slice(0, LIMITS.email.max))}
-              maxLength={LIMITS.email.max}
-              aria-invalid={Boolean(error)}
-              required
-            />
-            {error && <p className="text-xs text-destructive">{error}</p>}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isPending || Boolean(error)}>
-              {isPending ? "Sending…" : "Send invite"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

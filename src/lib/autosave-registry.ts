@@ -16,7 +16,5 @@ export function registerAutosaveFlush(flush: FlushFn): () => void {
 
 /** Best-effort: flushes every mounted autosave, ignoring individual failures. */
 export async function flushAllAutosaves(): Promise<void> {
-  await Promise.all(
-    Array.from(flushers).map((flush) => flush().catch(() => undefined))
-  );
+  await Promise.all(Array.from(flushers).map((flush) => flush().catch(() => undefined)));
 }

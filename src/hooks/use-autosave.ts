@@ -25,9 +25,7 @@ export type UseAutosaveOptions = {
   enabled?: boolean;
 };
 
-export function useAutosave<TPayload extends Record<string, unknown>>(
-  options: UseAutosaveOptions
-) {
+export function useAutosave<TPayload extends Record<string, unknown>>(options: UseAutosaveOptions) {
   const { workspaceId, module, draftKey, debounceMs = 1000, enabled = true } = options;
 
   const [status, setStatus] = useState<AutosaveStatus>("idle");
@@ -87,7 +85,7 @@ export function useAutosave<TPayload extends Record<string, unknown>>(
         void flush();
       }, debounceMs);
     },
-    [enabled, workspaceId, debounceMs, flush]
+    [enabled, workspaceId, debounceMs, flush],
   );
 
   /** Remove the draft (after a successful submit or explicit discard). */
@@ -115,7 +113,7 @@ export function useAutosave<TPayload extends Record<string, unknown>>(
         window.clearTimeout(timerRef.current);
       }
     },
-    []
+    [],
   );
 
   // Let the session watcher force-flush this form's latest snapshot before a

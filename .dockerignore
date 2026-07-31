@@ -1,0 +1,34 @@
+# Build artifacts — dist/ is produced inside the image build, never copied in
+dist
+dist-ssr
+.output
+.vinxi
+.nitro
+.tanstack
+node_modules
+
+# VCS / CI / tooling — irrelevant to the image and busts build cache on every commit
+.git
+.github
+.vscode
+.idea
+.claude
+.superpowers
+.cursor
+
+# Logs & local scratch
+logs
+*.log
+*.local
+
+# Deploy-time files that never belong inside the image
+docker-compose.yml
+Dockerfile
+.dockerignore
+deploy
+ecosystem.config.cjs
+DEPLOYMENT.md
+BRANDKIT.md
+
+# NOTE: .env is deliberately NOT ignored — it holds only public VITE_* build-time
+# config (committed to the repo) and vite needs it during `npm run build`.

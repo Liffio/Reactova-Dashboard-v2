@@ -9,7 +9,7 @@ import { readLyraPersisted, writeLyraPersisted } from "@/lib/lyra-persist";
  */
 export function usePersistedState<T>(
   key: string | null,
-  initialValue: T
+  initialValue: T,
 ): [T, (value: T | ((prev: T) => T)) => void] {
   const keyRef = useRef(key);
   const [state, setState] = useState<T>(() => {

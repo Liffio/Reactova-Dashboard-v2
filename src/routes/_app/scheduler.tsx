@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addMonths,
@@ -28,6 +28,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  Search,
   Send,
   X,
 } from "lucide-react";
@@ -40,7 +41,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProtectedRoute } from "@/components/auth/guards";
@@ -65,6 +66,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LIMITS, urlError } from "@/lib/validation";
+import { FeatureGate, useFeatureGate } from "@/components/access/feature-gate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -76,7 +78,6 @@ import {
   getSchedulerAnalyticsPosts,
   getSchedulerCalendar,
   listPlatformAccounts,
-  listScheduledPosts,
   publishPostNow,
   searchMusic,
   syncSchedulerAnalytics,
@@ -93,6 +94,9 @@ import {
   type ScheduledPostType,
 } from "@/lib/api/scheduler-api";
 import { ApiError } from "@/lib/api/http";
+import { PaginationBar } from "@/components/ui/pagination-bar";
+import { apiUri } from "@/lib/api/apiUri";
+import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
 import { cn } from "@/lib/utils";
 import { CaptionAssist } from "@/components/lyra/caption-assist";
@@ -100,6 +104,9 @@ import { HashtagAssist } from "@/components/lyra/hashtag-assist";
 import { ContentIdeas } from "@/components/lyra/content-ideas";
 import { MediaAnalyze } from "@/components/lyra/media-analyze";
 import { InsightsCard } from "@/components/lyra/insights-card";
+import { LyraHandoffToast } from "@/components/lyra/lyra-handoff-toast";
+import { useLyraHandoffTheater, type TheaterStep } from "@/hooks/use-lyra-handoff-theater";
+import { clearPostHandoff, getPostHandoff } from "@/lib/lyra-handoff";
 import {
   InsightSummary,
   InsightPointList,
@@ -110,6 +117,11 @@ import { useLyraInsights } from "@/hooks/use-lyra-insights";
 
 export const Route = createFileRoute("/_app/scheduler")({
   head: () => ({ meta: [{ title: "Scheduler — Liffio" }] }),
+  // `?lyraDraft=true` — arrival from the Ask AI drawer: load the Lyra handoff
+  // and prefill the compose dialog with the step-by-step theater.
+  validateSearch: (search: Record<string, unknown>): { lyraDraft?: boolean } => ({
+    lyraDraft: search.lyraDraft === true || search.lyraDraft === "true" ? true : undefined,
+  }),
   component: SchedulerRoute,
 });
 
@@ -120,6 +132,40 @@ function SchedulerRoute() {
         <SchedulerPage />
       </InstagramRequired>
     </ProtectedRoute>
+  );
+}
+
+/**
+ * A post type the workspace's package may or may not include.
+ *
+ * Disabled rather than wrapped in `<FeatureGate>`: Radix `Select` requires `SelectItem` as direct
+ * children of `SelectContent` for keyboard navigation and typeahead, so the gate's overlay wrapper
+ * would break the control it is trying to protect. A disabled item with the reason in its label
+ * conveys the same thing and keeps the select working.
+ *
+ * Each item calls the hook itself, which keeps this to a JSX swap rather than threading four
+ * booleans through a 2000-line component.
+ *
+ * These four capabilities are the ones `capability_routes` already enforces on
+ * `POST /api/v1/scheduler/posts` — so the disabled option and the 403 agree. Gating a control in
+ * the UI that the server still allows is theatre; gating one the server refuses without saying so
+ * is a bug report.
+ */
+function GatedPostTypeItem({
+  value,
+  action,
+  label,
+}: {
+  value: string;
+  action: string;
+  label: string;
+}) {
+  const { allowed } = useFeatureGate("scheduler", action);
+  return (
+    <SelectItem value={value} disabled={!allowed}>
+      {label}
+      {!allowed && <span className="ml-1 text-muted-foreground">— not in your plan</span>}
+    </SelectItem>
   );
 }
 
@@ -869,9 +915,19 @@ function SchedulerPage() {
     enabled: Boolean(workspaceId) && workspaceId !== "default",
   });
 
-  const listQuery = useQuery({
-    queryKey: ["scheduler-list", workspaceId, fromIso, toIso],
-    queryFn: () => listScheduledPosts(workspaceId, { limit: 50, offset: 0 }),
+  /**
+   * The post list, now searched and paged in SQL.
+   *
+   * It previously fetched a hardcoded first 50 with no search, so anything older than the 50th
+   * post was simply unreachable from this tab — and it passed an `offset` the endpoint never
+   * accepted, which is one of the repo's standing type errors.
+   */
+  const postList = useServerList<ScheduledPost>({
+    path: apiUri.scheduler.postsSearch,
+    queryKey: "scheduler-list",
+    workspaceId,
+    defaultSort: { key: "scheduledAt", dir: "asc" },
+    defaultLimit: 25,
     enabled: Boolean(workspaceId) && workspaceId !== "default",
   });
 
@@ -934,6 +990,108 @@ function SchedulerPage() {
     },
   });
 
+  // ── Lyra handoff arrival (?lyraDraft=true) ─────────────────────────────────
+  const { lyraDraft } = Route.useSearch();
+  const navigate = useNavigate();
+  const theater = useLyraHandoffTheater();
+  /** True from handoff load until the real create succeeds — drives cleanup. */
+  const handoffActiveRef = useRef(false);
+  /** One consumption per mount, even if queries/search re-render the page. */
+  const handoffConsumedRef = useRef(false);
+
+  useEffect(() => {
+    if (!lyraDraft || !workspaceId || workspaceId === "default" || handoffConsumedRef.current) {
+      return;
+    }
+    handoffConsumedRef.current = true;
+
+    void getPostHandoff(workspaceId).then((handoff) => {
+      if (!handoff) {
+        toast.error("Couldn't load Lyra's draft", {
+          description: "It may have expired — ask Lyra to prepare it again.",
+        });
+        void navigate({ to: "/scheduler", search: {}, replace: true });
+        return;
+      }
+
+      handoffActiveRef.current = true;
+      setMainTab("planner");
+      setComposeOpen(true);
+
+      const d = handoff.draft;
+      const media = handoff.media;
+      const steps: TheaterStep[] = [];
+
+      if (media) {
+        steps.push({
+          label: media.type === "REEL" ? "Attaching your video" : "Attaching your media",
+          apply: () =>
+            setForm((f) => ({
+              ...f,
+              type: media.type,
+              primaryMediaUrl: media.url,
+              shareToFeed: media.type === "REEL" ? d.shareToFeed : f.shareToFeed,
+            })),
+        });
+      }
+      if (d.caption) {
+        steps.push({
+          label: "Writing your caption",
+          apply: () => setForm((f) => ({ ...f, caption: d.caption })),
+        });
+      }
+      if (d.hashtags.length > 0) {
+        steps.push({
+          label: `Adding ${d.hashtags.length} hashtag${d.hashtags.length === 1 ? "" : "s"}`,
+          apply: () => setForm((f) => ({ ...f, hashtags: d.hashtags.join(" ") })),
+        });
+      }
+      if (d.scheduledLocal) {
+        steps.push({
+          label: `Scheduling for ${d.scheduledLocal.replace("T", " at ")}`,
+          apply: () =>
+            setForm((f) => ({ ...f, scheduleLocal: d.scheduledLocal, timezone: handoff.timezone })),
+        });
+      }
+      if (d.musicTitle) {
+        steps.push({
+          label: `Searching music: "${d.musicTitle}"`,
+          apply: () => setMusicQuery([d.musicTitle, d.musicArtist].filter(Boolean).join(" ")),
+        });
+      }
+      if (d.automation.enabled) {
+        const keywords = d.automation.keywords
+          .map((k) => k.trim().replace(/^#+/, "").toUpperCase())
+          .filter(Boolean);
+        steps.push({
+          label: d.automation.anyComment
+            ? "Setting up the any-comment automation"
+            : `Setting up the "${keywords.join(", ")}" automation`,
+          apply: () =>
+            setForm((f) => ({
+              ...f,
+              automationEnabled: true,
+              automationName: d.automation.name,
+              automationKeywords: keywords,
+              automationAnyComment: d.automation.anyComment,
+              automationDmMessage: d.automation.dmMessage.trim() || f.automationDmMessage,
+              automationAutoReply: d.automation.autoReply,
+              automationReplyMessages:
+                d.automation.replyMessages.filter((m) => m.trim()).length > 0
+                  ? d.automation.replyMessages.filter((m) => m.trim())
+                  : f.automationReplyMessages,
+              automationButtonLabel: d.automation.dmButtonLabel,
+              automationButtonUrl: d.automation.dmButtonUrl,
+            })),
+        });
+      }
+      steps.push({ label: "Double-checking everything", apply: () => {} });
+
+      theater.start(steps);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lyraDraft, workspaceId]);
+
   const createMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => createScheduledPost(workspaceId, body),
     onSuccess: () => {
@@ -942,6 +1100,14 @@ function SchedulerPage() {
       setForm(FORM_DEFAULTS);
       setSelectedMusic(null);
       setCarouselUrlDraft("");
+      // A Lyra handoff is one-shot: once the post is really created, delete the
+      // stored handoff and strip ?lyraDraft so a refresh doesn't replay the theater.
+      if (handoffActiveRef.current) {
+        handoffActiveRef.current = false;
+        theater.dismiss();
+        void clearPostHandoff(workspaceId);
+        void navigate({ to: "/scheduler", search: {}, replace: true });
+      }
       void queryClient.invalidateQueries({ queryKey: ["scheduler-calendar", workspaceId] });
       void queryClient.invalidateQueries({ queryKey: ["scheduler-list", workspaceId] });
     },
@@ -1274,6 +1440,16 @@ function SchedulerPage() {
 
   return (
     <div>
+      <LyraHandoffToast
+        visible={theater.visible}
+        phase={theater.phase}
+        steps={theater.steps}
+        currentIndex={theater.currentIndex}
+        title="Lyra is setting up your post"
+        doneTitle="All set — over to you ✨"
+        doneMessage="Review every field, then hit Save to schedule it for real."
+        onDismiss={theater.dismiss}
+      />
       <PageHeader
         eyebrow="Automate"
         title="Scheduler"
@@ -1420,125 +1596,169 @@ function SchedulerPage() {
                 )}
               </div>
             ) : (
-              <div className="rounded-2xl border bg-card shadow-soft overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm min-w-[600px]">
-                    <thead>
-                      <tr className="border-b text-left text-xs text-muted-foreground">
-                        <th className="px-4 py-3 font-medium">Preview</th>
-                        <th className="px-4 py-3 font-medium">Caption</th>
-                        <th className="px-4 py-3 font-medium hidden sm:table-cell">Type</th>
-                        <th className="px-4 py-3 font-medium">When</th>
-                        <th className="px-4 py-3 font-medium">Status</th>
-                        <th className="px-4 py-3 font-medium text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {listQuery.isLoading
-                        ? Array.from({ length: 5 }).map((_, i) => (
-                            <tr key={i} className="border-b">
-                              <td colSpan={6} className="px-4 py-3">
-                                <Skeleton className="h-10 w-full" />
-                              </td>
-                            </tr>
-                          ))
-                        : (listQuery.data?.posts ?? []).map((p) => (
-                            <tr
-                              key={p.id}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => {
-                                setDetailPostId(p.id);
-                                setDetailOpen(true);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
+              <div className="space-y-4">
+                <div className="relative w-full sm:max-w-sm">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Search caption or hashtag…"
+                    value={postList.search}
+                    onChange={(e) => postList.setSearch(e.target.value)}
+                  />
+                </div>
+
+                <div className="rounded-2xl border bg-card shadow-soft overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[600px]">
+                      <thead>
+                        <tr className="border-b text-left text-xs text-muted-foreground">
+                          <th className="px-4 py-3 font-medium">Preview</th>
+                          <th className="px-4 py-3 font-medium">Caption</th>
+                          <th className="px-4 py-3 font-medium hidden sm:table-cell">Type</th>
+                          <th className="px-4 py-3 font-medium">When</th>
+                          <th className="px-4 py-3 font-medium">Status</th>
+                          <th className="px-4 py-3 font-medium text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {postList.isLoading
+                          ? Array.from({ length: 5 }).map((_, i) => (
+                              <tr key={i} className="border-b">
+                                <td colSpan={6} className="px-4 py-3">
+                                  <Skeleton className="h-10 w-full" />
+                                </td>
+                              </tr>
+                            ))
+                          : postList.items.map((p) => (
+                              <tr
+                                key={p.id}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => {
                                   setDetailPostId(p.id);
                                   setDetailOpen(true);
-                                }
-                              }}
-                              className="border-b last:border-0 cursor-pointer hover:bg-muted/30"
-                            >
-                              <td className="px-4 py-3">
-                                <SchedulerMediaThumb
-                                  url={p.thumbnailUrl}
-                                  className="h-10 w-10"
-                                  imgClassName="h-10 w-10 rounded-md"
-                                />
-                              </td>
-                              <td className="px-4 py-3 max-w-xs">
-                                <div className="font-medium line-clamp-2">{p.caption ?? "—"}</div>
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
-                                {p.type}
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
-                                {p.scheduledAt
-                                  ? format(new Date(p.scheduledAt), "MMM d, HH:mm")
-                                  : p.publishedAt
-                                    ? format(new Date(p.publishedAt), "MMM d, HH:mm")
-                                    : "—"}
-                              </td>
-                              <td className="px-4 py-3">
-                                <Badge
-                                  variant="outline"
-                                  className={cn("text-xs", statusStyles[p.status] ?? "")}
-                                >
-                                  {p.status.toLowerCase().replace(/_/g, " ")}
-                                </Badge>
-                              </td>
-                              <td className="px-4 py-3 text-right space-x-1 whitespace-nowrap">
-                                {canPublishNow(p) && (
-                                  <Button
-                                    size="sm"
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    setDetailPostId(p.id);
+                                    setDetailOpen(true);
+                                  }
+                                }}
+                                className="border-b last:border-0 cursor-pointer hover:bg-muted/30"
+                              >
+                                <td className="px-4 py-3">
+                                  <SchedulerMediaThumb
+                                    url={p.thumbnailUrl}
+                                    className="h-10 w-10"
+                                    imgClassName="h-10 w-10 rounded-md"
+                                  />
+                                </td>
+                                <td className="px-4 py-3 max-w-xs">
+                                  <div className="font-medium line-clamp-2">{p.caption ?? "—"}</div>
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
+                                  {p.type}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
+                                  {p.scheduledAt
+                                    ? format(new Date(p.scheduledAt), "MMM d, HH:mm")
+                                    : p.publishedAt
+                                      ? format(new Date(p.publishedAt), "MMM d, HH:mm")
+                                      : "—"}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <Badge
                                     variant="outline"
-                                    disabled={publishNowMutation.isPending}
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      await publishNowMutation.mutateAsync(p.id);
-                                    }}
+                                    className={cn("text-xs", statusStyles[p.status] ?? "")}
                                   >
-                                    Publish now
-                                  </Button>
-                                )}
-                                {(p.status === "SCHEDULED" ||
-                                  p.status === "DRAFT" ||
-                                  p.status === "FAILED") && (
+                                    {p.status.toLowerCase().replace(/_/g, " ")}
+                                  </Badge>
+                                </td>
+                                <td className="px-4 py-3 text-right space-x-1 whitespace-nowrap">
+                                  {canPublishNow(p) && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={publishNowMutation.isPending}
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        await publishNowMutation.mutateAsync(p.id);
+                                      }}
+                                    >
+                                      Publish now
+                                    </Button>
+                                  )}
+                                  {(p.status === "SCHEDULED" ||
+                                    p.status === "DRAFT" ||
+                                    p.status === "FAILED") && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-destructive hover:bg-destructive/10"
+                                      disabled={cancelMutation.isPending}
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        await cancelMutation.mutateAsync(p.id);
+                                      }}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                        {!postList.isLoading && postList.items.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={6}
+                              className="px-4 py-10 text-center text-muted-foreground"
+                            >
+                              {postList.isNarrowed ? (
+                                <>
+                                  No posts match that search.
                                   <Button
                                     size="sm"
-                                    variant="ghost"
-                                    className="text-destructive hover:bg-destructive/10"
-                                    disabled={cancelMutation.isPending}
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      await cancelMutation.mutateAsync(p.id);
-                                    }}
+                                    variant="link"
+                                    className="ml-1"
+                                    onClick={postList.clear}
                                   >
-                                    Cancel
+                                    Clear
                                   </Button>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                      {!listQuery.isLoading && (listQuery.data?.posts.length ?? 0) === 0 && (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                            No posts this month.
-                            <Button
-                              size="sm"
-                              variant="link"
-                              className="ml-1"
-                              onClick={() => setComposeOpen(true)}
-                            >
-                              Create a post
-                            </Button>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                                </>
+                              ) : (
+                                <>
+                                  {/* The list is no longer month-scoped — it pages the whole
+                                    workspace, so the old "this month" copy would be misleading. */}
+                                  No posts yet.
+                                  <Button
+                                    size="sm"
+                                    variant="link"
+                                    className="ml-1"
+                                    onClick={() => setComposeOpen(true)}
+                                  >
+                                    Create a post
+                                  </Button>
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
+
+                {postList.total > 0 && (
+                  <PaginationBar
+                    page={postList.page}
+                    pages={postList.pages}
+                    total={postList.total}
+                    limit={postList.limit}
+                    onPageChange={postList.setPage}
+                    label="posts"
+                  />
+                )}
               </div>
             )}
           </TabsContent>
@@ -1853,7 +2073,14 @@ function SchedulerPage() {
       </div>
 
       {/* ── Compose dialog ──────────────────────────────────────────────────── */}
-      <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
+      <Dialog
+        open={composeOpen}
+        onOpenChange={(open) => {
+          setComposeOpen(open);
+          // Closing the composer mid-review retires the handoff toast too.
+          if (!open) theater.dismiss();
+        }}
+      >
         <DialogContent className="w-full max-w-[min(100vw-1.5rem,56rem)] max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New scheduled post</DialogTitle>
@@ -1889,10 +2116,14 @@ function SchedulerPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="FEED">Feed (image)</SelectItem>
-                    <SelectItem value="REEL">Reel (MP4/MOV or image)</SelectItem>
-                    <SelectItem value="CAROUSEL">Carousel</SelectItem>
-                    <SelectItem value="STORY">Story</SelectItem>
+                    <GatedPostTypeItem value="FEED" action="post_feed" label="Feed (image)" />
+                    <GatedPostTypeItem
+                      value="REEL"
+                      action="post_reel"
+                      label="Reel (MP4/MOV or image)"
+                    />
+                    <GatedPostTypeItem value="CAROUSEL" action="post_carousel" label="Carousel" />
+                    <GatedPostTypeItem value="STORY" action="post_story" label="Story" />
                   </SelectContent>
                 </Select>
               </div>
@@ -2103,6 +2334,7 @@ function SchedulerPage() {
 
               {/* Music (inline) */}
               <div className="rounded-xl border p-3 space-y-3">
+                <FeatureGate module="scheduler" action="music" block>
                 <div className="flex items-center gap-2">
                   <Music2 className="h-4 w-4 text-muted-foreground" />
                   <Label>Music</Label>
@@ -2160,6 +2392,7 @@ function SchedulerPage() {
                     )}
                   </div>
                 )}
+                </FeatureGate>
                 {form.type === "REEL" && (
                   <div className="flex items-center justify-between gap-3">
                     <Label className="text-sm">Share to feed</Label>
@@ -2401,7 +2634,12 @@ function SchedulerPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {TIMEZONES.map((tz) => (
+                    {/* A Lyra handoff carries the user's real browser timezone, which may
+                        not be in the curated list — include it so the select can show it. */}
+                    {(TIMEZONES.includes(form.timezone)
+                      ? TIMEZONES
+                      : [form.timezone, ...TIMEZONES]
+                    ).map((tz) => (
                       <SelectItem key={tz} value={tz}>
                         {tz}
                       </SelectItem>

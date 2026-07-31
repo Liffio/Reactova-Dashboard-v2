@@ -154,7 +154,7 @@ export function searchMusic(workspaceId: string, query: string) {
   const qs = new URLSearchParams({ q: query });
   return apiRequest<{ tracks: InstagramMusicTrack[] }>(
     `${apiUri.scheduler.musicSearch}?${qs.toString()}`,
-    { workspaceId }
+    { workspaceId },
   );
 }
 
@@ -162,7 +162,7 @@ export function getSchedulerCalendar(
   workspaceId: string,
   fromIso: string,
   toIso: string,
-  platformId?: string
+  platformId?: string,
 ) {
   const qs = new URLSearchParams({ from: fromIso, to: toIso });
   if (platformId) {
@@ -170,28 +170,12 @@ export function getSchedulerCalendar(
   }
   return apiRequest<{ posts: CalendarPost[] }>(
     `${apiUri.scheduler.postsCalendar}?${qs.toString()}`,
-    { workspaceId }
+    { workspaceId },
   );
 }
 
 export function getScheduledPost(workspaceId: string, postId: string) {
   return apiRequest<{ post: ScheduledPost }>(apiUri.scheduler.post(postId), { workspaceId });
-}
-
-export function listScheduledPosts(
-  workspaceId: string,
-  params: { fromIso?: string; toIso?: string; status?: string; page?: number; limit?: number }
-) {
-  const qs = new URLSearchParams();
-  if (params.fromIso) qs.set("from", params.fromIso);
-  if (params.toIso) qs.set("to", params.toIso);
-  if (params.status) qs.set("status", params.status);
-  qs.set("page", String(params.page ?? 1));
-  qs.set("limit", String(params.limit ?? 50));
-  return apiRequest<{ posts: ScheduledPost[]; total: number; page: number }>(
-    `${apiUri.scheduler.posts}?${qs.toString()}`,
-    { workspaceId }
-  );
 }
 
 export function createScheduledPost(workspaceId: string, body: Record<string, unknown>) {
@@ -205,7 +189,7 @@ export function createScheduledPost(workspaceId: string, body: Record<string, un
 export function updateScheduledPost(
   workspaceId: string,
   postId: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
 ) {
   return apiRequest<{ post: ScheduledPost }>(apiUri.scheduler.post(postId), {
     method: "PATCH",
@@ -231,7 +215,7 @@ export function publishPostNow(workspaceId: string, postId: string) {
 export function getSchedulerAnalyticsOverview(
   workspaceId: string,
   fromIso?: string,
-  toIso?: string
+  toIso?: string,
 ) {
   const qs = new URLSearchParams();
   if (fromIso) qs.set("from", fromIso);
@@ -239,7 +223,7 @@ export function getSchedulerAnalyticsOverview(
   const suffix = qs.toString();
   return apiRequest<SchedulerOverview>(
     `${apiUri.scheduler.analyticsOverview}${suffix ? `?${suffix}` : ""}`,
-    { workspaceId }
+    { workspaceId },
   );
 }
 
@@ -247,35 +231,31 @@ export function getSchedulerAnalyticsPosts(
   workspaceId: string,
   sortBy: "engagement" | "likes" | "comments" | "saves" | "views",
   fromIso?: string,
-  toIso?: string
+  toIso?: string,
 ) {
   const qs = new URLSearchParams({ sortBy, page: "1", limit: "50" });
   if (fromIso) qs.set("from", fromIso);
   if (toIso) qs.set("to", toIso);
   return apiRequest<{ posts: Array<Record<string, unknown>>; total: number; page: number }>(
     `${apiUri.scheduler.analyticsPosts}?${qs.toString()}`,
-    { workspaceId }
+    { workspaceId },
   );
 }
 
 export function syncSchedulerAnalytics(workspaceId: string) {
   return apiRequest<{ upserted: number; skippedRateLimit: boolean; insightsFailed: number }>(
     apiUri.scheduler.analyticsSync,
-    { method: "POST", workspaceId }
+    { method: "POST", workspaceId },
   );
 }
 
-export function uploadSchedulerMedia(
-  workspaceId: string,
-  file: File,
-  postType: ScheduledPostType
-) {
+export function uploadSchedulerMedia(workspaceId: string, file: File, postType: ScheduledPostType) {
   const formData = new FormData();
   formData.append("file", file);
   const qs = new URLSearchParams({ postType });
   return apiUploadRequest<SchedulerPostMediaUploadResponse>(
     `${apiUri.scheduler.mediaUpload}?${qs.toString()}`,
     formData,
-    { workspaceId }
+    { workspaceId },
   );
 }

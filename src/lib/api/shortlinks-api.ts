@@ -11,13 +11,9 @@ export type ShortLinkItem = {
   shortUrl: string;
 };
 
-export function listShortLinks(workspaceId: string) {
-  return apiRequest<ShortLinkItem[]>(apiUri.shortlinks.list, { workspaceId });
-}
-
 export function createShortLink(
   workspaceId: string,
-  body: { name: string; destination: string; slug?: string }
+  body: { name: string; destination: string; slug?: string },
 ) {
   return apiRequest<ShortLinkItem>(apiUri.shortlinks.create, {
     method: "POST",

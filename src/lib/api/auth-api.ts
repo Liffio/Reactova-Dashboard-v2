@@ -92,7 +92,7 @@ export function verifyEmailCode(code: string) {
 export function resendEmailVerification() {
   return apiRequest<{ ok?: boolean; retryAfterSec?: number; expiresInSec?: number }>(
     apiUri.auth.emailVerification.resend,
-    { method: "POST" }
+    { method: "POST" },
   );
 }
 
@@ -101,7 +101,7 @@ export function resendEmailVerification() {
 export function forgotPassword(email: string) {
   return apiRequest<{ ok?: boolean; retryAfterSec?: number; expiresInSec?: number }>(
     apiUri.auth.password.forgot,
-    { method: "POST", body: { email }, token: null }
+    { method: "POST", body: { email }, token: null },
   );
 }
 
@@ -118,7 +118,7 @@ export function resetPassword(input: { email: string; code: string; newPassword:
 export function mfaLoginEmailSend(preAuthToken: string) {
   return apiRequest<{ ok?: boolean; retryAfterSec?: number; expiresInSec?: number }>(
     apiUri.auth.mfa.loginEmailSend,
-    { method: "POST", body: { preAuthToken }, token: null }
+    { method: "POST", body: { preAuthToken }, token: null },
   );
 }
 
@@ -188,7 +188,7 @@ export type PendingInvite = {
 
 export function getInvitePreview(token: string) {
   return apiRequest<InvitePreview>(
-    `${apiUri.auth.invites.preview}?token=${encodeURIComponent(token)}`
+    `${apiUri.auth.invites.preview}?token=${encodeURIComponent(token)}`,
   );
 }
 
@@ -196,18 +196,25 @@ export function getMyPendingInvites() {
   return apiRequest<PendingInvite[]>(apiUri.auth.invites.mine);
 }
 
+export type InviteDrop = { key: string; kind: "permission" | "policy"; reason: string };
+export type AcceptInviteResult = {
+  ok: boolean;
+  workspaceId: string;
+  authorization: unknown;
+  dropped?: InviteDrop[];
+};
+
 export function acceptInviteByToken(token: string) {
-  return apiRequest<{ ok: boolean; workspaceId: string; authorization: unknown }>(
-    apiUri.auth.invites.accept,
-    { method: "POST", body: { token } }
-  );
+  return apiRequest<AcceptInviteResult>(apiUri.auth.invites.accept, {
+    method: "POST",
+    body: { token },
+  });
 }
 
 export function acceptInviteById(inviteId: string) {
-  return apiRequest<{ ok: boolean; workspaceId: string; authorization: unknown }>(
-    apiUri.auth.invites.acceptById(inviteId),
-    { method: "POST" }
-  );
+  return apiRequest<AcceptInviteResult>(apiUri.auth.invites.acceptById(inviteId), {
+    method: "POST",
+  });
 }
 
 // ── Inbox (cross-workspace notifications) ──────────────────────────────────

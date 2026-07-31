@@ -12,7 +12,7 @@ const isBrowser = typeof window !== "undefined";
 export function lyraStorageKey(
   userId: string | null | undefined,
   workspaceId: string | null | undefined,
-  scope: string
+  scope: string,
 ): string {
   return `${PREFIX}${userId || "anon"}_${workspaceId || "default"}_${scope}`;
 }

@@ -38,7 +38,9 @@ function LoginRedirect() {
   }, [search]);
 
   if (showFallback) {
-    return <LocalLoginForm redirectTo={search.redirect ?? "/dashboard"} initialError={search.error} />;
+    return (
+      <LocalLoginForm redirectTo={search.redirect ?? "/dashboard"} initialError={search.error} />
+    );
   }
 
   return (

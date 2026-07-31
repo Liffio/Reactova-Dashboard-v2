@@ -2,9 +2,10 @@ import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 
 interface PageHeaderProps {
-  eyebrow?: string;
+  /** Small label above the title. Accepts nodes so detail pages can put a back link here. */
+  eyebrow?: ReactNode;
   title: string;
-  description?: string;
+  description?: ReactNode;
   actions?: ReactNode;
 }
 

@@ -23,7 +23,9 @@ export function resolveInstagramConnected(workspace: {
 
   // Accept any truthy value — backend may return 1, "true", or a boolean
   if (raw != null && raw !== false && raw !== 0 && raw !== "") {
-    log(`resolveInstagramConnected [${workspace.id ?? "?"}]: instagramConnected=${JSON.stringify(raw)} (type=${rawType}) → true`);
+    log(
+      `resolveInstagramConnected [${workspace.id ?? "?"}]: instagramConnected=${JSON.stringify(raw)} (type=${rawType}) → true`,
+    );
     return true;
   }
 
@@ -33,7 +35,9 @@ export function resolveInstagramConnected(workspace: {
     | null
     | undefined;
   if (onboarding?.ig?.connected === true) {
-    log(`resolveInstagramConnected [${workspace.id ?? "?"}]: found via onboarding.ig.connected → true`);
+    log(
+      `resolveInstagramConnected [${workspace.id ?? "?"}]: found via onboarding.ig.connected → true`,
+    );
     return true;
   }
 
@@ -71,14 +75,22 @@ export async function isWorkspaceInstagramConnected(workspaceId: string): Promis
     return false;
   }
 
-  log(`isWorkspaceInstagramConnected: API returned ${workspaces.length} workspace(s):`,
-    workspaces.map(w => ({ id: w.id, instagramConnected: w.instagramConnected, status: w.status }))
+  log(
+    `isWorkspaceInstagramConnected: API returned ${workspaces.length} workspace(s):`,
+    workspaces.map((w) => ({
+      id: w.id,
+      instagramConnected: w.instagramConnected,
+      status: w.status,
+    })),
   );
 
   const workspace = workspaces.find((item) => item.id === workspaceId);
   if (!workspace) {
     warn(`isWorkspaceInstagramConnected: workspaceId=${workspaceId} NOT FOUND in workspace list`);
-    warn("available workspace IDs:", workspaces.map(w => w.id));
+    warn(
+      "available workspace IDs:",
+      workspaces.map((w) => w.id),
+    );
     return false;
   }
 

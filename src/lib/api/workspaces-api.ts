@@ -5,6 +5,8 @@ export type WorkspaceApi = {
   id: string;
   userId: string;
   igHandle?: string | null;
+  /** Human-readable public id, e.g. `acme-store-4f2`. Stable; accepted by the external API. */
+  humanId?: string | null;
   displayName?: string | null;
   instagramConnected: boolean;
   plan: "FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY";

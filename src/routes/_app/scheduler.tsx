@@ -1847,46 +1847,29 @@ function SchedulerPage() {
 
           {/* ── Analytics tab ────────────────────────────────────────────── */}
           <TabsContent value="analytics" className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
-              <div className="flex flex-col gap-1">
-                <Button
-                  variant={syncMutation.isError ? "destructive" : "outline"}
-                  className="gap-2"
-                  disabled={syncMutation.isPending}
-                  onClick={() => syncMutation.mutate()}
-                >
-                  {syncMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : syncMutation.isError ? (
-                    <AlertTriangle className="h-4 w-4" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                  {syncMutation.isError ? "Sync failed — retry" : "Sync from Instagram"}
-                </Button>
-                {syncMutation.isError && (
-                  <span className="text-xs text-destructive max-w-xs">
-                    {(syncMutation.error as ApiError).status === 502
-                      ? "Instagram insights are unavailable right now."
-                      : (syncMutation.error as ApiError).message}
-                  </span>
+            <div className="flex flex-col gap-1">
+              <Button
+                variant={syncMutation.isError ? "destructive" : "outline"}
+                className="gap-2"
+                disabled={syncMutation.isPending}
+                onClick={() => syncMutation.mutate()}
+              >
+                {syncMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : syncMutation.isError ? (
+                  <AlertTriangle className="h-4 w-4" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
                 )}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground shrink-0">Sort posts</span>
-                <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="engagement">Engagement rate</SelectItem>
-                    <SelectItem value="likes">Likes</SelectItem>
-                    <SelectItem value="comments">Comments</SelectItem>
-                    <SelectItem value="saves">Saves</SelectItem>
-                    <SelectItem value="views">Views</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                {syncMutation.isError ? "Sync failed — retry" : "Sync from Instagram"}
+              </Button>
+              {syncMutation.isError && (
+                <span className="text-xs text-destructive max-w-xs">
+                  {(syncMutation.error as ApiError).status === 502
+                    ? "Instagram insights are unavailable right now."
+                    : (syncMutation.error as ApiError).message}
+                </span>
+              )}
             </div>
 
             <InsightsCard
@@ -2141,10 +2124,25 @@ function SchedulerPage() {
                 </Card>
 
                 <Card className="shadow-soft">
-                  <CardHeader className="p-4 sm:p-6">
+                  <CardHeader className="p-4 sm:p-6 flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
                     <CardTitle className="text-sm font-semibold">
                       {`Instagram account performance — all ${analyticsPostsQuery.data?.total ?? 0} posts`}
                     </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground shrink-0">Sort posts</span>
+                      <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+                        <SelectTrigger className="w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="engagement">Engagement rate</SelectItem>
+                          <SelectItem value="likes">Likes</SelectItem>
+                          <SelectItem value="comments">Comments</SelectItem>
+                          <SelectItem value="saves">Saves</SelectItem>
+                          <SelectItem value="views">Views</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="overflow-x-auto">

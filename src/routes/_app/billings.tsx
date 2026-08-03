@@ -142,20 +142,25 @@ function BillingPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
-  /** Which gateways this plan can actually be bought through at the selected interval. */
-  const offeredGateways = (planKey: string): Gateway[] => {
+  /**
+   * Every configured gateway, with per-interval purchasability. Configured-but-unpriced
+   * gateways render as disabled rows rather than disappearing, so the payment-type step
+   * always looks the same and explains itself.
+   */
+  const gatewayOptions = (planKey: string): { value: Gateway; available: boolean }[] => {
     const planCfg = configQuery.data?.plans.find((p) => p.plan === planKey);
     const providers = configQuery.data?.providers;
-    const offered: Gateway[] = [];
-    if (providers?.stripe.configured && planCfg?.checkout?.stripe?.[interval])
-      offered.push("stripe");
-    if (
-      providers?.razorpay.configured &&
-      providers.razorpay.keyId &&
-      planCfg?.checkout?.razorpay?.[interval]
-    )
-      offered.push("razorpay");
-    return offered;
+    const options: { value: Gateway; available: boolean }[] = [];
+    if (providers?.stripe.configured) {
+      options.push({ value: "stripe", available: Boolean(planCfg?.checkout?.stripe?.[interval]) });
+    }
+    if (providers?.razorpay.configured && providers.razorpay.keyId) {
+      options.push({
+        value: "razorpay",
+        available: Boolean(planCfg?.checkout?.razorpay?.[interval]),
+      });
+    }
+    return options;
   };
 
   // Razorpay pays inside a modal on this page, so on success the page can refetch and
@@ -207,17 +212,15 @@ function BillingPage() {
     }
   };
 
+  // Always open the payment-type step, even with a single usable gateway — the user
+  // should see and confirm how they are about to pay, never be bounced straight out.
   const handleUpgradeClick = (planKey: string) => {
-    const offered = offeredGateways(planKey);
-    if (offered.length === 0) {
+    const options = gatewayOptions(planKey);
+    if (!options.some((o) => o.available)) {
       toast.error("This plan is not available for online checkout yet.");
       return;
     }
-    if (offered.length === 1) {
-      startCheckout(planKey, offered[0]);
-    } else {
-      setGatewayChoice(planKey);
-    }
+    setGatewayChoice(planKey);
   };
 
   const portalMutation = useMutation({
@@ -484,10 +487,16 @@ function BillingPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Choose how to pay</DialogTitle>
-            <DialogDescription>
-              Both options activate your plan immediately after payment.
-            </DialogDescription>
+            <DialogTitle className="text-sm font-bold uppercase tracking-widest">
+              Payment type
+            </DialogTitle>
+            {gatewayChoice && (
+              <DialogDescription>
+                {configQuery.data?.plans.find((p) => p.plan === gatewayChoice)?.displayName ??
+                  gatewayChoice}{" "}
+                plan, billed {interval}. Your plan activates immediately after payment.
+              </DialogDescription>
+            )}
           </DialogHeader>
           {gatewayChoice &&
             (() => {
@@ -497,44 +506,61 @@ function BillingPage() {
                   ? (planCfg?.pricing.yearlyUsd ?? planCfg?.pricing.monthlyUsd)
                   : planCfg?.pricing.monthlyUsd;
               const inrRate = configQuery.data?.usdToInrRate ?? 84;
+              const options = gatewayOptions(gatewayChoice);
+
+              const meta: Record<
+                Gateway,
+                { icon: typeof CreditCard; title: string; sub: string; price: string | null }
+              > = {
+                stripe: {
+                  icon: CreditCard,
+                  title: "Credit / Debit card",
+                  sub: "Visa, Mastercard, Amex — via Stripe",
+                  price: usd != null ? `$${usd}` : null,
+                },
+                razorpay: {
+                  icon: IndianRupee,
+                  title: "UPI / NetBanking / Cards",
+                  sub: "India — via Razorpay",
+                  price: usd != null ? `₹${(usd * inrRate).toLocaleString("en-IN")}` : null,
+                },
+              };
+
               return (
-                <div className="grid gap-2">
-                  <button
-                    type="button"
-                    className="flex items-center justify-between rounded-lg border p-4 text-left transition-colors hover:border-primary hover:bg-primary/5"
-                    onClick={() => startCheckout(gatewayChoice, "stripe")}
-                  >
-                    <span className="flex items-center gap-3">
-                      <CreditCard className="h-5 w-5 text-primary" />
-                      <span>
-                        <span className="block text-sm font-semibold">Card</span>
-                        <span className="block text-xs text-muted-foreground">
-                          Visa, Mastercard, Amex — international
-                        </span>
-                      </span>
-                    </span>
-                    {usd != null && <span className="text-sm font-semibold">${usd}</span>}
-                  </button>
-                  <button
-                    type="button"
-                    className="flex items-center justify-between rounded-lg border p-4 text-left transition-colors hover:border-primary hover:bg-primary/5"
-                    onClick={() => startCheckout(gatewayChoice, "razorpay")}
-                  >
-                    <span className="flex items-center gap-3">
-                      <IndianRupee className="h-5 w-5 text-primary" />
-                      <span>
-                        <span className="block text-sm font-semibold">UPI / NetBanking</span>
-                        <span className="block text-xs text-muted-foreground">
-                          UPI, cards, netbanking — India
-                        </span>
-                      </span>
-                    </span>
-                    {usd != null && (
-                      <span className="text-sm font-semibold">
-                        ₹{(usd * inrRate).toLocaleString("en-IN")}
-                      </span>
-                    )}
-                  </button>
+                <div className="flex flex-col gap-1">
+                  {options.map((option, idx) => {
+                    const m = meta[option.value];
+                    return (
+                      <div key={option.value}>
+                        {idx > 0 && (
+                          <p className="py-2 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                            or
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          disabled={!option.available}
+                          className="flex w-full items-center justify-between rounded-lg border-2 p-4 text-left transition-colors enabled:hover:border-primary enabled:hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => startCheckout(gatewayChoice, option.value)}
+                        >
+                          <span className="flex items-center gap-3">
+                            <m.icon className="h-5 w-5 text-primary" />
+                            <span>
+                              <span className="block text-sm font-bold uppercase tracking-wide">
+                                {m.title}
+                              </span>
+                              <span className="block text-xs text-muted-foreground">
+                                {option.available ? m.sub : `Not available for ${interval} billing`}
+                              </span>
+                            </span>
+                          </span>
+                          {option.available && m.price && (
+                            <span className="text-sm font-semibold">{m.price}</span>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })()}

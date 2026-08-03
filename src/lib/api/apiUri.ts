@@ -166,6 +166,7 @@ export const apiUri = {
     portal: `${V1}/billing/portal`,
     sync: `${V1}/billing/sync`,
     cancel: `${V1}/billing/cancel`,
+    razorpayVerify: `${V1}/billing/razorpay/verify`,
   },
 
   notifications: {

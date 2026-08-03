@@ -26,6 +26,7 @@ export type BillingConfigResponse = {
   isSandbox: boolean;
   currency: string;
   razorpayCurrency: string;
+  usdToInrRate: number;
   providers: {
     stripe: { configured: boolean; publishableKey: string | null; webhookConfigured: boolean };
     razorpay: { configured: boolean; keyId: string | null; webhookConfigured: boolean };
@@ -88,8 +89,31 @@ export function listAllBillingInvoices(workspaceId: string) {
   });
 }
 
+export type CheckoutResponse = {
+  provider: "stripe" | "razorpay";
+  checkoutUrl: string | null;
+  /** Razorpay only — the subscription id the checkout.js modal is opened with. */
+  subscriptionId?: string;
+  status?: string;
+};
+
 export function createBillingCheckout(workspaceId: string, body: CheckoutInput) {
-  return apiRequest<{ checkoutUrl: string | null; provider: string }>(apiUri.billing.checkout, {
+  return apiRequest<CheckoutResponse>(apiUri.billing.checkout, {
+    method: "POST",
+    workspaceId,
+    body,
+  });
+}
+
+export type RazorpayVerifyInput = {
+  razorpay_payment_id: string;
+  razorpay_subscription_id: string;
+  razorpay_signature: string;
+};
+
+/** Server-side HMAC check of the checkout modal's success payload; returns the fresh subscription. */
+export function verifyRazorpayCheckout(workspaceId: string, body: RazorpayVerifyInput) {
+  return apiRequest<BillingSubscription>(apiUri.billing.razorpayVerify, {
     method: "POST",
     workspaceId,
     body,

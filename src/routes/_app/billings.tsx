@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CreditCard, ExternalLink, RefreshCw, Zap } from "lucide-react";
+import { CreditCard, ExternalLink, IndianRupee, RefreshCw, Zap } from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -27,6 +27,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   cancelBillingSubscription,
   createBillingCheckout,
   createBillingPortalSession,
@@ -34,9 +41,17 @@ import {
   getBillingSubscription,
   listBillingInvoices,
   syncBilling,
+  verifyRazorpayCheckout,
   type CheckoutInput,
 } from "@/lib/api/billing-api";
+import {
+  openRazorpaySubscriptionCheckout,
+  RazorpayCheckoutCancelled,
+} from "@/lib/razorpay-checkout";
+import { useAuthState } from "@/lib/auth/auth-store";
 import { useApp } from "@/state/app-context";
+
+type Gateway = "stripe" | "razorpay";
 
 type BillingSearch = { status?: string };
 
@@ -74,6 +89,9 @@ function BillingPage() {
   const { status: checkoutStatus } = Route.useSearch();
   const [interval, setInterval] = useState<"monthly" | "yearly">("monthly");
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [gatewayChoice, setGatewayChoice] = useState<string | null>(null);
+  const [payingRazorpay, setPayingRazorpay] = useState(false);
+  const userEmail = useAuthState((s) => s.user?.email);
 
   const configQuery = useQuery({
     queryKey: ["billing-config"],
@@ -124,6 +142,84 @@ function BillingPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  /** Which gateways this plan can actually be bought through at the selected interval. */
+  const offeredGateways = (planKey: string): Gateway[] => {
+    const planCfg = configQuery.data?.plans.find((p) => p.plan === planKey);
+    const providers = configQuery.data?.providers;
+    const offered: Gateway[] = [];
+    if (providers?.stripe.configured && planCfg?.checkout?.stripe?.[interval])
+      offered.push("stripe");
+    if (
+      providers?.razorpay.configured &&
+      providers.razorpay.keyId &&
+      planCfg?.checkout?.razorpay?.[interval]
+    )
+      offered.push("razorpay");
+    return offered;
+  };
+
+  // Razorpay pays inside a modal on this page, so on success the page can refetch and
+  // show the new plan immediately — no redirect round-trip involved.
+  const startRazorpayCheckout = async (planKey: string) => {
+    const keyId = configQuery.data?.providers.razorpay.keyId;
+    if (!keyId) {
+      toast.error("Razorpay is not configured");
+      return;
+    }
+    setPayingRazorpay(true);
+    try {
+      const result = await createBillingCheckout(workspaceId, {
+        plan: planKey,
+        interval,
+        provider: "razorpay",
+      });
+      if (result.provider !== "razorpay" || !result.subscriptionId) {
+        throw new Error("Razorpay checkout could not be started");
+      }
+      const payload = await openRazorpaySubscriptionCheckout({
+        keyId,
+        subscriptionId: result.subscriptionId,
+        email: userEmail ?? undefined,
+        description: `${planKey} plan — billed ${interval}`,
+      });
+      await verifyRazorpayCheckout(workspaceId, payload);
+      toast.success("Payment successful! Your plan is now active.");
+      void queryClient.invalidateQueries({ queryKey: ["billing-subscription", workspaceId] });
+      void queryClient.invalidateQueries({ queryKey: ["billing-invoices", workspaceId] });
+      void refreshAuth();
+    } catch (err) {
+      if (err instanceof RazorpayCheckoutCancelled) {
+        toast.info("Payment cancelled — no charge was made.");
+      } else {
+        toast.error(err instanceof Error ? err.message : "Payment failed");
+      }
+    } finally {
+      setPayingRazorpay(false);
+    }
+  };
+
+  const startCheckout = (planKey: string, gateway: Gateway) => {
+    setGatewayChoice(null);
+    if (gateway === "razorpay") {
+      void startRazorpayCheckout(planKey);
+    } else {
+      checkoutMutation.mutate({ plan: planKey, interval, provider: "stripe" });
+    }
+  };
+
+  const handleUpgradeClick = (planKey: string) => {
+    const offered = offeredGateways(planKey);
+    if (offered.length === 0) {
+      toast.error("This plan is not available for online checkout yet.");
+      return;
+    }
+    if (offered.length === 1) {
+      startCheckout(planKey, offered[0]);
+    } else {
+      setGatewayChoice(planKey);
+    }
+  };
+
   const portalMutation = useMutation({
     mutationFn: () => createBillingPortalSession(workspaceId),
     onSuccess: ({ url }) => window.open(url, "_blank"),
@@ -160,7 +256,7 @@ function BillingPage() {
               variant="outline"
               className="gap-1.5"
               disabled={syncMutation.isPending}
-              onClick={() => syncMutation.mutate()}
+              onClick={() => syncMutation.mutate(false)}
             >
               <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
               Sync
@@ -302,13 +398,10 @@ function BillingPage() {
                         isCurrent ||
                         isDowngrade ||
                         checkoutMutation.isPending ||
+                        payingRazorpay ||
                         plan.plan === "FREE"
                       }
-                      onClick={() =>
-                        !isCurrent &&
-                        !isDowngrade &&
-                        checkoutMutation.mutate({ plan: plan.plan, interval })
-                      }
+                      onClick={() => !isCurrent && !isDowngrade && handleUpgradeClick(plan.plan)}
                     >
                       {isCurrent ? "Current plan" : isDowngrade ? "Contact us" : "Upgrade"}
                     </Button>
@@ -384,6 +477,69 @@ function BillingPage() {
           )}
         </div>
       </div>
+
+      <Dialog
+        open={gatewayChoice !== null}
+        onOpenChange={(open) => !open && setGatewayChoice(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Choose how to pay</DialogTitle>
+            <DialogDescription>
+              Both options activate your plan immediately after payment.
+            </DialogDescription>
+          </DialogHeader>
+          {gatewayChoice &&
+            (() => {
+              const planCfg = configQuery.data?.plans.find((p) => p.plan === gatewayChoice);
+              const usd =
+                interval === "yearly"
+                  ? (planCfg?.pricing.yearlyUsd ?? planCfg?.pricing.monthlyUsd)
+                  : planCfg?.pricing.monthlyUsd;
+              const inrRate = configQuery.data?.usdToInrRate ?? 84;
+              return (
+                <div className="grid gap-2">
+                  <button
+                    type="button"
+                    className="flex items-center justify-between rounded-lg border p-4 text-left transition-colors hover:border-primary hover:bg-primary/5"
+                    onClick={() => startCheckout(gatewayChoice, "stripe")}
+                  >
+                    <span className="flex items-center gap-3">
+                      <CreditCard className="h-5 w-5 text-primary" />
+                      <span>
+                        <span className="block text-sm font-semibold">Card</span>
+                        <span className="block text-xs text-muted-foreground">
+                          Visa, Mastercard, Amex — international
+                        </span>
+                      </span>
+                    </span>
+                    {usd != null && <span className="text-sm font-semibold">${usd}</span>}
+                  </button>
+                  <button
+                    type="button"
+                    className="flex items-center justify-between rounded-lg border p-4 text-left transition-colors hover:border-primary hover:bg-primary/5"
+                    onClick={() => startCheckout(gatewayChoice, "razorpay")}
+                  >
+                    <span className="flex items-center gap-3">
+                      <IndianRupee className="h-5 w-5 text-primary" />
+                      <span>
+                        <span className="block text-sm font-semibold">UPI / NetBanking</span>
+                        <span className="block text-xs text-muted-foreground">
+                          UPI, cards, netbanking — India
+                        </span>
+                      </span>
+                    </span>
+                    {usd != null && (
+                      <span className="text-sm font-semibold">
+                        ₹{(usd * inrRate).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              );
+            })()}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <AlertDialogContent>

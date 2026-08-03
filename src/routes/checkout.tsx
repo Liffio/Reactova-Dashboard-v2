@@ -111,21 +111,24 @@ function PostRegistrationCheckout() {
     },
   ];
 
-  const availableGateways = gateways.filter((g) => {
+  // Both gateway types render always; each is enabled only when the backend reports the
+  // provider configured AND the plan has at least one purchasable interval on it. An
+  // unavailable gateway shows as a disabled option instead of disappearing.
+  const gatewayRows = gateways.map((g) => {
     const provider = config?.providers?.[g.value];
-    if (!provider?.configured) return false;
-    // A gateway is only offered if this plan has at least one purchasable interval on it.
     const matrix = planConfig?.checkout?.[g.value];
-    return matrix ? Object.values(matrix).some(Boolean) : false;
+    const enabled = Boolean(provider?.configured && matrix && Object.values(matrix).some(Boolean));
+    return { ...g, enabled };
   });
+  const enabledGateways = gatewayRows.filter((g) => g.enabled);
 
-  // If the preferred gateway is unavailable (e.g. Stripe unconfigured), fall to the first offered.
+  // If the preferred gateway is unavailable (e.g. Stripe unconfigured), fall to the first enabled.
   useEffect(() => {
-    if (availableGateways.length && !availableGateways.some((g) => g.value === gateway)) {
-      setGateway(availableGateways[0].value);
+    if (enabledGateways.length && !enabledGateways.some((g) => g.value === gateway)) {
+      setGateway(enabledGateways[0].value);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableGateways.map((g) => g.value).join(","), gateway]);
+  }, [enabledGateways.map((g) => g.value).join(","), gateway]);
 
   const intervals: { value: Interval; label: string }[] = [
     { value: "monthly", label: "Monthly" },
@@ -255,34 +258,36 @@ function PostRegistrationCheckout() {
               </div>
             )}
 
-            {availableGateways.length >= 1 && (
-              <div className="space-y-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  Payment type
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {availableGateways.map((g) => (
-                    <button
-                      key={g.value}
-                      type="button"
-                      onClick={() => setGateway(g.value)}
-                      className={cn(
-                        "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors",
-                        gateway === g.value
-                          ? "border-primary bg-primary/5 ring-1 ring-primary"
-                          : "hover:border-foreground/20",
-                      )}
-                    >
-                      <span className="flex items-center gap-1.5 text-sm font-semibold">
-                        <g.icon className="h-4 w-4" />
-                        {g.label}
-                      </span>
-                      <span className="text-xs text-muted-foreground">{g.detail}</span>
-                    </button>
-                  ))}
-                </div>
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Payment type
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {gatewayRows.map((g) => (
+                  <button
+                    key={g.value}
+                    type="button"
+                    disabled={!g.enabled}
+                    onClick={() => setGateway(g.value)}
+                    className={cn(
+                      "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors",
+                      g.enabled && gateway === g.value
+                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                        : "enabled:hover:border-foreground/20",
+                      !g.enabled && "cursor-not-allowed opacity-50",
+                    )}
+                  >
+                    <span className="flex items-center gap-1.5 text-sm font-semibold">
+                      <g.icon className="h-4 w-4" />
+                      {g.label}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {g.enabled ? g.detail : "Temporarily unavailable"}
+                    </span>
+                  </button>
+                ))}
               </div>
-            )}
+            </div>
 
             <ul className="space-y-2.5">
               {highlights.map((feat) => (
@@ -297,7 +302,7 @@ function PostRegistrationCheckout() {
               className="w-full gap-2"
               size="lg"
               onClick={() => void handleCheckout()}
-              disabled={busy || !workspaceId || configQuery.isLoading || !availableGateways.length}
+              disabled={busy || !workspaceId || configQuery.isLoading || !enabledGateways.length}
             >
               {busy
                 ? gateway === "razorpay"

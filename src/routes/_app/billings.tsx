@@ -143,24 +143,41 @@ function BillingPage() {
   });
 
   /**
-   * Every configured gateway, with per-interval purchasability. Configured-but-unpriced
-   * gateways render as disabled rows rather than disappearing, so the payment-type step
-   * always looks the same and explains itself.
+   * Both gateway types, always. A gateway the backend has not enabled (or that has no
+   * price for the chosen interval) renders as a disabled row with the reason, rather
+   * than vanishing — the payment-type step must always show what payment methods exist.
    */
-  const gatewayOptions = (planKey: string): { value: Gateway; available: boolean }[] => {
+  const gatewayOptions = (
+    planKey: string,
+  ): { value: Gateway; available: boolean; reason?: string }[] => {
     const planCfg = configQuery.data?.plans.find((p) => p.plan === planKey);
     const providers = configQuery.data?.providers;
-    const options: { value: Gateway; available: boolean }[] = [];
-    if (providers?.stripe.configured) {
-      options.push({ value: "stripe", available: Boolean(planCfg?.checkout?.stripe?.[interval]) });
-    }
-    if (providers?.razorpay.configured && providers.razorpay.keyId) {
-      options.push({
+
+    const stripeConfigured = Boolean(providers?.stripe.configured);
+    const stripePriced = Boolean(planCfg?.checkout?.stripe?.[interval]);
+    const razorpayConfigured = Boolean(providers?.razorpay.configured && providers.razorpay.keyId);
+    const razorpayPriced = Boolean(planCfg?.checkout?.razorpay?.[interval]);
+
+    return [
+      {
+        value: "stripe",
+        available: stripeConfigured && stripePriced,
+        reason: !stripeConfigured
+          ? "Temporarily unavailable"
+          : !stripePriced
+            ? `Not available for ${interval} billing`
+            : undefined,
+      },
+      {
         value: "razorpay",
-        available: Boolean(planCfg?.checkout?.razorpay?.[interval]),
-      });
-    }
-    return options;
+        available: razorpayConfigured && razorpayPriced,
+        reason: !razorpayConfigured
+          ? "Temporarily unavailable"
+          : !razorpayPriced
+            ? `Not available for ${interval} billing`
+            : undefined,
+      },
+    ];
   };
 
   // Razorpay pays inside a modal on this page, so on success the page can refetch and
@@ -550,7 +567,7 @@ function BillingPage() {
                                 {m.title}
                               </span>
                               <span className="block text-xs text-muted-foreground">
-                                {option.available ? m.sub : `Not available for ${interval} billing`}
+                                {option.available ? m.sub : (option.reason ?? "Unavailable")}
                               </span>
                             </span>
                           </span>

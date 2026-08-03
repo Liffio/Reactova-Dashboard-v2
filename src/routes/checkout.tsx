@@ -255,9 +255,11 @@ function PostRegistrationCheckout() {
               </div>
             )}
 
-            {availableGateways.length > 1 && (
+            {availableGateways.length >= 1 && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Pay with</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Payment type
+                </p>
                 <div className="grid grid-cols-2 gap-2">
                   {availableGateways.map((g) => (
                     <button

@@ -128,6 +128,8 @@ export const apiUri = {
     analyticsBestTimes: `${V1}/scheduler/analytics/best-times`,
     /** Probed on demand only (a Trial toggle click), never on composer open. */
     trialEligibility: `${V1}/scheduler/trial-eligibility`,
+    /** One Graph probe per call — click-triggered (Add), never on keystroke. */
+    collaboratorsValidate: `${V1}/scheduler/collaborators/validate`,
     mediaUpload: `${V1}/scheduler/media/post`,
     /** Reel cover from an uploaded image. */
     mediaCover: `${V1}/scheduler/media/cover`,

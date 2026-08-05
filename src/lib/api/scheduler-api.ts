@@ -217,6 +217,13 @@ export function createScheduledPost(workspaceId: string, body: Record<string, un
   });
 }
 
+/**
+ * NOTE — no UI calls this yet; the composer is create-only. When an edit flow is wired, its
+ * `thumbnailUrl` must come from the upload response's extracted JPEG (`thumbnailUrl`, not
+ * `primaryMediaUrl`) and must never be a video URL: the backend rejects a video there and stores
+ * null, which is what left every reel row's preview blank. The create path derives it in
+ * `previewThumbnailUrl` in scheduler.tsx — reuse that rule rather than restating it.
+ */
 export function updateScheduledPost(
   workspaceId: string,
   postId: string,
@@ -387,6 +394,71 @@ export async function getTrialEligibility(workspaceId: string): Promise<TrialEli
     // A genuine transport failure (no parsable body) — still an answer the toggle can render,
     // but attributed to the check rather than to the account.
     throw e;
+  }
+}
+
+export type CollaboratorValidationCode =
+  | "VALID"
+  | "INVALID_USERNAME"
+  | "CHECK_FAILED"
+  | "INSTAGRAM_NOT_CONNECTED";
+
+export type CollaboratorValidation = {
+  valid: boolean;
+  /** Safe to render directly on the chip — the backend owns this wording. */
+  reason: string;
+  code: CollaboratorValidationCode;
+  username: string;
+  cached?: boolean;
+};
+
+/**
+ * Validates one collaborator handle. Click-triggered only — one Graph API probe per call, so this
+ * must never run on keystroke.
+ *
+ * There is no username lookup on our API path (`business_discovery` is Facebook-Login only), so
+ * this validates rather than resolves: no picker, no avatar, just "Instagram will accept this
+ * handle, or it won't". Worth having because one unusable collaborator fails the entire container
+ * at publish, long after the composer is closed.
+ *
+ * Like `/trial-eligibility`, a rejection arrives as a 400 (not connected) or 502 (probe failed)
+ * carrying `{ valid, code, reason }` with no `error` key, so it is read off `ApiError.body` and
+ * returned as a normal answer rather than thrown.
+ */
+export async function validateCollaborator(
+  workspaceId: string,
+  username: string,
+): Promise<CollaboratorValidation> {
+  try {
+    return await apiRequest<CollaboratorValidation>(apiUri.scheduler.collaboratorsValidate, {
+      method: "POST",
+      workspaceId,
+      body: { username },
+    });
+  } catch (e) {
+    const body = e instanceof ApiError ? e.body : null;
+    if (body && typeof body === "object" && "code" in body && "reason" in body) {
+      const shaped = body as { valid?: boolean; reason?: unknown; code?: unknown };
+      return {
+        valid: shaped.valid === true,
+        reason:
+          typeof shaped.reason === "string" && shaped.reason.trim()
+            ? shaped.reason
+            : `Could not check @${username} with Instagram right now.`,
+        code: shaped.code as CollaboratorValidationCode,
+        username,
+      };
+    }
+    // No readable body — unknown, not invalid. CHECK_FAILED is the honest classification.
+    return {
+      valid: false,
+      reason:
+        e instanceof Error && e.message
+          ? e.message
+          : `Could not check @${username} with Instagram right now. Try again in a moment.`,
+      code: "CHECK_FAILED",
+      username,
+    };
   }
 }
 

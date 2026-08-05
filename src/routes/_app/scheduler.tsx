@@ -100,6 +100,7 @@ import {
   syncSchedulerAnalytics,
   uploadSchedulerCover,
   uploadSchedulerMedia,
+  validateCollaborator,
   SCHEDULER_MEDIA_ACCEPT_FEED,
   SCHEDULER_MEDIA_ACCEPT_REEL,
   SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES,
@@ -352,6 +353,19 @@ function nextDateTimeLocalForSlot(
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${target.getUTCFullYear()}-${pad(target.getUTCMonth() + 1)}-${pad(target.getUTCDate())}T${pad(hour)}:${pad(minute)}`;
 }
+
+/**
+ * A collaborator chip and what Instagram said about it.
+ *
+ * `unverified` is deliberately distinct from `invalid`: a failed probe says nothing about the
+ * handle, so it must not be presented — or treated at submit — as a rejection.
+ */
+type CollaboratorEntry = {
+  username: string;
+  status: "pending" | "valid" | "invalid" | "unverified";
+  /** The backend's wording, rendered as-is. */
+  reason?: string;
+};
 
 const FIRST_COMMENT_STATUS_STYLES: Record<string, string> = {
   PENDING: "border-warning/30 bg-warning/10 text-warning",
@@ -1194,6 +1208,12 @@ type FormState = {
   /** Hashtags are typed inline here — there is no separate hashtags field and none is ever sent. */
   caption: string;
   primaryMediaUrl: string;
+  /**
+   * The extracted JPEG the upload endpoint returns alongside a video. Sent as `thumbnailUrl` so
+   * the calendar and list previews have a real image — the backend refuses a video URL as a
+   * preview and stores null, which is why reels used to show a placeholder.
+   */
+  uploadedThumbnailUrl: string;
   carouselMediaUrls: string[];
   /** Index-aligned with `carouselMediaUrls`; "" means "no alt text for this item". */
   carouselAltTexts: string[];
@@ -1204,7 +1224,7 @@ type FormState = {
   firstComment: string;
   /** Tri-state: null leaves Instagram's setting alone and makes no API call at all. */
   commentsEnabled: boolean | null;
-  collaborators: string[];
+  collaborators: CollaboratorEntry[];
   collaboratorDraft: string;
   trialEnabled: boolean;
   trialGraduationStrategy: TrialGraduationStrategy;
@@ -1227,6 +1247,7 @@ const FORM_DEFAULTS: FormState = {
   type: "FEED",
   caption: "",
   primaryMediaUrl: "",
+  uploadedThumbnailUrl: "",
   carouselMediaUrls: [],
   carouselAltTexts: [],
   altText: "",
@@ -1262,9 +1283,32 @@ const FORM_DEFAULTS: FormState = {
  * some later edit can flip. `thumbnailOffsetSeconds` is deliberately absent everywhere: Meta
  * accepts it and ignores it.
  */
+/**
+ * The preview image stored on the post (Liffio's own `thumbnailUrl`, not Instagram's cover).
+ *
+ * Must never be a video: the calendar and list render it in an `<img>`, and the backend rejects a
+ * video URL here and stores null rather than letting a broken image through. Order of preference is
+ * the reel's chosen cover, then the JPEG the upload endpoint extracted from the video, then the
+ * primary media itself when that is already an image.
+ *
+ * Carousels send nothing — the backend falls through to the first image child, which handles mixed
+ * carousels whose first item is a video.
+ */
+function previewThumbnailUrl(form: FormState): string | undefined {
+  if (form.type === "CAROUSEL") {
+    return undefined;
+  }
+  const candidates = [
+    form.type === "REEL" ? form.coverImageUrl : "",
+    form.uploadedThumbnailUrl,
+    form.primaryMediaUrl,
+  ];
+  return candidates.map((c) => c.trim()).find((c) => c.length > 0 && !isLikelyVideoUrl(c));
+}
+
 function typeSpecificPayload(form: FormState): Record<string, unknown> {
   // A trial reel cannot have collaborators — the backend rejects the combination outright.
-  const list = form.trialEnabled ? [] : form.collaborators;
+  const list = form.trialEnabled ? [] : form.collaborators.map((c) => c.username);
   const collaborators = list.length > 0 ? list : undefined;
   switch (form.type) {
     case "FEED":
@@ -1354,6 +1398,17 @@ function SchedulerPage() {
   const overPerCommentHashtags = firstCommentHashtagCount > FIRST_COMMENT_HASHTAG_MAX;
   const overCombinedHashtags =
     hasFirstComment && combinedHashtagCount > CAPTION_PLUS_COMMENT_HASHTAG_MAX;
+
+  /**
+   * Submit is blocked while a collaborator is definitively rejected or still being checked — one
+   * bad collaborator fails the whole container at publish, long after the composer is closed.
+   *
+   * `unverified` deliberately does NOT block: the probe failing is not evidence against the handle,
+   * so refusing to save on it would make an Instagram blip un-submittable.
+   */
+  const activeCollaborators = form.trialEnabled ? [] : form.collaborators;
+  const hasInvalidCollaborator = activeCollaborators.some((c) => c.status === "invalid");
+  const hasPendingCollaborator = activeCollaborators.some((c) => c.status === "pending");
 
   /**
    * The frame scrubber only works on a video Liffio hosts in *this* workspace — the endpoint
@@ -1897,6 +1952,9 @@ function SchedulerPage() {
         return {
           ...f,
           primaryMediaUrl: nextPrimary,
+          // The endpoint extracts a JPEG for videos and returns it alongside the media. Keeping it
+          // is what gives the calendar and list a real preview instead of a placeholder.
+          uploadedThumbnailUrl: uploaded[0]?.thumbnailUrl ?? f.uploadedThumbnailUrl,
           // A new reel video invalidates a cover extracted from the previous one.
           coverImageUrl: nextPrimary === f.primaryMediaUrl ? f.coverImageUrl : "",
         };
@@ -1998,6 +2056,37 @@ function SchedulerPage() {
     });
   };
 
+  /**
+   * Runs one Graph probe for a handle and folds the verdict back onto its chip.
+   *
+   * `INVALID_USERNAME` is Instagram's definitive no. Anything else that failed (`CHECK_FAILED`,
+   * `INSTAGRAM_NOT_CONNECTED`) is *unknown*, not a rejection — the backend never caches those and
+   * neither do we treat them as invalid, because a transient blip must not be presented to the user
+   * as "this account doesn't exist".
+   */
+  const runCollaboratorCheck = useCallback(
+    async (username: string) => {
+      const result = await validateCollaborator(workspaceId, username);
+      setForm((f) => ({
+        ...f,
+        collaborators: f.collaborators.map((c) =>
+          c.username.toLowerCase() === username.toLowerCase()
+            ? {
+                ...c,
+                status: result.valid
+                  ? "valid"
+                  : result.code === "INVALID_USERNAME"
+                    ? "invalid"
+                    : "unverified",
+                reason: result.reason,
+              }
+            : c,
+        ),
+      }));
+    },
+    [workspaceId],
+  );
+
   const addCollaborator = () => {
     const name = form.collaboratorDraft.trim().replace(/^@+/, "");
     if (!name) return;
@@ -2006,19 +2095,34 @@ function SchedulerPage() {
       toast.error(`Instagram allows at most ${COLLABORATORS_MAX} collaborators.`);
       return;
     }
-    if (form.collaborators.some((c) => c.toLowerCase() === name.toLowerCase())) {
+    if (form.collaborators.some((c) => c.username.toLowerCase() === name.toLowerCase())) {
       setForm((f) => ({ ...f, collaboratorDraft: "" }));
       return;
     }
     setForm((f) => ({
       ...f,
-      collaborators: [...f.collaborators, name],
+      collaborators: [...f.collaborators, { username: name, status: "pending" }],
       collaboratorDraft: "",
     }));
+    // Click-triggered only — one Graph probe per Add, never per keystroke.
+    void runCollaboratorCheck(name);
+  };
+
+  const recheckCollaborator = (username: string) => {
+    setForm((f) => ({
+      ...f,
+      collaborators: f.collaborators.map((c) =>
+        c.username === username ? { ...c, status: "pending", reason: undefined } : c,
+      ),
+    }));
+    void runCollaboratorCheck(username);
   };
 
   const removeCollaborator = (name: string) => {
-    setForm((f) => ({ ...f, collaborators: f.collaborators.filter((c) => c !== name) }));
+    setForm((f) => ({
+      ...f,
+      collaborators: f.collaborators.filter((c) => c.username !== name),
+    }));
   };
 
   const onPickCoverFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -2162,6 +2266,17 @@ function SchedulerPage() {
       return;
     }
 
+    if (hasInvalidCollaborator) {
+      toast.error("Remove the collaborator Instagram rejected", {
+        description: "One unusable collaborator fails the whole post at publish time.",
+      });
+      return;
+    }
+    if (hasPendingCollaborator) {
+      toast.info("Still checking a collaborator", { description: "Give it a moment." });
+      return;
+    }
+
     // Both hashtag caps, in the same order the backend applies them: the per-comment one first so
     // a wall of tags in the comment alone gets the more specific message.
     const firstComment = form.firstComment.trim();
@@ -2188,19 +2303,13 @@ function SchedulerPage() {
 
     const primaryMediaUrl =
       form.type === "CAROUSEL" ? (carouselMediaUrls[0] ?? "") : form.primaryMediaUrl.trim();
-    // A reel's cover is the better internal thumbnail than the raw MP4 the list would otherwise
-    // try to render. This is Liffio's own display field, separate from `coverImageUrl`.
-    const thumbnailUrl =
-      form.type === "REEL" && form.coverImageUrl.trim()
-        ? form.coverImageUrl.trim()
-        : primaryMediaUrl;
 
     const body: Record<string, unknown> = {
       type: form.type,
       caption: form.caption.trim() || undefined,
       timezone: form.timezone,
       primaryMediaUrl: primaryMediaUrl || undefined,
-      thumbnailUrl: thumbnailUrl || undefined,
+      thumbnailUrl: previewThumbnailUrl(form),
       firstComment: firstComment || undefined,
       // Tri-state: only sent when the user actually chose. null would ask the backend to make no
       // Instagram call at all, and omitting it says the same thing without the extra key.
@@ -3021,6 +3130,7 @@ function SchedulerPage() {
                         setForm((f) => ({
                           ...f,
                           primaryMediaUrl: "",
+                          uploadedThumbnailUrl: "",
                           carouselMediaUrls: [],
                           carouselAltTexts: [],
                           // A cover extracted from the cleared video is no longer valid.
@@ -3217,6 +3327,9 @@ function SchedulerPage() {
                         setForm((f) => ({
                           ...f,
                           primaryMediaUrl: e.target.value.slice(0, LIMITS.url.max),
+                          // A pasted URL has no extracted JPEG — the old one belonged to the
+                          // upload this replaces, so it must not be sent as this post's preview.
+                          uploadedThumbnailUrl: "",
                         }));
                         // The scrubber's position and probed duration belong to the old video.
                         // An already-set cover image stays — it's a standalone asset.
@@ -3643,19 +3756,73 @@ function SchedulerPage() {
                           Add
                         </Button>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {form.collaborators.map((name) => (
-                          <span
-                            key={name}
-                            className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs"
-                          >
-                            @{name}
-                            <button type="button" onClick={() => removeCollaborator(name)}>
-                              <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-                            </button>
-                          </span>
+                      {/* Per-chip verdict. There is no picker or avatar because no endpoint on our
+                          API path resolves a username to a profile — the honest affordance is
+                          "Instagram will accept this handle, or it won't". */}
+                      <div className="space-y-1.5">
+                        {form.collaborators.map((collaborator) => (
+                          <div key={collaborator.username} className="space-y-0.5">
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs",
+                                collaborator.status === "valid" &&
+                                  "border-success/30 bg-success/10 text-success",
+                                collaborator.status === "invalid" &&
+                                  "border-destructive/40 bg-destructive/10 text-destructive",
+                                collaborator.status === "unverified" &&
+                                  "border-warning/40 bg-warning/10 text-warning",
+                                collaborator.status === "pending" && "bg-muted",
+                              )}
+                            >
+                              {collaborator.status === "pending" && (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              )}
+                              {collaborator.status === "valid" && (
+                                <CheckCircle2 className="h-3 w-3" />
+                              )}
+                              {(collaborator.status === "invalid" ||
+                                collaborator.status === "unverified") && (
+                                <AlertTriangle className="h-3 w-3" />
+                              )}
+                              @{collaborator.username}
+                              <button
+                                type="button"
+                                onClick={() => removeCollaborator(collaborator.username)}
+                                aria-label={`Remove @${collaborator.username}`}
+                              >
+                                <X className="h-3 w-3 opacity-70 hover:opacity-100" />
+                              </button>
+                            </span>
+                            {collaborator.reason && collaborator.status !== "valid" && (
+                              <p
+                                className={cn(
+                                  "text-[11px]",
+                                  collaborator.status === "invalid"
+                                    ? "text-destructive"
+                                    : "text-muted-foreground",
+                                )}
+                              >
+                                {collaborator.reason}
+                                {collaborator.status === "unverified" && (
+                                  <button
+                                    type="button"
+                                    className="ml-1 underline hover:no-underline"
+                                    onClick={() => recheckCollaborator(collaborator.username)}
+                                  >
+                                    Check again
+                                  </button>
+                                )}
+                              </p>
+                            )}
+                          </div>
                         ))}
                       </div>
+                      {hasInvalidCollaborator && (
+                        <p className="text-xs text-destructive">
+                          Remove the rejected collaborator to save — one unusable handle fails the
+                          whole post at publish.
+                        </p>
+                      )}
                       {form.collaborators.length >= COLLABORATORS_MAX && (
                         <p className="text-xs text-muted-foreground">
                           Instagram allows at most {COLLABORATORS_MAX}.
@@ -3984,7 +4151,13 @@ function SchedulerPage() {
               Close
             </Button>
             <Button
-              disabled={createMutation.isPending || uploadingMedia}
+              disabled={
+                createMutation.isPending ||
+                uploadingMedia ||
+                // A rejected collaborator would fail the entire container at publish.
+                hasInvalidCollaborator ||
+                hasPendingCollaborator
+              }
               onClick={() => void onCreate()}
             >
               {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}

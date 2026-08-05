@@ -111,19 +111,28 @@ export const apiUri = {
   },
 
   scheduler: {
-    musicSearch: `${V1}/scheduler/music/search`,
     platformAccounts: `${V1}/scheduler/platform-accounts`,
     platformAccount: (accountId: string) => `${V1}/scheduler/platform-accounts/${accountId}`,
-    /** Paginated posts with text search over caption and hashtags. */
+    /** Paginated posts with text search over the caption. */
     postsSearch: `${V1}/scheduler/posts/search`,
     posts: `${V1}/scheduler/posts`,
     post: (postId: string) => `${V1}/scheduler/posts/${postId}`,
     postsCalendar: `${V1}/scheduler/posts/calendar`,
     publishNow: (postId: string) => `${V1}/scheduler/posts/${postId}/publish-now`,
+    /** Re-runs the post-publish actions (first comment + comments toggle) for a published post. */
+    retryPostPublish: (postId: string) => `${V1}/scheduler/posts/${postId}/retry-post-publish`,
     analyticsOverview: `${V1}/scheduler/analytics/overview`,
     analyticsPosts: `${V1}/scheduler/analytics/posts`,
     analyticsSync: `${V1}/scheduler/analytics/sync`,
+    /** Suggested posting times. Buckets are UTC — the composer converts to its selected zone. */
+    analyticsBestTimes: `${V1}/scheduler/analytics/best-times`,
+    /** Probed on demand only (a Trial toggle click), never on composer open. */
+    trialEligibility: `${V1}/scheduler/trial-eligibility`,
     mediaUpload: `${V1}/scheduler/media/post`,
+    /** Reel cover from an uploaded image. */
+    mediaCover: `${V1}/scheduler/media/cover`,
+    /** Reel cover extracted from a frame of a Liffio-hosted video. */
+    mediaCoverFromFrame: `${V1}/scheduler/media/cover-from-frame`,
   },
 
   biolink: {

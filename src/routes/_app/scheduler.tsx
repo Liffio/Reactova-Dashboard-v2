@@ -14,22 +14,27 @@ import {
   BarChart2,
   Bookmark,
   CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Clock,
+  Copy,
   ExternalLink,
+  GripVertical,
   Heart,
+  ImagePlus,
   Images,
   List,
   Loader2,
   MessageCircle,
   MoreHorizontal,
-  Music2,
   Pause,
   Play,
   Plus,
   RefreshCw,
   Search,
   Send,
+  Users,
   X,
 } from "lucide-react";
 import {
@@ -71,16 +76,28 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  ALT_TEXT_MAX,
+  CAROUSEL_MEDIA_MAX,
+  CAROUSEL_MEDIA_MIN,
+  COLLABORATORS_MAX,
+  FIRST_COMMENT_HASHTAG_MAX,
+  FIRST_COMMENT_MAX,
   cancelScheduledPost,
+  canExtractCoverFrame,
+  countHashtags,
   createScheduledPost,
+  createSchedulerCoverFromFrame,
   getScheduledPost,
   getSchedulerAnalyticsOverview,
   getSchedulerAnalyticsPosts,
+  getSchedulerBestTimes,
   getSchedulerCalendar,
+  getTrialEligibility,
   listPlatformAccounts,
   publishPostNow,
-  searchMusic,
+  retryPostPublishActions,
   syncSchedulerAnalytics,
+  uploadSchedulerCover,
   uploadSchedulerMedia,
   SCHEDULER_MEDIA_ACCEPT_FEED,
   SCHEDULER_MEDIA_ACCEPT_REEL,
@@ -89,10 +106,12 @@ import {
   SCHEDULER_REEL_VIDEO_CLIENT_MAX_BYTES,
   SCHEDULER_REEL_VIDEO_MIME_TYPES,
   type CalendarPost,
-  type InstagramMusicTrack,
   type ScheduledPost,
   type ScheduledPostType,
   type SchedulerAnalyticsPost,
+  type SchedulerBestTimeSlot,
+  type TrialEligibility,
+  type TrialGraduationStrategy,
 } from "@/lib/api/scheduler-api";
 import { ApiError } from "@/lib/api/http";
 import { PaginationBar } from "@/components/ui/pagination-bar";
@@ -185,7 +204,6 @@ const HOUR_BANDS = [
   { label: "6–9p", hours: [18, 19, 20] },
   { label: "9p–12a", hours: [21, 22, 23] },
 ] as const;
-const CAROUSEL_MEDIA_MAX = 10;
 const TIMEZONES = [
   "UTC",
   "America/New_York",
@@ -222,13 +240,124 @@ function isSchedulerHostedVideoUrl(url: string): boolean {
   }
 }
 
-function parseHashtagTokens(raw: string): string[] {
-  return raw
-    .split(/[\s,]+/)
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .map((t) => (t.startsWith("#") ? t : `#${t.replace(/^#+/, "")}`));
+/**
+ * Renders caption text with its inline hashtags tinted the way Instagram tints them.
+ *
+ * Hashtags are ordinary caption text now — there is no separate field — so the preview has to
+ * find them in the caption rather than being handed a token list.
+ */
+function CaptionWithHashtags({ text, className }: { text: string; className?: string }) {
+  const parts = useMemo(() => text.split(/(#[\wÀ-￿]+)/g).filter(Boolean), [text]);
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.startsWith("#") ? (
+          <span key={index} className={className ?? "text-[#00376b] dark:text-sky-400"}>
+            {part}
+          </span>
+        ) : (
+          <span key={index}>{part}</span>
+        ),
+      )}
+    </>
+  );
 }
+
+/** UTC bucket from /analytics/best-times → the wall time a user sees in `timezone`. */
+function bestTimeSlotToLocal(
+  slot: SchedulerBestTimeSlot,
+  timezone: string,
+): { label: string; hour: number; minute: number; dayOfWeek: number } | null {
+  // Any Sunday works as an anchor: dayOfWeekUtc 0 = Sunday, and only the weekday-plus-hour
+  // offset matters, not the calendar date.
+  const anchor = new Date(Date.UTC(2024, 0, 7 + slot.dayOfWeekUtc, slot.hourUtc, 0, 0));
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(anchor);
+    const lookup = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+    const weekday = lookup("weekday");
+    const hour = Number(lookup("hour"));
+    const minute = Number(lookup("minute"));
+    if (!weekday || Number.isNaN(hour) || Number.isNaN(minute)) return null;
+    const dayOfWeek = WEEK_LABELS.indexOf(weekday as (typeof WEEK_LABELS)[number]);
+    return {
+      label: `${weekday} ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+      hour,
+      minute,
+      dayOfWeek: dayOfWeek === -1 ? slot.dayOfWeekUtc : dayOfWeek,
+    };
+  } catch {
+    // An unknown IANA zone (e.g. a stale handoff timezone) — skip rather than crash the composer.
+    return null;
+  }
+}
+
+/** "Now" as wall-clock fields inside `timezone`, or null if the zone is unknown. */
+function wallClockNowInZone(
+  timezone: string,
+): { year: number; month: number; day: number; dayOfWeek: number; minutesOfDay: number } | null {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+    const lookup = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+    const dayOfWeek = WEEK_LABELS.indexOf(lookup("weekday") as (typeof WEEK_LABELS)[number]);
+    const year = Number(lookup("year"));
+    const month = Number(lookup("month"));
+    const day = Number(lookup("day"));
+    // Intl renders midnight as "24" in some locales/zones under hour12:false.
+    const hour = Number(lookup("hour")) % 24;
+    const minute = Number(lookup("minute"));
+    if (dayOfWeek === -1 || [year, month, day, hour, minute].some(Number.isNaN)) return null;
+    return { year, month, day, dayOfWeek, minutesOfDay: hour * 60 + minute };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The soonest upcoming `datetime-local` value matching a weekday + time, expressed as wall time
+ * in `timezone` — which is exactly how the backend reads `scheduledLocal`.
+ *
+ * Anchored on the *target zone's* today rather than the browser's, so a user scheduling into a
+ * zone on the other side of the date line still gets the right calendar date.
+ */
+function nextDateTimeLocalForSlot(
+  dayOfWeek: number,
+  hour: number,
+  minute: number,
+  timezone: string,
+): string | null {
+  const now = wallClockNowInZone(timezone);
+  if (!now) return null;
+  let dayDelta = (dayOfWeek - now.dayOfWeek + 7) % 7;
+  if (dayDelta === 0 && hour * 60 + minute <= now.minutesOfDay) {
+    dayDelta = 7;
+  }
+  // Date.UTC + getUTC* is pure calendar arithmetic here — it never re-enters a local timezone.
+  const target = new Date(Date.UTC(now.year, now.month - 1, now.day + dayDelta));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${target.getUTCFullYear()}-${pad(target.getUTCMonth() + 1)}-${pad(target.getUTCDate())}T${pad(hour)}:${pad(minute)}`;
+}
+
+const FIRST_COMMENT_STATUS_STYLES: Record<string, string> = {
+  PENDING: "border-warning/30 bg-warning/10 text-warning",
+  POSTED: "border-success/30 bg-success/10 text-success",
+  FAILED: "border-destructive/30 bg-destructive/10 text-destructive",
+  SKIPPED: "border-border bg-muted text-muted-foreground",
+};
 
 function statusBorderClass(status: string): string {
   switch (status) {
@@ -482,7 +611,7 @@ function IgStylePostPreview({
   mediaUrl,
   mediaUrls,
   caption,
-  hashtagsRaw,
+  coverImageUrl,
 }: {
   type: ScheduledPostType;
   username: string;
@@ -490,9 +619,9 @@ function IgStylePostPreview({
   mediaUrl: string;
   mediaUrls?: string[];
   caption: string;
-  hashtagsRaw: string;
+  /** REEL only — when set, Instagram shows this instead of a frame of the video. */
+  coverImageUrl?: string;
 }) {
-  const hashtagTokens = useMemo(() => parseHashtagTokens(hashtagsRaw), [hashtagsRaw]);
   const handle = username.replace(/^@/, "").trim() || "yourbrand";
   const carouselMedia = useMemo(
     () => (mediaUrls ?? []).map((url) => url.trim()).filter(Boolean),
@@ -517,11 +646,17 @@ function IgStylePostPreview({
     }
   }, [activeCarouselIndex, carouselSlides.length]);
 
-  const media = type === "CAROUSEL" ? (carouselSlides[activeCarouselIndex] ?? "") : mediaUrl.trim();
+  // A reel's cover replaces the video frame Instagram would otherwise pick, so the preview shows
+  // the cover once one is set — that is what the published reel will look like in a grid.
+  const media =
+    type === "CAROUSEL"
+      ? (carouselSlides[activeCarouselIndex] ?? "")
+      : type === "REEL" && coverImageUrl?.trim()
+        ? coverImageUrl.trim()
+        : mediaUrl.trim();
   const hasMedia = media.length > 0;
   const carouselCount = carouselSlides.length;
   const hasCaption = caption.trim().length > 0;
-  const hasTags = hashtagTokens.length > 0;
   const captionText = caption.trim();
   const previewLabel =
     type === "REEL"
@@ -568,14 +703,12 @@ function IgStylePostPreview({
           <div className="absolute bottom-5 left-4 right-4 space-y-2">
             <div className="rounded-2xl bg-black/30 p-3 backdrop-blur-sm">
               {hasCaption ? (
-                <p className="text-sm font-medium leading-relaxed">{captionText}</p>
-              ) : null}
-              {hasTags ? (
-                <p className="text-sm font-medium text-white/90">{hashtagTokens.join(" ")}</p>
-              ) : null}
-              {!hasCaption && !hasTags ? (
+                <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap break-words">
+                  <CaptionWithHashtags text={captionText} className="text-sky-300" />
+                </p>
+              ) : (
                 <p className="text-sm text-white/80">Story text preview</p>
-              ) : null}
+              )}
             </div>
             <div className="rounded-full border border-white/35 px-4 py-2 text-xs text-white/85">
               Send message
@@ -615,11 +748,9 @@ function IgStylePostPreview({
                 Follow
               </span>
             </div>
-            {hasCaption || hasTags ? (
-              <p className="line-clamp-3 text-sm leading-relaxed">
-                {captionText}
-                {hasCaption && hasTags ? " " : ""}
-                {hasTags ? hashtagTokens.join(" ") : ""}
+            {hasCaption ? (
+              <p className="line-clamp-3 text-sm leading-relaxed whitespace-pre-wrap break-words">
+                <CaptionWithHashtags text={captionText} className="text-sky-300" />
               </p>
             ) : (
               <p className="text-sm text-white/75">Write a reel caption...</p>
@@ -730,27 +861,125 @@ function IgStylePostPreview({
         {hasCaption ? (
           <>
             {" "}
-            <span className="text-foreground whitespace-pre-wrap break-words">{captionText}</span>
+            <span className="text-foreground whitespace-pre-wrap break-words">
+              <CaptionWithHashtags text={captionText} />
+            </span>
           </>
-        ) : null}
-        {hasCaption && hasTags ? <br /> : null}
-        {hasTags ? (
-          <span className="text-[#00376b] dark:text-sky-400 font-normal break-words">
-            {hashtagTokens.join(" ")}
-          </span>
-        ) : null}
-        {!hasCaption && !hasTags ? (
+        ) : (
           <>
             {" "}
             <span className="text-muted-foreground italic font-normal">Write a caption…</span>
           </>
-        ) : null}
+        )}
       </div>
     </div>
   );
 }
 
-function SchedulerPostDetailFields({ post: dp }: { post: ScheduledPost }) {
+/**
+ * The first comment's fate after publishing.
+ *
+ * Instagram has no caption-edit endpoint and no way to recover a comment that never posted, so a
+ * FAILED first comment is surfaced loudly with the backend's actionable reason, a retry, and a
+ * copy button — the text itself is the only thing that can't be regenerated.
+ */
+function FirstCommentStatusPanel({
+  post: dp,
+  onRetry,
+  isRetrying,
+}: {
+  post: ScheduledPost;
+  onRetry: () => void;
+  isRetrying: boolean;
+}) {
+  const status = dp.firstCommentStatus;
+  if (!dp.firstComment && !status) return null;
+
+  const failed = status === "FAILED";
+  return (
+    <div
+      className={cn(
+        "rounded-lg border p-3 space-y-2",
+        failed ? "border-destructive/40 bg-destructive/5" : "border-border bg-muted/20",
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">First comment</span>
+        {status ? (
+          <Badge variant="outline" className={cn("text-xs", FIRST_COMMENT_STATUS_STYLES[status])}>
+            {status === "POSTED" ? (
+              <CheckCircle2 className="mr-1 h-3 w-3" />
+            ) : failed ? (
+              <AlertTriangle className="mr-1 h-3 w-3" />
+            ) : null}
+            {status.toLowerCase()}
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-xs">
+            not published yet
+          </Badge>
+        )}
+      </div>
+
+      {dp.firstComment ? (
+        <p className="whitespace-pre-wrap break-words rounded-md border border-border bg-background p-2 text-sm max-h-32 overflow-y-auto">
+          {dp.firstComment}
+        </p>
+      ) : null}
+
+      {failed && (
+        <>
+          <p className="text-xs text-destructive">
+            {dp.firstCommentError ??
+              "Instagram rejected the comment. Copy the text and post it manually if retrying doesn't help."}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" disabled={isRetrying} onClick={onRetry}>
+              {isRetrying ? (
+                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1 h-3.5 w-3.5" />
+              )}
+              Retry comment
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                void navigator.clipboard
+                  .writeText(dp.firstComment ?? "")
+                  .then(() => toast.success("Comment text copied"))
+                  .catch(() => toast.error("Couldn't copy — select the text above instead."));
+              }}
+            >
+              <Copy className="mr-1 h-3.5 w-3.5" />
+              Copy text
+            </Button>
+          </div>
+        </>
+      )}
+
+      {status === "PENDING" && (
+        <p className="text-xs text-muted-foreground">
+          Instagram hasn't accepted it yet — this retries automatically.
+        </p>
+      )}
+      {status === "POSTED" && dp.firstCommentId && (
+        <p className="text-[11px] text-muted-foreground font-mono">comment {dp.firstCommentId}</p>
+      )}
+    </div>
+  );
+}
+
+function SchedulerPostDetailFields({
+  post: dp,
+  onRetryPostPublish,
+  isRetryingPostPublish,
+}: {
+  post: ScheduledPost;
+  onRetryPostPublish: () => void;
+  isRetryingPostPublish: boolean;
+}) {
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
@@ -782,10 +1011,86 @@ function SchedulerPostDetailFields({ post: dp }: { post: ScheduledPost }) {
           {dp.caption ?? "—"}
         </p>
       </div>
+      {/* Legacy rows only. Hashtags are part of the caption now and are never sent, but posts
+          created before that change keep theirs so the audit trail stays readable. */}
       {dp.hashtags.length > 0 && (
         <div>
-          <span className="text-xs text-muted-foreground block mb-1">Hashtags</span>
-          <p className="text-xs text-foreground">{dp.hashtags.map((h) => `#${h}`).join(" ")}</p>
+          <span className="text-xs text-muted-foreground block mb-1">
+            Hashtags <span className="text-[10px]">(legacy field)</span>
+          </span>
+          <p className="text-xs text-foreground">
+            {dp.hashtags.map((h) => (h.startsWith("#") ? h : `#${h}`)).join(" ")}
+          </p>
+        </div>
+      )}
+
+      <FirstCommentStatusPanel
+        post={dp}
+        onRetry={onRetryPostPublish}
+        isRetrying={isRetryingPostPublish}
+      />
+
+      {dp.commentsEnabled !== null && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Comments</span>
+          <Badge variant="outline" className="text-xs">
+            {dp.commentsEnabled ? "turned on" : "turned off"}
+          </Badge>
+          {dp.commentsEnabledApplied === false && (
+            <span className="text-xs text-warning">not applied on Instagram yet</span>
+          )}
+          {dp.commentsEnabled === false && dp.firstComment && (
+            <span className="text-xs text-warning">
+              — the first comment is posted but hidden while comments are off
+            </span>
+          )}
+        </div>
+      )}
+
+      {dp.collaborators.length > 0 && (
+        <div>
+          <span className="text-xs text-muted-foreground block mb-1">Collaborators</span>
+          <div className="flex flex-wrap gap-1.5">
+            {dp.collaborators.map((name) => (
+              <span key={name} className="rounded-full bg-muted px-2.5 py-1 text-xs">
+                @{name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {dp.trialEnabled && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="text-xs border-primary/30 bg-primary/10 text-primary">
+            Trial reel
+          </Badge>
+          {dp.trialGraduationStrategy && (
+            <span className="text-xs text-muted-foreground">
+              graduates{" "}
+              {dp.trialGraduationStrategy === "MANUAL" ? "manually" : "on strong performance"}
+            </span>
+          )}
+          <span className="text-xs text-muted-foreground">— not shared to feed</span>
+        </div>
+      )}
+
+      {dp.altText && (
+        <div>
+          <span className="text-xs text-muted-foreground block mb-1">Alt text</span>
+          <p className="text-xs text-foreground whitespace-pre-wrap break-words">{dp.altText}</p>
+        </div>
+      )}
+      {dp.coverImageUrl && (
+        <div>
+          <span className="text-xs text-muted-foreground block mb-1">Reel cover</span>
+          <div className="rounded-lg border border-border overflow-hidden bg-muted max-w-[140px]">
+            <img
+              src={dp.coverImageUrl}
+              alt="Reel cover"
+              className="w-full aspect-[9/16] object-cover"
+            />
+          </div>
         </div>
       )}
       {(dp.thumbnailUrl || dp.primaryMediaUrl) && (
@@ -818,26 +1123,41 @@ function SchedulerPostDetailFields({ post: dp }: { post: ScheduledPost }) {
       )}
       {dp.type === "CAROUSEL" && dp.carouselMediaUrls.length > 0 && (
         <div>
-          <span className="text-xs text-muted-foreground block mb-1">Carousel images</span>
+          <span className="text-xs text-muted-foreground block mb-1">
+            Carousel items{" "}
+            <span className="text-[10px]">(item 1 is the cover — Instagram fixes that)</span>
+          </span>
           <div className="grid grid-cols-3 gap-2">
-            {dp.carouselMediaUrls.map((url, index) => (
-              <a
-                key={`${url}-${index}`}
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-                className="relative aspect-square overflow-hidden rounded-md border border-border bg-muted"
-              >
-                <img
-                  src={url}
-                  alt={`Carousel image ${index + 1}`}
-                  className="absolute inset-0 h-full w-full object-cover"
-                />
-                <span className="absolute left-1.5 top-1.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                  {index + 1}
-                </span>
-              </a>
-            ))}
+            {dp.carouselMediaUrls.map((url, index) => {
+              const alt = dp.carouselAltTexts[index]?.trim();
+              return (
+                <div key={`${url}-${index}`} className="space-y-1">
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="relative block aspect-square overflow-hidden rounded-md border border-border bg-muted"
+                  >
+                    <SchedulerMediaThumb
+                      url={url}
+                      className="absolute inset-0 h-full w-full"
+                      imgClassName="absolute inset-0 h-full w-full object-cover"
+                    />
+                    <span className="absolute left-1.5 top-1.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                      {index + 1}
+                    </span>
+                  </a>
+                  {alt ? (
+                    <p
+                      className="text-[10px] text-muted-foreground line-clamp-2 break-words"
+                      title={alt}
+                    >
+                      {alt}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -870,10 +1190,23 @@ function SchedulerPostDetailFields({ post: dp }: { post: ScheduledPost }) {
 
 type FormState = {
   type: ScheduledPostType;
+  /** Hashtags are typed inline here — there is no separate hashtags field and none is ever sent. */
   caption: string;
-  hashtags: string;
   primaryMediaUrl: string;
   carouselMediaUrls: string[];
+  /** Index-aligned with `carouselMediaUrls`; "" means "no alt text for this item". */
+  carouselAltTexts: string[];
+  /** FEED only. Never reaches the payload for any other type — see `typeSpecificPayload`. */
+  altText: string;
+  /** REEL only. Filled by either the cover upload or the video-frame scrubber. */
+  coverImageUrl: string;
+  firstComment: string;
+  /** Tri-state: null leaves Instagram's setting alone and makes no API call at all. */
+  commentsEnabled: boolean | null;
+  collaborators: string[];
+  collaboratorDraft: string;
+  trialEnabled: boolean;
+  trialGraduationStrategy: TrialGraduationStrategy;
   scheduleLocal: string;
   timezone: string;
   automationEnabled: boolean;
@@ -886,17 +1219,23 @@ type FormState = {
   automationButtonUrl: string;
   automationAutoReply: boolean;
   automationReplyMessages: string[];
-  musicSoundVolume: number;
-  originalSoundVolume: number;
   shareToFeed: boolean;
 };
 
 const FORM_DEFAULTS: FormState = {
   type: "FEED",
   caption: "",
-  hashtags: "",
   primaryMediaUrl: "",
   carouselMediaUrls: [],
+  carouselAltTexts: [],
+  altText: "",
+  coverImageUrl: "",
+  firstComment: "",
+  commentsEnabled: null,
+  collaborators: [],
+  collaboratorDraft: "",
+  trialEnabled: false,
+  trialGraduationStrategy: "MANUAL",
   scheduleLocal: "",
   timezone: "UTC",
   automationEnabled: false,
@@ -909,10 +1248,53 @@ const FORM_DEFAULTS: FormState = {
   automationButtonUrl: "",
   automationAutoReply: false,
   automationReplyMessages: ["Sent! Check your DMs 💌"],
-  musicSoundVolume: 80,
-  originalSoundVolume: 50,
   shareToFeed: false,
 };
+
+/**
+ * The per-type slice of the create payload.
+ *
+ * Split out and switched on `type` so a field can never leak onto a type Meta rejects it for —
+ * `altText` on a REEL hard-errors the whole container, and `coverImageUrl` outside a REEL and
+ * `carouselAltTexts` outside a CAROUSEL are both rejected by the backend. Making the type the
+ * thing that decides which keys exist is what keeps that structural rather than a default that
+ * some later edit can flip. `thumbnailOffsetSeconds` is deliberately absent everywhere: Meta
+ * accepts it and ignores it.
+ */
+function typeSpecificPayload(form: FormState): Record<string, unknown> {
+  // A trial reel cannot have collaborators — the backend rejects the combination outright.
+  const list = form.trialEnabled ? [] : form.collaborators;
+  const collaborators = list.length > 0 ? list : undefined;
+  switch (form.type) {
+    case "FEED":
+      return {
+        altText: form.altText.trim() || undefined,
+        collaborators,
+      };
+    case "CAROUSEL": {
+      const urls = form.carouselMediaUrls.map((u) => u.trim()).filter(Boolean);
+      // Index-aligned with the URLs, and only as long as them — a trailing alt text with no
+      // media would shift every following item's alt onto the wrong picture.
+      const altTexts = urls.map((_, i) => form.carouselAltTexts[i]?.trim() ?? "");
+      return {
+        carouselMediaUrls: urls,
+        carouselAltTexts: altTexts.some(Boolean) ? altTexts : undefined,
+        collaborators,
+      };
+    }
+    case "REEL":
+      return {
+        coverImageUrl: form.coverImageUrl.trim() || undefined,
+        trialEnabled: form.trialEnabled,
+        trialGraduationStrategy: form.trialEnabled ? form.trialGraduationStrategy : undefined,
+        // Instagram forces share_to_feed off for a trial reel; send what will actually happen.
+        shareToFeed: form.trialEnabled ? false : form.shareToFeed,
+        collaborators,
+      };
+    case "STORY":
+      return {};
+  }
+}
 
 function SchedulerPage() {
   const { current, user } = useApp();
@@ -930,10 +1312,22 @@ function SchedulerPage() {
   const [detailPostId, setDetailPostId] = useState<string | null>(null);
 
   const [form, setForm] = useState<FormState>(FORM_DEFAULTS);
-  const [selectedMusic, setSelectedMusic] = useState<InstagramMusicTrack | null>(null);
   const [carouselUrlDraft, setCarouselUrlDraft] = useState("");
-  const [musicQuery, setMusicQuery] = useState("");
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  /** Scrubber position, in seconds. Only meaningful for a Liffio-hosted reel video. */
+  const [coverFrameSeconds, setCoverFrameSeconds] = useState(0);
+  const [videoDurationSeconds, setVideoDurationSeconds] = useState<number | null>(null);
+  const [extractingFrame, setExtractingFrame] = useState(false);
+  /** Index of the carousel item being dragged, for the reorder affordance. */
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  /**
+   * Trial eligibility is probed only when the user actually clicks the toggle — never on composer
+   * open, since every uncached answer costs a live Graph API probe.
+   */
+  const [trialEligibility, setTrialEligibility] = useState<TrialEligibility | null>(null);
+  const [checkingTrial, setCheckingTrial] = useState(false);
+  const [showBestTimes, setShowBestTimes] = useState(false);
 
   const attachedImageUrls = useMemo(() => {
     const urls =
@@ -942,6 +1336,34 @@ function SchedulerPage() {
         : [form.primaryMediaUrl].filter(Boolean);
     return urls.map((u) => u.trim()).filter((u) => u && !isLikelyVideoUrl(u));
   }, [form.primaryMediaUrl, form.carouselMediaUrls]);
+
+  const captionHashtagCount = useMemo(() => countHashtags(form.caption), [form.caption]);
+  const firstCommentHashtagCount = useMemo(
+    () => countHashtags(form.firstComment),
+    [form.firstComment],
+  );
+
+  /**
+   * The frame scrubber only works on a video Liffio hosts in *this* workspace — the endpoint
+   * resolves the URL to a local file rather than letting ffmpeg fetch an arbitrary host. A pasted
+   * external media URL can never work, so the scrubber is hidden and only cover upload is offered.
+   */
+  const canScrubCoverFrame = useMemo(
+    () => form.type === "REEL" && canExtractCoverFrame(form.primaryMediaUrl, workspaceId),
+    [form.type, form.primaryMediaUrl, workspaceId],
+  );
+
+  /**
+   * Earliest selectable wall time, in the *selected* timezone. The previous `min` was built from
+   * `toISOString()`, i.e. UTC, so scheduling into any other zone either blocked valid times or
+   * allowed past ones.
+   */
+  const scheduleMin = useMemo(() => {
+    const now = wallClockNowInZone(form.timezone);
+    if (!now) return undefined;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${now.year}-${pad(now.month)}-${pad(now.day)}T${pad(Math.floor(now.minutesOfDay / 60))}:${pad(now.minutesOfDay % 60)}`;
+  }, [form.timezone]);
 
   const monthStart = startOfMonth(cursorMonth);
   const monthEnd = endOfMonth(cursorMonth);
@@ -1002,11 +1424,26 @@ function SchedulerPage() {
     enabled: Boolean(workspaceId) && detailOpen && Boolean(detailPostId),
   });
 
-  const musicSearchQuery = useQuery({
-    queryKey: ["scheduler-music", workspaceId, musicQuery],
-    queryFn: () => searchMusic(workspaceId, musicQuery),
-    enabled: Boolean(workspaceId) && musicQuery.length >= 2,
+  /** Only fetched once the user opens the suggestions — the composer doesn't need it to render. */
+  const bestTimesQuery = useQuery({
+    queryKey: ["scheduler-best-times", workspaceId],
+    queryFn: () => getSchedulerBestTimes(workspaceId),
+    enabled: Boolean(workspaceId) && workspaceId !== "default" && composeOpen && showBestTimes,
   });
+
+  /**
+   * Best-time slots converted from the endpoint's UTC buckets into the composer's selected
+   * timezone. Highest engagement first; capped because a wall of chips isn't a suggestion.
+   */
+  const suggestedTimes = useMemo(() => {
+    const slots = bestTimesQuery.data?.slots ?? [];
+    return slots
+      .flatMap((slot) => {
+        const local = bestTimeSlotToLocal(slot, form.timezone);
+        return local ? [{ ...slot, local }] : [];
+      })
+      .slice(0, 6);
+  }, [bestTimesQuery.data?.slots, form.timezone]);
 
   const syncMutation = useMutation({
     mutationFn: () => syncSchedulerAnalytics(workspaceId),
@@ -1098,13 +1535,24 @@ function SchedulerPage() {
       if (d.caption) {
         steps.push({
           label: "Writing your caption",
-          apply: () => setForm((f) => ({ ...f, caption: d.caption })),
+          apply: () =>
+            setForm((f) => ({ ...f, caption: d.caption.slice(0, LIMITS.postCaption.max) })),
         });
       }
+      // Lyra's drafts still carry hashtags as a list, but there is no hashtags field any more —
+      // they belong in the caption, and count against its 2200 characters like any other text.
       if (d.hashtags.length > 0) {
         steps.push({
-          label: `Adding ${d.hashtags.length} hashtag${d.hashtags.length === 1 ? "" : "s"}`,
-          apply: () => setForm((f) => ({ ...f, hashtags: d.hashtags.join(" ") })),
+          label: `Adding ${d.hashtags.length} hashtag${d.hashtags.length === 1 ? "" : "s"} to the caption`,
+          apply: () =>
+            setForm((f) => {
+              const tags = d.hashtags
+                .map((t) => (t.startsWith("#") ? t : `#${t.replace(/^#+/, "")}`))
+                .join(" ");
+              const base = f.caption.trimEnd();
+              const merged = base ? `${base}\n\n${tags}` : tags;
+              return { ...f, caption: merged.slice(0, LIMITS.postCaption.max) };
+            }),
         });
       }
       if (d.scheduledLocal) {
@@ -1114,12 +1562,9 @@ function SchedulerPage() {
             setForm((f) => ({ ...f, scheduleLocal: d.scheduledLocal, timezone: handoff.timezone })),
         });
       }
-      if (d.musicTitle) {
-        steps.push({
-          label: `Searching music: "${d.musicTitle}"`,
-          apply: () => setMusicQuery([d.musicTitle, d.musicArtist].filter(Boolean).join(" ")),
-        });
-      }
+      // A handoff may still carry musicTitle/musicArtist from an older draft. Deliberately
+      // ignored: those params were Instagram mobile-composer internals that Meta discards, and
+      // the Music card is gone.
       if (d.automation.enabled) {
         const keywords = d.automation.keywords
           .map((k) => k.trim().replace(/^#+/, "").toUpperCase())
@@ -1159,8 +1604,11 @@ function SchedulerPage() {
       toast.success("Post saved");
       setComposeOpen(false);
       setForm(FORM_DEFAULTS);
-      setSelectedMusic(null);
       setCarouselUrlDraft("");
+      setTrialEligibility(null);
+      setCoverFrameSeconds(0);
+      setVideoDurationSeconds(null);
+      setShowBestTimes(false);
       // A Lyra handoff is one-shot: once the post is really created, delete the
       // stored handoff and strip ?lyraDraft so a refresh doesn't replay the theater.
       if (handoffActiveRef.current) {
@@ -1194,6 +1642,32 @@ function SchedulerPage() {
       void detailQuery.refetch();
     },
     onError: (e) => toast.error((e as Error).message),
+  });
+
+  /** Re-runs the first comment + comments toggle for a published post. Idempotent server-side. */
+  const retryPostPublishMutation = useMutation({
+    mutationFn: (postId: string) => retryPostPublishActions(workspaceId, postId),
+    onSuccess: () => {
+      toast.success("Retrying the first comment", {
+        description: "Reopen this post in a moment to see the result.",
+      });
+      void detailQuery.refetch();
+      void queryClient.invalidateQueries({ queryKey: ["scheduler-list", workspaceId] });
+    },
+    onError: (e) => {
+      const err = e as ApiError;
+      toast.error(
+        err.status === 404
+          ? "Retry isn't available yet"
+          : err.message || "Couldn't retry the first comment",
+        {
+          description:
+            err.status === 404
+              ? "This ships with the next backend release. Copy the comment text and post it manually in the meantime."
+              : undefined,
+        },
+      );
+    },
   });
 
   const calendarDays = useMemo(() => {
@@ -1270,25 +1744,43 @@ function SchedulerPage() {
   const heatCellBand = (day: number, bandIndex: number) =>
     heatCellFromValue(`${day}-${bandIndex}`, heatBandAverage(day, bandIndex));
 
+  /**
+   * Switching type clears the fields that type can't carry, rather than leaving them staged
+   * where they'd be silently dropped (or rejected) at save time. Alt text is the sharp one:
+   * a FEED alt text left in state while the user flips to REEL would hard-error the container.
+   */
   const onChangePostType = (nextType: ScheduledPostType) => {
+    setTrialEligibility(null);
+    setCoverFrameSeconds(0);
+    setVideoDurationSeconds(null);
     setForm((f) => {
+      const shared = {
+        ...f,
+        type: nextType,
+        // REEL only.
+        coverImageUrl: nextType === "REEL" ? f.coverImageUrl : "",
+        trialEnabled: nextType === "REEL" ? f.trialEnabled : false,
+        // FEED only.
+        altText: nextType === "FEED" ? f.altText : "",
+      };
       if (nextType === "CAROUSEL") {
-        const seedUrls =
+        const seedUrls = (
           f.carouselMediaUrls.length > 0
             ? f.carouselMediaUrls
             : f.primaryMediaUrl.trim()
               ? [f.primaryMediaUrl.trim()]
-              : [];
+              : []
+        ).slice(0, CAROUSEL_MEDIA_MAX);
         return {
-          ...f,
-          type: nextType,
-          carouselMediaUrls: seedUrls.slice(0, CAROUSEL_MEDIA_MAX),
+          ...shared,
+          carouselMediaUrls: seedUrls,
+          carouselAltTexts: seedUrls.map((_, i) => f.carouselAltTexts[i] ?? ""),
           primaryMediaUrl: seedUrls[0] ?? "",
         };
       }
       return {
-        ...f,
-        type: nextType,
+        ...shared,
+        carouselAltTexts: [],
         primaryMediaUrl: f.primaryMediaUrl || f.carouselMediaUrls[0] || "",
       };
     });
@@ -1301,14 +1793,14 @@ function SchedulerPage() {
     if (files.length === 0) return;
     const postType = form.type;
     if (postType !== "CAROUSEL" && files.length > 1) {
-      toast.error("Select one file for this post type. Carousel supports multiple images.");
+      toast.error("Select one file for this post type. Carousel supports multiple items.");
       return;
     }
     if (
       postType === "CAROUSEL" &&
       form.carouselMediaUrls.length + files.length > CAROUSEL_MEDIA_MAX
     ) {
-      toast.error(`Carousel supports up to ${CAROUSEL_MEDIA_MAX} images.`);
+      toast.error(`Carousel supports up to ${CAROUSEL_MEDIA_MAX} items.`);
       return;
     }
     for (const file of files) {
@@ -1319,13 +1811,21 @@ function SchedulerPage() {
         file.type as (typeof SCHEDULER_REEL_VIDEO_MIME_TYPES)[number],
       );
       if (postType === "CAROUSEL") {
-        if (!isImage) {
-          toast.error("Carousel posts only support images.");
+        // Carousels take a mix of images and videos — Instagram creates one child container per
+        // item and the backend picks media_type per URL.
+        if (!isImage && !isVideo) {
+          toast.error("Carousel items must be JPEG/PNG/WebP/GIF images or MP4/MOV video.");
           return;
         }
-        if (file.size > SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES) {
+        if (isImage && file.size > SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES) {
           toast.error(
             `Images must be at most ${Math.round(SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`,
+          );
+          return;
+        }
+        if (isVideo && file.size > SCHEDULER_REEL_VIDEO_CLIENT_MAX_BYTES) {
+          toast.error(
+            `Video must be at most ${Math.round(SCHEDULER_REEL_VIDEO_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`,
           );
           return;
         }
@@ -1373,13 +1873,29 @@ function SchedulerPage() {
             ...f.carouselMediaUrls,
             ...uploaded.map((item) => item.primaryMediaUrl),
           ].slice(0, CAROUSEL_MEDIA_MAX);
-          return { ...f, carouselMediaUrls: nextUrls, primaryMediaUrl: nextUrls[0] ?? "" };
+          return {
+            ...f,
+            carouselMediaUrls: nextUrls,
+            // Keep alt texts aligned as the list grows — new items start with none.
+            carouselAltTexts: nextUrls.map((_, i) => f.carouselAltTexts[i] ?? ""),
+            primaryMediaUrl: nextUrls[0] ?? "",
+          };
         }
-        return { ...f, primaryMediaUrl: uploaded[0]?.primaryMediaUrl ?? f.primaryMediaUrl };
+        const nextPrimary = uploaded[0]?.primaryMediaUrl ?? f.primaryMediaUrl;
+        return {
+          ...f,
+          primaryMediaUrl: nextPrimary,
+          // A new reel video invalidates a cover extracted from the previous one.
+          coverImageUrl: nextPrimary === f.primaryMediaUrl ? f.coverImageUrl : "",
+        };
       });
+      if (postType === "REEL") {
+        setCoverFrameSeconds(0);
+        setVideoDurationSeconds(null);
+      }
       toast.success(
         postType === "CAROUSEL"
-          ? `${uploaded.length} image${uploaded.length === 1 ? "" : "s"} added`
+          ? `${uploaded.length} item${uploaded.length === 1 ? "" : "s"} added`
           : files.some((file) =>
                 SCHEDULER_REEL_VIDEO_MIME_TYPES.includes(
                   file.type as (typeof SCHEDULER_REEL_VIDEO_MIME_TYPES)[number],
@@ -1400,17 +1916,22 @@ function SchedulerPage() {
     if (!url) return;
     try {
       if (new URL(url).protocol !== "https:") {
-        toast.error("Carousel image URLs must use HTTPS.");
+        toast.error("Carousel media URLs must use HTTPS.");
         return;
       }
     } catch {
-      toast.error("Enter a valid image URL.");
+      toast.error("Enter a valid media URL.");
       return;
     }
     setForm((f) => {
       if (f.carouselMediaUrls.includes(url)) return f;
       const nextUrls = [...f.carouselMediaUrls, url].slice(0, CAROUSEL_MEDIA_MAX);
-      return { ...f, carouselMediaUrls: nextUrls, primaryMediaUrl: nextUrls[0] ?? "" };
+      return {
+        ...f,
+        carouselMediaUrls: nextUrls,
+        carouselAltTexts: nextUrls.map((_, i) => f.carouselAltTexts[i] ?? ""),
+        primaryMediaUrl: nextUrls[0] ?? "",
+      };
     });
     setCarouselUrlDraft("");
   };
@@ -1418,8 +1939,179 @@ function SchedulerPage() {
   const removeCarouselUrl = (index: number) => {
     setForm((f) => {
       const nextUrls = f.carouselMediaUrls.filter((_, i) => i !== index);
-      return { ...f, carouselMediaUrls: nextUrls, primaryMediaUrl: nextUrls[0] ?? "" };
+      // Drop the removed item's alt text with it, so the rest stay on their own pictures.
+      const nextAlts = f.carouselAltTexts.filter((_, i) => i !== index);
+      return {
+        ...f,
+        carouselMediaUrls: nextUrls,
+        carouselAltTexts: nextUrls.map((_, i) => nextAlts[i] ?? ""),
+        primaryMediaUrl: nextUrls[0] ?? "",
+      };
     });
+  };
+
+  /** Reorder moves media and its alt text together — they are index-aligned on the wire. */
+  const moveCarouselItem = (from: number, to: number) => {
+    setForm((f) => {
+      if (
+        from === to ||
+        from < 0 ||
+        to < 0 ||
+        from >= f.carouselMediaUrls.length ||
+        to >= f.carouselMediaUrls.length
+      ) {
+        return f;
+      }
+      const urls = [...f.carouselMediaUrls];
+      const alts = f.carouselMediaUrls.map((_, i) => f.carouselAltTexts[i] ?? "");
+      const [movedUrl] = urls.splice(from, 1);
+      const [movedAlt] = alts.splice(from, 1);
+      urls.splice(to, 0, movedUrl!);
+      alts.splice(to, 0, movedAlt!);
+      return {
+        ...f,
+        carouselMediaUrls: urls,
+        carouselAltTexts: alts,
+        // Item 1 is always the carousel cover — Instagram fixes that, so it follows the reorder.
+        primaryMediaUrl: urls[0] ?? "",
+      };
+    });
+  };
+
+  const setCarouselAltText = (index: number, value: string) => {
+    setForm((f) => {
+      const next = f.carouselMediaUrls.map((_, i) => f.carouselAltTexts[i] ?? "");
+      next[index] = value.slice(0, ALT_TEXT_MAX);
+      return { ...f, carouselAltTexts: next };
+    });
+  };
+
+  const addCollaborator = () => {
+    const name = form.collaboratorDraft.trim().replace(/^@+/, "");
+    if (!name) return;
+    if (form.collaborators.length >= COLLABORATORS_MAX) {
+      // The backend rejects an over-long list rather than trimming it, so stop it here.
+      toast.error(`Instagram allows at most ${COLLABORATORS_MAX} collaborators.`);
+      return;
+    }
+    if (form.collaborators.some((c) => c.toLowerCase() === name.toLowerCase())) {
+      setForm((f) => ({ ...f, collaboratorDraft: "" }));
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      collaborators: [...f.collaborators, name],
+      collaboratorDraft: "",
+    }));
+  };
+
+  const removeCollaborator = (name: string) => {
+    setForm((f) => ({ ...f, collaborators: f.collaborators.filter((c) => c !== name) }));
+  };
+
+  const onPickCoverFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    if (
+      !SCHEDULER_POST_MEDIA_MIME_TYPES.includes(
+        file.type as (typeof SCHEDULER_POST_MEDIA_MIME_TYPES)[number],
+      )
+    ) {
+      toast.error("A reel cover must be a JPEG, PNG, WebP, or GIF image.");
+      return;
+    }
+    if (file.size > SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES) {
+      toast.error(
+        `Cover images must be at most ${Math.round(SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES / (1024 * 1024))} MB.`,
+      );
+      return;
+    }
+    setUploadingCover(true);
+    try {
+      const result = await uploadSchedulerCover(workspaceId, file);
+      setForm((f) => ({ ...f, coverImageUrl: result.coverImageUrl }));
+      toast.success("Cover image set");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Cover upload failed");
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
+  const onExtractCoverFrame = async () => {
+    setExtractingFrame(true);
+    try {
+      const result = await createSchedulerCoverFromFrame(
+        workspaceId,
+        form.primaryMediaUrl.trim(),
+        coverFrameSeconds,
+      );
+      setForm((f) => ({ ...f, coverImageUrl: result.coverImageUrl }));
+      if (result.videoDurationSeconds != null) {
+        setVideoDurationSeconds(result.videoDurationSeconds);
+      }
+      toast.success(`Cover set from ${result.timestampSeconds.toFixed(1)}s`);
+    } catch (e) {
+      const err = e as ApiError;
+      if (err.status === 404) {
+        toast.error("Frame capture isn't available yet", {
+          description: "It ships with the next backend release — upload a cover image instead.",
+        });
+      } else {
+        // A 400 past-the-end carries the real duration in its message; show it verbatim and
+        // clamp the scrubber so the next attempt lands inside the video.
+        const seconds = Number(/\(([\d.]+)s\)/.exec(err.message ?? "")?.[1]);
+        if (Number.isFinite(seconds)) {
+          setVideoDurationSeconds(seconds);
+          setCoverFrameSeconds(Math.max(0, Math.min(coverFrameSeconds, seconds)));
+        }
+        toast.error(err.message || "Couldn't extract that frame");
+      }
+    } finally {
+      setExtractingFrame(false);
+    }
+  };
+
+  /**
+   * Trial eligibility is probed here and nowhere else — on the toggle's own click. An ineligible
+   * account gets the toggle left visible but disabled, carrying the backend's reason verbatim.
+   */
+  const onToggleTrial = async (checked: boolean) => {
+    if (!checked) {
+      setForm((f) => ({ ...f, trialEnabled: false }));
+      return;
+    }
+    if (trialEligibility?.eligible) {
+      setForm((f) => ({ ...f, trialEnabled: true }));
+      return;
+    }
+    setCheckingTrial(true);
+    try {
+      const result = await getTrialEligibility(workspaceId);
+      setTrialEligibility(result);
+      if (result.eligible) {
+        setForm((f) => ({ ...f, trialEnabled: true }));
+        if (form.collaborators.length > 0) {
+          toast.info("Collaborators turned off", {
+            description: "A trial reel is shown to non-followers only, so it can't have any.",
+          });
+        }
+      }
+    } catch (e) {
+      // Only reached when the failure had no readable body at all.
+      setTrialEligibility({
+        eligible: false,
+        code: "PROBE_FAILED",
+        reason:
+          e instanceof Error && e.message
+            ? e.message
+            : "Couldn't reach Instagram to check trial eligibility. Try again shortly.",
+      });
+    } finally {
+      setCheckingTrial(false);
+    }
   };
 
   const addKeyword = () => {
@@ -1448,40 +2140,45 @@ function SchedulerPage() {
   };
 
   const onCreate = async () => {
-    const hashtags = form.hashtags
-      .split(/[\s,]+/)
-      .map((t) => t.trim())
-      .filter(Boolean);
     const carouselMediaUrls =
       form.type === "CAROUSEL"
         ? form.carouselMediaUrls.map((url) => url.trim()).filter(Boolean)
         : [];
+    if (form.type === "CAROUSEL" && carouselMediaUrls.length < CAROUSEL_MEDIA_MIN) {
+      // The publish job throws below 2, so saving here would only defer the failure.
+      toast.error(`A carousel needs at least ${CAROUSEL_MEDIA_MIN} items.`);
+      return;
+    }
+
+    const firstComment = form.firstComment.trim();
+    if (firstComment && countHashtags(firstComment) > FIRST_COMMENT_HASHTAG_MAX) {
+      toast.error(
+        `First comment has ${countHashtags(firstComment)} hashtags. Instagram rejects comments with too many; use at most ${FIRST_COMMENT_HASHTAG_MAX}.`,
+      );
+      return;
+    }
+
     const primaryMediaUrl =
       form.type === "CAROUSEL" ? (carouselMediaUrls[0] ?? "") : form.primaryMediaUrl.trim();
+    // A reel's cover is the better internal thumbnail than the raw MP4 the list would otherwise
+    // try to render. This is Liffio's own display field, separate from `coverImageUrl`.
+    const thumbnailUrl =
+      form.type === "REEL" && form.coverImageUrl.trim()
+        ? form.coverImageUrl.trim()
+        : primaryMediaUrl;
 
     const body: Record<string, unknown> = {
       type: form.type,
       caption: form.caption.trim() || undefined,
-      hashtags,
       timezone: form.timezone,
       primaryMediaUrl: primaryMediaUrl || undefined,
-      thumbnailUrl: primaryMediaUrl || undefined,
-      carouselMediaUrls: carouselMediaUrls.length > 0 ? carouselMediaUrls : undefined,
-      musicSoundVolume: form.musicSoundVolume,
-      originalSoundVolume: form.originalSoundVolume,
+      thumbnailUrl: thumbnailUrl || undefined,
+      firstComment: firstComment || undefined,
+      // Tri-state: only sent when the user actually chose. null would ask the backend to make no
+      // Instagram call at all, and omitting it says the same thing without the extra key.
+      ...(form.commentsEnabled === null ? {} : { commentsEnabled: form.commentsEnabled }),
+      ...typeSpecificPayload(form),
     };
-
-    if (selectedMusic) {
-      body.igMusicId = selectedMusic.id;
-      body.igMusicClusterId = selectedMusic.clusterId;
-      body.igMusicCanonicalId = selectedMusic.canonicalId ?? undefined;
-      body.musicTitle = selectedMusic.title;
-      body.musicArtist = selectedMusic.artist;
-    }
-
-    if (form.type === "REEL") {
-      body.shareToFeed = form.shareToFeed;
-    }
 
     if (form.automationEnabled) {
       const keywords = form.automationKeywords.map((k) => k.trim()).filter(Boolean);
@@ -2237,7 +2934,7 @@ function SchedulerPage() {
                 mediaUrl={form.primaryMediaUrl}
                 mediaUrls={form.carouselMediaUrls}
                 caption={form.caption}
-                hashtagsRaw={form.hashtags}
+                coverImageUrl={form.coverImageUrl}
               />
             </div>
 
@@ -2273,7 +2970,8 @@ function SchedulerPage() {
                   <Input
                     type="file"
                     accept={
-                      form.type === "REEL"
+                      // Carousels take video children too, so they get the same filter as Reels.
+                      form.type === "REEL" || form.type === "CAROUSEL"
                         ? SCHEDULER_MEDIA_ACCEPT_REEL
                         : SCHEDULER_MEDIA_ACCEPT_FEED
                     }
@@ -2291,9 +2989,18 @@ function SchedulerPage() {
                       variant="ghost"
                       size="sm"
                       className="text-muted-foreground"
-                      onClick={() =>
-                        setForm((f) => ({ ...f, primaryMediaUrl: "", carouselMediaUrls: [] }))
-                      }
+                      onClick={() => {
+                        setForm((f) => ({
+                          ...f,
+                          primaryMediaUrl: "",
+                          carouselMediaUrls: [],
+                          carouselAltTexts: [],
+                          // A cover extracted from the cleared video is no longer valid.
+                          coverImageUrl: "",
+                        }));
+                        setCoverFrameSeconds(0);
+                        setVideoDurationSeconds(null);
+                      }}
                     >
                       Clear media
                     </Button>
@@ -2315,46 +3022,132 @@ function SchedulerPage() {
                   {form.type === "REEL"
                     ? "MP4 or MOV up to 100 MB, or JPEG/PNG/WebP/GIF up to 15 MB."
                     : form.type === "CAROUSEL"
-                      ? `Add 2–${CAROUSEL_MEDIA_MAX} images. Select multiple files at once.`
+                      ? `Add ${CAROUSEL_MEDIA_MIN}–${CAROUSEL_MEDIA_MAX} items — images and video can be mixed. Select multiple files at once.`
                       : "JPEG, PNG, WebP, or GIF up to 15 MB. Pick Reel for video."}
                 </p>
 
                 {form.type === "CAROUSEL" && (
                   <div className="space-y-3 rounded-lg border p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <Label className="text-xs">Carousel images</Label>
-                      <span className="text-[11px] text-muted-foreground">
+                      <Label className="text-xs">Carousel items</Label>
+                      <span
+                        className={cn(
+                          "text-[11px]",
+                          form.carouselMediaUrls.length < CAROUSEL_MEDIA_MIN
+                            ? "text-warning"
+                            : "text-muted-foreground",
+                        )}
+                      >
                         {form.carouselMediaUrls.length}/{CAROUSEL_MEDIA_MAX}
                       </span>
                     </div>
                     {form.carouselMediaUrls.length > 0 ? (
-                      <div className="grid grid-cols-3 gap-2">
-                        {form.carouselMediaUrls.map((url, index) => (
-                          <div
-                            key={`${url}-${index}`}
-                            className="group relative aspect-square overflow-hidden rounded-md border bg-muted"
-                          >
-                            <img
-                              src={url}
-                              alt={`Carousel ${index + 1}`}
-                              className="absolute inset-0 h-full w-full object-cover"
-                            />
-                            <span className="absolute left-1.5 top-1.5 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                              {index + 1}
-                            </span>
-                            <button
-                              type="button"
-                              className="absolute right-1.5 top-1.5 rounded-full bg-black/70 p-1 text-white"
-                              onClick={() => removeCarouselUrl(index)}
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                      <>
+                        <p className="text-[11px] text-muted-foreground">
+                          Drag to reorder. Item 1 is the cover — Instagram fixes that, so there's no
+                          separate cover picker.
+                        </p>
+                        <div className="space-y-2">
+                          {form.carouselMediaUrls.map((url, index) => {
+                            const isVideoItem = isLikelyVideoUrl(url);
+                            return (
+                              <div
+                                key={`${url}-${index}`}
+                                draggable
+                                onDragStart={() => setDraggingIndex(index)}
+                                onDragEnd={() => setDraggingIndex(null)}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  if (draggingIndex != null) moveCarouselItem(draggingIndex, index);
+                                  setDraggingIndex(null);
+                                }}
+                                className={cn(
+                                  "flex items-start gap-2 rounded-md border bg-background p-2",
+                                  draggingIndex === index && "opacity-50",
+                                )}
+                              >
+                                <div
+                                  className="mt-6 cursor-grab text-muted-foreground active:cursor-grabbing"
+                                  aria-hidden
+                                >
+                                  <GripVertical className="h-4 w-4" />
+                                </div>
+                                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded border bg-muted">
+                                  <SchedulerMediaThumb
+                                    url={url}
+                                    className="absolute inset-0 h-full w-full"
+                                    imgClassName="absolute inset-0 h-full w-full object-cover"
+                                  />
+                                  <span className="absolute left-1 top-1 rounded-full bg-black/70 px-1.5 text-[10px] font-semibold text-white">
+                                    {index + 1}
+                                  </span>
+                                </div>
+                                <div className="min-w-0 flex-1 space-y-1">
+                                  {/* Alt text applies to image children only — Meta hard-errors it
+                                      on video, so video items get no field at all. */}
+                                  {isVideoItem ? (
+                                    <p className="text-[11px] text-muted-foreground">
+                                      Video item — Instagram doesn't accept alt text on video.
+                                    </p>
+                                  ) : (
+                                    <>
+                                      <Input
+                                        value={form.carouselAltTexts[index] ?? ""}
+                                        onChange={(e) => setCarouselAltText(index, e.target.value)}
+                                        maxLength={ALT_TEXT_MAX}
+                                        placeholder={`Alt text for item ${index + 1} (optional)`}
+                                        className="h-8 text-xs"
+                                      />
+                                      {(form.carouselAltTexts[index]?.length ?? 0) > 0 && (
+                                        <p className="text-right text-[10px] text-muted-foreground">
+                                          {form.carouselAltTexts[index]?.length ?? 0}/{ALT_TEXT_MAX}
+                                        </p>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <button
+                                    type="button"
+                                    className="rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-40"
+                                    disabled={index === 0}
+                                    onClick={() => moveCarouselItem(index, index - 1)}
+                                    aria-label={`Move item ${index + 1} up`}
+                                  >
+                                    <ChevronLeft className="h-3.5 w-3.5 rotate-90" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-40"
+                                    disabled={index === form.carouselMediaUrls.length - 1}
+                                    onClick={() => moveCarouselItem(index, index + 1)}
+                                    aria-label={`Move item ${index + 1} down`}
+                                  >
+                                    <ChevronRight className="h-3.5 w-3.5 rotate-90" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                    onClick={() => removeCarouselUrl(index)}
+                                    aria-label={`Remove item ${index + 1}`}
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
                     ) : (
                       <p className="text-xs text-muted-foreground">
-                        Upload or add at least 2 images.
+                        Upload or add at least {CAROUSEL_MEDIA_MIN} items — images, video, or a mix.
+                      </p>
+                    )}
+                    {form.carouselMediaUrls.length === 1 && (
+                      <p className="text-xs text-warning">
+                        A carousel needs at least {CAROUSEL_MEDIA_MIN} items.
                       </p>
                     )}
                     <div className="flex gap-2">
@@ -2371,7 +3164,7 @@ function SchedulerPage() {
                             addCarouselUrl();
                           }
                         }}
-                        placeholder="Add HTTPS image URL"
+                        placeholder="Add HTTPS image or video URL"
                         disabled={form.carouselMediaUrls.length >= CAROUSEL_MEDIA_MAX}
                       />
                       <Button
@@ -2392,12 +3185,16 @@ function SchedulerPage() {
                     <Input
                       type="url"
                       value={form.primaryMediaUrl}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setForm((f) => ({
                           ...f,
                           primaryMediaUrl: e.target.value.slice(0, LIMITS.url.max),
-                        }))
-                      }
+                        }));
+                        // The scrubber's position and probed duration belong to the old video.
+                        // An already-set cover image stays — it's a standalone asset.
+                        setCoverFrameSeconds(0);
+                        setVideoDurationSeconds(null);
+                      }}
                       maxLength={LIMITS.url.max}
                       placeholder="https://…"
                     />
@@ -2408,11 +3205,12 @@ function SchedulerPage() {
                 )}
               </div>
 
-              {/* Caption */}
+              {/* Caption — hashtags are typed inline here and counted in the same 2200 budget.
+                  There is no separate hashtags field: Instagram has no hashtag parameter. */}
               <div className="space-y-1">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label>Caption</Label>
-                  <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center gap-1">
                     <ContentIdeas
                       caption={form.caption}
                       onInsert={(next) =>
@@ -2426,10 +3224,17 @@ function SchedulerPage() {
                         setForm((f) => ({ ...f, caption: next.slice(0, LIMITS.postCaption.max) }))
                       }
                     />
+                    <HashtagAssist
+                      caption={form.caption}
+                      captionMax={LIMITS.postCaption.max}
+                      onApply={(next) =>
+                        setForm((f) => ({ ...f, caption: next.slice(0, LIMITS.postCaption.max) }))
+                      }
+                    />
                   </div>
                 </div>
                 <textarea
-                  className="w-full min-h-24 max-h-60 resize-y rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full min-h-32 max-h-72 resize-y rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   value={form.caption}
                   onChange={(e) =>
                     setForm((f) => ({
@@ -2437,112 +3242,390 @@ function SchedulerPage() {
                       caption: e.target.value.slice(0, LIMITS.postCaption.max),
                     }))
                   }
-                  placeholder="Write your caption…"
+                  placeholder="Write your caption… type hashtags inline, like #liffio"
                   maxLength={LIMITS.postCaption.max}
                 />
-                <p className="text-right text-xs text-muted-foreground">
-                  {form.caption.length}/{LIMITS.postCaption.max}
-                </p>
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>
+                    {captionHashtagCount > 0
+                      ? `${captionHashtagCount} hashtag${captionHashtagCount === 1 ? "" : "s"} in caption`
+                      : "Hashtags go in the caption"}
+                  </span>
+                  <span
+                    className={cn(
+                      form.caption.length >= LIMITS.postCaption.max && "text-destructive",
+                    )}
+                  >
+                    {form.caption.length}/{LIMITS.postCaption.max}
+                  </span>
+                </div>
               </div>
 
-              {/* Hashtags */}
+              {/* First comment */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between gap-2">
-                  <Label>Hashtags (space or comma separated)</Label>
-                  <HashtagAssist
-                    caption={form.caption}
-                    hashtags={form.hashtags}
-                    onApply={(next) =>
-                      setForm((f) => ({ ...f, hashtags: next.slice(0, LIMITS.genericNote.max) }))
-                    }
-                  />
+                  <Label>First comment</Label>
+                  <span className="text-[11px] text-muted-foreground">optional</span>
                 </div>
-                <Input
-                  value={form.hashtags}
+                <textarea
+                  className="w-full min-h-20 max-h-52 resize-y rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={form.firstComment}
                   onChange={(e) =>
                     setForm((f) => ({
                       ...f,
-                      hashtags: e.target.value.slice(0, LIMITS.genericNote.max),
+                      firstComment: e.target.value.slice(0, FIRST_COMMENT_MAX),
                     }))
                   }
-                  maxLength={LIMITS.genericNote.max}
-                  placeholder="#test #test2"
+                  maxLength={FIRST_COMMENT_MAX}
+                  placeholder="Posted as a comment right after publishing — a good home for extra hashtags."
                 />
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>
+                    {firstCommentHashtagCount > FIRST_COMMENT_HASHTAG_MAX ? (
+                      <span className="text-destructive">
+                        {firstCommentHashtagCount} hashtags — Instagram rejects more than{" "}
+                        {FIRST_COMMENT_HASHTAG_MAX}
+                      </span>
+                    ) : firstCommentHashtagCount > 0 ? (
+                      `${firstCommentHashtagCount}/${FIRST_COMMENT_HASHTAG_MAX} hashtags`
+                    ) : (
+                      ""
+                    )}
+                  </span>
+                  <span>
+                    {form.firstComment.length}/{FIRST_COMMENT_MAX}
+                  </span>
+                </div>
+                {/* Instagram has no way to pin a comment through the API, so there is no toggle. */}
               </div>
 
-              {/* Music (inline) */}
-              <div className="rounded-xl border p-3 space-y-3">
-                <FeatureGate module="scheduler" action="music" block>
-                <div className="flex items-center gap-2">
-                  <Music2 className="h-4 w-4 text-muted-foreground" />
-                  <Label>Music</Label>
-                  {selectedMusic && (
-                    <button
-                      type="button"
-                      className="ml-auto text-xs text-muted-foreground hover:text-destructive"
-                      onClick={() => setSelectedMusic(null)}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-                {selectedMusic ? (
-                  <div className="rounded-lg bg-muted px-3 py-2 text-sm">
-                    <p className="font-medium truncate">{selectedMusic.title}</p>
-                    <p className="text-xs text-muted-foreground truncate">{selectedMusic.artist}</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Input
-                      placeholder="Search music…"
-                      value={musicQuery}
+              {/* Comments — a tri-state, not a checkbox. Leaving it alone means no API call. */}
+              <div className="space-y-1">
+                <Label>Comments</Label>
+                <Select
+                  value={
+                    form.commentsEnabled === null ? "default" : form.commentsEnabled ? "on" : "off"
+                  }
+                  onValueChange={(v) =>
+                    setForm((f) => ({
+                      ...f,
+                      commentsEnabled: v === "default" ? null : v === "on",
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Leave as-is (no change)</SelectItem>
+                    <SelectItem value="on">Turn comments on</SelectItem>
+                    <SelectItem value="off">Turn comments off</SelectItem>
+                  </SelectContent>
+                </Select>
+                {form.commentsEnabled === null ? (
+                  <p className="text-xs text-muted-foreground">
+                    Liffio won't touch this post's comment setting.
+                  </p>
+                ) : null}
+                {form.commentsEnabled === false && form.firstComment.trim() ? (
+                  <p className="flex items-start gap-1.5 text-xs text-warning">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    Your first comment will still be posted, but nobody can see it while comments
+                    are off.
+                  </p>
+                ) : null}
+              </div>
+
+              {/* Alt text — FEED only. Meta hard-errors `alt_text` on a REEL container, and
+                  carousels use per-item alt text instead, so this control only exists for FEED. */}
+              {form.type === "FEED" && (
+                <FeatureGate module="scheduler" action="alt_text" block>
+                  <div className="space-y-1">
+                    <Label>Alt text</Label>
+                    <textarea
+                      className="w-full min-h-16 max-h-40 resize-y rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      value={form.altText}
                       onChange={(e) =>
-                        setMusicQuery(e.target.value.slice(0, LIMITS.genericName.max))
+                        setForm((f) => ({ ...f, altText: e.target.value.slice(0, ALT_TEXT_MAX) }))
                       }
-                      maxLength={LIMITS.genericName.max}
+                      maxLength={ALT_TEXT_MAX}
+                      placeholder="Describe the image for people using screen readers."
                     />
-                    {musicQuery.length >= 2 && (
-                      <div className="max-h-40 overflow-y-auto rounded-lg border divide-y text-sm">
-                        {musicSearchQuery.isLoading && (
-                          <div className="flex justify-center p-3">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          </div>
+                    <p className="text-right text-xs text-muted-foreground">
+                      {form.altText.length}/{ALT_TEXT_MAX}
+                    </p>
+                  </div>
+                </FeatureGate>
+              )}
+
+              {/* Reel settings — cover image, trial, share to feed. "Share to feed" lives here
+                  rather than under Music (now removed): it is a Reels-level setting. */}
+              {form.type === "REEL" && (
+                <div className="rounded-xl border p-3 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <ImagePlus className="h-4 w-4 text-muted-foreground" />
+                    <Label>Reel cover</Label>
+                  </div>
+
+                  {form.coverImageUrl ? (
+                    <div className="flex items-start gap-3">
+                      <div className="w-20 shrink-0 overflow-hidden rounded-md border bg-muted">
+                        <img
+                          src={form.coverImageUrl}
+                          alt="Reel cover"
+                          className="aspect-[9/16] w-full object-cover"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() => setForm((f) => ({ ...f, coverImageUrl: "" }))}
+                      >
+                        <X className="mr-1 h-3.5 w-3.5" />
+                        Remove cover
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Without a cover, Instagram picks a frame for you.
+                    </p>
+                  )}
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">Upload a cover image</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept={SCHEDULER_MEDIA_ACCEPT_FEED}
+                        className="cursor-pointer"
+                        disabled={uploadingCover}
+                        onChange={(e) => void onPickCoverFile(e)}
+                      />
+                      {uploadingCover && (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+
+                  {canScrubCoverFrame ? (
+                    <div className="space-y-2 rounded-lg border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-xs">Or pick a frame from your video</Label>
+                        <span className="font-mono text-[11px] text-muted-foreground">
+                          {coverFrameSeconds.toFixed(1)}s
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={Math.max(videoDurationSeconds ?? 60, 1)}
+                        step={0.1}
+                        value={coverFrameSeconds}
+                        disabled={extractingFrame}
+                        onChange={(e) => setCoverFrameSeconds(Number(e.target.value))}
+                        className="w-full accent-[var(--primary)]"
+                        aria-label="Cover frame timestamp in seconds"
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={extractingFrame}
+                          onClick={() => void onExtractCoverFrame()}
+                        >
+                          {extractingFrame ? (
+                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                          ) : null}
+                          Use this frame
+                        </Button>
+                        <span className="text-[11px] text-muted-foreground">
+                          {videoDurationSeconds != null
+                            ? `Video is ${videoDurationSeconds.toFixed(1)}s`
+                            : "Drag, then capture — the real length is read on the server."}
+                        </span>
+                      </div>
+                    </div>
+                  ) : form.primaryMediaUrl.trim() && isLikelyVideoUrl(form.primaryMediaUrl) ? (
+                    <p className="text-xs text-muted-foreground">
+                      Frame capture only works on videos uploaded to Liffio in this workspace. This
+                      one is an external URL — upload a cover image instead.
+                    </p>
+                  ) : null}
+
+                  <div className="border-t pt-3 space-y-3">
+                    {/* Trial reels — eligibility is probed on click, never on open. */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <Label className="text-sm">Trial reel</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Shown to non-followers first, so you can test it before it reaches your
+                          audience.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {checkingTrial && (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                         )}
-                        {(musicSearchQuery.data?.tracks ?? []).map((track) => (
-                          <button
-                            key={track.id}
+                        <Switch
+                          checked={form.trialEnabled}
+                          disabled={
+                            checkingTrial ||
+                            (trialEligibility != null && !trialEligibility.eligible)
+                          }
+                          onCheckedChange={(checked) => void onToggleTrial(checked)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* The backend owns this wording — rendered verbatim. */}
+                    {trialEligibility && !trialEligibility.eligible && (
+                      <div className="space-y-1">
+                        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                          {trialEligibility.reason}
+                        </p>
+                        {/* A failed probe is transient, so the disabled toggle needs a way out —
+                            otherwise one blip locks Trial off for the rest of the session. */}
+                        {trialEligibility.code === "PROBE_FAILED" && (
+                          <Button
                             type="button"
-                            className="w-full text-left px-3 py-2 hover:bg-muted/50"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            disabled={checkingTrial}
                             onClick={() => {
-                              setSelectedMusic(track);
-                              setMusicQuery("");
+                              setTrialEligibility(null);
+                              void onToggleTrial(true);
                             }}
                           >
-                            <p className="font-medium truncate">{track.title}</p>
-                            <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
-                          </button>
-                        ))}
-                        {!musicSearchQuery.isLoading &&
-                          (musicSearchQuery.data?.tracks.length ?? 0) === 0 && (
-                            <p className="px-3 py-2 text-muted-foreground text-xs">No results</p>
-                          )}
+                            <RefreshCw className="mr-1 h-3 w-3" />
+                            Check again
+                          </Button>
+                        )}
                       </div>
                     )}
+
+                    {form.trialEnabled && (
+                      <div className="space-y-2 rounded-lg border p-3">
+                        <Label className="text-xs">When the trial ends</Label>
+                        <Select
+                          value={form.trialGraduationStrategy}
+                          onValueChange={(v) =>
+                            setForm((f) => ({
+                              ...f,
+                              trialGraduationStrategy: v as TrialGraduationStrategy,
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MANUAL">
+                              Wait for me to publish it to everyone
+                            </SelectItem>
+                            <SelectItem value="SS_PERFORMANCE">
+                              Publish automatically if it performs well
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Trial reels can't have collaborators and are never shared to feed.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <Label className="text-sm">Share to feed</Label>
+                        {form.trialEnabled && (
+                          <p className="text-xs text-muted-foreground">
+                            Forced off while Trial is on.
+                          </p>
+                        )}
+                      </div>
+                      <Switch
+                        checked={form.trialEnabled ? false : form.shareToFeed}
+                        disabled={form.trialEnabled}
+                        onCheckedChange={(checked) =>
+                          setForm((f) => ({ ...f, shareToFeed: checked }))
+                        }
+                      />
+                    </div>
                   </div>
-                )}
-                </FeatureGate>
-                {form.type === "REEL" && (
-                  <div className="flex items-center justify-between gap-3">
-                    <Label className="text-sm">Share to feed</Label>
-                    <Switch
-                      checked={form.shareToFeed}
-                      onCheckedChange={(checked) =>
-                        setForm((f) => ({ ...f, shareToFeed: checked }))
-                      }
-                    />
+                </div>
+              )}
+
+              {/* Collaborators — mutually exclusive with a trial reel. */}
+              {form.type !== "STORY" && (
+                <div className="rounded-xl border p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <Label>Collaborators</Label>
+                    <span className="ml-auto text-[11px] text-muted-foreground">
+                      {form.collaborators.length}/{COLLABORATORS_MAX}
+                    </span>
                   </div>
-                )}
-              </div>
+                  {form.trialEnabled ? (
+                    <p className="text-xs text-muted-foreground">
+                      Unavailable on a trial reel — a trial is shown to non-followers only. Turn
+                      Trial off to invite collaborators.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="flex gap-2">
+                        <Input
+                          value={form.collaboratorDraft}
+                          disabled={form.collaborators.length >= COLLABORATORS_MAX}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              collaboratorDraft: e.target.value.slice(0, 30),
+                            }))
+                          }
+                          maxLength={30}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addCollaborator();
+                            }
+                          }}
+                          placeholder="@username"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={form.collaborators.length >= COLLABORATORS_MAX}
+                          onClick={addCollaborator}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {form.collaborators.map((name) => (
+                          <span
+                            key={name}
+                            className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs"
+                          >
+                            @{name}
+                            <button type="button" onClick={() => removeCollaborator(name)}>
+                              <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      {form.collaborators.length >= COLLABORATORS_MAX && (
+                        <p className="text-xs text-muted-foreground">
+                          Instagram allows at most {COLLABORATORS_MAX}.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* Automation */}
               <div className="rounded-xl border p-3 space-y-3">
@@ -2748,19 +3831,88 @@ function SchedulerPage() {
               </div>
 
               {/* Schedule + timezone */}
-              <div className="space-y-1">
-                <Label>
-                  Schedule date & time{" "}
-                  <span className="text-xs text-muted-foreground">
-                    (leave blank to save as draft)
-                  </span>
-                </Label>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label>
+                    Schedule date & time{" "}
+                    <span className="text-xs text-muted-foreground">
+                      (leave blank to save as draft)
+                    </span>
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 gap-1 px-2 text-xs text-primary hover:text-primary"
+                    onClick={() => setShowBestTimes((v) => !v)}
+                  >
+                    <Clock className="h-3 w-3" />
+                    {showBestTimes ? "Hide" : "Suggested times"}
+                  </Button>
+                </div>
                 <Input
                   type="datetime-local"
                   value={form.scheduleLocal}
                   onChange={(e) => setForm((f) => ({ ...f, scheduleLocal: e.target.value }))}
-                  min={new Date().toISOString().slice(0, 16)}
+                  min={scheduleMin}
                 />
+
+                {showBestTimes && (
+                  <div className="space-y-2 rounded-lg border p-3">
+                    {bestTimesQuery.isLoading ? (
+                      <div className="flex justify-center py-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : bestTimesQuery.isError ? (
+                      <p className="text-xs text-muted-foreground">
+                        Couldn't load suggested times right now.
+                      </p>
+                    ) : !bestTimesQuery.data?.insightsAvailable || suggestedTimes.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Not enough published posts yet. Sync from Instagram on the analytics tab,
+                        then check back.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-[11px] text-muted-foreground">
+                          Your best engagement, converted from UTC into {form.timezone}.
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {suggestedTimes.map((slot) => (
+                            <button
+                              key={`${slot.dayOfWeekUtc}-${slot.hourUtc}`}
+                              type="button"
+                              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors hover:border-primary/50 hover:bg-primary/5"
+                              onClick={() => {
+                                const next = nextDateTimeLocalForSlot(
+                                  slot.local.dayOfWeek,
+                                  slot.local.hour,
+                                  slot.local.minute,
+                                  form.timezone,
+                                );
+                                if (!next) {
+                                  toast.error("Couldn't convert that time to your timezone.");
+                                  return;
+                                }
+                                setForm((f) => ({ ...f, scheduleLocal: next }));
+                              }}
+                            >
+                              <span className="font-medium">{slot.local.label}</span>
+                              <span className="text-muted-foreground">
+                                {slot.avgEngagement.toFixed(1)}%
+                              </span>
+                              {/* A single post is an anecdote, not a best time — labelled rather
+                                  than presented as a trend. */}
+                              {slot.sampleSize === 1 && (
+                                <span className="text-[10px] text-warning">1 post</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <Label>Timezone</Label>
@@ -2826,7 +3978,13 @@ function SchedulerPage() {
           {detailQuery.data?.post && (
             <div className="grid gap-6 py-1 text-sm lg:grid-cols-[minmax(0,1fr)_min(100%,400px)] lg:items-start">
               <div className="space-y-3 order-2 min-w-0 lg:order-1">
-                <SchedulerPostDetailFields post={detailQuery.data.post} />
+                <SchedulerPostDetailFields
+                  post={detailQuery.data.post}
+                  onRetryPostPublish={() =>
+                    retryPostPublishMutation.mutate(detailQuery.data!.post.id)
+                  }
+                  isRetryingPostPublish={retryPostPublishMutation.isPending}
+                />
               </div>
               <div className="order-1 space-y-2 lg:order-2 lg:sticky lg:top-2 self-start w-full flex flex-col items-center lg:items-stretch">
                 <p className="text-xs font-medium text-muted-foreground text-center lg:text-left">
@@ -2843,7 +4001,7 @@ function SchedulerPage() {
                   }
                   mediaUrls={detailQuery.data.post.carouselMediaUrls}
                   caption={detailQuery.data.post.caption ?? ""}
-                  hashtagsRaw={detailQuery.data.post.hashtags.join(" ")}
+                  coverImageUrl={detailQuery.data.post.coverImageUrl ?? undefined}
                 />
               </div>
             </div>

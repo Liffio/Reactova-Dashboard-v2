@@ -32,11 +32,22 @@ export class ApiError extends Error {
   code?: string;
   /** HTTP status of the failed response, when known — lets callers distinguish e.g. 404 from other failures. */
   status?: number;
-  constructor(message: string, code?: string, status?: number) {
+  /**
+   * The parsed JSON error body, when the response had one.
+   *
+   * Some endpoints answer a *domain* question with a non-2xx status and put the answer in
+   * fields other than `error` — the scheduler's `/trial-eligibility` returns
+   * `{ eligible, code, reason }` on a 400 (not connected) and a 502 (probe failed), and the
+   * UI is required to render `reason` verbatim. `formatApiErrorBody` only reads `error`, so
+   * without the raw body those fields would be unreachable from a catch block.
+   */
+  body?: unknown;
+  constructor(message: string, code?: string, status?: number, body?: unknown) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -200,9 +211,21 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
       const retryablePayload = await res.json().catch(() => null);
       if (retryablePayload && typeof retryablePayload === "object" && "error" in retryablePayload) {
         const retryableCode = (retryablePayload as { code?: string }).code;
-        throw new ApiError(formatApiErrorBody(retryablePayload), retryableCode, res.status);
+        throw new ApiError(
+          formatApiErrorBody(retryablePayload),
+          retryableCode,
+          res.status,
+          retryablePayload,
+        );
       }
-      throw new ApiError(NETWORK_ERROR_MESSAGE, "SERVER_UNAVAILABLE", res.status);
+      // Still carries the body: a retryable status can be a domain answer with no `error` key
+      // (e.g. /trial-eligibility's 502 `{ eligible, code, reason }`).
+      throw new ApiError(
+        NETWORK_ERROR_MESSAGE,
+        "SERVER_UNAVAILABLE",
+        res.status,
+        retryablePayload ?? undefined,
+      );
     }
     const payload = await res.json().catch(() => ({}));
     const code = (payload as { code?: string })?.code;
@@ -216,7 +239,7 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
     if (isAuthFailure && token) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
-    throw new ApiError(formatApiErrorBody(payload), code, res.status);
+    throw new ApiError(formatApiErrorBody(payload), code, res.status, payload);
   }
 
   if (res.status === 204) {

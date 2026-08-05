@@ -414,11 +414,15 @@ function analyticsPostImageUrl(row: SchedulerAnalyticsPost): string | null {
 
 /** Instagram CDN thumbnail URLs are signed and expire — onError falling back to a
  *  placeholder is the normal path here, not an edge case. Renders nothing at all
- *  when no URL is present (e.g. carousels, where Meta puts media on the children). */
+ *  when no URL is present (e.g. carousels, where Meta puts media on the children).
+ *
+ *  Tracks *which* src failed rather than a boolean: a boolean latches, so once one
+ *  expired URL failed, the same instance would keep showing the placeholder even
+ *  after being handed a perfectly good new src (e.g. on re-sort or re-sync). */
 function AnalyticsPostThumbnail({ src }: { src: string | null }) {
-  const [failed, setFailed] = useState(false);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   if (!src) return null;
-  if (failed) {
+  if (failedSrc === src) {
     return (
       <div className="h-11 w-11 shrink-0 rounded bg-muted flex items-center justify-center text-muted-foreground">
         <Images className="h-4 w-4" />
@@ -430,7 +434,7 @@ function AnalyticsPostThumbnail({ src }: { src: string | null }) {
       src={src}
       alt=""
       className="h-11 w-11 shrink-0 rounded object-cover"
-      onError={() => setFailed(true)}
+      onError={() => setFailedSrc(src)}
     />
   );
 }

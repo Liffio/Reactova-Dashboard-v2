@@ -49,6 +49,16 @@ export const COLLABORATORS_MAX = 3;
 export const FIRST_COMMENT_MAX = 2200;
 /** Server `FIRST_COMMENT_HASHTAG_MAX` — Instagram rejects comments carrying more. */
 export const FIRST_COMMENT_HASHTAG_MAX = 20;
+/**
+ * Server `CAPTION_PLUS_COMMENT_HASHTAG_MAX`.
+ *
+ * Instagram's comment hashtag cap counts the *caption's* hashtags too, so the two can only be
+ * validated together: the same 20-hashtag comment was accepted on a 6-hashtag caption and rejected
+ * on a 15-hashtag one. 26 is the highest combined total confirmed to work.
+ *
+ * Only applies when a first comment is actually set — a caption alone is never capped this way.
+ */
+export const CAPTION_PLUS_COMMENT_HASHTAG_MAX = 26;
 /** Server `altText` / `carouselAltTexts` item limit. */
 export const ALT_TEXT_MAX = 1000;
 

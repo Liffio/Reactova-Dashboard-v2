@@ -77,6 +77,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ALT_TEXT_MAX,
+  CAPTION_PLUS_COMMENT_HASHTAG_MAX,
   CAROUSEL_MEDIA_MAX,
   CAROUSEL_MEDIA_MIN,
   COLLABORATORS_MAX,
@@ -1344,6 +1345,17 @@ function SchedulerPage() {
   );
 
   /**
+   * Instagram's comment hashtag cap counts the caption's hashtags too, so the budget is shared and
+   * the caption is usually what pushes it over. Only applies once a first comment exists — a
+   * caption on its own is never capped this way.
+   */
+  const combinedHashtagCount = captionHashtagCount + firstCommentHashtagCount;
+  const hasFirstComment = form.firstComment.trim().length > 0;
+  const overPerCommentHashtags = firstCommentHashtagCount > FIRST_COMMENT_HASHTAG_MAX;
+  const overCombinedHashtags =
+    hasFirstComment && combinedHashtagCount > CAPTION_PLUS_COMMENT_HASHTAG_MAX;
+
+  /**
    * The frame scrubber only works on a video Liffio hosts in *this* workspace — the endpoint
    * resolves the URL to a local file rather than letting ffmpeg fetch an arbitrary host. A pasted
    * external media URL can never work, so the scrubber is hidden and only cover upload is offered.
@@ -2150,12 +2162,28 @@ function SchedulerPage() {
       return;
     }
 
+    // Both hashtag caps, in the same order the backend applies them: the per-comment one first so
+    // a wall of tags in the comment alone gets the more specific message.
     const firstComment = form.firstComment.trim();
-    if (firstComment && countHashtags(firstComment) > FIRST_COMMENT_HASHTAG_MAX) {
-      toast.error(
-        `First comment has ${countHashtags(firstComment)} hashtags. Instagram rejects comments with too many; use at most ${FIRST_COMMENT_HASHTAG_MAX}.`,
-      );
-      return;
+    if (firstComment) {
+      const commentTags = countHashtags(firstComment);
+      const captionTags = countHashtags(form.caption);
+      const total = commentTags + captionTags;
+      if (commentTags > FIRST_COMMENT_HASHTAG_MAX) {
+        toast.error(
+          `First comment has ${commentTags} hashtags. Instagram rejects comments with too many; use at most ${FIRST_COMMENT_HASHTAG_MAX}.`,
+        );
+        return;
+      }
+      if (total > CAPTION_PLUS_COMMENT_HASHTAG_MAX) {
+        toast.error(
+          `${total} hashtags (${captionTags} in caption, ${commentTags} in the first comment) — Instagram's limit is ${CAPTION_PLUS_COMMENT_HASHTAG_MAX} combined.`,
+          {
+            description: `Instagram counts caption and comment hashtags together. Remove ${total - CAPTION_PLUS_COMMENT_HASHTAG_MAX}.`,
+          },
+        );
+        return;
+      }
     }
 
     const primaryMediaUrl =
@@ -3279,20 +3307,31 @@ function SchedulerPage() {
                   maxLength={FIRST_COMMENT_MAX}
                   placeholder="Posted as a comment right after publishing — a good home for extra hashtags."
                 />
-                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                {/* The hashtag budget is shared with the caption, so the count shown here is the
+                    combined one — and both sides are named, because the caption is usually what
+                    pushes it over and the user is looking at this field, not that one. The
+                    per-comment cap keeps its own friendlier message for the common case of a wall
+                    of tags pasted into the comment alone. */}
+                <div className="flex items-start justify-between gap-2 text-xs text-muted-foreground">
                   <span>
-                    {firstCommentHashtagCount > FIRST_COMMENT_HASHTAG_MAX ? (
+                    {overPerCommentHashtags ? (
                       <span className="text-destructive">
-                        {firstCommentHashtagCount} hashtags — Instagram rejects more than{" "}
-                        {FIRST_COMMENT_HASHTAG_MAX}
+                        {firstCommentHashtagCount} hashtags here — Instagram rejects more than{" "}
+                        {FIRST_COMMENT_HASHTAG_MAX} in one comment
                       </span>
-                    ) : firstCommentHashtagCount > 0 ? (
-                      `${firstCommentHashtagCount}/${FIRST_COMMENT_HASHTAG_MAX} hashtags`
+                    ) : overCombinedHashtags ? (
+                      <span className="text-destructive">
+                        {combinedHashtagCount} hashtags ({captionHashtagCount} in caption,{" "}
+                        {firstCommentHashtagCount} here) — Instagram's limit is{" "}
+                        {CAPTION_PLUS_COMMENT_HASHTAG_MAX} combined
+                      </span>
+                    ) : hasFirstComment ? (
+                      `${combinedHashtagCount}/${CAPTION_PLUS_COMMENT_HASHTAG_MAX} hashtags combined (${captionHashtagCount} in caption, ${firstCommentHashtagCount} here)`
                     ) : (
                       ""
                     )}
                   </span>
-                  <span>
+                  <span className="shrink-0">
                     {form.firstComment.length}/{FIRST_COMMENT_MAX}
                   </span>
                 </div>

@@ -5,6 +5,14 @@ export type WorkspaceApi = {
   id: string;
   userId: string;
   igHandle?: string | null;
+  /**
+   * The connected Instagram account's avatar, served straight from Instagram's CDN.
+   *
+   * Null for most workspaces — the large majority have no Instagram connected — so the letter-avatar
+   * fallback is the normal path, not an edge case. The URL is also signed and expires, so a render
+   * needs an `onError` fallback as well as a null check.
+   */
+  profilePictureUrl?: string | null;
   /** Human-readable public id, e.g. `acme-store-4f2`. Stable; accepted by the external API. */
   humanId?: string | null;
   displayName?: string | null;

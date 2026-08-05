@@ -34,6 +34,8 @@ export interface Workspace {
   id: string;
   handle: string;
   igHandle: string | null;
+  /** Instagram CDN avatar, or null when there's no connected account — the common case. */
+  profilePictureUrl: string | null;
   humanId: string | null;
   name: string;
   plan: PlanName;
@@ -63,6 +65,7 @@ const defaultWorkspace: Workspace = {
   id: "default",
   handle: "@workspace",
   igHandle: null,
+  profilePictureUrl: null,
   humanId: null,
   name: "Workspace",
   plan: "Free",
@@ -127,6 +130,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: workspace.id,
         handle: label,
         igHandle,
+        // Gated on `instagramConnected` for the same reason `igHandle` is: showing a workspace's
+        // Instagram avatar while deliberately hiding its handle would be incoherent.
+        profilePictureUrl: instagramConnected ? workspace.profilePictureUrl?.trim() || null : null,
         humanId: workspace.humanId ?? null,
         name: label,
         plan: mapPlan(workspace.plan),

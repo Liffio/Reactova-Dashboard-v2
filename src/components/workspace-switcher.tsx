@@ -33,6 +33,44 @@ function workspaceInitials(name: string) {
     .toUpperCase();
 }
 
+/**
+ * The workspace's Instagram avatar, falling back to its initials.
+ *
+ * Both fallbacks are ordinary paths, not error handling: most workspaces have no Instagram
+ * connected at all, and the CDN URLs that do exist are signed and cached server-side for an hour,
+ * so an expired one can reach the browser and 403. Straight from Instagram's CDN with no proxy,
+ * matching how the analytics post thumbnails already load.
+ *
+ * `failedSrc` is compared against the current `src` rather than being a plain boolean, so switching
+ * to a different workspace re-attempts its own image instead of inheriting the previous failure.
+ */
+function WorkspaceAvatar({
+  name,
+  profilePictureUrl,
+}: {
+  name: string;
+  profilePictureUrl: string | null;
+}) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const src = profilePictureUrl?.trim() || null;
+
+  if (!src || failedSrc === src) {
+    return (
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-gradient text-xs font-semibold text-primary-foreground">
+        {workspaceInitials(name)}
+      </span>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      className="h-8 w-8 shrink-0 rounded-lg object-cover"
+      onError={() => setFailedSrc(src)}
+    />
+  );
+}
+
 const planBadgeStyles: Record<PlanName, string> = {
   Free: "border-border bg-muted text-muted-foreground",
   Starter: "border-accent bg-accent/50 text-accent-foreground",
@@ -102,9 +140,7 @@ export function WorkspaceSwitcher() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton size="lg" tooltip={current.name}>
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-gradient text-xs font-semibold text-primary-foreground">
-                {workspaceInitials(current.name)}
-              </span>
+              <WorkspaceAvatar name={current.name} profilePictureUrl={current.profilePictureUrl} />
               <span className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-sm font-semibold text-sidebar-foreground">

@@ -66,10 +66,22 @@ function fmtDate(iso: string | null | undefined): string {
   });
 }
 
+/**
+ * Tolerant of both /status response shapes.
+ *
+ * The current API omits `cooldown` entirely when an application is in flight,
+ * so key presence alone was enough to tell the two Eligible sub-states apart.
+ * The next one always sends every key and uses `null` for "not applicable"
+ * (fields are null, never absent), which makes a bare `"cooldown" in status`
+ * true for both — and the callers below then read `.active` off null.
+ *
+ * Checking presence *and* non-null is correct against either: absent and
+ * explicitly-null both mean "there is no cooldown here".
+ */
 function hasCooldown(
   status: Extract<CreatorStatus, { state: "Eligible" }>,
 ): status is Extract<CreatorStatus, { state: "Eligible"; cooldown: unknown }> {
-  return "cooldown" in status;
+  return "cooldown" in status && status.cooldown != null;
 }
 
 function formatCompactCount(n: number): string {
@@ -147,7 +159,21 @@ function CreatorsProgramPage() {
       // Poll while a decision is pending — waitlisted apps auto-promote, and
       // pending-review apps get decided by an admin, with no push channel
       // (ENDPOINT-CONTRACT.md §5: polling is the documented interim pattern).
-      if (data?.state === "Eligible" && "latestApplication" in data) {
+      // Presence *and* non-null, for the same reason as hasCooldown above: the
+      // next API sends this key on every Eligible response and nulls it when
+      // there is no application, so presence alone would poll for everyone.
+      //
+      // Narrowed to open applications because that API also starts returning
+      // Rejected applications for the length of the cooldown — 90 days. Polling
+      // on "an application exists" would keep a 20s timer running for every
+      // rejected creator for a quarter, for a decision that has already been made.
+      if (
+        data?.state === "Eligible" &&
+        "latestApplication" in data &&
+        data.latestApplication != null &&
+        (data.latestApplication.state === "PendingReview" ||
+          data.latestApplication.state === "Submitted")
+      ) {
         return 20_000;
       }
       return false;

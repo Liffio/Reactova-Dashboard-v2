@@ -1,11 +1,10 @@
 export const CREATOR_PROGRAM_LINKS = {
-  /** TODO: page not yet written. Blocks launch — the consent
-   *  checkbox gates submit on agreeing to this document. */
-  terms: "https://liffio.com/creator-program-terms",
+  /** The Creators Program Policy. Covers the three things the consent modal
+   *  gates submit on: participation terms (§"What Is the Creators Program"),
+   *  the monthly requirements (§6.1), and revocation for missing them (§9). */
+  terms: "https://liffio.com/creators-policy",
 
-  /** TODO: point at the existing privacy page — find the route
-   *  already used elsewhere in the app, don't create a new one. */
-  privacy: "https://liffio.com/privacy",
+  privacy: "https://liffio.com/privacy-policy",
 
   /** Programme matters: terms line, rejection appeal, programme rules. */
   creatorEmail: "mailto:creators@liffio.com",

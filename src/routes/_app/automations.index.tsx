@@ -349,8 +349,13 @@ function AutomationsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete "{deleting?.name}"?</AlertDialogTitle>
+            {/* Deleting an automation hard-deletes its DmJob, Lead, AutomationFollowUp
+                and PendingFollowDm rows (server: automations.ts DELETE handler). There is
+                no soft-delete and no archive, so captured leads are gone for good. This
+                copy previously promised the opposite — see backend issue #7. */}
             <AlertDialogDescription>
-              This stops the automation immediately. DM history and captured leads are kept.
+              This stops the automation immediately and permanently deletes its DM history and every
+              lead it captured. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

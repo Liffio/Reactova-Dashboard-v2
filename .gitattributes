@@ -1,0 +1,7 @@
+# The Creator Program contract and its fixtures are byte-compared against the
+# API repo's copies in CI (see that repo's .github/workflows/ci.yml). Pin them
+# to LF: with core.autocrlf=true — the Windows default — a checkout would
+# rewrite them to CRLF and the diff would fail on two files that are otherwise
+# identical.
+src/features/creator-program/contract.ts        text eol=lf
+src/features/creator-program/status.fixtures.json text eol=lf

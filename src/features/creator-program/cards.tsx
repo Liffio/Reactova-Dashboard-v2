@@ -149,16 +149,35 @@ export function ChecksCard({ checks }: { checks: EligibilityCheck[] }) {
 }
 
 /**
+ * The connect→first-sync window. A profile is Eligible the moment Instagram is
+ * connected, but `/status` carries `checks: null` until the enqueued metrics
+ * sync lands. Say the numbers are still arriving rather than rendering an empty
+ * list — and never an all-unmet one, which would read as four failed checks on
+ * an account that has not been looked at yet.
+ */
+function ChecksSyncing() {
+  return (
+    <Meta className="leading-relaxed">
+      We’re pulling your posts and account details from Instagram. This usually takes a few seconds
+      — the checks fill in here on their own, and you can apply either way.
+    </Meta>
+  );
+}
+
+/**
  * EligibilityCard — ConnectionCard plus the check list, split by a hairline.
  * The apply page's single source of "here's your account, here's what we
  * looked at", so the creator never has to reconcile two versions of it.
+ *
+ * `checks` is null during the connect→first-sync window; the card still renders
+ * (the account half is already known) with the check half in its syncing state.
  */
 export function EligibilityCard({
   account,
   checks,
 }: {
   account: CreatorAccount;
-  checks: EligibilityCheck[];
+  checks: EligibilityCheck[] | null;
 }) {
   return (
     <Card className="mt-4 flex flex-col gap-8 p-6 sm:flex-row sm:gap-[34px]">
@@ -171,12 +190,14 @@ export function EligibilityCard({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-3">
-          <Meta>What we checked</Meta>
-          <StatusPill variant="qualified">Eligible to apply</StatusPill>
+          <Meta>{checks ? "What we checked" : "What we check"}</Meta>
+          {checks ? (
+            <StatusPill variant="qualified">Eligible to apply</StatusPill>
+          ) : (
+            <StatusPill variant="neutral">Syncing</StatusPill>
+          )}
         </div>
-        <div className="mt-3">
-          <CheckList checks={checks} />
-        </div>
+        <div className="mt-3">{checks ? <CheckList checks={checks} /> : <ChecksSyncing />}</div>
       </div>
     </Card>
   );

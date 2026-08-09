@@ -160,7 +160,14 @@ export interface CreatorThresholdsResponse {
 export type CreatorApplyResponse =
   | { outcome: "decided"; applicationId: string; decision: string }
   | { outcome: "blocked_by_cooldown"; reapplyAt: string }
-  | { outcome: "rejected_eligibility_changed"; applicationId: string; reason: "EligibilityChanged" };
+  | { outcome: "rejected_eligibility_changed"; applicationId: string; reason: "EligibilityChanged" }
+  /**
+   * No creator profile for this user, which — since profile creation is 1:1 with
+   * Instagram connect — means no Instagram account has ever been connected.
+   * Previously a 400 carrying a raw internal message; render "connect Instagram
+   * first" rather than a generic failure.
+   */
+  | { outcome: "instagram_not_connected" };
 
 /** The frame the page renders. Derived client-side; see deriveFrame below. */
 export type CreatorFrame =

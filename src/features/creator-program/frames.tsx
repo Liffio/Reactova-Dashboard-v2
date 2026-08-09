@@ -302,6 +302,11 @@ export function OfferFrame({
 }: FrameProps & { onOpenConfirm: () => void }) {
   const ago = formatSyncedAgo(status.syncedAt, now);
   const maxCreators = thresholds?.maxActiveCreators;
+  // Connect→first-sync: Eligible arrives the moment Instagram is connected, but
+  // checks stay null until the enqueued sync lands, and syncedAt is null with
+  // it — so the "Checked …" line has nothing to say. The offer itself is real
+  // and Join stays live; only the numbers are pending.
+  const awaitingFirstSync = status.checks == null;
 
   return (
     <CreatorArea>
@@ -322,6 +327,7 @@ export function OfferFrame({
         <div className="shrink-0 sm:pt-[26px] sm:text-right">
           <StatusPill variant="qualified">Eligible to apply</StatusPill>
           {ago && <Meta className="mt-2.5">Checked {ago}</Meta>}
+          {!ago && awaitingFirstSync && <Meta className="mt-2.5">Syncing your account…</Meta>}
         </div>
       </div>
 
@@ -389,9 +395,10 @@ export function OfferFrame({
           title="Your account"
           description="Pulled from the Instagram account you’ve already connected. Nothing here is editable."
         />
-        {status.account && status.checks && (
-          <EligibilityCard account={status.account} checks={status.checks} />
-        )}
+        {/* No `status.checks &&` guard: during the connect→first-sync window
+            checks is null, and gating on it left this section as a heading with
+            nothing under it. EligibilityCard renders its own syncing state. */}
+        {status.account && <EligibilityCard account={status.account} checks={status.checks} />}
       </div>
 
       <div className="mt-9 flex flex-col items-stretch gap-5 lg:flex-row">

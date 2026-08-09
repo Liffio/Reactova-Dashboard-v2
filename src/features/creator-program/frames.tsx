@@ -369,15 +369,21 @@ export function OfferFrame({
                 description="Running at the same time. Paused and draft automations don’t count."
               />
             </div>
-            {/* Attribution is unenforced: stated as an ask, below a divider,
-                outside the measured pair, with "no counter" said plainly. */}
+            {/* Placement follows the design: below the divider, outside the
+                measured pair, because this still isn't a counted metric. The
+                wording does not — the design file called attribution an
+                unenforced ask, but creators-policy §6.2 makes retaining the tag
+                a condition of access and §8.2 makes removing it grounds for
+                immediate revocation without warning. It is the single fastest
+                way to lose membership, so the page must not read as optional. */}
             <div className="mt-1.5 border-t border-[var(--cp-hairline)] pt-3.5">
               <div className="text-[13.5px] font-medium">
-                A small Liffio recommendation in each automation
+                The “Powered by @Liffio” tag in every automated DM
               </div>
               <Meta className="mt-[3px] leading-snug">
-                One short line in the message your automation sends. There’s no counter for this one
-                — we just ask that you keep it in.
+                One short line in the message your automation sends. There’s no monthly counter for
+                this one — it’s a condition of membership rather than a target. Removing or altering
+                the tag can end your membership immediately, without warning.
               </Meta>
             </div>
           </Card>

@@ -16,7 +16,13 @@ import type { CreatorAccount, CreatorThresholdsResponse } from "./contract";
 const CONSENTS = [
   { id: "terms", label: "I agree to the Creator Program Terms" },
   { id: "requirements", label: "I understand the monthly participation requirements" },
-  { id: "pause", label: "I understand my membership may be paused if I stop meeting them" },
+  {
+    id: "pause",
+    // "Paused" alone understated it: creators-policy §9 reserves the right to
+    // revoke access outright, which is the stronger outcome the creator is
+    // actually consenting to. Both are named because both can happen.
+    label: "I understand my membership can be paused or revoked if I stop meeting them",
+  },
 ] as const;
 
 function ConsentCheckbox({ checked }: { checked: boolean }) {
@@ -128,7 +134,7 @@ export function ConfirmJoinModal({
                   &nbsp; active automations
                 </div>
                 <Meta className="mt-1 leading-snug">
-                  Plus a small Liffio recommendation in each automation.
+                  Plus the “Powered by @Liffio” tag in every automated DM — required, not counted.
                 </Meta>
               </div>
             </div>
@@ -137,9 +143,15 @@ export function ConfirmJoinModal({
           <div className="mt-5 rounded-[10px] border border-[var(--cp-hairline-soft)] bg-[var(--cp-page)] px-4 py-3.5">
             <Meta className="mb-2">Worth knowing</Meta>
             <div className="space-y-1.5 text-[12.5px] leading-relaxed text-[var(--cp-ink-alt)]">
+              {/* Matches creators-policy §9 and §8.2. The previous wording
+                  promised an email unconditionally and named pausing as the
+                  only outcome; the policy reserves the right to revoke, commits
+                  only to reasonable efforts to notify, and carves out serious
+                  violations entirely. */}
               <div>
-                Membership can be paused if you stop meeting the requirements. We’ll email you
-                before that happens.
+                Membership can be paused, or access revoked, if you stop meeting the requirements.
+                We’ll make reasonable efforts to email you first — but serious violations, including
+                removing the “Powered by @Liffio” tag, can end it immediately without warning.
               </div>
               <div>
                 You can leave at any time. Your automations, leads and data stay exactly as they

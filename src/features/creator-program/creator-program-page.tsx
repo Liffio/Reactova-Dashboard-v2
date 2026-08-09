@@ -14,7 +14,7 @@ import {
   useCreatorProgram,
 } from "./use-creator-program";
 import { ConfirmJoinModal } from "./confirm-join-modal";
-import { cooldownMessage } from "./copy";
+import { METRICS_UNAVAILABLE_NOTICE, cooldownMessage } from "./copy";
 import { PageSkeleton } from "./page-skeleton";
 import {
   ActiveFrame,
@@ -40,7 +40,7 @@ export function CreatorProgramPage() {
   const { frame, status, thresholds, refetch } = useCreatorProgram();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [cooldownNotice, setCooldownNotice] = useState<string | null>(null);
+  const [submitNotice, setSubmitNotice] = useState<string | null>(null);
   const [handedOff, setHandedOff] = useState(false);
   const handoffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -52,12 +52,24 @@ export function CreatorProgramPage() {
   const applyMutation = useMutation({
     mutationFn: applyToCreatorProgram,
     onSuccess: (outcome) => {
-      // blocked_by_cooldown is the one outcome that keeps the modal open: it's
-      // only reachable when a cooldown started in another tab, so the creator
-      // needs the reason attached to the button they just pressed rather than
-      // discovering it on a page that silently re-rendered.
+      // Two outcomes keep the modal open rather than closing to a frame change,
+      // because the creator needs the reason attached to the button they just
+      // pressed rather than discovering it on a page that silently re-rendered.
+      //
+      // blocked_by_cooldown — only reachable when a cooldown started in another
+      // tab.
       if (outcome.outcome === "blocked_by_cooldown") {
-        setCooldownNotice(cooldownMessage(outcome.reapplyAt));
+        setSubmitNotice(cooldownMessage(outcome.reapplyAt));
+        return;
+      }
+      // metrics_unavailable — the pre-scoring sync produced no metrics. This is
+      // retryable and deliberately not a rejection: the backend writes nothing
+      // and creates no application row on this path (CreatorApplicationService,
+      // the !metricsLatest branch), so the creator's state is untouched. Leaving
+      // the modal open keeps the consent ticks and Submit live, which makes
+      // pressing Submit again the retry — no re-opening, no re-ticking.
+      if (outcome.outcome === "metrics_unavailable") {
+        setSubmitNotice(METRICS_UNAVAILABLE_NOTICE);
         return;
       }
       // instagram_not_connected means no creator profile exists at all, so the
@@ -73,7 +85,7 @@ export function CreatorProgramPage() {
       // Everything else — decided, or rejected_eligibility_changed — is
       // expressed by the next /status, so close and let the frame change say it.
       setConfirmOpen(false);
-      setCooldownNotice(null);
+      setSubmitNotice(null);
       invalidate();
     },
     onError: (e) => toast.error((e as Error).message),
@@ -161,13 +173,13 @@ export function CreatorProgramPage() {
           // Cancel and Escape both close with no side effects — nothing is
           // submitted, and the consent ticks reset on reopen.
           setConfirmOpen(open);
-          if (!open) setCooldownNotice(null);
+          if (!open) setSubmitNotice(null);
         }}
         account={status.account}
         thresholds={thresholds}
         onSubmit={() => applyMutation.mutate()}
         isSubmitting={applyMutation.isPending && !handedOff}
-        cooldownNotice={cooldownNotice}
+        notice={submitNotice}
       />
     </>
   );

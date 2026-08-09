@@ -56,8 +56,15 @@ export function ConfirmJoinModal({
   thresholds,
   onSubmit,
   isSubmitting,
-  /** Set when POST /apply came back blocked_by_cooldown — only reachable if a cooldown started in another tab. */
-  cooldownNotice,
+  /**
+   * The inline notice for the POST /apply outcomes that keep this modal open
+   * rather than closing to a frame change: blocked_by_cooldown (only reachable
+   * if a cooldown started in another tab) and metrics_unavailable (retryable —
+   * nothing was written). Both need the reason attached to the button the
+   * creator just pressed. Submit stays live underneath it, so metrics_unavailable
+   * can be retried by pressing it again.
+   */
+  notice,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -65,7 +72,7 @@ export function ConfirmJoinModal({
   thresholds: CreatorThresholdsResponse | undefined;
   onSubmit: () => void;
   isSubmitting: boolean;
-  cooldownNotice: string | null;
+  notice: string | null;
 }) {
   const [ticked, setTicked] = useState<Record<string, boolean>>({});
   const allTicked = CONSENTS.every((c) => ticked[c.id]);
@@ -193,9 +200,9 @@ export function ConfirmJoinModal({
             ))}
           </div>
 
-          {cooldownNotice && (
+          {notice && (
             <div className="mt-4 rounded-[10px] border border-[var(--cp-amber-border)] bg-[var(--cp-amber-bg)] px-4 py-3 text-[12.5px] text-[var(--cp-amber-fg)]">
-              {cooldownNotice}
+              {notice}
             </div>
           )}
         </div>

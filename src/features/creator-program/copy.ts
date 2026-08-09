@@ -219,6 +219,20 @@ export function cooldownMessage(reapplyAt: string | null): string | null {
   return `You're still in your cooldown period — you can apply again from ${date}.`;
 }
 
+/**
+ * The inline notice inside the confirm modal when POST /apply comes back
+ * metrics_unavailable — the pre-scoring sync produced no metrics, typically a
+ * transient Meta failure on a creator who has never synced.
+ *
+ * Worded as a retry, not a refusal: the backend writes nothing and creates no
+ * application row on this path, so the creator's state is exactly what it was
+ * before they pressed Submit. Says "nothing has been submitted" explicitly —
+ * without it, a creator who presses Submit again has to guess whether they're
+ * about to apply twice.
+ */
+export const METRICS_UNAVAILABLE_NOTICE =
+  "We couldn’t read your Instagram account just now. Nothing has been submitted — try again in a moment.";
+
 export const BENEFITS = [
   "Unlimited automations",
   "Full analytics",

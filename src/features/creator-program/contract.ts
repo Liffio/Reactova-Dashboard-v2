@@ -167,7 +167,15 @@ export type CreatorApplyResponse =
    * Previously a 400 carrying a raw internal message; render "connect Instagram
    * first" rather than a generic failure.
    */
-  | { outcome: "instagram_not_connected" };
+  | { outcome: "instagram_not_connected" }
+  /**
+   * The pre-scoring Instagram sync produced no metrics, and none were stored
+   * from a previous sync — typically a transient Meta failure on a creator who
+   * has never synced. Nothing was written and no application exists, so this is
+   * safe and expected to retry: render a "try again in a moment" affordance, not
+   * a permanent failure or a rejection.
+   */
+  | { outcome: "metrics_unavailable" };
 
 /** The frame the page renders. Derived client-side; see deriveFrame below. */
 export type CreatorFrame =

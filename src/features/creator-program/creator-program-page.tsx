@@ -60,6 +60,16 @@ export function CreatorProgramPage() {
         setCooldownNotice(cooldownMessage(outcome.reapplyAt));
         return;
       }
+      // instagram_not_connected means no creator profile exists at all, so the
+      // next /status comes back state "none" and the page lands on
+      // NotEligibleFrame — which already owns the Connect Instagram button.
+      // The toast is what makes that a reply to the button they just pressed;
+      // the frame changing underneath them on its own reads as the page having
+      // lost their place. A warning, not an error: the backend returns this as
+      // a normal 200 outcome, not a failure.
+      if (outcome.outcome === "instagram_not_connected") {
+        toast.warning("Connect your Instagram account before applying.");
+      }
       // Everything else — decided, or rejected_eligibility_changed — is
       // expressed by the next /status, so close and let the frame change say it.
       setConfirmOpen(false);

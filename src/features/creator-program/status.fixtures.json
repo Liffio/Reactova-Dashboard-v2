@@ -1,0 +1,334 @@
+{
+  "_readme": "Keyed by CreatorFrame. Frontend renders these via ?mock=<key>. Backend asserts real /status responses match these shapes in a contract test. Numbers match the design files so screenshots are diffable.",
+
+  "Active": {
+    "state": "Active",
+    "syncedAt": "2026-08-09T09:30:00Z",
+    "account": {
+      "handle": "bloomandbrew",
+      "profilePictureUrl": null,
+      "accountType": "Business",
+      "isConnected": true,
+      "followerCount": 18432,
+      "postCount": 247,
+      "engagementRate": 4.2,
+      "insightsAvailable": true
+    },
+    "period": { "start": "2026-08-01T00:00:00Z", "end": "2026-09-01T00:00:00Z", "daysLeft": 23 },
+    "progress": { "dmCount": 68, "dmTarget": 300, "automationCount": 3, "automationTarget": 2 },
+    "joinedAt": "2026-03-12T00:00:00Z",
+    "primaryReason": null,
+    "primaryPriority": null,
+    "secondaryReasons": [],
+    "checks": null,
+    "cooldown": null,
+    "latestApplication": null,
+    "timeline": [
+      { "type": "InstagramSynced", "at": "2026-08-09T09:30:00Z" },
+      { "type": "RequirementsMet", "at": "2026-08-01T00:00:00Z" },
+      { "type": "HealthRestored", "at": "2026-06-14T00:00:00Z" },
+      { "type": "Joined", "at": "2026-03-12T00:00:00Z" }
+    ]
+  },
+
+  "Active_engagement_null": {
+    "_why": "THE DEFAULT AT LAUNCH — instagram_business_manage_insights is still pending. Build this before the happy path, not after.",
+    "state": "Active",
+    "syncedAt": "2026-08-09T09:30:00Z",
+    "account": {
+      "handle": "bloomandbrew",
+      "profilePictureUrl": null,
+      "accountType": "Business",
+      "isConnected": true,
+      "followerCount": 18432,
+      "postCount": 247,
+      "engagementRate": null,
+      "insightsAvailable": false
+    },
+    "period": { "start": "2026-08-01T00:00:00Z", "end": "2026-09-01T00:00:00Z", "daysLeft": 23 },
+    "progress": { "dmCount": 68, "dmTarget": 300, "automationCount": 3, "automationTarget": 2 },
+    "joinedAt": "2026-03-12T00:00:00Z",
+    "primaryReason": null,
+    "primaryPriority": null,
+    "secondaryReasons": [],
+    "checks": null,
+    "cooldown": null,
+    "latestApplication": null,
+    "timeline": [{ "type": "Joined", "at": "2026-03-12T00:00:00Z" }]
+  },
+
+  "AttentionBanner": {
+    "_why": "DmShortfall, priority 2. Page stays intact, numbers are real, banner on top.",
+    "state": "NeedsAttention",
+    "syncedAt": "2026-08-24T14:20:00Z",
+    "account": {
+      "handle": "bloomandbrew",
+      "profilePictureUrl": null,
+      "accountType": "Business",
+      "isConnected": true,
+      "followerCount": 18432,
+      "postCount": 247,
+      "engagementRate": 4.2,
+      "insightsAvailable": true
+    },
+    "period": { "start": "2026-08-01T00:00:00Z", "end": "2026-09-01T00:00:00Z", "daysLeft": 7 },
+    "progress": { "dmCount": 141, "dmTarget": 300, "automationCount": 2, "automationTarget": 2 },
+    "joinedAt": "2026-03-12T00:00:00Z",
+    "primaryReason": "DmShortfall",
+    "primaryPriority": 2,
+    "secondaryReasons": [],
+    "checks": null,
+    "cooldown": null,
+    "latestApplication": null,
+    "timeline": [{ "type": "InstagramSynced", "at": "2026-08-24T14:20:00Z" }]
+  },
+
+  "AttentionTakeover": {
+    "_why": "InstagramDisconnected, priority 1. Numbers are stale so they must NOT render in the hero. Secondary reason goes in the collapsed disclosure only.",
+    "state": "NeedsAttention",
+    "syncedAt": "2026-08-04T12:00:00Z",
+    "account": {
+      "handle": "bloomandbrew",
+      "profilePictureUrl": null,
+      "accountType": "Business",
+      "isConnected": false,
+      "followerCount": 18432,
+      "postCount": 247,
+      "engagementRate": 4.2,
+      "insightsAvailable": true
+    },
+    "period": { "start": "2026-08-01T00:00:00Z", "end": "2026-09-01T00:00:00Z", "daysLeft": 23 },
+    "progress": { "dmCount": 141, "dmTarget": 300, "automationCount": 2, "automationTarget": 2 },
+    "joinedAt": "2026-03-12T00:00:00Z",
+    "primaryReason": "InstagramDisconnected",
+    "primaryPriority": 1,
+    "secondaryReasons": ["DmShortfall"],
+    "checks": null,
+    "cooldown": null,
+    "latestApplication": null,
+    "timeline": []
+  },
+
+  "MetricsUnavailable": {
+    "_why": "Priority 1, but the only takeover with NO action button — there is nothing for the creator to press.",
+    "state": "NeedsAttention",
+    "syncedAt": "2026-08-04T18:12:00Z",
+    "account": {
+      "handle": "bloomandbrew",
+      "profilePictureUrl": null,
+      "accountType": "Business",
+      "isConnected": true,
+      "followerCount": 18432,
+      "postCount": 247,
+      "engagementRate": 4.2,
+      "insightsAvailable": true
+    },
+    "period": { "start": "2026-08-01T00:00:00Z", "end": "2026-09-01T00:00:00Z", "daysLeft": 23 },
+    "progress": { "dmCount": 141, "dmTarget": 300, "automationCount": 2, "automationTarget": 2 },
+    "joinedAt": "2026-03-12T00:00:00Z",
+    "primaryReason": "MetricsUnavailable",
+    "primaryPriority": 1,
+    "secondaryReasons": [],
+    "checks": null,
+    "cooldown": null,
+    "latestApplication": null,
+    "timeline": []
+  },
+
+  "NotEligible": {
+    "_why": "InsufficientContent. One blocker named; checklist renders as progress, never as a verdict or score.",
+    "state": "NotEligible",
+    "syncedAt": "2026-08-09T06:00:00Z",
+    "account": {
+      "handle": "bloomandbrew",
+      "profilePictureUrl": null,
+      "accountType": "Business",
+      "isConnected": true,
+      "followerCount": 18432,
+      "postCount": 11,
+      "engagementRate": null,
+      "insightsAvailable": false
+    },
+    "period": null,
+    "progress": null,
+    "joinedAt": null,
+    "primaryReason": "InsufficientContent",
+    "primaryPriority": null,
+    "secondaryReasons": [],
+    "checks": [
+      { "key": "InstagramConnected", "passed": true, "current": null, "required": null },
+      { "key": "ProfessionalAccount", "passed": true, "current": null, "required": null },
+      { "key": "MinPosts", "passed": false, "current": 11, "required": 15 },
+      { "key": "RecentPost", "passed": true, "current": 2, "required": 30 }
+    ],
+    "cooldown": null,
+    "latestApplication": null,
+    "timeline": []
+  },
+
+  "Offer": {
+    "_why": "Eligible, never applied. The apply page. checks[] all passing drives EligibilityCard.",
+    "state": "Eligible",
+    "syncedAt": "2026-08-09T09:22:00Z",
+    "account": {
+      "handle": "bloomandbrew",
+      "profilePictureUrl": null,
+      "accountType": "Business",
+      "isConnected": true,
+      "followerCount": 18432,
+      "postCount": 247,
+      "engagementRate": 4.2,
+      "insightsAvailable": true
+    },
+    "period": null,
+    "progress": null,
+    "joinedAt": null,
+    "primaryReason": null,
+    "primaryPriority": null,
+    "secondaryReasons": [],
+    "checks": [
+      { "key": "InstagramConnected", "passed": true, "current": null, "required": null },
+      { "key": "ProfessionalAccount", "passed": true, "current": null, "required": null },
+      { "key": "MinPosts", "passed": true, "current": 247, "required": 15 },
+      { "key": "RecentPost", "passed": true, "current": 2, "required": 30 }
+    ],
+    "cooldown": { "active": false, "reapplyAt": null },
+    "latestApplication": null,
+    "timeline": []
+  },
+
+  "InReview": {
+    "state": "Eligible",
+    "syncedAt": "2026-08-09T09:22:00Z",
+    "account": {
+      "handle": "bloomandbrew",
+      "profilePictureUrl": null,
+      "accountType": "Business",
+      "isConnected": true,
+      "followerCount": 18432,
+      "postCount": 247,
+      "engagementRate": 4.2,
+      "insightsAvailable": true
+    },
+    "period": null,
+    "progress": null,
+    "joinedAt": null,
+    "primaryReason": null,
+    "primaryPriority": null,
+    "secondaryReasons": [],
+    "checks": null,
+    "cooldown": null,
+    "latestApplication": {
+      "id": "b3f1c2a4-0000-4000-8000-000000000001",
+      "state": "PendingReview",
+      "submittedAt": "2026-08-09T09:23:00Z",
+      "isWaitlisted": false
+    },
+    "timeline": []
+  },
+
+  "Waitlisted": {
+    "_why": "PendingReview + ProgramCapReached. No position number, no ETA — mechanism only.",
+    "state": "Eligible",
+    "syncedAt": "2026-08-09T09:22:00Z",
+    "account": {
+      "handle": "bloomandbrew",
+      "profilePictureUrl": null,
+      "accountType": "Business",
+      "isConnected": true,
+      "followerCount": 18432,
+      "postCount": 247,
+      "engagementRate": 4.2,
+      "insightsAvailable": true
+    },
+    "period": null,
+    "progress": null,
+    "joinedAt": null,
+    "primaryReason": null,
+    "primaryPriority": null,
+    "secondaryReasons": [],
+    "checks": null,
+    "cooldown": null,
+    "latestApplication": {
+      "id": "b3f1c2a4-0000-4000-8000-000000000002",
+      "state": "PendingReview",
+      "submittedAt": "2026-08-09T09:23:00Z",
+      "isWaitlisted": true
+    },
+    "timeline": []
+  },
+
+  "Rejected": {
+    "_why": "G7 — requires latestApplication to be returned alongside cooldown. Without that fix this frame is unreachable and renders as Offer.",
+    "state": "Eligible",
+    "syncedAt": "2026-08-09T09:22:00Z",
+    "account": {
+      "handle": "bloomandbrew",
+      "profilePictureUrl": null,
+      "accountType": "Business",
+      "isConnected": true,
+      "followerCount": 18432,
+      "postCount": 247,
+      "engagementRate": 4.2,
+      "insightsAvailable": true
+    },
+    "period": null,
+    "progress": null,
+    "joinedAt": null,
+    "primaryReason": null,
+    "primaryPriority": null,
+    "secondaryReasons": [],
+    "checks": null,
+    "cooldown": { "active": true, "reapplyAt": "2026-09-04T00:00:00Z" },
+    "latestApplication": {
+      "id": "b3f1c2a4-0000-4000-8000-000000000003",
+      "state": "Rejected",
+      "submittedAt": "2026-06-06T09:23:00Z",
+      "isWaitlisted": false
+    },
+    "timeline": []
+  },
+
+  "Paused": {
+    "_why": "The API returns nothing else. The page must not invent a fix or a reason.",
+    "state": "Paused",
+    "syncedAt": null,
+    "account": null,
+    "period": null,
+    "progress": null,
+    "joinedAt": null,
+    "primaryReason": null,
+    "primaryPriority": null,
+    "secondaryReasons": [],
+    "checks": null,
+    "cooldown": null,
+    "latestApplication": null,
+    "timeline": []
+  },
+
+  "none": {
+    "_why": "No profile row yet. Render as NotEligible / InstagramNotConnected.",
+    "state": "none",
+    "syncedAt": null,
+    "account": null,
+    "period": null,
+    "progress": null,
+    "joinedAt": null,
+    "primaryReason": "InstagramNotConnected",
+    "primaryPriority": null,
+    "secondaryReasons": [],
+    "checks": null,
+    "cooldown": null,
+    "latestApplication": null,
+    "timeline": []
+  },
+
+  "_thresholds": {
+    "minMonthlyDms": 300,
+    "minActiveAutomations": 2,
+    "minPosts": 15,
+    "maxDaysSinceLastPost": 30,
+    "cooldownDays": 90,
+    "maxActiveCreators": 50
+  }
+}

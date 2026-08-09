@@ -6,3 +6,8 @@ pnpm-lock.yaml
 package-lock.json
 bun.lock
 routeTree.gen.ts
+
+# Owned by the API repo and copied in verbatim — CI diffs the two copies
+# byte-for-byte, so reformatting either one breaks the check.
+src/features/creator-program/contract.ts
+src/features/creator-program/status.fixtures.json

@@ -238,6 +238,17 @@ export const apiUri = {
     },
   },
 
+  /**
+   * Workspace-user-facing plugin surface (the superadmin console lives under
+   * `admin.plugins`). These take the FULL manifest key (`plugin.user-audit`),
+   * while SPA routes use the SHORT key (`/plugins/user-audit`) — the host page
+   * derives full = `plugin.` + route param.
+   */
+  plugins: {
+    /** Short-lived iframe token for the plugin's UI; 403 `PLUGIN_NOT_INCLUDED` when not entitled. */
+    token: (key: string) => `${V1}/plugins/${encodeURIComponent(key)}/token`,
+  },
+
   admin: {
     /**
      * Superadmin control plane. `platform:*` permissions are a different axis from workspace
@@ -491,6 +502,30 @@ export const apiUri = {
         const suffix = qs.toString();
         return `${V1}/admin/ai-tokens/ledger${suffix ? `?${suffix}` : ""}`;
       },
+    },
+    /**
+     * Plugin lifecycle console. Every endpoint is gated by `platform:plugin_manage`; lifecycle
+     * writes additionally carry a 6-digit authenticator code in the body (`confirmCode`).
+     */
+    plugins: {
+      list: (p: { page?: number; limit?: number; q?: string } = {}) =>
+        `${V1}/admin/plugins${listQs(p)}`,
+      detail: (key: string) => `${V1}/admin/plugins/${encodeURIComponent(key)}`,
+      upload: `${V1}/admin/plugins/upload`,
+      activate: (key: string) => `${V1}/admin/plugins/${encodeURIComponent(key)}/activate`,
+      deactivate: (key: string) => `${V1}/admin/plugins/${encodeURIComponent(key)}/deactivate`,
+      rollback: (key: string) => `${V1}/admin/plugins/${encodeURIComponent(key)}/rollback`,
+      uninstall: (key: string) => `${V1}/admin/plugins/${encodeURIComponent(key)}/uninstall`,
+      purgeData: (key: string) => `${V1}/admin/plugins/${encodeURIComponent(key)}/purge-data`,
+      exposure: (key: string) => `${V1}/admin/plugins/${encodeURIComponent(key)}/exposure`,
+      /** Grant surfaces (super-admin only; no TOTP — grants are data-only and reversible). */
+      grants: (key: string) => `${V1}/admin/plugins/${encodeURIComponent(key)}/grants`,
+      workspaceGrant: (key: string) =>
+        `${V1}/admin/plugins/${encodeURIComponent(key)}/grants/workspace`,
+      userGrant: (key: string) => `${V1}/admin/plugins/${encodeURIComponent(key)}/grants/user`,
+      packages: (key: string) => `${V1}/admin/plugins/${encodeURIComponent(key)}/packages`,
+      packageDetach: (key: string, packageId: string) =>
+        `${V1}/admin/plugins/${encodeURIComponent(key)}/packages/${encodeURIComponent(packageId)}`,
     },
   },
 

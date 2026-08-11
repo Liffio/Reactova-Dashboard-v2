@@ -50,6 +50,11 @@ type ServerToClientEvents = {
   "token-balance-updated": (payload: Record<string, unknown>) => void;
   "access:changed": (payload: AccessChangedPayload) => void;
   "workspace:event": (payload: WorkspaceEventPayload) => void;
+  /**
+   * The module registry changed (plugin activated/deactivated, module toggled).
+   * Carries no payload — listeners refetch navigation through the normal API.
+   */
+  "registry:updated": () => void;
 };
 
 type ClientToServerEvents = {

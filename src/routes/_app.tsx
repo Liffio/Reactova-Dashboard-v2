@@ -17,10 +17,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AccessChangedModal } from "@/components/access/access-changed-modal";
-import {
-  AccessChangeList,
-  readAccessChanges,
-} from "@/components/access/access-change-detail";
+import { RegistryUpdatedListener } from "@/components/plugins/registry-updated-listener";
+import { AccessChangeList, readAccessChanges } from "@/components/access/access-change-detail";
 import { WorkspaceIdChip } from "@/components/workspace-id-chip";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { PageTransition } from "@/components/page-transition";
@@ -388,6 +386,7 @@ function AppLayout() {
       {/* Mounted once for the whole authenticated shell so an access change interrupts the user
           wherever they are, not only on permission-related pages. */}
       <AccessChangedModal />
+      <RegistryUpdatedListener />
       <SidebarProvider>
         <div className="flex min-h-screen w-full bg-background">
           <AppSidebar />

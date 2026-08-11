@@ -27,6 +27,7 @@ import {
   ClipboardCheck,
   Database,
   Coins,
+  Plug,
 } from "lucide-react";
 
 import {
@@ -130,6 +131,7 @@ const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   Mail,
   ClipboardCheck,
   KeyRound,
+  plug: Plug,
 };
 
 const resolveNavIcon = (name: string | null): typeof LayoutDashboard =>
@@ -178,6 +180,12 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
       { title: "Creator Applications", url: "/admin/creators", icon: ClipboardCheck },
       { title: "Creator Management", url: "/admin/creator-management", icon: Database },
       { title: "AI Tokens", url: "/ai-tokens-master", icon: Coins },
+      {
+        title: "Plugins",
+        url: "/admin/plugins",
+        icon: Plug,
+        platformPermission: "platform:plugin_manage",
+      },
     ],
   },
 ];

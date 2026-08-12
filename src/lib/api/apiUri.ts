@@ -526,6 +526,14 @@ export const apiUri = {
       packages: (key: string) => `${V1}/admin/plugins/${encodeURIComponent(key)}/packages`,
       packageDetach: (key: string, packageId: string) =>
         `${V1}/admin/plugins/${encodeURIComponent(key)}/packages/${encodeURIComponent(packageId)}`,
+      /**
+       * The Ed25519 public key uploads are verified against — formerly the `PLUGIN_PUBLIC_KEY`
+       * env var. Reading is open to `platform:plugin_manage`; the three mutations are
+       * super-admin-only and carry `confirmCode` in the body, which is why revoke is a POST.
+       */
+      signingKeys: `${V1}/admin/plugins/signing-keys`,
+      generateSigningKey: `${V1}/admin/plugins/signing-keys/generate`,
+      revokeSigningKey: (id: string) => `${V1}/admin/plugins/signing-keys/${id}/revoke`,
     },
   },
 

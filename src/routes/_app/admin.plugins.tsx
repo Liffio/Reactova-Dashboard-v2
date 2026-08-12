@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState, Fragment } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Loader2, MoreHorizontal, Plug, Search, Trash2, Upload, X } from "lucide-react";
+import {
+  BookOpen,
+  FileKey,
+  Loader2,
+  MoreHorizontal,
+  Plug,
+  Search,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -260,6 +270,14 @@ function PluginsPage() {
               <Link to="/admin/plugins/docs">
                 <BookOpen className="h-3.5 w-3.5" />
                 Developer guide
+              </Link>
+            </Button>
+            {/* The key every upload on this page is verified against. Reachable from here because
+                a rejected upload is the moment you need to compare fingerprints. */}
+            <Button size="sm" variant="outline" asChild className="gap-1.5">
+              <Link to="/admin/plugins/signing-keys">
+                <FileKey className="h-3.5 w-3.5" />
+                Signing keys
               </Link>
             </Button>
             <Button

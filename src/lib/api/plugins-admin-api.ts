@@ -202,3 +202,100 @@ export function detachPluginFromPackage(key: string, packageId: string) {
     { method: "DELETE" },
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/* Signing keys                                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The Ed25519 public key every plugin upload is verified against.
+ *
+ * It used to live in the `PLUGIN_PUBLIC_KEY` env var, changeable only by redeploying; it is now
+ * a database row, with the env var left as the fallback. Same `confirmCode` step-up as the
+ * lifecycle mutations above — which is also why revoke is a POST rather than a DELETE.
+ */
+
+/** Where the key currently in force came from. */
+export type SigningKeySource = "database" | "env" | "none";
+
+export type SigningKeyView = {
+  id: string;
+  /** sha256 of the key's DER SPKI, 64 hex chars — the value `liffio-plugin fingerprint` prints. */
+  fingerprint: string;
+  label: string | null;
+  /** true = the platform minted the pair; false = an operator pasted a key they already held. */
+  generated: boolean;
+  /** SPKI PEM, multi-line. Safe to display and copy — render it with `white-space: pre`. */
+  publicKeyPem: string;
+  /** Exactly one key is active at a time. */
+  active: boolean;
+  createdAt: string;
+  createdByUserId: string | null;
+  /** null while active. */
+  revokedAt: string | null;
+};
+
+export type SigningKeyStatusResponse = {
+  source: SigningKeySource;
+  /** null when `source` is "none", and also when an env key is present but malformed. */
+  activeFingerprint: string | null;
+  /**
+   * The active database row — null unless `source` is "database".
+   *
+   * An env-sourced key is in force with no row behind it, so this being null does **not** mean
+   * "no key". Branch the UI on `source` and `activeFingerprint`, never on this.
+   */
+  active: SigningKeyView | null;
+  /** Full history, newest first, active and revoked. */
+  keys: SigningKeyView[];
+};
+
+export type GenerateSigningKeyResponse = {
+  key: SigningKeyView;
+  /**
+   * The private half of a freshly minted pair.
+   *
+   * Returned by this one call and nowhere else: it is not stored, not audited, and no later
+   * request can retrieve it. Hand it to the operator and let it fall out of memory — never log
+   * it, never send it to analytics, never persist it to local or session storage.
+   */
+  privateKeyPem: string;
+  warning: string;
+};
+
+export function getPluginSigningKeys() {
+  return apiRequest<SigningKeyStatusResponse>(apiUri.admin.plugins.signingKeys);
+}
+
+/** Install a public key the operator already holds. Revokes whatever was active, in one transaction. */
+export function installPluginSigningKey(body: {
+  publicKeyPem: string;
+  label?: string | null;
+  confirmCode: string;
+}) {
+  return apiRequest<SigningKeyView>(apiUri.admin.plugins.signingKeys, {
+    method: "PUT",
+    body,
+  });
+}
+
+/** Mint a new pair on the platform. The response carries the only copy of the private half. */
+export function generatePluginSigningKey(body: { label?: string | null; confirmCode: string }) {
+  return apiRequest<GenerateSigningKeyResponse>(apiUri.admin.plugins.generateSigningKey, {
+    method: "POST",
+    body,
+  });
+}
+
+/**
+ * Retire a key with no replacement.
+ *
+ * Afterwards the platform falls back to `PLUGIN_PUBLIC_KEY`; if that is empty, every plugin
+ * upload is rejected until a new key is installed.
+ */
+export function revokePluginSigningKey(id: string, body: { confirmCode: string }) {
+  return apiRequest<SigningKeyView>(apiUri.admin.plugins.revokeSigningKey(id), {
+    method: "POST",
+    body,
+  });
+}

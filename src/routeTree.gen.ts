@@ -56,6 +56,7 @@ import { Route as AppAdminEmailTemplatesRouteImport } from './routes/_app/admin.
 import { Route as AppAdminCreatorsRouteImport } from './routes/_app/admin.creators'
 import { Route as AppAdminCreatorManagementRouteImport } from './routes/_app/admin.creator-management'
 import { Route as AppAdminAffiliatesRouteImport } from './routes/_app/admin.affiliates'
+import { Route as AppAdminPluginsSigningKeysRouteImport } from './routes/_app/admin.plugins_.signing-keys'
 import { Route as AppAdminPluginsDocsRouteImport } from './routes/_app/admin.plugins_.docs'
 import { Route as AppAdminCreatorsProfileIdRouteImport } from './routes/_app/admin.creators.$profileId'
 import { Route as AppAdminCreatorManagementProfileIdRouteImport } from './routes/_app/admin.creator-management.$profileId'
@@ -296,6 +297,12 @@ const AppAdminAffiliatesRoute = AppAdminAffiliatesRouteImport.update({
   path: '/admin/affiliates',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminPluginsSigningKeysRoute =
+  AppAdminPluginsSigningKeysRouteImport.update({
+    id: '/admin/plugins_/signing-keys',
+    path: '/admin/plugins/signing-keys',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppAdminPluginsDocsRoute = AppAdminPluginsDocsRouteImport.update({
   id: '/admin/plugins_/docs',
   path: '/admin/plugins/docs',
@@ -364,6 +371,7 @@ export interface FileRoutesByFullPath {
   '/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
   '/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
   '/admin/plugins/docs': typeof AppAdminPluginsDocsRoute
+  '/admin/plugins/signing-keys': typeof AppAdminPluginsSigningKeysRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -415,6 +423,7 @@ export interface FileRoutesByTo {
   '/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
   '/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
   '/admin/plugins/docs': typeof AppAdminPluginsDocsRoute
+  '/admin/plugins/signing-keys': typeof AppAdminPluginsSigningKeysRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -468,6 +477,7 @@ export interface FileRoutesById {
   '/_app/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
   '/_app/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
   '/_app/admin/plugins_/docs': typeof AppAdminPluginsDocsRoute
+  '/_app/admin/plugins_/signing-keys': typeof AppAdminPluginsSigningKeysRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -521,6 +531,7 @@ export interface FileRouteTypes {
     | '/admin/creator-management/$profileId'
     | '/admin/creators/$profileId'
     | '/admin/plugins/docs'
+    | '/admin/plugins/signing-keys'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -572,6 +583,7 @@ export interface FileRouteTypes {
     | '/admin/creator-management/$profileId'
     | '/admin/creators/$profileId'
     | '/admin/plugins/docs'
+    | '/admin/plugins/signing-keys'
   id:
     | '__root__'
     | '/'
@@ -624,6 +636,7 @@ export interface FileRouteTypes {
     | '/_app/admin/creator-management/$profileId'
     | '/_app/admin/creators/$profileId'
     | '/_app/admin/plugins_/docs'
+    | '/_app/admin/plugins_/signing-keys'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -973,6 +986,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminAffiliatesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/plugins_/signing-keys': {
+      id: '/_app/admin/plugins_/signing-keys'
+      path: '/admin/plugins/signing-keys'
+      fullPath: '/admin/plugins/signing-keys'
+      preLoaderRoute: typeof AppAdminPluginsSigningKeysRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/admin/plugins_/docs': {
       id: '/_app/admin/plugins_/docs'
       path: '/admin/plugins/docs'
@@ -1059,6 +1079,7 @@ interface AppRouteChildren {
   AppPackagesIndexRoute: typeof AppPackagesIndexRoute
   AppTeamIndexRoute: typeof AppTeamIndexRoute
   AppAdminPluginsDocsRoute: typeof AppAdminPluginsDocsRoute
+  AppAdminPluginsSigningKeysRoute: typeof AppAdminPluginsSigningKeysRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -1097,6 +1118,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppPackagesIndexRoute: AppPackagesIndexRoute,
   AppTeamIndexRoute: AppTeamIndexRoute,
   AppAdminPluginsDocsRoute: AppAdminPluginsDocsRoute,
+  AppAdminPluginsSigningKeysRoute: AppAdminPluginsSigningKeysRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

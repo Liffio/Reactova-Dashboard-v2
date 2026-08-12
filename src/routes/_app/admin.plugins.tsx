@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, Fragment } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, MoreHorizontal, Plug, Search, Trash2, Upload, X } from "lucide-react";
+import { BookOpen, Loader2, MoreHorizontal, Plug, Search, Trash2, Upload, X } from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -256,6 +256,12 @@ function PluginsPage() {
                 if (file) upload.mutate(file);
               }}
             />
+            <Button size="sm" variant="outline" asChild className="gap-1.5">
+              <Link to="/admin/plugins/docs">
+                <BookOpen className="h-3.5 w-3.5" />
+                Developer guide
+              </Link>
+            </Button>
             <Button
               size="sm"
               className="gap-1.5 bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"

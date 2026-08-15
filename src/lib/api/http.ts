@@ -78,8 +78,35 @@ const RETRY_DELAY_MS = 500;
 
 const RETRYABLE_STATUSES = new Set([502, 503, 504]);
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+/** Resolves after `ms`, or immediately once `signal` aborts — so a caller cancelling mid-backoff
+ *  (component unmount, a new AbortController from a debounced filter change) isn't stuck waiting
+ *  out the rest of the delay. Always detaches its `abort` listener, whichever way it resolves, so
+ *  it never leaks. */
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+  if (signal.aborted) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+/** The same `DOMException` a real aborted `fetch` throws — used to short-circuit out of a
+ *  backoff wait the instant `signal` aborts, so callers can't tell "cancelled mid-delay" from
+ *  "cancelled mid-request". */
+function newAbortError(): DOMException {
+  return new DOMException("The operation was aborted.", "AbortError");
 }
 
 /** True if a retryable-status response body is an application error (`{ error: ... }`)
@@ -99,6 +126,7 @@ async function isApplicationErrorBody(res: Response): Promise<boolean> {
  *  failure (e.g. "every insights call failed"), not a transient blip, and retrying it can re-hit
  *  a cooldown/rate-limit on the same endpoint and mask the real error behind a 429. */
 async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  const signal = init.signal ?? undefined;
   let lastError: unknown;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -107,7 +135,13 @@ async function fetchWithRetry(url: string, init: RequestInit): Promise<Response>
         if (await isApplicationErrorBody(res)) {
           return res;
         }
-        await delay(RETRY_DELAY_MS * (attempt + 1));
+        await delay(RETRY_DELAY_MS * (attempt + 1), signal);
+        // The wait above returns early on abort without throwing — check explicitly so
+        // cancellation propagates immediately instead of spending an extra fetch attempt
+        // (which would itself throw, but only after another round trip) to discover it.
+        if (signal?.aborted) {
+          throw newAbortError();
+        }
         continue;
       }
       return res;
@@ -119,7 +153,10 @@ async function fetchWithRetry(url: string, init: RequestInit): Promise<Response>
       }
       lastError = err;
       if (attempt < MAX_RETRIES) {
-        await delay(RETRY_DELAY_MS * (attempt + 1));
+        await delay(RETRY_DELAY_MS * (attempt + 1), signal);
+        if (signal?.aborted) {
+          throw newAbortError();
+        }
         continue;
       }
     }

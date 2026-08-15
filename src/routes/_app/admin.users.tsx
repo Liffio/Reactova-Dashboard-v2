@@ -1,0 +1,824 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronsUpDown,
+  ChevronUp,
+  Loader2,
+  MoreHorizontal,
+  Search,
+  SlidersHorizontal,
+  UserX,
+  X,
+} from "lucide-react";
+
+import { PageHeader } from "@/components/dashboard/page-header";
+import { PlatformPermissionRoute } from "@/components/auth/guards";
+import { PageErrorBoundary } from "@/components/error-boundary";
+import { EmptyState } from "@/components/admin/form-page";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useDebounced } from "@/hooks/use-debounced";
+import { cn } from "@/lib/utils";
+import { ApiError } from "@/lib/api/http";
+import {
+  listAdminUsers,
+  type AdminUserFlag,
+  type AdminUserListItem,
+  type AdminUserListParams,
+} from "@/lib/api/admin-users-api";
+
+const USER_MANAGE = "platform:user_manage";
+const QUERY_KEY = "admin-users";
+const PAGE_SIZE = 50;
+/** Fetch the next page once the sentinel — the scroll position — is this close to the bottom. */
+const PREFETCH_DISTANCE_PX = 400;
+/** Estimated row height for the virtualiser (two-line name/email cell + cell padding). */
+const ROW_ESTIMATE_PX = 64;
+
+type SortValue = "created_at" | "email" | "name";
+type DirValue = "asc" | "desc";
+type StatusValue = "active" | "inactive" | "banned";
+
+const SORT_VALUES: readonly SortValue[] = ["created_at", "email", "name"];
+const DIR_VALUES: readonly DirValue[] = ["asc", "desc"];
+const STATUS_VALUES: readonly StatusValue[] = ["active", "inactive", "banned"];
+const PLAN_VALUES = ["FREE", "STARTER", "PRO", "BUSINESS", "AGENCY"] as const;
+const WORKSPACE_STATUS_VALUES = ["ACTIVE", "PAUSED", "SUSPENDED"] as const;
+
+type AdminUsersSearch = {
+  q?: string;
+  sort?: SortValue;
+  dir?: DirValue;
+  status?: StatusValue;
+  plan?: string;
+  verified?: boolean;
+  has_mfa?: boolean;
+  workspace_status?: string;
+  created_after?: string;
+  created_before?: string;
+};
+
+function strParam(v: unknown): string | undefined {
+  return typeof v === "string" && v.length > 0 ? v : undefined;
+}
+
+/** Handles both actual booleans and their string form — the router's default search parser
+ *  round-trips simple values as native types, but a hand-typed/shared URL carries strings. */
+function boolParam(v: unknown): boolean | undefined {
+  if (typeof v === "boolean") return v;
+  if (v === "true") return true;
+  if (v === "false") return false;
+  return undefined;
+}
+
+function oneOf<T extends string>(v: unknown, allowed: readonly T[]): T | undefined {
+  return typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : undefined;
+}
+
+function boolToSelectValue(v: boolean | undefined): string {
+  return v === undefined ? "all" : String(v);
+}
+
+function selectValueToBool(v: string): boolean | undefined {
+  return v === "all" ? undefined : v === "true";
+}
+
+/** `created_after`/`created_before` travel in the URL as plain `YYYY-MM-DD` (readable, shareable);
+ *  convert to inclusive UTC day boundaries only when building the request. */
+function toIsoDayStart(date: string | undefined): string | undefined {
+  return date ? `${date}T00:00:00.000Z` : undefined;
+}
+function toIsoDayEnd(date: string | undefined): string | undefined {
+  return date ? `${date}T23:59:59.999Z` : undefined;
+}
+
+/** `/admin/users/$userId` ships in the next task (Task 8) and isn't a registered route yet, so
+ *  `<Link to="...">` can't type-check against it — a real `href` works today and upgrades to a
+ *  typed `Link` for free once that route file exists. */
+function userDetailHref(userId: string): string {
+  return `/admin/users/${encodeURIComponent(userId)}`;
+}
+
+export const Route = createFileRoute("/_app/admin/users")({
+  validateSearch: (search: Record<string, unknown>): AdminUsersSearch => ({
+    q: strParam(search.q),
+    sort: oneOf(search.sort, SORT_VALUES),
+    dir: oneOf(search.dir, DIR_VALUES),
+    status: oneOf(search.status, STATUS_VALUES),
+    plan: strParam(search.plan),
+    verified: boolParam(search.verified),
+    has_mfa: boolParam(search.has_mfa),
+    workspace_status: strParam(search.workspace_status),
+    created_after: strParam(search.created_after),
+    created_before: strParam(search.created_before),
+  }),
+  head: () => ({ meta: [{ title: "Users — Admin" }] }),
+  component: AdminUsersRoute,
+});
+
+function AdminUsersRoute() {
+  return (
+    <PlatformPermissionRoute permission={USER_MANAGE}>
+      <PageErrorBoundary label="admin-users">
+        <AdminUsersPage />
+      </PageErrorBoundary>
+    </PlatformPermissionRoute>
+  );
+}
+
+function AdminUsersPage() {
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Platform admin"
+        title="Users"
+        description="Every account on the platform — search, filter, and open a profile to manage access, sessions, and billing."
+      />
+      <div className="space-y-4 p-4 sm:p-6 md:p-10">
+        <UsersTable />
+      </div>
+    </div>
+  );
+}
+
+const FLAG_BADGE: Record<AdminUserFlag, { label: string; className: string }> = {
+  BANNED: {
+    label: "Banned",
+    className: "border-destructive/30 bg-destructive/10 text-destructive",
+  },
+  INACTIVE: { label: "Inactive", className: "border-border bg-muted text-muted-foreground" },
+  UNVERIFIED: { label: "Unverified", className: "border-warning/30 bg-warning/10 text-warning" },
+  NO_MFA: {
+    label: "No MFA",
+    className: "border-muted-foreground/30 bg-transparent text-muted-foreground",
+  },
+  PAYMENT_FAILED: {
+    label: "Payment failed",
+    className: "border-destructive/30 bg-destructive/10 text-destructive",
+  },
+  IG_DISCONNECTED: {
+    label: "IG disconnected",
+    className: "border-warning/30 bg-warning/10 text-warning",
+  },
+  LOW_TRUST: { label: "Low trust", className: "border-warning/30 bg-warning/10 text-warning" },
+  UNRESTRICTED: {
+    label: "Unrestricted",
+    className: "border-chart-3/30 bg-chart-3/10 text-chart-3",
+  },
+  AFFILIATE_SUSPENDED: {
+    label: "Affiliate suspended",
+    className: "border-destructive/30 bg-destructive/10 text-destructive",
+  },
+};
+
+function FlagBadge({ flag }: { flag: AdminUserFlag }) {
+  // Forward-compatible: an unrecognised flag (server adds one before the client knows about it)
+  // still renders instead of crashing the row — neutral styling, raw label.
+  const meta = FLAG_BADGE[flag] ?? {
+    label: flag,
+    className: "border-border bg-muted text-muted-foreground",
+  };
+  return (
+    <Badge variant="outline" className={cn("whitespace-nowrap text-[10px]", meta.className)}>
+      {meta.label}
+    </Badge>
+  );
+}
+
+function SortableHeader({
+  label,
+  value,
+  sort,
+  dir,
+  onSort,
+}: {
+  label: string;
+  value: SortValue;
+  sort: SortValue;
+  dir: DirValue;
+  onSort: (value: SortValue) => void;
+}) {
+  const active = sort === value;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(value)}
+      className={cn(
+        "inline-flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground",
+        active && "text-foreground",
+      )}
+    >
+      {label}
+      {active ? (
+        dir === "asc" ? (
+          <ChevronUp className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5" />
+        )
+      ) : (
+        <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
+      )}
+    </button>
+  );
+}
+
+function initialsFor(name: string | null, email: string): string {
+  const source = (name ?? email).trim();
+  const initials = source
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  return initials || "?";
+}
+
+const COLUMN_COUNT = 7;
+
+function ErrorPanel({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const requestId = error instanceof ApiError ? error.requestId : undefined;
+  const message = error instanceof Error ? error.message : "Couldn't load users.";
+  return (
+    <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-8 text-center">
+      <AlertCircle className="mx-auto mb-2 h-6 w-6 text-destructive" />
+      <p className="text-sm font-medium text-destructive">{message}</p>
+      {requestId && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Request ID: <span className="font-mono">{requestId}</span> — quote this when reporting.
+        </p>
+      )}
+      <Button variant="outline" size="sm" className="mt-4" onClick={onRetry}>
+        Retry
+      </Button>
+    </div>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-3 rounded-2xl border bg-card p-4 shadow-soft">
+      {Array.from({ length: 10 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-3.5 w-40" />
+            <Skeleton className="h-3 w-56" />
+          </div>
+          <Skeleton className="h-5 w-16 rounded-md" />
+          <Skeleton className="h-3.5 w-8" />
+          <Skeleton className="h-3.5 w-14" />
+          <Skeleton className="h-3.5 w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function UserRow({
+  row,
+  selected,
+  dimmed,
+  onOpen,
+  onSelect,
+}: {
+  row: AdminUserListItem;
+  selected: boolean;
+  dimmed: boolean;
+  onOpen: () => void;
+  onSelect: () => void;
+}) {
+  return (
+    <TableRow
+      data-selected={selected || undefined}
+      onClick={() => {
+        onSelect();
+        onOpen();
+      }}
+      className={cn(
+        "cursor-pointer transition-opacity",
+        selected && "bg-muted/60 hover:bg-muted/60",
+        dimmed && "opacity-60",
+      )}
+    >
+      <TableCell>
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar className="h-8 w-8 shrink-0">
+            {row.avatarUrl && <AvatarImage src={row.avatarUrl} alt="" />}
+            <AvatarFallback className="bg-brand-gradient text-[11px] font-semibold text-primary-foreground">
+              {initialsFor(row.name, row.email)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{row.name || "—"}</p>
+            <p className="truncate text-xs text-muted-foreground">{row.email}</p>
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-wrap gap-1">
+          {row.flags.length === 0 ? (
+            <span className="text-xs text-muted-foreground">—</span>
+          ) : (
+            row.flags.map((flag) => <FlagBadge key={flag} flag={flag} />)
+          )}
+        </div>
+      </TableCell>
+      <TableCell className="text-right tabular-nums">{row.workspaceCount}</TableCell>
+      <TableCell className="text-xs">{row.primaryPlan ?? "—"}</TableCell>
+      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+        {new Date(row.createdAt).toLocaleDateString()}
+      </TableCell>
+      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+        {row.lastActiveAt ? new Date(row.lastActiveAt).toLocaleDateString() : "Never"}
+      </TableCell>
+      <TableCell onClick={(e) => e.stopPropagation()} className="text-right">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Row actions">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <a href={userDetailHref(row.id)}>Open</a>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function UsersTable() {
+  const navigate = useNavigate({ from: Route.fullPath });
+  const search = Route.useSearch();
+
+  const [searchInput, setSearchInput] = useState(search.q ?? "");
+  const debouncedSearch = useDebounced(searchInput, 250);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Debounce free-text search into the URL (deep-linkable/shareable per spec §7.1); `replace`
+  // so every keystroke doesn't create a back-button stop.
+  useEffect(() => {
+    if (debouncedSearch !== (search.q ?? "")) {
+      void navigate({
+        search: (prev) => ({ ...prev, q: debouncedSearch || undefined }),
+        replace: true,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
+
+  // Keep the box in sync if the URL changes from elsewhere (back/forward, a pasted link).
+  useEffect(() => {
+    setSearchInput(search.q ?? "");
+  }, [search.q]);
+
+  const sort = search.sort ?? "created_at";
+  const dir = search.dir ?? "desc";
+
+  const handleSort = useCallback(
+    (value: SortValue) => {
+      void navigate({
+        search: (prev) => {
+          const currentSort = prev.sort ?? "created_at";
+          const currentDir = prev.dir ?? "desc";
+          if (currentSort === value) {
+            return { ...prev, sort: value, dir: currentDir === "asc" ? "desc" : "asc" };
+          }
+          return { ...prev, sort: value, dir: value === "created_at" ? "desc" : "asc" };
+        },
+      });
+    },
+    [navigate],
+  );
+
+  const setFilter = useCallback(
+    <K extends keyof AdminUsersSearch>(key: K, value: AdminUsersSearch[K]) => {
+      void navigate({ search: (prev) => ({ ...prev, [key]: value }) });
+    },
+    [navigate],
+  );
+
+  const clearFilters = useCallback(() => {
+    void navigate({ search: (prev) => ({ q: prev.q, sort: prev.sort, dir: prev.dir }) });
+  }, [navigate]);
+
+  const activeFilterCount = [
+    search.status,
+    search.plan,
+    search.verified,
+    search.has_mfa,
+    search.workspace_status,
+    search.created_after,
+    search.created_before,
+  ].filter((v) => v !== undefined).length;
+
+  const queryParams: Omit<AdminUserListParams, "cursor"> = {
+    limit: PAGE_SIZE,
+    q: search.q,
+    sort,
+    dir,
+    status: search.status,
+    plan: search.plan,
+    verified: search.verified,
+    has_mfa: search.has_mfa,
+    workspace_status: search.workspace_status,
+    created_after: toIsoDayStart(search.created_after),
+    created_before: toIsoDayEnd(search.created_before),
+  };
+
+  const listQuery = useInfiniteQuery({
+    queryKey: [
+      QUERY_KEY,
+      search.q,
+      sort,
+      dir,
+      search.status,
+      search.plan,
+      search.verified,
+      search.has_mfa,
+      search.workspace_status,
+      search.created_after,
+      search.created_before,
+    ],
+    queryFn: ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) =>
+      listAdminUsers({ ...queryParams, cursor: pageParam }, { signal }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    placeholderData: keepPreviousData,
+  });
+
+  const rows: AdminUserListItem[] = useMemo(
+    () => listQuery.data?.pages.flatMap((p) => (Array.isArray(p?.items) ? p.items : [])) ?? [],
+    [listQuery.data],
+  );
+  const total = listQuery.data?.pages[0]?.total;
+
+  // A refetch triggered by a filter/search/sort change (not "load more") — dim stale rows
+  // instead of blanking the table, per spec §7.1.
+  const isRefetching = listQuery.isFetching && !listQuery.isFetchingNextPage;
+  const isInitialLoading = listQuery.isLoading && rows.length === 0;
+
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_ESTIMATE_PX,
+    overscan: 12,
+  });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom =
+    virtualItems.length > 0 ? totalSize - virtualItems[virtualItems.length - 1].end : 0;
+
+  const maybeFetchMore = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || !listQuery.hasNextPage || listQuery.isFetchingNextPage) return;
+    const distanceFromEnd = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromEnd < PREFETCH_DISTANCE_PX) {
+      void listQuery.fetchNextPage();
+    }
+  }, [listQuery]);
+
+  // Covers the case where a filtered result set is shorter than the viewport — no scroll event
+  // would ever fire to trigger the check above, so the list would silently stop at page 1.
+  useEffect(() => {
+    maybeFetchMore();
+  }, [rows.length, maybeFetchMore]);
+
+  const openUser = useCallback((userId: string) => {
+    window.location.href = userDetailHref(userId);
+  }, []);
+
+  // Keyboard: `/` focuses search, `j`/`k` move row selection, `Enter` opens it, `Esc` clears
+  // selection and blurs search. Ignored while an input/textarea has focus (except `Esc`).
+  useEffect(() => {
+    function isTypingTarget(target: EventTarget | null): boolean {
+      if (!(target instanceof HTMLElement)) return false;
+      return (
+        target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable
+      );
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setSelectedId(null);
+        searchInputRef.current?.blur();
+        return;
+      }
+      if (isTypingTarget(e.target)) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+      if (e.key === "j" || e.key === "k") {
+        if (rows.length === 0) return;
+        e.preventDefault();
+        const currentIdx = selectedId ? rows.findIndex((r) => r.id === selectedId) : -1;
+        const nextIdx =
+          e.key === "j"
+            ? Math.min(currentIdx + 1, rows.length - 1)
+            : currentIdx === -1
+              ? 0
+              : Math.max(currentIdx - 1, 0);
+        const next = rows[nextIdx];
+        if (next) {
+          setSelectedId(next.id);
+          rowVirtualizer.scrollToIndex(nextIdx, { align: "auto" });
+        }
+        return;
+      }
+      if (e.key === "Enter" && selectedId) {
+        e.preventDefault();
+        openUser(selectedId);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [rows, selectedId, rowVirtualizer, openUser]);
+
+  return (
+    <div className="space-y-3">
+      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              ref={searchInputRef}
+              placeholder="Search by name, email, phone, or user id… (press / to focus)"
+              className="h-9 pl-9 pr-9"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+            {isRefetching && (
+              <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />
+            )}
+          </div>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filters
+              {activeFilterCount > 0 && (
+                <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[10px]">
+                  {activeFilterCount}
+                </Badge>
+              )}
+            </Button>
+          </CollapsibleTrigger>
+          {activeFilterCount > 0 && (
+            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={clearFilters}>
+              <X className="h-3.5 w-3.5" /> Clear filters
+            </Button>
+          )}
+          <span className="ml-auto text-xs text-muted-foreground">
+            {total !== undefined
+              ? `${total.toLocaleString()} user${total === 1 ? "" : "s"}`
+              : rows.length > 0
+                ? `${rows.length}+ loaded`
+                : ""}
+          </span>
+        </div>
+
+        <CollapsibleContent className="mt-3 grid gap-3 rounded-2xl border bg-card p-4 shadow-soft sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Status</Label>
+            <Select
+              value={search.status ?? "all"}
+              onValueChange={(v) =>
+                setFilter("status", v === "all" ? undefined : (v as StatusValue))
+              }
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="banned">Banned</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Plan</Label>
+            <Select
+              value={search.plan ?? "all"}
+              onValueChange={(v) => setFilter("plan", v === "all" ? undefined : v)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All plans</SelectItem>
+                {PLAN_VALUES.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+              Email verified
+            </Label>
+            <Select
+              value={boolToSelectValue(search.verified)}
+              onValueChange={(v) => setFilter("verified", selectValueToBool(v))}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any</SelectItem>
+                <SelectItem value="true">Verified</SelectItem>
+                <SelectItem value="false">Unverified</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">MFA</Label>
+            <Select
+              value={boolToSelectValue(search.has_mfa)}
+              onValueChange={(v) => setFilter("has_mfa", selectValueToBool(v))}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any</SelectItem>
+                <SelectItem value="true">MFA enabled</SelectItem>
+                <SelectItem value="false">No MFA</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+              Workspace status
+            </Label>
+            <Select
+              value={search.workspace_status ?? "all"}
+              onValueChange={(v) => setFilter("workspace_status", v === "all" ? undefined : v)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any</SelectItem>
+                {WORKSPACE_STATUS_VALUES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s[0] + s.slice(1).toLowerCase()}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+              Created after
+            </Label>
+            <Input
+              type="date"
+              className="h-8 text-xs"
+              value={search.created_after ?? ""}
+              onChange={(e) => setFilter("created_after", e.target.value || undefined)}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+              Created before
+            </Label>
+            <Input
+              type="date"
+              className="h-8 text-xs"
+              value={search.created_before ?? ""}
+              onChange={(e) => setFilter("created_before", e.target.value || undefined)}
+            />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {listQuery.isError ? (
+        <ErrorPanel error={listQuery.error} onRetry={() => void listQuery.refetch()} />
+      ) : isInitialLoading ? (
+        <LoadingSkeleton />
+      ) : rows.length === 0 ? (
+        <EmptyState icon={UserX} title="No users match your filters">
+          Try widening the search or clearing filters.
+        </EmptyState>
+      ) : (
+        <div
+          ref={scrollRef}
+          onScroll={maybeFetchMore}
+          className="h-[calc(100vh-22rem)] min-h-[420px] overflow-auto rounded-2xl border bg-card shadow-soft"
+        >
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-card">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-[300px]">
+                  <SortableHeader
+                    label="User"
+                    value="name"
+                    sort={sort}
+                    dir={dir}
+                    onSort={handleSort}
+                  />
+                </TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Workspaces</TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead>
+                  <SortableHeader
+                    label="Created"
+                    value="created_at"
+                    sort={sort}
+                    dir={dir}
+                    onSort={handleSort}
+                  />
+                </TableHead>
+                <TableHead>Last active</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paddingTop > 0 && (
+                <TableRow className="border-0 hover:bg-transparent">
+                  <TableCell colSpan={COLUMN_COUNT} style={{ height: paddingTop, padding: 0 }} />
+                </TableRow>
+              )}
+              {virtualItems.map((virtualRow) => {
+                const row = rows[virtualRow.index];
+                if (!row) return null;
+                return (
+                  <UserRow
+                    key={row.id}
+                    row={row}
+                    selected={row.id === selectedId}
+                    dimmed={isRefetching}
+                    onOpen={() => openUser(row.id)}
+                    onSelect={() => setSelectedId(row.id)}
+                  />
+                );
+              })}
+              {paddingBottom > 0 && (
+                <TableRow className="border-0 hover:bg-transparent">
+                  <TableCell colSpan={COLUMN_COUNT} style={{ height: paddingBottom, padding: 0 }} />
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+          {listQuery.isFetchingNextPage && (
+            <div className="flex justify-center border-t p-3">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

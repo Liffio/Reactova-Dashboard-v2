@@ -42,13 +42,31 @@ export class ApiError extends Error {
    * without the raw body those fields would be unreachable from a catch block.
    */
   body?: unknown;
-  constructor(message: string, code?: string, status?: number, body?: unknown) {
+  /**
+   * The `X-Request-Id` of the failed response, when one was constructed from a `Response`.
+   * Not present for errors raised before a response exists (e.g. a network failure).
+   */
+  readonly requestId?: string;
+  constructor(message: string, code?: string, status?: number, body?: unknown, requestId?: string) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
     this.body = body;
+    this.requestId = requestId;
   }
+}
+
+/** Extracts the `X-Request-Id` response header, when present, to attach to a thrown `ApiError`. */
+function getRequestId(res: Response): string | undefined {
+  return res.headers.get("X-Request-Id") ?? undefined;
+}
+
+/** True for a native `fetch` abort (`DOMException` named `AbortError`) — signals the caller
+ *  cancelled the request, not a network/server failure, so it must never be retried or
+ *  translated into an `ApiError`. */
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === "AbortError";
 }
 
 /** Friendly, non-technical message shown when the network/server is unreachable after retries. */
@@ -94,6 +112,11 @@ async function fetchWithRetry(url: string, init: RequestInit): Promise<Response>
       }
       return res;
     } catch (err) {
+      // An aborted request is intentional cancellation, not a transient failure — propagate
+      // immediately so callers (e.g. React Query) see the native abort rather than a retry delay.
+      if (isAbortError(err)) {
+        throw err;
+      }
       lastError = err;
       if (attempt < MAX_RETRIES) {
         await delay(RETRY_DELAY_MS * (attempt + 1));
@@ -149,6 +172,12 @@ export type ApiRequestConfig = {
   workspaceId?: string | null;
   /** Pass `null` to force an unauthenticated request. */
   token?: string | null;
+  /**
+   * Cancels the request when aborted (e.g. React Query's `queryFn` signal on unmount/refetch).
+   * An abort propagates as the native `AbortError` — it is never retried, never wrapped in an
+   * `ApiError`, and never triggers the session-expiry event.
+   */
+  signal?: AbortSignal;
 };
 
 /**
@@ -196,9 +225,15 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...resolveWorkspaceHeader(config, isAnonymousPublicRead),
       },
+      signal: config.signal,
       ...(jsonBody !== undefined ? { body: JSON.stringify(jsonBody) } : {}),
     });
-  } catch {
+  } catch (err) {
+    // Cancellation, not a failure — rethrow the native abort as-is so callers (e.g. React
+    // Query) recognize it, and never route it through the session-expiry/toast paths below.
+    if (isAbortError(err)) {
+      throw err;
+    }
     // Network never reached the server after retries — fail gracefully, no technical detail.
     throw new ApiError(NETWORK_ERROR_MESSAGE, "NETWORK_ERROR");
   }
@@ -216,6 +251,7 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
           retryableCode,
           res.status,
           retryablePayload,
+          getRequestId(res),
         );
       }
       // Still carries the body: a retryable status can be a domain answer with no `error` key
@@ -225,6 +261,7 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
         "SERVER_UNAVAILABLE",
         res.status,
         retryablePayload ?? undefined,
+        getRequestId(res),
       );
     }
     const payload = await res.json().catch(() => ({}));
@@ -239,7 +276,7 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
     if (isAuthFailure && token) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
-    throw new ApiError(formatApiErrorBody(payload), code, res.status, payload);
+    throw new ApiError(formatApiErrorBody(payload), code, res.status, payload, getRequestId(res));
   }
 
   if (res.status === 204) {
@@ -275,10 +312,22 @@ export async function apiUploadRequest<T>(
 
   if (!res.ok) {
     if (RETRYABLE_STATUSES.has(res.status)) {
-      throw new ApiError(NETWORK_ERROR_MESSAGE, "SERVER_UNAVAILABLE");
+      throw new ApiError(
+        NETWORK_ERROR_MESSAGE,
+        "SERVER_UNAVAILABLE",
+        undefined,
+        undefined,
+        getRequestId(res),
+      );
     }
     const payload = await res.json().catch(() => ({}));
-    throw new ApiError(formatApiErrorBody(payload));
+    throw new ApiError(
+      formatApiErrorBody(payload),
+      undefined,
+      undefined,
+      undefined,
+      getRequestId(res),
+    );
   }
   return (await res.json()) as T;
 }

@@ -16,6 +16,7 @@ import { motion } from "framer-motion";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { TokenMeter } from "@/components/dashboard/token-meter";
+import { PlatformMetricsPanel } from "@/components/admin/dashboard/platform-metrics-panel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -159,6 +160,9 @@ function DashboardPage() {
       />
 
       <div className="space-y-6 p-4 sm:p-6 md:p-10">
+        {/* Platform-wide metrics — renders only for platform admins holding metrics_read. */}
+        <PlatformMetricsPanel />
+
         {dashboardQuery.isError && (
           <motion.div
             initial={{ y: 10 }}

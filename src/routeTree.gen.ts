@@ -52,7 +52,6 @@ import { Route as AppModuleRegistryDocsRouteImport } from './routes/_app/module-
 import { Route as AppModuleRegistryParentIdRouteImport } from './routes/_app/module-registry.$parentId'
 import { Route as AppAutomationsNewRouteImport } from './routes/_app/automations.new'
 import { Route as AppAdminPluginsRouteImport } from './routes/_app/admin.plugins'
-import { Route as AppAdminOverviewRouteImport } from './routes/_app/admin.overview'
 import { Route as AppAdminEmailTemplatesRouteImport } from './routes/_app/admin.email-templates'
 import { Route as AppAdminCreatorsRouteImport } from './routes/_app/admin.creators'
 import { Route as AppAdminCreatorManagementRouteImport } from './routes/_app/admin.creator-management'
@@ -277,11 +276,6 @@ const AppAdminPluginsRoute = AppAdminPluginsRouteImport.update({
   path: '/admin/plugins',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAdminOverviewRoute = AppAdminOverviewRouteImport.update({
-  id: '/admin/overview',
-  path: '/admin/overview',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppAdminEmailTemplatesRoute = AppAdminEmailTemplatesRouteImport.update({
   id: '/admin/email-templates',
   path: '/admin/email-templates',
@@ -358,7 +352,6 @@ export interface FileRoutesByFullPath {
   '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
-  '/admin/overview': typeof AppAdminOverviewRoute
   '/admin/plugins': typeof AppAdminPluginsRoute
   '/automations/new': typeof AppAutomationsNewRoute
   '/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
@@ -411,7 +404,6 @@ export interface FileRoutesByTo {
   '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
-  '/admin/overview': typeof AppAdminOverviewRoute
   '/admin/plugins': typeof AppAdminPluginsRoute
   '/automations/new': typeof AppAutomationsNewRoute
   '/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
@@ -466,7 +458,6 @@ export interface FileRoutesById {
   '/_app/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/_app/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/_app/admin/email-templates': typeof AppAdminEmailTemplatesRoute
-  '/_app/admin/overview': typeof AppAdminOverviewRoute
   '/_app/admin/plugins': typeof AppAdminPluginsRoute
   '/_app/automations/new': typeof AppAutomationsNewRoute
   '/_app/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
@@ -521,7 +512,6 @@ export interface FileRouteTypes {
     | '/admin/creator-management'
     | '/admin/creators'
     | '/admin/email-templates'
-    | '/admin/overview'
     | '/admin/plugins'
     | '/automations/new'
     | '/module-registry/$parentId'
@@ -574,7 +564,6 @@ export interface FileRouteTypes {
     | '/admin/creator-management'
     | '/admin/creators'
     | '/admin/email-templates'
-    | '/admin/overview'
     | '/admin/plugins'
     | '/automations/new'
     | '/module-registry/$parentId'
@@ -628,7 +617,6 @@ export interface FileRouteTypes {
     | '/_app/admin/creator-management'
     | '/_app/admin/creators'
     | '/_app/admin/email-templates'
-    | '/_app/admin/overview'
     | '/_app/admin/plugins'
     | '/_app/automations/new'
     | '/_app/module-registry/$parentId'
@@ -970,13 +958,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminPluginsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/admin/overview': {
-      id: '/_app/admin/overview'
-      path: '/admin/overview'
-      fullPath: '/admin/overview'
-      preLoaderRoute: typeof AppAdminOverviewRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/admin/email-templates': {
       id: '/_app/admin/email-templates'
       path: '/admin/email-templates'
@@ -1083,7 +1064,6 @@ interface AppRouteChildren {
   AppAdminCreatorManagementRoute: typeof AppAdminCreatorManagementRouteWithChildren
   AppAdminCreatorsRoute: typeof AppAdminCreatorsRouteWithChildren
   AppAdminEmailTemplatesRoute: typeof AppAdminEmailTemplatesRoute
-  AppAdminOverviewRoute: typeof AppAdminOverviewRoute
   AppAdminPluginsRoute: typeof AppAdminPluginsRoute
   AppAutomationsNewRoute: typeof AppAutomationsNewRoute
   AppModuleRegistryParentIdRoute: typeof AppModuleRegistryParentIdRoute
@@ -1123,7 +1103,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdminCreatorManagementRoute: AppAdminCreatorManagementRouteWithChildren,
   AppAdminCreatorsRoute: AppAdminCreatorsRouteWithChildren,
   AppAdminEmailTemplatesRoute: AppAdminEmailTemplatesRoute,
-  AppAdminOverviewRoute: AppAdminOverviewRoute,
   AppAdminPluginsRoute: AppAdminPluginsRoute,
   AppAutomationsNewRoute: AppAutomationsNewRoute,
   AppModuleRegistryParentIdRoute: AppModuleRegistryParentIdRoute,

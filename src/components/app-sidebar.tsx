@@ -143,12 +143,6 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
     group: "Platform admin",
     items: [
       {
-        title: "Overview",
-        url: "/admin/overview",
-        icon: LayoutDashboard,
-        platformPermission: "platform:metrics_read",
-      },
-      {
         title: "Platform admins",
         url: "/platform-admins",
         icon: ShieldAlert,

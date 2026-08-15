@@ -66,6 +66,7 @@ import { Route as AppAdminUsersUserIdIndexRouteImport } from './routes/_app/admi
 import { Route as AppAdminUsersUserIdWorkspacesRouteImport } from './routes/_app/admin.users.$userId.workspaces'
 import { Route as AppAdminUsersUserIdSessionsRouteImport } from './routes/_app/admin.users.$userId.sessions'
 import { Route as AppAdminUsersUserIdActivityRouteImport } from './routes/_app/admin.users.$userId.activity'
+import { Route as AppAdminUsersUserIdWorkspacesWsIdRouteImport } from './routes/_app/admin.users.$userId.workspaces_.$wsId'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -360,6 +361,12 @@ const AppAdminUsersUserIdActivityRoute =
     path: '/activity',
     getParentRoute: () => AppAdminUsersUserIdRoute,
   } as any)
+const AppAdminUsersUserIdWorkspacesWsIdRoute =
+  AppAdminUsersUserIdWorkspacesWsIdRouteImport.update({
+    id: '/workspaces_/$wsId',
+    path: '/workspaces/$wsId',
+    getParentRoute: () => AppAdminUsersUserIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -418,6 +425,7 @@ export interface FileRoutesByFullPath {
   '/admin/users/$userId/sessions': typeof AppAdminUsersUserIdSessionsRoute
   '/admin/users/$userId/workspaces': typeof AppAdminUsersUserIdWorkspacesRoute
   '/admin/users/$userId/': typeof AppAdminUsersUserIdIndexRoute
+  '/admin/users/$userId/workspaces/$wsId': typeof AppAdminUsersUserIdWorkspacesWsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -475,6 +483,7 @@ export interface FileRoutesByTo {
   '/admin/users/$userId/sessions': typeof AppAdminUsersUserIdSessionsRoute
   '/admin/users/$userId/workspaces': typeof AppAdminUsersUserIdWorkspacesRoute
   '/admin/users/$userId': typeof AppAdminUsersUserIdIndexRoute
+  '/admin/users/$userId/workspaces/$wsId': typeof AppAdminUsersUserIdWorkspacesWsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -535,6 +544,7 @@ export interface FileRoutesById {
   '/_app/admin/users/$userId/sessions': typeof AppAdminUsersUserIdSessionsRoute
   '/_app/admin/users/$userId/workspaces': typeof AppAdminUsersUserIdWorkspacesRoute
   '/_app/admin/users/$userId/': typeof AppAdminUsersUserIdIndexRoute
+  '/_app/admin/users/$userId/workspaces_/$wsId': typeof AppAdminUsersUserIdWorkspacesWsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -595,6 +605,7 @@ export interface FileRouteTypes {
     | '/admin/users/$userId/sessions'
     | '/admin/users/$userId/workspaces'
     | '/admin/users/$userId/'
+    | '/admin/users/$userId/workspaces/$wsId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -652,6 +663,7 @@ export interface FileRouteTypes {
     | '/admin/users/$userId/sessions'
     | '/admin/users/$userId/workspaces'
     | '/admin/users/$userId'
+    | '/admin/users/$userId/workspaces/$wsId'
   id:
     | '__root__'
     | '/'
@@ -711,6 +723,7 @@ export interface FileRouteTypes {
     | '/_app/admin/users/$userId/sessions'
     | '/_app/admin/users/$userId/workspaces'
     | '/_app/admin/users/$userId/'
+    | '/_app/admin/users/$userId/workspaces_/$wsId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1130,6 +1143,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminUsersUserIdActivityRouteImport
       parentRoute: typeof AppAdminUsersUserIdRoute
     }
+    '/_app/admin/users/$userId/workspaces_/$wsId': {
+      id: '/_app/admin/users/$userId/workspaces_/$wsId'
+      path: '/workspaces/$wsId'
+      fullPath: '/admin/users/$userId/workspaces/$wsId'
+      preLoaderRoute: typeof AppAdminUsersUserIdWorkspacesWsIdRouteImport
+      parentRoute: typeof AppAdminUsersUserIdRoute
+    }
   }
 }
 
@@ -1164,6 +1184,7 @@ interface AppAdminUsersUserIdRouteChildren {
   AppAdminUsersUserIdSessionsRoute: typeof AppAdminUsersUserIdSessionsRoute
   AppAdminUsersUserIdWorkspacesRoute: typeof AppAdminUsersUserIdWorkspacesRoute
   AppAdminUsersUserIdIndexRoute: typeof AppAdminUsersUserIdIndexRoute
+  AppAdminUsersUserIdWorkspacesWsIdRoute: typeof AppAdminUsersUserIdWorkspacesWsIdRoute
 }
 
 const AppAdminUsersUserIdRouteChildren: AppAdminUsersUserIdRouteChildren = {
@@ -1171,6 +1192,8 @@ const AppAdminUsersUserIdRouteChildren: AppAdminUsersUserIdRouteChildren = {
   AppAdminUsersUserIdSessionsRoute: AppAdminUsersUserIdSessionsRoute,
   AppAdminUsersUserIdWorkspacesRoute: AppAdminUsersUserIdWorkspacesRoute,
   AppAdminUsersUserIdIndexRoute: AppAdminUsersUserIdIndexRoute,
+  AppAdminUsersUserIdWorkspacesWsIdRoute:
+    AppAdminUsersUserIdWorkspacesWsIdRoute,
 }
 
 const AppAdminUsersUserIdRouteWithChildren =

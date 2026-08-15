@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Building2 } from "lucide-react";
+import { AlertCircle, Building2, ChevronRight } from "lucide-react";
 
 import { EmptyState } from "@/components/admin/form-page";
 import { Badge } from "@/components/ui/badge";
@@ -23,8 +23,9 @@ import {
 
 /**
  * Workspaces tab — one row per membership. No pagination (memberships are small; the server
- * caps at `ADMIN_USER_WORKSPACES_MAX`). Rows link nowhere yet — the workspace drill-down is
- * Phase 3 — so this is a read-only table, not a list of clickable rows.
+ * caps at `ADMIN_USER_WORKSPACES_MAX`). Rows now link to the Task 10 access drill-down
+ * (`/admin/users/$userId/workspaces/$wsId`) — read-only there too, no mutation reachable from
+ * either page.
  */
 export const Route = createFileRoute("/_app/admin/users/$userId/workspaces")({
   head: () => ({ meta: [{ title: "Workspaces — User — Admin" }] }),
@@ -62,6 +63,7 @@ function humanizeEnum(value: string): string {
 
 function WorkspacesTab() {
   const { userId } = Route.useParams();
+  const navigate = useNavigate();
 
   const workspacesQuery = useQuery({
     queryKey: ["admin-user", userId, "workspaces"],
@@ -115,11 +117,21 @@ function WorkspacesTab() {
             <TableHead>Plan</TableHead>
             <TableHead>Billing</TableHead>
             <TableHead>Joined</TableHead>
+            <TableHead className="w-8" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.map((row) => (
-            <WorkspaceRow key={row.workspaceId} row={row} />
+            <WorkspaceRow
+              key={row.workspaceId}
+              row={row}
+              onOpen={() =>
+                void navigate({
+                  to: "/admin/users/$userId/workspaces/$wsId",
+                  params: { userId, wsId: row.workspaceId },
+                })
+              }
+            />
           ))}
         </TableBody>
       </Table>
@@ -127,10 +139,21 @@ function WorkspacesTab() {
   );
 }
 
-function WorkspaceRow({ row }: { row: AdminUserWorkspaceMembership }) {
+function WorkspaceRow({ row, onOpen }: { row: AdminUserWorkspaceMembership; onOpen: () => void }) {
   const billingStatus = row.subscription?.billingStatus;
   return (
-    <TableRow>
+    <TableRow
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className="cursor-pointer hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
+    >
       <TableCell>
         <div className="flex flex-col gap-1">
           <span className="font-medium">{row.workspaceName}</span>
@@ -174,6 +197,9 @@ function WorkspaceRow({ row }: { row: AdminUserWorkspaceMembership }) {
       </TableCell>
       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
         {formatDate(row.joinedAt)}
+      </TableCell>
+      <TableCell>
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
       </TableCell>
     </TableRow>
   );

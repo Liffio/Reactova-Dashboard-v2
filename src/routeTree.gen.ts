@@ -57,10 +57,15 @@ import { Route as AppAdminEmailTemplatesRouteImport } from './routes/_app/admin.
 import { Route as AppAdminCreatorsRouteImport } from './routes/_app/admin.creators'
 import { Route as AppAdminCreatorManagementRouteImport } from './routes/_app/admin.creator-management'
 import { Route as AppAdminAffiliatesRouteImport } from './routes/_app/admin.affiliates'
+import { Route as AppAdminUsersUserIdRouteImport } from './routes/_app/admin.users.$userId'
 import { Route as AppAdminPluginsSigningKeysRouteImport } from './routes/_app/admin.plugins_.signing-keys'
 import { Route as AppAdminPluginsDocsRouteImport } from './routes/_app/admin.plugins_.docs'
 import { Route as AppAdminCreatorsProfileIdRouteImport } from './routes/_app/admin.creators.$profileId'
 import { Route as AppAdminCreatorManagementProfileIdRouteImport } from './routes/_app/admin.creator-management.$profileId'
+import { Route as AppAdminUsersUserIdIndexRouteImport } from './routes/_app/admin.users.$userId.index'
+import { Route as AppAdminUsersUserIdWorkspacesRouteImport } from './routes/_app/admin.users.$userId.workspaces'
+import { Route as AppAdminUsersUserIdSessionsRouteImport } from './routes/_app/admin.users.$userId.sessions'
+import { Route as AppAdminUsersUserIdActivityRouteImport } from './routes/_app/admin.users.$userId.activity'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -303,6 +308,11 @@ const AppAdminAffiliatesRoute = AppAdminAffiliatesRouteImport.update({
   path: '/admin/affiliates',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminUsersUserIdRoute = AppAdminUsersUserIdRouteImport.update({
+  id: '/$userId',
+  path: '/$userId',
+  getParentRoute: () => AppAdminUsersRoute,
+} as any)
 const AppAdminPluginsSigningKeysRoute =
   AppAdminPluginsSigningKeysRouteImport.update({
     id: '/admin/plugins_/signing-keys',
@@ -325,6 +335,30 @@ const AppAdminCreatorManagementProfileIdRoute =
     id: '/$profileId',
     path: '/$profileId',
     getParentRoute: () => AppAdminCreatorManagementRoute,
+  } as any)
+const AppAdminUsersUserIdIndexRoute =
+  AppAdminUsersUserIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppAdminUsersUserIdRoute,
+  } as any)
+const AppAdminUsersUserIdWorkspacesRoute =
+  AppAdminUsersUserIdWorkspacesRouteImport.update({
+    id: '/workspaces',
+    path: '/workspaces',
+    getParentRoute: () => AppAdminUsersUserIdRoute,
+  } as any)
+const AppAdminUsersUserIdSessionsRoute =
+  AppAdminUsersUserIdSessionsRouteImport.update({
+    id: '/sessions',
+    path: '/sessions',
+    getParentRoute: () => AppAdminUsersUserIdRoute,
+  } as any)
+const AppAdminUsersUserIdActivityRoute =
+  AppAdminUsersUserIdActivityRouteImport.update({
+    id: '/activity',
+    path: '/activity',
+    getParentRoute: () => AppAdminUsersUserIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -359,7 +393,7 @@ export interface FileRoutesByFullPath {
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/admin/plugins': typeof AppAdminPluginsRoute
-  '/admin/users': typeof AppAdminUsersRoute
+  '/admin/users': typeof AppAdminUsersRouteWithChildren
   '/automations/new': typeof AppAutomationsNewRoute
   '/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
   '/module-registry/docs': typeof AppModuleRegistryDocsRoute
@@ -379,6 +413,11 @@ export interface FileRoutesByFullPath {
   '/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
   '/admin/plugins/docs': typeof AppAdminPluginsDocsRoute
   '/admin/plugins/signing-keys': typeof AppAdminPluginsSigningKeysRoute
+  '/admin/users/$userId': typeof AppAdminUsersUserIdRouteWithChildren
+  '/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
+  '/admin/users/$userId/sessions': typeof AppAdminUsersUserIdSessionsRoute
+  '/admin/users/$userId/workspaces': typeof AppAdminUsersUserIdWorkspacesRoute
+  '/admin/users/$userId/': typeof AppAdminUsersUserIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -412,7 +451,7 @@ export interface FileRoutesByTo {
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/admin/plugins': typeof AppAdminPluginsRoute
-  '/admin/users': typeof AppAdminUsersRoute
+  '/admin/users': typeof AppAdminUsersRouteWithChildren
   '/automations/new': typeof AppAutomationsNewRoute
   '/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
   '/module-registry/docs': typeof AppModuleRegistryDocsRoute
@@ -432,6 +471,10 @@ export interface FileRoutesByTo {
   '/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
   '/admin/plugins/docs': typeof AppAdminPluginsDocsRoute
   '/admin/plugins/signing-keys': typeof AppAdminPluginsSigningKeysRoute
+  '/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
+  '/admin/users/$userId/sessions': typeof AppAdminUsersUserIdSessionsRoute
+  '/admin/users/$userId/workspaces': typeof AppAdminUsersUserIdWorkspacesRoute
+  '/admin/users/$userId': typeof AppAdminUsersUserIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -467,7 +510,7 @@ export interface FileRoutesById {
   '/_app/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/_app/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/_app/admin/plugins': typeof AppAdminPluginsRoute
-  '/_app/admin/users': typeof AppAdminUsersRoute
+  '/_app/admin/users': typeof AppAdminUsersRouteWithChildren
   '/_app/automations/new': typeof AppAutomationsNewRoute
   '/_app/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
   '/_app/module-registry/docs': typeof AppModuleRegistryDocsRoute
@@ -487,6 +530,11 @@ export interface FileRoutesById {
   '/_app/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
   '/_app/admin/plugins_/docs': typeof AppAdminPluginsDocsRoute
   '/_app/admin/plugins_/signing-keys': typeof AppAdminPluginsSigningKeysRoute
+  '/_app/admin/users/$userId': typeof AppAdminUsersUserIdRouteWithChildren
+  '/_app/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
+  '/_app/admin/users/$userId/sessions': typeof AppAdminUsersUserIdSessionsRoute
+  '/_app/admin/users/$userId/workspaces': typeof AppAdminUsersUserIdWorkspacesRoute
+  '/_app/admin/users/$userId/': typeof AppAdminUsersUserIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -542,6 +590,11 @@ export interface FileRouteTypes {
     | '/admin/creators/$profileId'
     | '/admin/plugins/docs'
     | '/admin/plugins/signing-keys'
+    | '/admin/users/$userId'
+    | '/admin/users/$userId/activity'
+    | '/admin/users/$userId/sessions'
+    | '/admin/users/$userId/workspaces'
+    | '/admin/users/$userId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -595,6 +648,10 @@ export interface FileRouteTypes {
     | '/admin/creators/$profileId'
     | '/admin/plugins/docs'
     | '/admin/plugins/signing-keys'
+    | '/admin/users/$userId/activity'
+    | '/admin/users/$userId/sessions'
+    | '/admin/users/$userId/workspaces'
+    | '/admin/users/$userId'
   id:
     | '__root__'
     | '/'
@@ -649,6 +706,11 @@ export interface FileRouteTypes {
     | '/_app/admin/creators/$profileId'
     | '/_app/admin/plugins_/docs'
     | '/_app/admin/plugins_/signing-keys'
+    | '/_app/admin/users/$userId'
+    | '/_app/admin/users/$userId/activity'
+    | '/_app/admin/users/$userId/sessions'
+    | '/_app/admin/users/$userId/workspaces'
+    | '/_app/admin/users/$userId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1005,6 +1067,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminAffiliatesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/users/$userId': {
+      id: '/_app/admin/users/$userId'
+      path: '/$userId'
+      fullPath: '/admin/users/$userId'
+      preLoaderRoute: typeof AppAdminUsersUserIdRouteImport
+      parentRoute: typeof AppAdminUsersRoute
+    }
     '/_app/admin/plugins_/signing-keys': {
       id: '/_app/admin/plugins_/signing-keys'
       path: '/admin/plugins/signing-keys'
@@ -1032,6 +1101,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/creator-management/$profileId'
       preLoaderRoute: typeof AppAdminCreatorManagementProfileIdRouteImport
       parentRoute: typeof AppAdminCreatorManagementRoute
+    }
+    '/_app/admin/users/$userId/': {
+      id: '/_app/admin/users/$userId/'
+      path: '/'
+      fullPath: '/admin/users/$userId/'
+      preLoaderRoute: typeof AppAdminUsersUserIdIndexRouteImport
+      parentRoute: typeof AppAdminUsersUserIdRoute
+    }
+    '/_app/admin/users/$userId/workspaces': {
+      id: '/_app/admin/users/$userId/workspaces'
+      path: '/workspaces'
+      fullPath: '/admin/users/$userId/workspaces'
+      preLoaderRoute: typeof AppAdminUsersUserIdWorkspacesRouteImport
+      parentRoute: typeof AppAdminUsersUserIdRoute
+    }
+    '/_app/admin/users/$userId/sessions': {
+      id: '/_app/admin/users/$userId/sessions'
+      path: '/sessions'
+      fullPath: '/admin/users/$userId/sessions'
+      preLoaderRoute: typeof AppAdminUsersUserIdSessionsRouteImport
+      parentRoute: typeof AppAdminUsersUserIdRoute
+    }
+    '/_app/admin/users/$userId/activity': {
+      id: '/_app/admin/users/$userId/activity'
+      path: '/activity'
+      fullPath: '/admin/users/$userId/activity'
+      preLoaderRoute: typeof AppAdminUsersUserIdActivityRouteImport
+      parentRoute: typeof AppAdminUsersUserIdRoute
     }
   }
 }
@@ -1062,6 +1159,35 @@ const AppAdminCreatorsRouteChildren: AppAdminCreatorsRouteChildren = {
 const AppAdminCreatorsRouteWithChildren =
   AppAdminCreatorsRoute._addFileChildren(AppAdminCreatorsRouteChildren)
 
+interface AppAdminUsersUserIdRouteChildren {
+  AppAdminUsersUserIdActivityRoute: typeof AppAdminUsersUserIdActivityRoute
+  AppAdminUsersUserIdSessionsRoute: typeof AppAdminUsersUserIdSessionsRoute
+  AppAdminUsersUserIdWorkspacesRoute: typeof AppAdminUsersUserIdWorkspacesRoute
+  AppAdminUsersUserIdIndexRoute: typeof AppAdminUsersUserIdIndexRoute
+}
+
+const AppAdminUsersUserIdRouteChildren: AppAdminUsersUserIdRouteChildren = {
+  AppAdminUsersUserIdActivityRoute: AppAdminUsersUserIdActivityRoute,
+  AppAdminUsersUserIdSessionsRoute: AppAdminUsersUserIdSessionsRoute,
+  AppAdminUsersUserIdWorkspacesRoute: AppAdminUsersUserIdWorkspacesRoute,
+  AppAdminUsersUserIdIndexRoute: AppAdminUsersUserIdIndexRoute,
+}
+
+const AppAdminUsersUserIdRouteWithChildren =
+  AppAdminUsersUserIdRoute._addFileChildren(AppAdminUsersUserIdRouteChildren)
+
+interface AppAdminUsersRouteChildren {
+  AppAdminUsersUserIdRoute: typeof AppAdminUsersUserIdRouteWithChildren
+}
+
+const AppAdminUsersRouteChildren: AppAdminUsersRouteChildren = {
+  AppAdminUsersUserIdRoute: AppAdminUsersUserIdRouteWithChildren,
+}
+
+const AppAdminUsersRouteWithChildren = AppAdminUsersRoute._addFileChildren(
+  AppAdminUsersRouteChildren,
+)
+
 interface AppRouteChildren {
   AppAccessManagementRoute: typeof AppAccessManagementRoute
   AppAffiliateRoute: typeof AppAffiliateRoute
@@ -1084,7 +1210,7 @@ interface AppRouteChildren {
   AppAdminCreatorsRoute: typeof AppAdminCreatorsRouteWithChildren
   AppAdminEmailTemplatesRoute: typeof AppAdminEmailTemplatesRoute
   AppAdminPluginsRoute: typeof AppAdminPluginsRoute
-  AppAdminUsersRoute: typeof AppAdminUsersRoute
+  AppAdminUsersRoute: typeof AppAdminUsersRouteWithChildren
   AppAutomationsNewRoute: typeof AppAutomationsNewRoute
   AppModuleRegistryParentIdRoute: typeof AppModuleRegistryParentIdRoute
   AppModuleRegistryDocsRoute: typeof AppModuleRegistryDocsRoute
@@ -1124,7 +1250,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdminCreatorsRoute: AppAdminCreatorsRouteWithChildren,
   AppAdminEmailTemplatesRoute: AppAdminEmailTemplatesRoute,
   AppAdminPluginsRoute: AppAdminPluginsRoute,
-  AppAdminUsersRoute: AppAdminUsersRoute,
+  AppAdminUsersRoute: AppAdminUsersRouteWithChildren,
   AppAutomationsNewRoute: AppAutomationsNewRoute,
   AppModuleRegistryParentIdRoute: AppModuleRegistryParentIdRoute,
   AppModuleRegistryDocsRoute: AppModuleRegistryDocsRoute,

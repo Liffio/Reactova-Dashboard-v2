@@ -29,6 +29,7 @@ import {
   Database,
   Coins,
   Plug,
+  UserCog,
 } from "lucide-react";
 
 import {
@@ -133,6 +134,7 @@ const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   ClipboardCheck,
   KeyRound,
   plug: Plug,
+  UserCog,
 };
 
 const resolveNavIcon = (name: string | null): typeof LayoutDashboard =>
@@ -168,6 +170,12 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
         url: "/packages/assign",
         icon: PackageCheck,
         platformPermission: "platform:package_manage",
+      },
+      {
+        title: "Users",
+        url: "/admin/users",
+        icon: UserCog,
+        platformPermission: "platform:user_manage",
       },
       {
         title: "Access Management",

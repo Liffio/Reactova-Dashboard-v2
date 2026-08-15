@@ -173,14 +173,17 @@ export function getAdminUserSessions(userId: string) {
 }
 
 /** `GET /admin/users/:userId/audit` — endpoint 4. Keyset-paginated; filters on
- *  `actor_user_id = :userId OR on_behalf_of_user_id = :userId`. `actorType` values per
- *  `plan/user-management.md` §4.5's documented `audit_logs.actor_type` convention. */
+ *  `actor_user_id = :userId OR on_behalf_of_user_id = :userId`. `actorType` values are the exact
+ *  (lowercase) union the audit service writes and this endpoint returns verbatim — source of
+ *  truth is `server/src/services/auditService.ts`'s `AuditActorType`, NOT the uppercase sketch in
+ *  `plan/user-management.md` §4.5, which doesn't match what's actually landed server-side. */
 export type AdminUserAuditActorType =
-  | "USER"
-  | "API_KEY"
-  | "SYSTEM"
-  | "PLATFORM_ADMIN"
-  | "ADMIN_IMPERSONATION";
+  | "user"
+  | "platform_admin"
+  | "super_admin"
+  | "impersonation"
+  | "api_key"
+  | "system";
 
 export type AdminUserAuditEntry = {
   id: string;

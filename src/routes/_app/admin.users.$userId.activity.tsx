@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/format";
 import { ApiError } from "@/lib/api/http";
-import { getAdminUserAudit, type AdminUserAuditEntry } from "@/lib/api/admin-users-api";
+import {
+  getAdminUserAudit,
+  type AdminUserAuditActorType,
+  type AdminUserAuditEntry,
+} from "@/lib/api/admin-users-api";
 
 /**
  * Activity tab — audit trail for this user (as actor OR on-behalf-of target), keyset-paginated
@@ -23,16 +27,30 @@ export const Route = createFileRoute("/_app/admin/users/$userId/activity")({
 
 const PAGE_SIZE = 25;
 
+/** Humanized labels for the server's exact (lowercase) actor-type union — see
+ *  `AdminUserAuditActorType`'s doc comment in `admin-users-api.ts` for the source of truth
+ *  (`server/src/services/auditService.ts`). */
+const ACTOR_TYPE_LABEL: Record<AdminUserAuditActorType, string> = {
+  user: "User",
+  platform_admin: "Platform admin",
+  super_admin: "Super admin",
+  impersonation: "Impersonation",
+  api_key: "API key",
+  system: "System",
+};
+
 function ActorTypeBadge({ entry }: { entry: AdminUserAuditEntry }) {
-  // Only shown for impersonation/on-behalf-of actors per task-8-brief.md requirement 3 — a
-  // normal USER/PLATFORM_ADMIN/API_KEY/SYSTEM row needs no badge.
-  if (entry.actorType === "ADMIN_IMPERSONATION") {
+  // Impersonation/on-behalf-of rows are the ones an operator most needs to notice — amber, per
+  // task-8-brief.md requirement 3. `platform_admin`/`super_admin` rows get a distinct muted badge
+  // so an ordinary admin-performed action reads as "an admin did this," not as impersonation. A
+  // plain `user`/`api_key`/`system` row needs no badge at all.
+  if (entry.actorType === "impersonation") {
     return (
       <Badge
         variant="outline"
         className="gap-1 border-warning/30 bg-warning/10 text-[10px] text-warning"
       >
-        <UserCog className="h-3 w-3" /> Impersonation
+        <UserCog className="h-3 w-3" /> {ACTOR_TYPE_LABEL.impersonation}
       </Badge>
     );
   }
@@ -40,6 +58,16 @@ function ActorTypeBadge({ entry }: { entry: AdminUserAuditEntry }) {
     return (
       <Badge variant="outline" className="gap-1 text-[10px]">
         <UserCog className="h-3 w-3" /> On behalf of
+      </Badge>
+    );
+  }
+  if (entry.actorType === "platform_admin" || entry.actorType === "super_admin") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-muted-foreground/30 text-[10px] text-muted-foreground"
+      >
+        {ACTOR_TYPE_LABEL[entry.actorType]}
       </Badge>
     );
   }

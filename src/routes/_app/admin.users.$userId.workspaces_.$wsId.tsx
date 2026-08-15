@@ -145,6 +145,19 @@ function EffectiveAccessPage() {
       .filter((parent) => parent.children.length > 0);
   }, [data, filterText]);
 
+  /**
+   * What's actually rendered as expanded. While a filter is active, every parent that survived
+   * the filter is forced open — `CollapsibleContent` unmounts when closed (Radix), so a collapsed
+   * match would show the parent row with an updated count badge but no visible matching children,
+   * defeating the filter's purpose. This is a pure display derivation over `effectiveExpanded`; it
+   * never writes to `expandedParents`, so clearing the filter reverts to whatever the user had
+   * manually expanded/collapsed before typing — no clobbering.
+   */
+  const displayExpanded = useMemo(() => {
+    if (!filterText.trim()) return effectiveExpanded;
+    return new Set(filteredParents.map((p) => p.key));
+  }, [filterText, filteredParents, effectiveExpanded]);
+
   const selectedChild: EffectiveAccessChild | null =
     data && selection?.kind === "child"
       ? (data.parents
@@ -214,7 +227,7 @@ function EffectiveAccessPage() {
                     <ParentRow
                       key={parent.key}
                       parent={parent}
-                      expanded={effectiveExpanded.has(parent.key)}
+                      expanded={displayExpanded.has(parent.key)}
                       onToggle={() => toggleParent(parent.key)}
                       selection={selection}
                       onSelectChild={(childKey) =>

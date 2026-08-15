@@ -51,7 +51,8 @@ export type DashboardResponse = {
 };
 
 export type AnalyticsPageResponse = {
-  range: AnalyticsApiRange;
+  range: AnalyticsApiRange | "custom";
+  period?: { start: string; end: string };
   summary: {
     totalDmsSent: number;
     dmDeliveryRate: number;
@@ -127,12 +128,25 @@ export type AnalyticsPageResponse = {
   };
 };
 
-export function getDashboard(workspaceId: string) {
-  return apiRequest<DashboardResponse>(apiUri.analytics.dashboard, { workspaceId });
+export type AnalyticsWindowParams = { range?: string; start?: string; end?: string };
+
+const windowQs = (params: AnalyticsWindowParams): string => {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v) qs.set(k, v);
+  }
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+};
+
+export function getDashboard(workspaceId: string, params: AnalyticsWindowParams = {}) {
+  return apiRequest<DashboardResponse>(`${apiUri.analytics.dashboard}${windowQs(params)}`, {
+    workspaceId,
+  });
 }
 
-export function getAnalyticsPage(workspaceId: string, range: AnalyticsApiRange) {
-  return apiRequest<AnalyticsPageResponse>(`${apiUri.analytics.page}?range=${range}`, {
+export function getAnalyticsPage(workspaceId: string, params: AnalyticsWindowParams) {
+  return apiRequest<AnalyticsPageResponse>(`${apiUri.analytics.page}${windowQs(params)}`, {
     workspaceId,
   });
 }

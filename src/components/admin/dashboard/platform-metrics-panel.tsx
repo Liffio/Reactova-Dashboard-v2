@@ -26,13 +26,18 @@ import { Badge } from "@/components/ui/badge";
 import { PlanDonutCard } from "@/components/admin/dashboard/plan-donut-card";
 import { FeatureUsageCard } from "@/components/admin/dashboard/feature-usage-card";
 import { usePlatformCan } from "@/hooks/use-platform-authz";
+import {
+  DateRangePicker,
+  rangeKey,
+  rangeLabel,
+  rangeQueryParams,
+  type DashboardDateRange,
+} from "@/components/dashboard/date-range-picker";
 import { cn } from "@/lib/utils";
 import { formatNum, formatMoneyCents, formatDateTime } from "@/lib/format";
 import {
-  ADMIN_DASHBOARD_RANGES,
   deltaFraction,
   getAdminDashboardOverview,
-  type AdminDashboardRange,
   type WindowPair,
 } from "@/lib/api/admin-dashboard-api";
 
@@ -85,11 +90,12 @@ function SectionLabel({ children }: { children: string }) {
  */
 export function PlatformMetricsPanel() {
   const canRead = usePlatformCan("platform:metrics_read");
-  const [range, setRange] = useState<AdminDashboardRange>("30d");
+  const [range, setRange] = useState<DashboardDateRange>({ preset: "30d" });
+  const [currency, setCurrency] = useState<"USD" | "INR">("USD");
 
   const overviewQuery = useQuery({
-    queryKey: ["admin-dashboard-overview", range],
-    queryFn: () => getAdminDashboardOverview(range),
+    queryKey: ["admin-dashboard-overview", rangeKey(range)],
+    queryFn: () => getAdminDashboardOverview(rangeQueryParams(range)),
     enabled: canRead,
     staleTime: 30_000,
   });
@@ -98,8 +104,38 @@ export function PlatformMetricsPanel() {
 
   const data = overviewQuery.data;
   const isLoading = overviewQuery.isLoading;
+  const periodLabel = rangeLabel(range).toLowerCase();
 
-  const inrMrr = data?.revenue.mrr.byCurrency.find((c) => c.currency === "inr");
+  const fxRate = data?.fx.usdToInr ?? 84;
+  /** Display conversion only — USD cents in, formatted string out in the chosen currency. */
+  const money = (usdCents: number): string =>
+    currency === "USD"
+      ? formatMoneyCents(usdCents)
+      : formatMoneyCents(Math.round(usdCents * fxRate), "INR");
+
+  const inrNative = data?.revenue.mrr.byCurrency.find((c) => c.currency === "inr");
+  const mrrUsdCents = data?.revenue.mrr.usdCents ?? 0;
+  const mrrDisplay =
+    currency === "USD"
+      ? formatMoneyCents(mrrUsdCents)
+      : formatMoneyCents(
+          Math.round(mrrUsdCents * fxRate) + (inrNative?.monthlyMinorUnits ?? 0),
+          "INR",
+        );
+  const arrDisplay =
+    currency === "USD"
+      ? formatMoneyCents(data?.revenue.arrUsdCents ?? 0)
+      : formatMoneyCents(
+          (Math.round(mrrUsdCents * fxRate) + (inrNative?.monthlyMinorUnits ?? 0)) * 12,
+          "INR",
+        );
+  const mrrHint =
+    currency === "USD"
+      ? inrNative
+        ? `+${formatMoneyCents(inrNative.monthlyMinorUnits, "INR")}/mo · ARR ${arrDisplay}`
+        : `ARR ${arrDisplay}`
+      : `ARR ${arrDisplay} · @ ₹${fxRate.toFixed(2)}/$${data?.fx.source === "fallback" ? " (static rate)" : ""}`;
+
   const pendingTotal = data
     ? data.pending.affiliatePayouts +
       data.pending.affiliateKyc +
@@ -119,17 +155,21 @@ export function PlatformMetricsPanel() {
             Growth, revenue, plan mix and feature usage across all tenants.
           </p>
         </div>
-        <div className="flex gap-2">
-          {ADMIN_DASHBOARD_RANGES.map((r) => (
-            <Button
-              key={r}
-              variant={range === r ? "default" : "outline"}
-              size="sm"
-              onClick={() => setRange(r)}
-            >
-              {r}
-            </Button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex overflow-hidden rounded-lg border">
+            {(["USD", "INR"] as const).map((c) => (
+              <Button
+                key={c}
+                variant={currency === c ? "default" : "ghost"}
+                size="sm"
+                className="rounded-none"
+                onClick={() => setCurrency(c)}
+              >
+                {c === "USD" ? "$ USD" : "₹ INR"}
+              </Button>
+            ))}
+          </div>
+          <DateRangePicker value={range} onChange={(next) => setRange(next ?? { preset: "30d" })} />
         </div>
       </div>
 
@@ -152,16 +192,7 @@ export function PlatformMetricsPanel() {
               icon={Users}
               hint={`+${formatNum(data.users.newInPeriod.current)} this period`}
             />
-            <StatCard
-              label="MRR (est.)"
-              value={formatMoneyCents(data.revenue.mrr.usdCents)}
-              icon={DollarSign}
-              hint={
-                inrMrr
-                  ? `+${formatMoneyCents(inrMrr.monthlyMinorUnits, "INR")}/mo · ARR ${formatMoneyCents(data.revenue.arrUsdCents)}`
-                  : `ARR ${formatMoneyCents(data.revenue.arrUsdCents)}`
-              }
-            />
+            <StatCard label="MRR (est.)" value={mrrDisplay} icon={DollarSign} hint={mrrHint} />
             <StatCard
               label="Paid workspaces"
               value={formatNum(data.plans.paidCount)}
@@ -185,7 +216,7 @@ export function PlatformMetricsPanel() {
         <div className="mb-5 flex flex-wrap items-start justify-between gap-2">
           <div>
             <h3 className="font-display text-lg font-semibold">Signups</h3>
-            <p className="text-sm text-muted-foreground">New users per day · {range}</p>
+            <p className="text-sm text-muted-foreground">New users per day · {periodLabel}</p>
           </div>
           <div className="flex items-center gap-2">
             <DeltaPill pair={data?.users.newInPeriod} />
@@ -248,12 +279,12 @@ export function PlatformMetricsPanel() {
           <div className="mb-5 flex flex-wrap items-start justify-between gap-2">
             <div>
               <h3 className="font-display text-lg font-semibold">Revenue collected</h3>
-              <p className="text-sm text-muted-foreground">Paid invoices per day · {range}</p>
+              <p className="text-sm text-muted-foreground">Paid invoices per day · {periodLabel}</p>
             </div>
             <div className="flex items-center gap-2">
               <DeltaPill pair={data?.revenue.collectedInPeriod} />
               <span className="text-xs text-muted-foreground">
-                {formatMoneyCents(data?.revenue.collectedInPeriod.current ?? 0)} this period
+                {money(data?.revenue.collectedInPeriod.current ?? 0)} this period
               </span>
             </div>
           </div>
@@ -283,14 +314,18 @@ export function PlatformMetricsPanel() {
                     fontSize={11}
                   />
                   <YAxis
-                    tickFormatter={(v: number) => `$${formatNum(v / 100)}`}
+                    tickFormatter={(v: number) =>
+                      currency === "USD"
+                        ? `$${formatNum(v / 100)}`
+                        : `₹${formatNum((v / 100) * fxRate)}`
+                    }
                     tickLine={false}
                     axisLine={false}
                     stroke="var(--muted-foreground)"
                     fontSize={11}
                   />
                   <Tooltip
-                    formatter={(value: number) => [formatMoneyCents(value), "collected"]}
+                    formatter={(value: number) => [money(value), "collected"]}
                     contentStyle={CHART_TOOLTIP_STYLE}
                   />
                   <Area
@@ -311,6 +346,7 @@ export function PlatformMetricsPanel() {
           plans={data?.plans}
           workspaceTotal={data?.workspaces.total ?? 0}
           isLoading={isLoading}
+          formatMoney={money}
         />
       </div>
 
@@ -318,7 +354,7 @@ export function PlatformMetricsPanel() {
         <div className="rounded-2xl border bg-card p-6 shadow-soft">
           <div className="mb-5">
             <h3 className="font-display text-lg font-semibold">Revenue by plan</h3>
-            <p className="text-sm text-muted-foreground">Paid invoices · {range}</p>
+            <p className="text-sm text-muted-foreground">Paid invoices · {periodLabel}</p>
           </div>
           {isLoading ? (
             <div className="space-y-3">
@@ -347,7 +383,7 @@ export function PlatformMetricsPanel() {
                         {(r.plan ?? "unattributed").toLowerCase()}
                       </span>
                       <span className="tabular-nums text-muted-foreground">
-                        {formatMoneyCents(r.amountCents)}
+                        {money(r.amountCents)}
                       </span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -375,9 +411,7 @@ export function PlatformMetricsPanel() {
               </div>
               <div className="flex justify-between">
                 <span>Collected all-time</span>
-                <span className="tabular-nums">
-                  {formatMoneyCents(data.revenue.totalPaidAllTimeCents)}
-                </span>
+                <span className="tabular-nums">{money(data.revenue.totalPaidAllTimeCents)}</span>
               </div>
             </div>
           )}

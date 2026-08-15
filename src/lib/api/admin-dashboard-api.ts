@@ -27,9 +27,16 @@ export type FeatureUsageItem = {
   volumeLabel: string;
 };
 
+export type AdminDashboardWindowParams = {
+  range?: string;
+  start?: string;
+  end?: string;
+};
+
 export type AdminDashboardOverview = {
-  range: AdminDashboardRange;
+  range: AdminDashboardRange | "custom";
   period: { start: string; end: string; prevStart: string; prevEnd: string };
+  fx: { usdToInr: number; source: "live" | "fallback"; fetchedAt: string };
   users: {
     total: number;
     banned: number;
@@ -90,8 +97,8 @@ export type AdminDashboardOverview = {
   };
 };
 
-export function getAdminDashboardOverview(range: AdminDashboardRange) {
-  return apiRequest<AdminDashboardOverview>(apiUri.admin.dashboard.overview(range));
+export function getAdminDashboardOverview(params: AdminDashboardWindowParams) {
+  return apiRequest<AdminDashboardOverview>(apiUri.admin.dashboard.overview(params));
 }
 
 /**

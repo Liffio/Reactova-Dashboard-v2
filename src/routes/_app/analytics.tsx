@@ -18,7 +18,14 @@ import { ProtectedRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getAnalyticsPage, type AnalyticsApiRange } from "@/lib/api/analytics-api";
+import { getAnalyticsPage } from "@/lib/api/analytics-api";
+import {
+  DateRangePicker,
+  rangeKey,
+  rangeLabel,
+  rangeQueryParams,
+  type DashboardDateRange,
+} from "@/components/dashboard/date-range-picker";
 import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 import { InsightsCard } from "@/components/lyra/insights-card";
@@ -42,8 +49,6 @@ function AnalyticsRoute() {
   );
 }
 
-const RANGES: AnalyticsApiRange[] = ["7d", "30d", "90d"];
-
 const roiStyles: Record<string, string> = {
   high: "border-success/30 bg-success/10 text-success",
   medium: "border-warning/30 bg-warning/10 text-warning",
@@ -53,11 +58,12 @@ const roiStyles: Record<string, string> = {
 function AnalyticsPage() {
   const { current, user } = useApp();
   const workspaceId = current.id;
-  const [range, setRange] = useState<AnalyticsApiRange>("30d");
+  const [range, setRange] = useState<DashboardDateRange>({ preset: "30d" });
+  const periodLabel = rangeLabel(range).toLowerCase();
 
   const analyticsQuery = useQuery({
-    queryKey: ["analytics-page", workspaceId, range],
-    queryFn: () => getAnalyticsPage(workspaceId, range),
+    queryKey: ["analytics-page", workspaceId, rangeKey(range)],
+    queryFn: () => getAnalyticsPage(workspaceId, rangeQueryParams(range)),
     enabled: Boolean(workspaceId) && workspaceId !== "default",
   });
 
@@ -65,8 +71,8 @@ function AnalyticsPage() {
     task: "analytics",
     workspaceId,
     userId: user?.id,
-    input: { period: range === "7d" ? "weekly" : "monthly" },
-    queryKeyExtra: [range],
+    input: { period: "preset" in range && range.preset === "7d" ? "weekly" : "monthly" },
+    queryKeyExtra: [rangeKey(range)],
   });
 
   const data = analyticsQuery.data;
@@ -85,18 +91,7 @@ function AnalyticsPage() {
         title="Analytics"
         description="DM delivery, link clicks, lead capture and conversion across your funnels."
         actions={
-          <div className="flex gap-2">
-            {RANGES.map((r) => (
-              <Button
-                key={r}
-                variant={range === r ? "default" : "outline"}
-                size="sm"
-                onClick={() => setRange(r)}
-              >
-                {r}
-              </Button>
-            ))}
-          </div>
+          <DateRangePicker value={range} onChange={(next) => setRange(next ?? { preset: "30d" })} />
         }
       />
 
@@ -182,7 +177,9 @@ function AnalyticsPage() {
             <div className="mb-5 flex items-start justify-between">
               <div>
                 <h2 className="font-display text-lg font-semibold">Activity</h2>
-                <p className="text-sm text-muted-foreground">DMs, clicks and leads · {range}</p>
+                <p className="text-sm text-muted-foreground">
+                  DMs, clicks and leads · {periodLabel}
+                </p>
               </div>
               <div className="flex gap-2 text-xs">
                 <span className="inline-flex items-center gap-1.5">
@@ -271,7 +268,7 @@ function AnalyticsPage() {
           <div className="rounded-2xl border bg-card p-6 shadow-soft">
             <div className="mb-5">
               <h2 className="font-display text-lg font-semibold">Conversion funnel</h2>
-              <p className="text-sm text-muted-foreground">Comment → sale · {range}</p>
+              <p className="text-sm text-muted-foreground">Comment → sale · {periodLabel}</p>
             </div>
             <div className="space-y-3">
               {data &&

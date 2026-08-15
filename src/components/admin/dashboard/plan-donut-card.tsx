@@ -20,10 +20,13 @@ export function PlanDonutCard({
   plans,
   workspaceTotal,
   isLoading,
+  formatMoney = formatMoneyCents,
 }: {
   plans: AdminDashboardOverview["plans"] | undefined;
   workspaceTotal: number;
   isLoading: boolean;
+  /** Currency-aware formatter from the panel; defaults to plain USD. */
+  formatMoney?: (usdCents: number) => string;
 }) {
   const slices = (plans?.distribution ?? []).filter((d) => d.count > 0);
 
@@ -111,7 +114,7 @@ export function PlanDonutCard({
 
           {plans?.bestByRevenue && (
             <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">
-              Top revenue plan collected {formatMoneyCents(plans.bestByRevenue.revenueCents)} this
+              Top revenue plan collected {formatMoney(plans.bestByRevenue.revenueCents)} this
               period.
             </p>
           )}

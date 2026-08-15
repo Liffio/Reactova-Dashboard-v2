@@ -21,6 +21,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDashboard } from "@/lib/api/analytics-api";
+import {
+  DateRangePicker,
+  rangeKey,
+  rangeLabel,
+  rangeQueryParams,
+  type DashboardDateRange,
+} from "@/components/dashboard/date-range-picker";
 import { getMetaOAuthStartUrl, isWorkspaceInstagramConnected } from "@/lib/api/integrations-api";
 import { openMetaOAuthPopup } from "@/lib/meta-oauth-popup";
 import { formatNum } from "@/lib/format";
@@ -103,9 +110,13 @@ function DashboardPage() {
     }
   };
 
+  // null = the dashboard's classic calendar-month view; presets/custom come from the picker.
+  const [range, setRange] = useState<DashboardDateRange | null>(null);
+  const periodLabel = range ? rangeLabel(range).toLowerCase() : "this month";
+
   const dashboardQuery = useQuery({
-    queryKey: ["dashboard", workspaceId],
-    queryFn: () => getDashboard(workspaceId),
+    queryKey: ["dashboard", workspaceId, rangeKey(range)],
+    queryFn: () => getDashboard(workspaceId, rangeQueryParams(range)),
     enabled: hasRealWorkspace,
   });
 
@@ -128,11 +139,17 @@ function DashboardPage() {
         title={`${greeting()}, ${firstName}`}
         description={
           totals
-            ? `Your automations sent ${formatNum(totals.dmsSentThisMonth)} DMs this month across ${totals.activeAutomations} active automation${totals.activeAutomations === 1 ? "" : "s"}.`
+            ? `Your automations sent ${formatNum(totals.dmsSentThisMonth)} DMs ${periodLabel} across ${totals.activeAutomations} active automation${totals.activeAutomations === 1 ? "" : "s"}.`
             : "Live performance across your Instagram automations."
         }
         actions={
           <>
+            <DateRangePicker
+              value={range}
+              onChange={setRange}
+              placeholderLabel="This month"
+              clearLabel="This month"
+            />
             {!current.instagramConnected && (
               <Button
                 variant="outline"
@@ -190,11 +207,13 @@ function DashboardPage() {
             <>
               <motion.div variants={staggerItem}>
                 <StatCard
-                  label="DMs sent (month)"
+                  label="DMs sent"
                   value={formatNum(totals?.dmsSentThisMonth ?? 0)}
                   delta={totals?.dmsTrendPercent != null ? totals.dmsTrendPercent / 100 : undefined}
                   icon={MessageCircle}
-                  hint="vs. last month"
+                  hint={
+                    range ? `${periodLabel} · vs. previous period` : "this month · vs. last month"
+                  }
                 />
               </motion.div>
               <motion.div variants={staggerItem}>
@@ -210,7 +229,7 @@ function DashboardPage() {
                   label="Leads captured"
                   value={formatNum(totals?.leadsCapturedThisMonth ?? 0)}
                   icon={UserPlus}
-                  hint="this month"
+                  hint={periodLabel}
                 />
               </motion.div>
               <motion.div variants={staggerItem}>
@@ -221,7 +240,9 @@ function DashboardPage() {
                     totals?.clickTrendPercent != null ? totals.clickTrendPercent / 100 : undefined
                   }
                   icon={MousePointerClick}
-                  hint="vs. last month"
+                  hint={
+                    range ? `${periodLabel} · vs. previous period` : "this month · vs. last month"
+                  }
                 />
               </motion.div>
               <motion.div variants={staggerItem}>

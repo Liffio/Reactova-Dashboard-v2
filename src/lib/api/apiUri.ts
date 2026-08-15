@@ -263,10 +263,10 @@ export const apiUri = {
       adminsLookup: (q: string) => `${V1}/admin/platform/admins/lookup?q=${encodeURIComponent(q)}`,
       admin: (userId: string) => `${V1}/admin/platform/admins/${userId}`,
     },
-    /** Platform-wide business metrics for the admin overview page. */
+    /** Platform-wide business metrics for the admin overview panel. Preset range or custom start/end days. */
     dashboard: {
-      overview: (range: string) =>
-        `${V1}/admin/dashboard/overview?range=${encodeURIComponent(range)}`,
+      overview: (params: { range?: string; start?: string; end?: string }) =>
+        `${V1}/admin/dashboard/overview${listQs(params)}`,
     },
     audit: (params: Record<string, string | number | boolean | undefined> = {}) => {
       const qs = new URLSearchParams();

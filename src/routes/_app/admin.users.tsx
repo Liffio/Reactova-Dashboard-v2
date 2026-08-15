@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -132,13 +132,6 @@ function toIsoDayStart(date: string | undefined): string | undefined {
 }
 function toIsoDayEnd(date: string | undefined): string | undefined {
   return date ? `${date}T23:59:59.999Z` : undefined;
-}
-
-/** `/admin/users/$userId` ships in the next task (Task 8) and isn't a registered route yet, so
- *  `<Link to="...">` can't type-check against it — a real `href` works today and upgrades to a
- *  typed `Link` for free once that route file exists. */
-function userDetailHref(userId: string): string {
-  return `/admin/users/${encodeURIComponent(userId)}`;
 }
 
 /** Interactive controls (native or ARIA) whose Enter/Space keypress must be left alone — the
@@ -396,7 +389,9 @@ function UserRow({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem asChild>
-              <a href={userDetailHref(row.id)}>Open</a>
+              <Link to="/admin/users/$userId" params={{ userId: row.id }}>
+                Open
+              </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -548,9 +543,12 @@ function UsersTable() {
     maybeFetchMore();
   }, [rows.length, maybeFetchMore]);
 
-  const openUser = useCallback((userId: string) => {
-    window.location.href = userDetailHref(userId);
-  }, []);
+  const openUser = useCallback(
+    (userId: string) => {
+      void navigate({ to: "/admin/users/$userId", params: { userId } });
+    },
+    [navigate],
+  );
 
   // Keyboard: `/` focuses search, `j`/`k` move row selection, `Enter` opens it, `Esc` clears
   // selection and blurs search. Ignored while an input/textarea has focus (except `Esc`), and

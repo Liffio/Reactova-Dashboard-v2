@@ -220,3 +220,116 @@ export function getAdminUserAudit(
     signal: opts?.signal,
   });
 }
+
+/* -------------------------------------------------------------------------
+ * Effective access drill-down (Task 10) — `GET /admin/users/:userId/workspaces/:workspaceId/
+ * effective-access`. Typed exactly to the "Response contract" in
+ * `plan/PHASE-3-user-management.md`, the sole authoritative source for this shape:
+ * `task-9-report.md` does not exist yet (the server resolver is being built in parallel, per the
+ * controller's explicit instruction to use the plan doc rather than wait on it). Read-only —
+ * nothing here issues a mutation.
+ * ---------------------------------------------------------------------- */
+
+/** The five access layers, in the order they're folded — same five every response walks,
+ *  independent of tree size. `resolutionOrder` on the response is the server's own statement of
+ *  this sequence; render from it rather than a hardcoded client copy where the order matters. */
+export type EffectiveAccessLayer =
+  | "PACKAGE"
+  | "WORKSPACE_OVERRIDE"
+  | "ROLE"
+  | "USER_OVERRIDE"
+  | "ABAC";
+
+/** `DEFAULT` means no layer produced a verdict — the fold fell through to the implicit default
+ *  (deny). The UI renders this case as "INHERITED", per the brief. */
+export type EffectiveAccessDecidedBy = EffectiveAccessLayer | "DEFAULT";
+
+export type EffectiveAccessVerdict = "ALLOW" | "DENY";
+
+/** A single layer's contribution to one child/permission's trace. `result` includes `NONE` for a
+ *  layer that had nothing to say (e.g. no ABAC policy touched this key) — distinct from the layer
+ *  being altogether absent from `trace` (which the UI treats the same way: not evaluated). */
+export type EffectiveAccessTraceEntry = {
+  layer: EffectiveAccessLayer;
+  result: EffectiveAccessVerdict | "NONE";
+  sourceId: string | null;
+  expiresAt?: string;
+  reason?: string;
+  grantedBy?: string;
+};
+
+/** `ENFORCED` = a real permission check in the backend backs this module. `DECLARED` and
+ *  `UNMAPPED` both render as "NOT ENFORCED" (amber) per the brief — the tooltip is what tells
+ *  them apart, since the distinction matters to an operator deciding whether flipping this
+ *  module actually changes anything today. */
+export type ModuleEnforcementState = "ENFORCED" | "DECLARED" | "UNMAPPED";
+
+export type EffectiveAccessChild = {
+  key: string;
+  name: string;
+  effective: EffectiveAccessVerdict;
+  enforcementState: ModuleEnforcementState;
+  decidedBy: EffectiveAccessDecidedBy;
+  trace: EffectiveAccessTraceEntry[];
+};
+
+export type EffectiveAccessParent = {
+  key: string;
+  name: string;
+  enabled: boolean;
+  children: EffectiveAccessChild[];
+};
+
+export type EffectiveAccessPermission = {
+  key: string;
+  moduleKey: string;
+  action: string;
+  effective: EffectiveAccessVerdict;
+  decidedBy: EffectiveAccessDecidedBy;
+  trace: EffectiveAccessTraceEntry[];
+};
+
+export type EffectiveAccessAbacDeny = {
+  id: string;
+  name: string;
+  effect: "DENY";
+  conditions: Record<string, unknown>;
+  priority: number;
+  isEnabled: boolean;
+};
+
+export type EffectiveAccessLimitSource =
+  | "PACKAGE_LIMIT"
+  | "WORKSPACE_LIMIT_OVERRIDE"
+  | "PLAN_DEFAULT";
+
+/** One numeric quota. `value`/`baseValue` follow the same `-1` = unlimited convention as
+ *  `PackageLimit` in `registry-api.ts` — this endpoint folds the same underlying limit rows. */
+export type EffectiveAccessLimit = {
+  value: number;
+  source: EffectiveAccessLimitSource;
+  overridden: boolean;
+  baseValue?: number;
+};
+
+export type AdminUserEffectiveAccess = {
+  resolutionOrder: EffectiveAccessLayer[];
+  package: { id: string; key: string; name: string; assigned: boolean } | null;
+  /** `true` exactly when `package === null` — no ceiling, not "locked down". Server-computed, so
+   *  the client never has to re-derive the invariant (same convention as the Workspaces tab's
+   *  `unrestricted` field). */
+  unrestricted: boolean;
+  role: { key: string; name: string } | null;
+  parents: EffectiveAccessParent[];
+  permissions: EffectiveAccessPermission[];
+  /** Non-empty means at least one ABAC policy is actively denying something for this user in this
+   *  workspace — the brief calls for prominent, destructive-styled treatment when this is non-empty. */
+  abacDenies: EffectiveAccessAbacDeny[];
+  limits: Record<string, EffectiveAccessLimit>;
+};
+
+export function getEffectiveAccess(userId: string, workspaceId: string) {
+  return apiRequest<AdminUserEffectiveAccess>(
+    apiUri.admin.users.effectiveAccess(userId, workspaceId),
+  );
+}

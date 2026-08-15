@@ -300,6 +300,13 @@ export const apiUri = {
       /** Keyset-paginated audit trail (actor OR on-behalf-of) — Task 6 endpoint 4. */
       audit: (userId: string, params: { cursor?: string; limit?: number } = {}) =>
         `${V1}/admin/users/${encodeURIComponent(userId)}/audit${listQs(params)}`,
+      /**
+       * Resolved effective access for one user in one workspace — Task 9's resolver. Folds all
+       * five layers (package/workspace-override/role/user-override/ABAC) with provenance; read
+       * by the Phase 3 drill-down (Task 10), read-only.
+       */
+      effectiveAccess: (userId: string, workspaceId: string) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/workspaces/${encodeURIComponent(workspaceId)}/effective-access`,
     },
     audit: (params: Record<string, string | number | boolean | undefined> = {}) => {
       const qs = new URLSearchParams();

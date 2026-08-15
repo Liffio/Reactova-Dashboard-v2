@@ -39,14 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useDebounced } from "@/hooks/use-debounced";
 import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api/http";
@@ -73,7 +66,16 @@ const SORT_VALUES: readonly SortValue[] = ["created_at", "email", "name"];
 const DIR_VALUES: readonly DirValue[] = ["asc", "desc"];
 const STATUS_VALUES: readonly StatusValue[] = ["active", "inactive", "banned"];
 const PLAN_VALUES = ["FREE", "STARTER", "PRO", "BUSINESS", "AGENCY"] as const;
-const WORKSPACE_STATUS_VALUES = ["ACTIVE", "PAUSED", "SUSPENDED"] as const;
+// Attested in-repo (src/state/app-context.tsx WorkspaceStatus + agency.tsx's statusStyles) —
+// PAYMENT_FAILED/INSTAGRAM_DISCONNECTED are exactly the workspace states two of the §7.1 flag
+// conditions key off (PAYMENT_FAILED, IG_DISCONNECTED), so admins filtering by them matters most.
+const WORKSPACE_STATUS_VALUES = [
+  "ACTIVE",
+  "PAUSED",
+  "SUSPENDED",
+  "PAYMENT_FAILED",
+  "INSTAGRAM_DISCONNECTED",
+] as const;
 
 type AdminUsersSearch = {
   q?: string;
@@ -113,6 +115,16 @@ function selectValueToBool(v: string): boolean | undefined {
   return v === "all" ? undefined : v === "true";
 }
 
+/** `"INSTAGRAM_DISCONNECTED"` → `"Instagram Disconnected"` — humanizes any `SCREAMING_SNAKE_CASE`
+ *  backend enum for display, multi-word values included. */
+function humanizeEnum(value: string): string {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(" ");
+}
+
 /** `created_after`/`created_before` travel in the URL as plain `YYYY-MM-DD` (readable, shareable);
  *  convert to inclusive UTC day boundaries only when building the request. */
 function toIsoDayStart(date: string | undefined): string | undefined {
@@ -127,6 +139,19 @@ function toIsoDayEnd(date: string | undefined): string | undefined {
  *  typed `Link` for free once that route file exists. */
 function userDetailHref(userId: string): string {
   return `/admin/users/${encodeURIComponent(userId)}`;
+}
+
+/** Interactive controls (native or ARIA) whose Enter/Space keypress must be left alone — the
+ *  global list-navigation shortcuts (`j`/`k`/`Enter`) must never hijack a focused button, link,
+ *  select trigger, or anything inside the filters bar (a Select's open listbox items included). */
+function isInteractiveElement(el: Element | null): boolean {
+  if (!el) return false;
+  if (["BUTTON", "A", "SELECT", "SUMMARY"].includes(el.tagName)) return true;
+  const role = el.getAttribute("role");
+  if (role && ["button", "combobox", "option", "menuitem", "listbox", "menu"].includes(role)) {
+    return true;
+  }
+  return Boolean(el.closest('[data-filters-bar="true"]'));
 }
 
 export const Route = createFileRoute("/_app/admin/users")({
@@ -528,7 +553,12 @@ function UsersTable() {
   }, []);
 
   // Keyboard: `/` focuses search, `j`/`k` move row selection, `Enter` opens it, `Esc` clears
-  // selection and blurs search. Ignored while an input/textarea has focus (except `Esc`).
+  // selection and blurs search. Ignored while an input/textarea has focus (except `Esc`), and
+  // `j`/`k`/`Enter` are additionally ignored whenever focus sits on an interactive control
+  // (button, link, select trigger/listbox item, anything in the filters bar) — otherwise Tabbing
+  // from a `j`-selected row to the Filters toggle, Clear filters, a kebab button, or a Select
+  // trigger and pressing Enter would silently navigate to the selected user instead of activating
+  // the focused control.
   useEffect(() => {
     function isTypingTarget(target: EventTarget | null): boolean {
       if (!(target instanceof HTMLElement)) return false;
@@ -549,6 +579,9 @@ function UsersTable() {
         searchInputRef.current?.focus();
         return;
       }
+      // From here down, list-navigation keys only act when focus isn't already on some other
+      // interactive control — see the doc comment above.
+      if (isInteractiveElement(document.activeElement)) return;
       if (e.key === "j" || e.key === "k") {
         if (rows.length === 0) return;
         e.preventDefault();
@@ -576,9 +609,24 @@ function UsersTable() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [rows, selectedId, rowVirtualizer, openUser]);
 
+  // Belt-and-suspenders alongside the activeElement guard above: once focus actually lands on an
+  // interactive control, or leaves the table region entirely, the keyboard-selected row no longer
+  // reads as "the thing Enter would open" — drop it so the stale highlight doesn't linger either.
+  useEffect(() => {
+    function onFocusIn(e: FocusEvent) {
+      if (!(e.target instanceof Element)) return;
+      const insideTable = scrollRef.current?.contains(e.target) ?? false;
+      if (!insideTable || isInteractiveElement(e.target)) {
+        setSelectedId(null);
+      }
+    }
+    window.addEventListener("focusin", onFocusIn);
+    return () => window.removeEventListener("focusin", onFocusIn);
+  }, []);
+
   return (
     <div className="space-y-3">
-      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+      <Collapsible data-filters-bar="true" open={filtersOpen} onOpenChange={setFiltersOpen}>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative w-full sm:max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -710,7 +758,7 @@ function UsersTable() {
                 <SelectItem value="all">Any</SelectItem>
                 {WORKSPACE_STATUS_VALUES.map((s) => (
                   <SelectItem key={s} value={s}>
-                    {s[0] + s.slice(1).toLowerCase()}
+                    {humanizeEnum(s)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -757,7 +805,15 @@ function UsersTable() {
           onScroll={maybeFetchMore}
           className="h-[calc(100vh-22rem)] min-h-[420px] overflow-auto rounded-2xl border bg-card shadow-soft"
         >
-          <Table>
+          {/* Raw <table>, not the shadcn `Table` wrapper: `Table` wraps children in its own
+              `relative w-full overflow-auto` div (src/components/ui/table.tsx), which — having no
+              fixed height — never itself scrolls, but *is* the nearest `overflow != visible`
+              ancestor of <thead>. `position: sticky` resolves against the nearest such ancestor,
+              so a sticky header inside that wrapper sticks to a div that doesn't scroll, and
+              scrolls away with the rest of the table inside `scrollRef` (the div that actually
+              scrolls) instead. Composing the table directly here — one overflow container, not
+              two nested ones — is what makes `sticky top-0` resolve against `scrollRef`. */}
+          <table className="w-full caption-bottom text-sm">
             <TableHeader className="sticky top-0 z-10 bg-card">
               <TableRow className="hover:bg-transparent">
                 <TableHead className="w-[300px]">
@@ -811,7 +867,7 @@ function UsersTable() {
                 </TableRow>
               )}
             </TableBody>
-          </Table>
+          </table>
           {listQuery.isFetchingNextPage && (
             <div className="flex justify-center border-t p-3">
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />

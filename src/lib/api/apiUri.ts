@@ -268,6 +268,30 @@ export const apiUri = {
       overview: (params: { range?: string; start?: string; end?: string }) =>
         `${V1}/admin/dashboard/overview${listQs(params)}`,
     },
+    /**
+     * User-management control plane (Phase 2). Keyset-paginated list — query params match the
+     * frozen contract in `plan/PHASE-2-user-management.md` §"Response contract" verbatim
+     * (snake_case on the wire, including `has_mfa`/`workspace_status`/`created_after`/
+     * `created_before`, even though the JSON body itself is camelCase).
+     */
+    users: {
+      list: (
+        params: {
+          cursor?: string;
+          limit?: number;
+          q?: string;
+          sort?: "created_at" | "email" | "name";
+          dir?: "asc" | "desc";
+          status?: "active" | "inactive" | "banned";
+          plan?: string;
+          verified?: boolean;
+          has_mfa?: boolean;
+          workspace_status?: string;
+          created_after?: string;
+          created_before?: string;
+        } = {},
+      ) => `${V1}/admin/users${listQs(params)}`,
+    },
     audit: (params: Record<string, string | number | boolean | undefined> = {}) => {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(params)) {

@@ -263,6 +263,11 @@ export const apiUri = {
       adminsLookup: (q: string) => `${V1}/admin/platform/admins/lookup?q=${encodeURIComponent(q)}`,
       admin: (userId: string) => `${V1}/admin/platform/admins/${userId}`,
     },
+    /** Platform-wide business metrics for the admin overview page. */
+    dashboard: {
+      overview: (range: string) =>
+        `${V1}/admin/dashboard/overview?range=${encodeURIComponent(range)}`,
+    },
     audit: (params: Record<string, string | number | boolean | undefined> = {}) => {
       const qs = new URLSearchParams();
       for (const [k, v] of Object.entries(params)) {

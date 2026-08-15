@@ -291,6 +291,15 @@ export const apiUri = {
           created_before?: string;
         } = {},
       ) => `${V1}/admin/users${listQs(params)}`,
+      /** Profile+status detail — Task 6 endpoint 1 (`plan/PHASE-2-user-management.md`). */
+      detail: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}`,
+      /** One row per workspace membership — Task 6 endpoint 2. */
+      workspaces: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/workspaces`,
+      /** Active (non-revoked, non-expired) refresh-token sessions — Task 6 endpoint 3. */
+      sessions: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/sessions`,
+      /** Keyset-paginated audit trail (actor OR on-behalf-of) — Task 6 endpoint 4. */
+      audit: (userId: string, params: { cursor?: string; limit?: number } = {}) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/audit${listQs(params)}`,
     },
     audit: (params: Record<string, string | number | boolean | undefined> = {}) => {
       const qs = new URLSearchParams();

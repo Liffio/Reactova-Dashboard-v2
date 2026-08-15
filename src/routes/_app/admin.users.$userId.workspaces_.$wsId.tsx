@@ -117,7 +117,15 @@ function EffectiveAccessPage() {
       : new Set<string>();
   }, [data, expandedParents]);
 
+  /** Filtered-in parents are force-expanded (see `displayExpanded` below) and their chevrons are
+   *  disabled while a filter is active — see the `Collapsible`'s `disabled` prop in `ParentRow`,
+   *  which is the primary mechanism (Radix skips `onOpenChange` entirely while disabled). This
+   *  early return is belt-and-suspenders: even if something ever calls `onToggle` while filtered
+   *  (e.g. a future keyboard-shortcut path that bypasses the trigger), it must not silently write
+   *  an unrequested manual state that only becomes visible after the filter clears — that was
+   *  exactly the round-1 fix's bug. */
   const toggleParent = (key: string) => {
+    if (filterText.trim()) return;
     setExpandedParents((prev) => {
       const base = prev ?? effectiveExpanded;
       const next = new Set(base);
@@ -228,6 +236,7 @@ function EffectiveAccessPage() {
                       key={parent.key}
                       parent={parent}
                       expanded={displayExpanded.has(parent.key)}
+                      toggleDisabled={filterText.trim().length > 0}
                       onToggle={() => toggleParent(parent.key)}
                       selection={selection}
                       onSelectChild={(childKey) =>
@@ -540,23 +549,31 @@ function EnforcementBadge({ state }: { state: ModuleEnforcementState }) {
 function ParentRow({
   parent,
   expanded,
+  toggleDisabled,
   onToggle,
   selection,
   onSelectChild,
 }: {
   parent: AdminUserEffectiveAccess["parents"][number];
   expanded: boolean;
+  /** True while a filter is active — filtered-in parents are force-expanded (see
+   *  `displayExpanded`) and must not be collapsible, or a click would silently write a manual
+   *  expand-state entry with zero visible effect (the exact bug fix round 1 introduced). Passed
+   *  to `Collapsible`'s own `disabled` prop, which is the primary guard: Radix skips
+   *  `onOpenChange` entirely while disabled, and marks the trigger `data-disabled`/`disabled` so
+   *  the chevron visibly stops looking clickable instead of pretending to work. */
+  toggleDisabled: boolean;
   onToggle: () => void;
   selection: Selection;
   onSelectChild: (childKey: string) => void;
 }) {
   const allowedCount = parent.children.filter((c) => c.effective === "ALLOW").length;
   return (
-    <Collapsible open={expanded} onOpenChange={onToggle}>
+    <Collapsible open={expanded} onOpenChange={onToggle} disabled={toggleDisabled}>
       <CollapsibleTrigger asChild>
         <button
           type="button"
-          className="flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left hover:bg-muted/50"
+          className="flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-60"
         >
           <ChevronRight
             className={cn("h-3.5 w-3.5 shrink-0 transition-transform", expanded && "rotate-90")}

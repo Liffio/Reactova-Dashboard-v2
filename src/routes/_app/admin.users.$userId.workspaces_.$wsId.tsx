@@ -56,7 +56,7 @@ import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api/http";
 import { usePlatformCan } from "@/hooks/use-platform-authz";
 import { getRegistryTree, listPackages, type PackageRow } from "@/lib/api/registry-api";
-import { getRbacOverview } from "@/lib/api/admin-rbac-api";
+import { getRbacOverview, type RbacOverview } from "@/lib/api/admin-rbac-api";
 import {
   assignWorkspacePackageAdmin,
   unassignWorkspacePackageAdmin,
@@ -68,6 +68,9 @@ import {
   bulkSetUserModuleOverrides,
   createUserPermissionOverride,
   deleteUserPermissionOverride,
+  changeUserWorkspaceRole,
+  assignUserPolicy,
+  removeUserPolicy,
   type AdminUserEffectiveAccess,
   type BulkModuleOverrideChangeInput,
   type BulkModuleOverrideEffect,
@@ -382,10 +385,14 @@ function EffectiveAccessPageInner({ userId, wsId }: { userId: string; wsId: stri
         <>
           <AccessSummary
             data={data}
+            userId={userId}
             wsId={wsId}
             workspaceName={membership?.workspaceName ?? "this workspace"}
             canManagePackage={canManagePackage}
+            canEditAccess={canEditAccess}
             packages={packagesQuery.data?.items ?? []}
+            roles={rbacQuery.data?.roles ?? []}
+            policies={rbacQuery.data?.policies ?? []}
             onMutated={() => {
               void queryClient.invalidateQueries({
                 queryKey: ["admin-user", userId, "effective-access", wsId],
@@ -601,22 +608,32 @@ function AccessError({
 }
 
 /** Package/unrestricted banner, role line, and limits — the "ceiling" this workspace's access is
- *  being resolved against. Package and limits become editable when `canManagePackage` is granted
- *  (requirement 9 — read-only otherwise, never a broken button). `abacDenies` gets its own
- *  separate, more visually prominent card below when non-empty, per the brief. */
+ *  being resolved against. Package and limits become editable when `canManagePackage` is granted;
+ *  role and ABAC become editable when `canEditAccess` is granted — two different permissions
+ *  (requirement 9 — each gates independently, read-only otherwise, never a broken button).
+ *  `abacDenies` gets its own separate, more visually prominent card below when non-empty, per the
+ *  brief; the ABAC assign control sits under it. */
 function AccessSummary({
   data,
+  userId,
   wsId,
   workspaceName,
   canManagePackage,
+  canEditAccess,
   packages,
+  roles,
+  policies,
   onMutated,
 }: {
   data: AdminUserEffectiveAccess;
+  userId: string;
   wsId: string;
   workspaceName: string;
   canManagePackage: boolean;
+  canEditAccess: boolean;
   packages: PackageRow[];
+  roles: RbacOverview["roles"];
+  policies: RbacOverview["policies"];
   onMutated: () => void;
 }) {
   return (
@@ -652,15 +669,27 @@ function AccessSummary({
           <p className="text-sm text-muted-foreground">No package.</p>
         )}
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
-          <span className="text-xs uppercase tracking-wide text-muted-foreground">Role</span>
-          {data.role ? (
-            <>
-              <span className="font-medium">{data.role.name}</span>
-              <CopyableKey value={data.role.key} />
-            </>
+        <div className="mt-3 border-t pt-3">
+          {canEditAccess ? (
+            <RoleSection
+              data={data}
+              userId={userId}
+              wsId={wsId}
+              roles={roles}
+              onMutated={onMutated}
+            />
           ) : (
-            <span className="text-sm text-muted-foreground">No role assigned</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">Role</span>
+              {data.role ? (
+                <>
+                  <span className="font-medium">{data.role.name}</span>
+                  <CopyableKey value={data.role.key} />
+                </>
+              ) : (
+                <span className="text-sm text-muted-foreground">No role assigned</span>
+              )}
+            </div>
           )}
         </div>
 
@@ -672,6 +701,10 @@ function AccessSummary({
       </div>
 
       {data.abacDenies.length > 0 && <AbacDeniesCard denies={data.abacDenies} />}
+
+      {canEditAccess && (
+        <AbacAssignSection userId={userId} wsId={wsId} policies={policies} onMutated={onMutated} />
+      )}
     </div>
   );
 }
@@ -924,6 +957,120 @@ function PackageSection({
   );
 }
 
+/** Role Select + confirm (requirement 8). Defaults to whatever role in the catalogue matches the
+ *  currently-committed role's key — the effective-access response carries the role's key/name but
+ *  not its id, so the id-bearing catalogue (`getRbacOverview().roles`, reused for the ABAC section
+ *  too) is what makes the Select's initial value line up with reality instead of starting blank. */
+function RoleSection({
+  data,
+  userId,
+  wsId,
+  roles,
+  onMutated,
+}: {
+  data: AdminUserEffectiveAccess;
+  userId: string;
+  wsId: string;
+  roles: RbacOverview["roles"];
+  onMutated: () => void;
+}) {
+  const currentRoleId = roles.find((r) => r.key === data.role?.key)?.id ?? "";
+  // `null` means "no explicit pick yet" — falls back to `currentRoleId` for display. Avoids the
+  // seed-once quirk a plain `useState(currentRoleId)` would have if the role catalogue (a separate
+  // query) resolves after this component's first render: a `useState` initializer only runs once,
+  // so it would freeze on an empty string forever. Same pattern this file already uses for
+  // `expandedParents` (`Set | null`, falls back to a computed default while unset).
+  const [explicitRoleId, setExplicitRoleId] = useState<string | null>(null);
+  const selectedRoleId = explicitRoleId ?? currentRoleId;
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const nextRole = roles.find((r) => r.id === selectedRoleId) ?? null;
+  const reasonValid = reason.trim().length >= 1 && reason.trim().length <= 1000;
+
+  const roleMutation = useMutation({
+    mutationFn: () =>
+      changeUserWorkspaceRole(userId, wsId, { roleId: selectedRoleId, reason: reason.trim() }),
+    onSuccess: (res) => {
+      toast.success(`Role changed to ${nextRole?.name ?? res.roleKey}.`);
+      setConfirmOpen(false);
+      setReason("");
+      onMutated();
+    },
+    onError: (err) => {
+      const requestId = err instanceof ApiError ? err.requestId : undefined;
+      toast.error(err instanceof Error ? err.message : "Failed to change role.", {
+        description: requestId ? `Request ID: ${requestId}` : undefined,
+      });
+    },
+  });
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="w-16 shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
+        Role
+      </span>
+      <Select value={selectedRoleId} onValueChange={setExplicitRoleId}>
+        <SelectTrigger className="h-8 max-w-xs text-xs">
+          <SelectValue placeholder="Select a role" />
+        </SelectTrigger>
+        <SelectContent>
+          {roles.map((r) => (
+            <SelectItem key={r.id} value={r.id}>
+              {r.name}
+              {r.id === currentRoleId ? " (current)" : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={!selectedRoleId || selectedRoleId === currentRoleId}
+        onClick={() => setConfirmOpen(true)}
+      >
+        Change role
+      </Button>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change role to {nextRole?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This changes what this user can do in this workspace immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="role-reason">
+              Reason <span className="text-destructive">*</span>
+            </label>
+            <Textarea
+              id="role-reason"
+              value={reason}
+              maxLength={1000}
+              placeholder="Why is this role changing?"
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={roleMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!reasonValid || roleMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                roleMutation.mutate();
+              }}
+            >
+              {roleMutation.isPending ? "Changing…" : "Change role"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 /**
  * Editable limits (requirement 7). Each row stages an explicit numeric override (including `-1`
  * for the "Unlimited" checkbox) into a local map; committing is its own small "Save limits"
@@ -1142,6 +1289,161 @@ function AbacDeniesCard({ denies }: { denies: AdminUserEffectiveAccess["abacDeni
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * ABAC assign + a session-scoped unassign list (requirement 8).
+ *
+ * Scope cut, documented (mirrors the honesty this whole task is built around, applied to a plain
+ * data-availability gap rather than an enforcement one): no read endpoint in the Task 9-12
+ * contract exposes a per-user list of `user_policy_assignments` ROWS — `abacDenies` above is a
+ * merged, role-and-user, DENY-only view keyed by the ABAC POLICY's own id, not the assignment's
+ * (confirmed against `adminEffectiveAccess.ts`'s `mergePolicies`, which folds `assignment.policy`
+ * without ever surfacing `assignment.id`). `DELETE .../policy/:assignmentId` needs that id, so
+ * "Unassign" can only safely target policies assigned via THIS section in the current session —
+ * those ids come straight off `assignUserPolicy`'s own response. A policy assigned before this
+ * page load, or by any other surface, cannot be unassigned from here; the operator would need to
+ * find it another way. This is a real contract gap, not a design shortcut — see task-13-report.md.
+ */
+function AbacAssignSection({
+  userId,
+  wsId,
+  policies,
+  onMutated,
+}: {
+  userId: string;
+  wsId: string;
+  policies: RbacOverview["policies"];
+  onMutated: () => void;
+}) {
+  const [selectedPolicyId, setSelectedPolicyId] = useState("");
+  const [assignConfirmOpen, setAssignConfirmOpen] = useState(false);
+  const [sessionAssignments, setSessionAssignments] = useState<
+    { assignmentId: string; policyKey: string }[]
+  >([]);
+
+  const nextPolicy = policies.find((p) => p.id === selectedPolicyId) ?? null;
+
+  const assignMutation = useMutation({
+    mutationFn: () => assignUserPolicy(userId, wsId, { policyId: selectedPolicyId }),
+    onSuccess: (res) => {
+      // Read off `nextPolicy`/`selectedPolicyId` via closure rather than the mutation's `variables`
+      // — `mutationFn` here takes no argument (the id is already in scope), so TanStack Query would
+      // hand back `undefined` for `variables`, not `{ policyId }`.
+      const assignedKey = nextPolicy?.key ?? selectedPolicyId;
+      toast.success(`Policy assigned: ${assignedKey}.`);
+      setSessionAssignments((prev) => [
+        ...prev,
+        { assignmentId: res.assignment.id, policyKey: assignedKey },
+      ]);
+      setAssignConfirmOpen(false);
+      setSelectedPolicyId("");
+      onMutated();
+    },
+    onError: (err) => {
+      const requestId = err instanceof ApiError ? err.requestId : undefined;
+      toast.error(err instanceof Error ? err.message : "Failed to assign policy.", {
+        description: requestId ? `Request ID: ${requestId}` : undefined,
+      });
+    },
+  });
+
+  const unassignMutation = useMutation({
+    mutationFn: (assignmentId: string) => removeUserPolicy(userId, wsId, assignmentId),
+    onSuccess: (_res, assignmentId) => {
+      setSessionAssignments((prev) => prev.filter((a) => a.assignmentId !== assignmentId));
+      toast.success("Policy unassigned.");
+      onMutated();
+    },
+    onError: (err) => {
+      const requestId = err instanceof ApiError ? err.requestId : undefined;
+      toast.error(err instanceof Error ? err.message : "Failed to unassign policy.", {
+        description: requestId ? `Request ID: ${requestId}` : undefined,
+      });
+    },
+  });
+
+  return (
+    <div className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
+      <h2 className="font-display text-sm font-semibold">ABAC policies</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Assigns a policy directly to this user in this workspace. Unassign is only offered here for
+        policies assigned in this session — see the code comment above this component for why.
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Select value={selectedPolicyId} onValueChange={setSelectedPolicyId}>
+          <SelectTrigger className="h-8 max-w-xs text-xs">
+            <SelectValue placeholder="Select a policy" />
+          </SelectTrigger>
+          <SelectContent>
+            {policies.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.key} ({p.effect})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!selectedPolicyId}
+          onClick={() => setAssignConfirmOpen(true)}
+        >
+          Assign
+        </Button>
+      </div>
+
+      {sessionAssignments.length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {sessionAssignments.map((a) => (
+            <li
+              key={a.assignmentId}
+              className="flex items-center justify-between gap-2 rounded-lg border bg-muted/20 px-2.5 py-1.5 text-xs"
+            >
+              <code>{a.policyKey}</code>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={unassignMutation.isPending}
+                onClick={() => unassignMutation.mutate(a.assignmentId)}
+              >
+                Unassign
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <AlertDialog open={assignConfirmOpen} onOpenChange={setAssignConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Assign {nextPolicy?.key}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This policy's conditions start applying to this user in this workspace immediately.
+              {nextPolicy?.effect === "DENY" &&
+                " Because it's a DENY policy, it can override an otherwise-granted ALLOW."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={assignMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={assignMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                assignMutation.mutate();
+              }}
+            >
+              {assignMutation.isPending ? "Assigning…" : "Assign"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

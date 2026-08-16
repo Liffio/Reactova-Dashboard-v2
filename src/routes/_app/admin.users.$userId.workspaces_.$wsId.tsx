@@ -18,6 +18,7 @@ import { BackLink, CopyableKey, EmptyState, FormActions } from "@/components/adm
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,13 +33,35 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api/http";
 import { usePlatformCan } from "@/hooks/use-platform-authz";
-import { getRegistryTree } from "@/lib/api/registry-api";
+import { getRegistryTree, listPackages, type PackageRow } from "@/lib/api/registry-api";
 import { getRbacOverview } from "@/lib/api/admin-rbac-api";
+import {
+  assignWorkspacePackageAdmin,
+  unassignWorkspacePackageAdmin,
+  patchWorkspaceLimits,
+} from "@/lib/api/admin-workspaces-api";
 import {
   getAdminUserWorkspaces,
   getEffectiveAccess,
@@ -72,6 +95,12 @@ import {
  */
 
 const USER_MANAGE = "platform:user_manage";
+/** Gates package assign/unassign and the limits PATCH — task-11-report.md §3's route table.
+ *  Distinct from `USER_MANAGE`, which gates the page itself plus every Task 12 endpoint (module
+ *  bulk, permission overrides, role, policy) — an operator can hold one without the other, so
+ *  each mutation section gates independently rather than assuming the page-level grant covers
+ *  everything on it (requirement 9). */
+const PACKAGE_MANAGE = "platform:package_manage";
 
 export const Route = createFileRoute("/_app/admin/users/$userId/workspaces_/$wsId")({
   head: () => ({ meta: [{ title: "Workspace Access — User — Admin" }] }),
@@ -127,6 +156,7 @@ function EffectiveAccessPage() {
 function EffectiveAccessPageInner({ userId, wsId }: { userId: string; wsId: string }) {
   const queryClient = useQueryClient();
   const canEditAccess = usePlatformCan(USER_MANAGE);
+  const canManagePackage = usePlatformCan(PACKAGE_MANAGE);
 
   // Reuses the Workspaces tab's exact query key/fn — if that tab was visited first (the only way
   // to reach this route today), this is a cache hit, not a second round trip. The effective-access
@@ -163,6 +193,17 @@ function EffectiveAccessPageInner({ userId, wsId }: { userId: string; wsId: stri
     queryFn: getRbacOverview,
     staleTime: 5 * 60 * 1000,
     enabled: canEditAccess,
+  });
+
+  // The Select's source list — reuses the existing packages catalogue (`packages.assign.tsx` uses
+  // the exact same call) rather than a second read endpoint, per the brief's explicit instruction.
+  // The catalogue is small (a handful in production, per that route's own comment) so one page is
+  // every package, same precedent.
+  const packagesQuery = useQuery({
+    queryKey: ["packages", "all-for-assign"],
+    queryFn: () => listPackages({ page: 1, limit: 100 }),
+    staleTime: 5 * 60 * 1000,
+    enabled: canManagePackage,
   });
 
   const childIdByKey = useMemo(() => {
@@ -339,7 +380,21 @@ function EffectiveAccessPageInner({ userId, wsId }: { userId: string; wsId: stri
         />
       ) : !data ? null : (
         <>
-          <AccessSummary data={data} />
+          <AccessSummary
+            data={data}
+            wsId={wsId}
+            workspaceName={membership?.workspaceName ?? "this workspace"}
+            canManagePackage={canManagePackage}
+            packages={packagesQuery.data?.items ?? []}
+            onMutated={() => {
+              void queryClient.invalidateQueries({
+                queryKey: ["admin-user", userId, "effective-access", wsId],
+              });
+              void queryClient.invalidateQueries({
+                queryKey: ["admin-user", userId, "workspaces"],
+              });
+            }}
+          />
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
             <div className="min-w-0 space-y-4 rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
@@ -545,14 +600,37 @@ function AccessError({
   );
 }
 
-/** Package/unrestricted banner, role line, and read-only limits list — the "ceiling" this
- *  workspace's access is being resolved against. `abacDenies` gets its own separate, more
- *  visually prominent card below when non-empty, per the brief. */
-function AccessSummary({ data }: { data: AdminUserEffectiveAccess }) {
+/** Package/unrestricted banner, role line, and limits — the "ceiling" this workspace's access is
+ *  being resolved against. Package and limits become editable when `canManagePackage` is granted
+ *  (requirement 9 — read-only otherwise, never a broken button). `abacDenies` gets its own
+ *  separate, more visually prominent card below when non-empty, per the brief. */
+function AccessSummary({
+  data,
+  wsId,
+  workspaceName,
+  canManagePackage,
+  packages,
+  onMutated,
+}: {
+  data: AdminUserEffectiveAccess;
+  wsId: string;
+  workspaceName: string;
+  canManagePackage: boolean;
+  packages: PackageRow[];
+  onMutated: () => void;
+}) {
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
-        {data.unrestricted ? (
+        {canManagePackage ? (
+          <PackageSection
+            data={data}
+            wsId={wsId}
+            workspaceName={workspaceName}
+            packages={packages}
+            onMutated={onMutated}
+          />
+        ) : data.unrestricted ? (
           <div className="flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/10 p-3 text-warning">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <p className="text-sm font-medium">
@@ -586,7 +664,11 @@ function AccessSummary({ data }: { data: AdminUserEffectiveAccess }) {
           )}
         </div>
 
-        <LimitsList limits={data.limits} />
+        {canManagePackage ? (
+          <LimitsSection data={data} wsId={wsId} onMutated={onMutated} />
+        ) : (
+          <LimitsList limits={data.limits} />
+        )}
       </div>
 
       {data.abacDenies.length > 0 && <AbacDeniesCard denies={data.abacDenies} />}
@@ -594,10 +676,16 @@ function AccessSummary({ data }: { data: AdminUserEffectiveAccess }) {
   );
 }
 
-/** `-1` means unlimited, matching `PackageLimit`'s convention elsewhere in this codebase
- *  (`registry-api.ts`). */
+/** Task 9 finding (repeated in the Task 13 brief): legacy plan defaults use `999999`/`999`-class
+ *  sentinels for "effectively unlimited" alongside the standardized `-1`. Both display as
+ *  "Unlimited"; SAVING an unlimited intent always writes `-1` (the standardized convention),
+ *  never a legacy sentinel — see `LimitsSection`'s save handler. */
+function isUnlimitedValue(value: number): boolean {
+  return value === -1 || value >= 999_999;
+}
+
 function formatLimitValue(value: number): string {
-  return value === -1 ? "Unlimited" : value.toLocaleString();
+  return isUnlimitedValue(value) ? "Unlimited" : value.toLocaleString();
 }
 
 function humanizeKey(key: string): string {
@@ -637,6 +725,381 @@ function LimitsList({ limits }: { limits: AdminUserEffectiveAccess["limits"] }) 
           </div>
         ))}
       </dl>
+    </div>
+  );
+}
+
+/**
+ * Package Select + Assign confirm dialog + a separately danger-styled Unassign hard-confirm
+ * (requirement 6). Assign/unassign go through `admin-workspaces-api.ts`'s
+ * `assignWorkspacePackageAdmin`/`unassignWorkspacePackageAdmin` — the Task 11 workspace-level
+ * routes, a second HTTP entry point onto the same service `packages.assign.tsx` already calls
+ * through `registry-api.ts`'s older `assignWorkspacePackage`/`clearWorkspacePackage` (which stay
+ * untouched; this route intentionally uses the newer pair, not a duplicate write path — see
+ * `admin-workspaces-api.ts`'s file header). The package *list* for the Select, however, IS reused
+ * directly from `registry-api.ts`'s `listPackages`, per the brief.
+ */
+function PackageSection({
+  data,
+  wsId,
+  workspaceName,
+  packages,
+  onMutated,
+}: {
+  data: AdminUserEffectiveAccess;
+  wsId: string;
+  workspaceName: string;
+  packages: PackageRow[];
+  onMutated: () => void;
+}) {
+  const [selectedPackageId, setSelectedPackageId] = useState(data.package?.id ?? "");
+  const [note, setNote] = useState("");
+  const [assignConfirmOpen, setAssignConfirmOpen] = useState(false);
+  const [unassignConfirmOpen, setUnassignConfirmOpen] = useState(false);
+  const [typedName, setTypedName] = useState("");
+
+  const nextPackage = packages.find((p) => p.id === selectedPackageId) ?? null;
+
+  const assignMutation = useMutation({
+    mutationFn: () =>
+      assignWorkspacePackageAdmin(wsId, {
+        packageId: selectedPackageId,
+        note: note.trim() || null,
+      }),
+    onSuccess: () => {
+      toast.success(nextPackage ? `Package assigned: ${nextPackage.name}` : "Package assigned.");
+      setAssignConfirmOpen(false);
+      setNote("");
+      onMutated();
+    },
+    onError: (err) => {
+      const requestId = err instanceof ApiError ? err.requestId : undefined;
+      toast.error(err instanceof Error ? err.message : "Failed to assign package.", {
+        description: requestId ? `Request ID: ${requestId}` : undefined,
+      });
+    },
+  });
+
+  const unassignMutation = useMutation({
+    mutationFn: () => unassignWorkspacePackageAdmin(wsId, { note: note.trim() || null }),
+    onSuccess: () => {
+      toast.success(`${workspaceName} is now unrestricted.`);
+      setUnassignConfirmOpen(false);
+      setTypedName("");
+      setNote("");
+      setSelectedPackageId("");
+      onMutated();
+    },
+    onError: (err) => {
+      const requestId = err instanceof ApiError ? err.requestId : undefined;
+      toast.error(err instanceof Error ? err.message : "Failed to unassign package.", {
+        description: requestId ? `Request ID: ${requestId}` : undefined,
+      });
+    },
+  });
+
+  return (
+    <div className="space-y-2.5">
+      {data.unrestricted && (
+        <div className="flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/10 p-3 text-warning">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p className="text-sm font-medium">
+            No package assigned: this workspace has unrestricted access to all modules.
+          </p>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="w-16 shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
+          Package
+        </span>
+        <Select value={selectedPackageId} onValueChange={setSelectedPackageId}>
+          <SelectTrigger className="h-8 max-w-xs text-xs">
+            <SelectValue placeholder="Select a package" />
+          </SelectTrigger>
+          <SelectContent>
+            {packages.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+                {p.id === data.package?.id ? " (current)" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!selectedPackageId || selectedPackageId === data.package?.id}
+          onClick={() => setAssignConfirmOpen(true)}
+        >
+          Assign
+        </Button>
+        {data.package && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => setUnassignConfirmOpen(true)}
+          >
+            Unassign
+          </Button>
+        )}
+      </div>
+
+      <AlertDialog open={assignConfirmOpen} onOpenChange={setAssignConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Assign {nextPackage?.name} to {workspaceName}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This applies immediately and every connected member's session refreshes its
+              permissions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Note (optional, recorded in the audit log)</Label>
+            <Input value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={assignMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={assignMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                assignMutation.mutate();
+              }}
+            >
+              {assignMutation.isPending ? "Assigning…" : "Assign"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={unassignConfirmOpen} onOpenChange={setUnassignConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unassign {data.package?.name}?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p className="font-medium text-destructive">
+                  Once unassigned, this workspace will have unrestricted access to all modules —
+                  every capability its role and overrides allow, with no ceiling.
+                </p>
+                <p>
+                  Type <code className="font-mono font-semibold">{workspaceName}</code> to confirm.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            className="font-mono"
+            value={typedName}
+            onChange={(e) => setTypedName(e.target.value)}
+            placeholder={workspaceName}
+            aria-label="Type the workspace name to confirm"
+          />
+          <div className="space-y-1.5">
+            <Label className="text-xs">Note (optional, recorded in the audit log)</Label>
+            <Input value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unassignMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={typedName.trim() !== workspaceName || unassignMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                unassignMutation.mutate();
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {unassignMutation.isPending ? "Unassigning…" : "Unassign"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+/**
+ * Editable limits (requirement 7). Each row stages an explicit numeric override (including `-1`
+ * for the "Unlimited" checkbox) into a local map; committing is its own small "Save limits"
+ * action with a required reason, deliberately separate from the module/permission bulk dialog —
+ * the brief explicitly allows this ("may be a separate small action... your judgment") since
+ * limits go through a different endpoint with different semantics (merge-patch, not a diff-array).
+ *
+ * Scope cut, documented: this UI only ever stages an explicit override value, never `null`
+ * (`patchWorkspaceLimits`'s "clear this key back to the package/plan default" case). Nothing in
+ * the brief asks for a reset-to-default control, and adding one would double the state machine
+ * below for a case the brief doesn't call out — an operator who wants that today still has the
+ * package/limits endpoints available outside this page.
+ */
+function LimitsSection({
+  data,
+  wsId,
+  onMutated,
+}: {
+  data: AdminUserEffectiveAccess;
+  wsId: string;
+  onMutated: () => void;
+}) {
+  const [staged, setStaged] = useState<Map<string, number>>(new Map());
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const entries = Object.entries(data.limits);
+
+  const setLimit = (key: string, committedValue: number, next: number) => {
+    setStaged((prev) => {
+      const copy = new Map(prev);
+      if (next === committedValue) copy.delete(key);
+      else copy.set(key, next);
+      return copy;
+    });
+  };
+
+  const reasonValid = reason.trim().length >= 1 && reason.trim().length <= 1000;
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      patchWorkspaceLimits(wsId, {
+        limitOverrides: Object.fromEntries(staged),
+      }),
+    onSuccess: () => {
+      toast.success(`Saved ${staged.size} limit change${staged.size === 1 ? "" : "s"}.`);
+      setStaged(new Map());
+      setSaveOpen(false);
+      setReason("");
+      onMutated();
+    },
+    onError: (err) => {
+      const requestId = err instanceof ApiError ? err.requestId : undefined;
+      toast.error(err instanceof Error ? err.message : "Failed to save limits.", {
+        description: requestId ? `Request ID: ${requestId}` : undefined,
+      });
+      // Staged edits stay intact so the operator doesn't have to re-enter them.
+    },
+  });
+
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="mt-3 border-t pt-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs uppercase tracking-wide text-muted-foreground">Limits</span>
+        {staged.size > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground">{staged.size} staged</span>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setStaged(new Map())}>
+              Discard
+            </Button>
+            <Button type="button" size="sm" onClick={() => setSaveOpen(true)}>
+              Save limits
+            </Button>
+          </div>
+        )}
+      </div>
+      <dl className="mt-2 grid gap-2 sm:grid-cols-2">
+        {entries.map(([key, limit]) => {
+          const stagedValue = staged.get(key);
+          const displayValue = stagedValue ?? limit.value;
+          const unlimited = isUnlimitedValue(displayValue);
+          return (
+            <div
+              key={key}
+              className={cn(
+                "flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-xs",
+                stagedValue !== undefined ? "border-primary/40 bg-primary/5" : "bg-muted/20",
+              )}
+            >
+              <dt className="min-w-0 truncate text-muted-foreground">{humanizeKey(key)}</dt>
+              <dd className="flex shrink-0 items-center gap-1.5">
+                {limit.overridden && limit.baseValue !== undefined && (
+                  <span className="text-muted-foreground line-through">
+                    {formatLimitValue(limit.baseValue)}
+                  </span>
+                )}
+                <Input
+                  type="number"
+                  min={0}
+                  className="h-7 w-16 px-1.5 text-right text-xs"
+                  disabled={unlimited}
+                  value={unlimited ? "" : displayValue}
+                  placeholder={unlimited ? "∞" : undefined}
+                  onChange={(e) => {
+                    const parsed = Number(e.target.value);
+                    if (e.target.value.trim() !== "" && Number.isInteger(parsed) && parsed >= -1) {
+                      setLimit(key, limit.value, parsed);
+                    }
+                  }}
+                />
+                <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={unlimited}
+                    onChange={(e) => setLimit(key, limit.value, e.target.checked ? -1 : 0)}
+                  />
+                  ∞
+                </label>
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+
+      <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Save {staged.size} limit change{staged.size === 1 ? "" : "s"}?
+            </DialogTitle>
+            <DialogDescription>
+              Applies immediately. An operator override always wins over the package/plan default.
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="space-y-1 rounded-lg border p-3 text-xs">
+            {[...staged.entries()].map(([key, value]) => (
+              <li key={key} className="flex items-center justify-between gap-2">
+                <span>{humanizeKey(key)}</span>
+                <span className="font-medium">{formatLimitValue(value)}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="limits-reason">
+              Reason <span className="text-destructive">*</span>
+            </label>
+            <Textarea
+              id="limits-reason"
+              value={reason}
+              maxLength={1000}
+              placeholder="Why are these limits changing?"
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSaveOpen(false)}
+              disabled={saveMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!reasonValid || saveMutation.isPending}
+              onClick={() => saveMutation.mutate()}
+              className="bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
+            >
+              {saveMutation.isPending ? "Saving…" : "Confirm & save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

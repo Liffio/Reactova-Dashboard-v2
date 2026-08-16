@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -1184,12 +1185,11 @@ function LimitsSection({
                   }}
                 />
                 <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={unlimited}
-                    onChange={(e) => setLimit(key, limit.value, e.target.checked ? -1 : 0)}
+                    onCheckedChange={(checked) => setLimit(key, limit.value, checked ? -1 : 0)}
                   />
-                  ∞
+                  Unlimited
                 </label>
               </dd>
             </div>
@@ -1671,10 +1671,20 @@ function ChildRow({
   const baseline: ControlState = child.decidedBy === "USER_OVERRIDE" ? child.effective : "INHERIT";
   const display: ControlState =
     staged === undefined ? baseline : staged === "CLEAR" ? "INHERIT" : staged;
+  // A plugin-owned module: the resolver marks these by key prefix, not a dedicated field
+  // (`EffectiveAccessChild` has none — confirmed against `adminEffectiveAccess.ts`; the server's
+  // own `assertNotPluginManaged` guard, added in task-11-report.md's I1 fix, recognizes the same
+  // `plugin_` prefix and would 400 `PLUGIN_MANAGED_MODULE` if this were staged and committed
+  // anyway). Disabled proactively here so that 400 is the rare fallback (e.g. a plugin installed
+  // mid-session), not the normal path — the commit dialog's error toast still surfaces it cleanly
+  // if it happens.
+  const isPluginManaged = child.key.startsWith("plugin_");
   // §3.4: a capability with no enforcement site is disabled by default; the page-level switch
   // opts back in. Requirement 9: the control never even renders without USER_MANAGE.
   const controlDisabled =
-    !canEditAccess || (child.enforcementState !== "ENFORCED" && !showNonEnforcing);
+    !canEditAccess ||
+    isPluginManaged ||
+    (child.enforcementState !== "ENFORCED" && !showNonEnforcing);
 
   return (
     <div
@@ -1701,6 +1711,19 @@ function ChildRow({
         <EffectivePill effective={child.effective} decidedBy={child.decidedBy} />
       </button>
       <StagedMark staged={staged} />
+      {isPluginManaged && canEditAccess && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" className="shrink-0 text-[9px] text-muted-foreground">
+              Plugin-managed
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            Owned by a plugin — change it from that plugin's grants screen instead (PUT
+            /admin/plugins/:key/grants/workspace), not from here.
+          </TooltipContent>
+        </Tooltip>
+      )}
       {canEditAccess && (
         <ThreeStateControl value={display} disabled={controlDisabled} onChange={onStage} />
       )}

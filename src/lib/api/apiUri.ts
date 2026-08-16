@@ -307,6 +307,36 @@ export const apiUri = {
        */
       effectiveAccess: (userId: string, workspaceId: string) =>
         `${V1}/admin/users/${encodeURIComponent(userId)}/workspaces/${encodeURIComponent(workspaceId)}/effective-access`,
+      /**
+       * User-level entitlement mutations (Task 12, consumed by the Task 13 drill-down editor).
+       * All scoped `:id/workspaces/:workspaceId/...`, matching this file's existing param names.
+       */
+      moduleOverridesBulk: (userId: string, workspaceId: string) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/workspaces/${encodeURIComponent(workspaceId)}/module-overrides/bulk`,
+      permissionOverride: (userId: string, workspaceId: string) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/workspaces/${encodeURIComponent(workspaceId)}/permission-override`,
+      permissionOverrideItem: (userId: string, workspaceId: string, overrideId: string) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/workspaces/${encodeURIComponent(workspaceId)}/permission-override/${encodeURIComponent(overrideId)}`,
+      role: (userId: string, workspaceId: string) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/workspaces/${encodeURIComponent(workspaceId)}/role`,
+      policy: (userId: string, workspaceId: string) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/workspaces/${encodeURIComponent(workspaceId)}/policy`,
+      policyItem: (userId: string, workspaceId: string, assignmentId: string) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/workspaces/${encodeURIComponent(workspaceId)}/policy/${encodeURIComponent(assignmentId)}`,
+    },
+    /**
+     * Workspace-level entitlement mutations (Task 11, consumed by the Task 13 drill-down editor).
+     * Distinct from `packages.assignment` below (the pre-existing Packages-console endpoint,
+     * `PUT`/`DELETE /admin/packages/assignments/:workspaceId`) — task-11-report.md §1 documents
+     * these as a second HTTP entry point onto the SAME `assignWorkspacePackage`/
+     * `clearWorkspacePackage` service functions ("one write path, two consoles"), not a
+     * duplicated write path.
+     */
+    workspaces: {
+      package: (workspaceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/package`,
+      limits: (workspaceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/limits`,
     },
     audit: (params: Record<string, string | number | boolean | undefined> = {}) => {
       const qs = new URLSearchParams();

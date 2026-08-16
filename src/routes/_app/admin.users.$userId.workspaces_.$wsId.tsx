@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   AlertTriangle,
@@ -14,19 +14,40 @@ import {
 
 import { PlatformPermissionRoute } from "@/components/auth/guards";
 import { PageErrorBoundary } from "@/components/error-boundary";
-import { BackLink, CopyableKey, EmptyState } from "@/components/admin/form-page";
+import { BackLink, CopyableKey, EmptyState, FormActions } from "@/components/admin/form-page";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format";
+import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api/http";
+import { usePlatformCan } from "@/hooks/use-platform-authz";
+import { getRegistryTree } from "@/lib/api/registry-api";
+import { getRbacOverview } from "@/lib/api/admin-rbac-api";
 import {
   getAdminUserWorkspaces,
   getEffectiveAccess,
+  bulkSetUserModuleOverrides,
+  createUserPermissionOverride,
+  deleteUserPermissionOverride,
   type AdminUserEffectiveAccess,
+  type BulkModuleOverrideChangeInput,
+  type BulkModuleOverrideEffect,
   type EffectiveAccessChild,
   type EffectiveAccessDecidedBy,
   type EffectiveAccessLayer,
@@ -80,10 +101,32 @@ type Selection =
  *  No contract value pins this threshold, so it's a judgment call, called out per the brief. */
 const AUTO_EXPAND_CHILD_THRESHOLD = 40;
 
+/** A module/permission row's three-state control. `"INHERIT"` means "no override — clear it if
+ *  one exists"; this is intentionally NOT a boolean, per the brief: "Inherit" must be distinct
+ *  from "explicitly allow" because they resolve differently once ABAC/plugin layers are added
+ *  later, even though both currently read as an effective ALLOW in some cases. */
+type ControlState = "INHERIT" | "ALLOW" | "DENY";
+
+/** The staging map's value uses the bulk endpoint's own vocabulary (`ALLOW`/`DENY`/`CLEAR`) —
+ *  `"CLEAR"` is what actually gets sent for a row staged back to Inherit; `ControlState`'s
+ *  `"INHERIT"` never appears as a map value, only as a row's *baseline* or *display* state. */
+type StageMap = Map<string, BulkModuleOverrideEffect>;
+
+/** Thin wrapper: extracts route params and remounts `EffectiveAccessPageInner` (keyed on
+ *  `userId:wsId`) on every param change. All local UI state — filter, selection, expand/collapse,
+ *  and every Task 13 staging map/dialog — lives in the Inner component, so a fresh key is a full,
+ *  effect-free reset (hygiene requirement 10) rather than a bespoke `useEffect` watching two
+ *  params to manually clear half a dozen `useState`s. */
 function EffectiveAccessPage() {
   const { userId, wsId } = useParams({
     from: "/_app/admin/users/$userId/workspaces_/$wsId",
   });
+  return <EffectiveAccessPageInner key={`${userId}:${wsId}`} userId={userId} wsId={wsId} />;
+}
+
+function EffectiveAccessPageInner({ userId, wsId }: { userId: string; wsId: string }) {
+  const queryClient = useQueryClient();
+  const canEditAccess = usePlatformCan(USER_MANAGE);
 
   // Reuses the Workspaces tab's exact query key/fn — if that tab was visited first (the only way
   // to reach this route today), this is a cache hit, not a second round trip. The effective-access
@@ -99,11 +142,104 @@ function EffectiveAccessPage() {
     queryFn: () => getEffectiveAccess(userId, wsId),
   });
 
+  /**
+   * `key -> id` lookups the mutation endpoints need but the effective-access response never
+   * carries (`EffectiveAccessChild`/`EffectiveAccessPermission` only expose `key`, never the row's
+   * own uuid — confirmed against both the resolver source and task-11/12-report.md's verbatim
+   * request bodies, which require `childModuleId`/`permissionId`). Both catalogues already exist
+   * and are already used elsewhere in the admin console — reused here rather than inventing a
+   * third read endpoint: `getRegistryTree()` backs `/module-registry` and carries `{id, key}` per
+   * child module; `getRbacOverview()` backs `/rbac-master` and carries `{id, key}` per permission
+   * (plus the role and ABAC-policy catalogues the role/ABAC sections below also need).
+   */
+  const registryQuery = useQuery({
+    queryKey: ["admin-registry-tree"],
+    queryFn: getRegistryTree,
+    staleTime: 5 * 60 * 1000,
+    enabled: canEditAccess,
+  });
+  const rbacQuery = useQuery({
+    queryKey: ["admin-rbac-overview"],
+    queryFn: getRbacOverview,
+    staleTime: 5 * 60 * 1000,
+    enabled: canEditAccess,
+  });
+
+  const childIdByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of registryQuery.data?.modules ?? []) {
+      for (const c of m.children) map.set(c.key, c.id);
+    }
+    return map;
+  }, [registryQuery.data]);
+
+  const permissionIdByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of rbacQuery.data?.modules ?? []) {
+      for (const p of m.permissions) map.set(p.key, p.id);
+    }
+    return map;
+  }, [rbacQuery.data]);
+
   const [filterText, setFilterText] = useState("");
   const [selection, setSelection] = useState<Selection>(null);
   const [expandedParents, setExpandedParents] = useState<Set<string> | null>(null);
 
+  // ── Task 13 staging (requirement 4) ──────────────────────────────────────────────────────────
+  // Local maps of key -> the diff vs the resolver's committed state. Never mutated by anything
+  // that issues a network call — only `CommitDialog`'s confirm handler does that, and only once,
+  // for the whole batch. Both keyed by the row's `key` (not its uuid) so `ChildRow`/permission-row
+  // rendering never needs the id lookups above; ids are resolved once, at commit time.
+  const [stagedModules, setStagedModules] = useState<StageMap>(new Map());
+  const [stagedPermissions, setStagedPermissions] = useState<StageMap>(new Map());
+  // Off by default (requirement 3) — a page-level switch, not per-row, per the brief's wording.
+  const [showNonEnforcing, setShowNonEnforcing] = useState(false);
+  const [commitDialogOpen, setCommitDialogOpen] = useState(false);
+
   const data = accessQuery.data;
+
+  const moduleBaseline = (child: EffectiveAccessChild): ControlState =>
+    child.decidedBy === "USER_OVERRIDE" ? child.effective : "INHERIT";
+  const permissionBaseline = (perm: EffectiveAccessPermission): ControlState =>
+    perm.decidedBy === "USER_OVERRIDE" ? perm.effective : "INHERIT";
+
+  /** Stages (or un-stages, if the new value matches the baseline — no real diff) one row's
+   *  control. Shared by both module and permission rows; which map to write is the only thing
+   *  that differs, so it's passed in rather than duplicating this function per map. */
+  const stage = (
+    setMap: Dispatch<SetStateAction<StageMap>>,
+    key: string,
+    baseline: ControlState,
+    next: ControlState,
+  ) => {
+    setMap((prev) => {
+      const copy = new Map(prev);
+      if (next === baseline) copy.delete(key);
+      else copy.set(key, next === "INHERIT" ? "CLEAR" : next);
+      return copy;
+    });
+  };
+
+  const discardStaged = () => {
+    setStagedModules(new Map());
+    setStagedPermissions(new Map());
+  };
+
+  const totalStaged = stagedModules.size + stagedPermissions.size;
+
+  /** Every staged module row that is not currently `ENFORCED` — the §3.4 confirm-dialog warning
+   *  fires whenever this is non-empty. Can only be non-empty if `showNonEnforcing` was on when
+   *  the row was staged (its control is otherwise disabled) — no extra gate needed here. */
+  const stagedNonEnforcedChildren = useMemo(() => {
+    if (!data || stagedModules.size === 0) return [];
+    const byKey = new Map(data.parents.flatMap((p) => p.children).map((c) => [c.key, c]));
+    const out: EffectiveAccessChild[] = [];
+    for (const key of stagedModules.keys()) {
+      const child = byKey.get(key);
+      if (child && child.enforcementState !== "ENFORCED") out.push(child);
+    }
+    return out;
+  }, [data, stagedModules]);
 
   // Seed the expand/collapse set once the tree is known — a second `useState(() => ...)` can't
   // see the query result, so this seeds lazily on first successful load rather than in an effect
@@ -223,6 +359,19 @@ function EffectiveAccessPage() {
                     onChange={(e) => setFilterText(e.target.value)}
                   />
                 </div>
+                {canEditAccess && (
+                  <label className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-dashed p-2.5 text-xs">
+                    <span className="min-w-0">
+                      <span className="block font-medium">Show non-enforcing capabilities</span>
+                      <span className="block text-muted-foreground">
+                        Off by default — most modules have no live enforcement site yet (spec §3.4).
+                        Turning this on lets you stage changes to them anyway; saving records intent
+                        only.
+                      </span>
+                    </span>
+                    <Switch checked={showNonEnforcing} onCheckedChange={setShowNonEnforcing} />
+                  </label>
+                )}
               </div>
 
               {filteredParents.length === 0 ? (
@@ -242,6 +391,12 @@ function EffectiveAccessPage() {
                       onSelectChild={(childKey) =>
                         setSelection({ kind: "child", parentKey: parent.key, childKey })
                       }
+                      canEditAccess={canEditAccess}
+                      showNonEnforcing={showNonEnforcing}
+                      stagedModules={stagedModules}
+                      onStageChild={(child, next) =>
+                        stage(setStagedModules, child.key, moduleBaseline(child), next)
+                      }
                     />
                   ))}
                 </div>
@@ -252,6 +407,11 @@ function EffectiveAccessPage() {
                   permissions={data.permissions}
                   selection={selection}
                   onSelect={(key) => setSelection({ kind: "permission", key })}
+                  canEditAccess={canEditAccess}
+                  stagedPermissions={stagedPermissions}
+                  onStagePermission={(perm, next) =>
+                    stage(setStagedPermissions, perm.key, permissionBaseline(perm), next)
+                  }
                 />
               </div>
             </div>
@@ -264,6 +424,52 @@ function EffectiveAccessPage() {
               />
             </div>
           </div>
+
+          {totalStaged > 0 && (
+            <FormActions hint={`${totalStaged} staged change${totalStaged === 1 ? "" : "s"}`}>
+              <Button type="button" variant="outline" onClick={discardStaged}>
+                Discard
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setCommitDialogOpen(true)}
+                className="bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
+              >
+                Review & save
+              </Button>
+            </FormActions>
+          )}
+
+          <CommitDialog
+            open={commitDialogOpen}
+            onOpenChange={setCommitDialogOpen}
+            data={data}
+            userId={userId}
+            wsId={wsId}
+            stagedModules={stagedModules}
+            stagedPermissions={stagedPermissions}
+            stagedNonEnforcedChildren={stagedNonEnforcedChildren}
+            childIdByKey={childIdByKey}
+            permissionIdByKey={permissionIdByKey}
+            onSettled={(committedModuleKeys, committedPermissionKeys) => {
+              setStagedModules((prev) => {
+                const next = new Map(prev);
+                for (const k of committedModuleKeys) next.delete(k);
+                return next;
+              });
+              setStagedPermissions((prev) => {
+                const next = new Map(prev);
+                for (const k of committedPermissionKeys) next.delete(k);
+                return next;
+              });
+              void queryClient.invalidateQueries({
+                queryKey: ["admin-user", userId, "effective-access", wsId],
+              });
+              void queryClient.invalidateQueries({
+                queryKey: ["admin-user", userId, "workspaces"],
+              });
+            }}
+          />
         </>
       )}
     </div>
@@ -546,6 +752,49 @@ function EnforcementBadge({ state }: { state: ModuleEnforcementState }) {
   );
 }
 
+/** The Inherit/Allow/Deny segmented control (requirement 2). Deliberately NOT a two-state toggle:
+ *  Radix's `ToggleGroup type="single"` normally lets clicking the active item deselect it (empty
+ *  string) — guarded out below so this always reads as a 3-way radio, never a clearable toggle.
+ *  Changing it only ever updates local staging state; it never issues a network call itself. */
+function ThreeStateControl({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: ControlState;
+  disabled: boolean;
+  onChange: (next: ControlState) => void;
+}) {
+  return (
+    <ToggleGroup
+      type="single"
+      size="sm"
+      value={value}
+      disabled={disabled}
+      onValueChange={(v) => {
+        if (v) onChange(v as ControlState);
+      }}
+      className="shrink-0 justify-start gap-0.5"
+    >
+      <ToggleGroupItem value="INHERIT" className="h-6 px-2 text-[10px]">
+        Inherit
+      </ToggleGroupItem>
+      <ToggleGroupItem
+        value="ALLOW"
+        className="h-6 px-2 text-[10px] data-[state=on]:bg-success/20 data-[state=on]:text-success"
+      >
+        Allow
+      </ToggleGroupItem>
+      <ToggleGroupItem
+        value="DENY"
+        className="h-6 px-2 text-[10px] data-[state=on]:bg-destructive/20 data-[state=on]:text-destructive"
+      >
+        Deny
+      </ToggleGroupItem>
+    </ToggleGroup>
+  );
+}
+
 function ParentRow({
   parent,
   expanded,
@@ -553,6 +802,10 @@ function ParentRow({
   onToggle,
   selection,
   onSelectChild,
+  canEditAccess,
+  showNonEnforcing,
+  stagedModules,
+  onStageChild,
 }: {
   parent: AdminUserEffectiveAccess["parents"][number];
   expanded: boolean;
@@ -566,6 +819,10 @@ function ParentRow({
   onToggle: () => void;
   selection: Selection;
   onSelectChild: (childKey: string) => void;
+  canEditAccess: boolean;
+  showNonEnforcing: boolean;
+  stagedModules: StageMap;
+  onStageChild: (child: EffectiveAccessChild, next: ControlState) => void;
 }) {
   const allowedCount = parent.children.filter((c) => c.effective === "ALLOW").length;
   return (
@@ -603,6 +860,10 @@ function ParentRow({
               selection.childKey === child.key
             }
             onSelect={() => onSelectChild(child.key)}
+            canEditAccess={canEditAccess}
+            showNonEnforcing={showNonEnforcing}
+            staged={stagedModules.get(child.key)}
+            onStage={(next) => onStageChild(child, next)}
           />
         ))}
       </CollapsibleContent>
@@ -610,32 +871,75 @@ function ParentRow({
   );
 }
 
+/** Staged rows get a ring plus a small "→ target" badge — the visual mark requirement 4 asks for.
+ *  Shared between module and permission rows since both stage the same three values. */
+function StagedMark({ staged }: { staged: BulkModuleOverrideEffect | undefined }) {
+  if (!staged) return null;
+  const label = staged === "CLEAR" ? "Inherit" : staged === "ALLOW" ? "Allow" : "Deny";
+  return (
+    <Badge
+      variant="outline"
+      className="shrink-0 border-primary/40 bg-primary/10 text-[9px] text-primary"
+    >
+      → {label}
+    </Badge>
+  );
+}
+
 function ChildRow({
   child,
   selected,
   onSelect,
+  canEditAccess,
+  showNonEnforcing,
+  staged,
+  onStage,
 }: {
   child: EffectiveAccessChild;
   selected: boolean;
   onSelect: () => void;
+  canEditAccess: boolean;
+  showNonEnforcing: boolean;
+  staged: BulkModuleOverrideEffect | undefined;
+  onStage: (next: ControlState) => void;
 }) {
+  const baseline: ControlState = child.decidedBy === "USER_OVERRIDE" ? child.effective : "INHERIT";
+  const display: ControlState =
+    staged === undefined ? baseline : staged === "CLEAR" ? "INHERIT" : staged;
+  // §3.4: a capability with no enforcement site is disabled by default; the page-level switch
+  // opts back in. Requirement 9: the control never even renders without USER_MANAGE.
+  const controlDisabled =
+    !canEditAccess || (child.enforcementState !== "ENFORCED" && !showNonEnforcing);
+
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
+    <div
       className={cn(
-        "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors",
-        selected ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-muted/50",
+        "flex w-full flex-wrap items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors",
+        selected
+          ? "bg-primary/10 ring-1 ring-primary/30"
+          : staged
+            ? "bg-muted/40"
+            : "hover:bg-muted/50",
       )}
     >
-      <span className="min-w-0 flex-1">
-        <span className="block truncate">{child.name}</span>
-        <code className="text-[10px] text-muted-foreground">{child.key}</code>
-      </span>
-      <EnforcementBadge state={child.enforcementState} />
-      <EffectivePill effective={child.effective} decidedBy={child.decidedBy} />
-    </button>
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate">{child.name}</span>
+          <code className="text-[10px] text-muted-foreground">{child.key}</code>
+        </span>
+        <EnforcementBadge state={child.enforcementState} />
+        <EffectivePill effective={child.effective} decidedBy={child.decidedBy} />
+      </button>
+      <StagedMark staged={staged} />
+      {canEditAccess && (
+        <ThreeStateControl value={display} disabled={controlDisabled} onChange={onStage} />
+      )}
+    </div>
   );
 }
 
@@ -643,10 +947,16 @@ function PermissionsSection({
   permissions,
   selection,
   onSelect,
+  canEditAccess,
+  stagedPermissions,
+  onStagePermission,
 }: {
   permissions: EffectiveAccessPermission[];
   selection: Selection;
   onSelect: (key: string) => void;
+  canEditAccess: boolean;
+  stagedPermissions: StageMap;
+  onStagePermission: (perm: EffectiveAccessPermission, next: ControlState) => void;
 }) {
   const groups = useMemo(() => {
     const byModule = new Map<string, EffectiveAccessPermission[]>();
@@ -675,29 +985,52 @@ function PermissionsSection({
                 {humanizeKey(moduleKey)}
               </p>
               <div className="space-y-0.5">
-                {perms.map((perm) => (
-                  <button
-                    key={perm.key}
-                    type="button"
-                    onClick={() => onSelect(perm.key)}
-                    aria-pressed={selection?.kind === "permission" && selection.key === perm.key}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors",
-                      selection?.kind === "permission" && selection.key === perm.key
-                        ? "bg-primary/10 ring-1 ring-primary/30"
-                        : "hover:bg-muted/50",
-                    )}
-                  >
-                    <KeyRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1">
-                      <code className="text-xs">{perm.key}</code>
-                    </span>
-                    <Badge variant="outline" className="shrink-0 text-[10px] capitalize">
-                      {perm.action}
-                    </Badge>
-                    <EffectivePill effective={perm.effective} decidedBy={perm.decidedBy} />
-                  </button>
-                ))}
+                {perms.map((perm) => {
+                  const rowSelected =
+                    selection?.kind === "permission" && selection.key === perm.key;
+                  const staged = stagedPermissions.get(perm.key);
+                  const baseline: ControlState =
+                    perm.decidedBy === "USER_OVERRIDE" ? perm.effective : "INHERIT";
+                  const display: ControlState =
+                    staged === undefined ? baseline : staged === "CLEAR" ? "INHERIT" : staged;
+                  return (
+                    <div
+                      key={perm.key}
+                      className={cn(
+                        "flex w-full flex-wrap items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors",
+                        rowSelected
+                          ? "bg-primary/10 ring-1 ring-primary/30"
+                          : staged
+                            ? "bg-muted/40"
+                            : "hover:bg-muted/50",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onSelect(perm.key)}
+                        aria-pressed={rowSelected}
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                      >
+                        <KeyRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1">
+                          <code className="text-xs">{perm.key}</code>
+                        </span>
+                        <Badge variant="outline" className="shrink-0 text-[10px] capitalize">
+                          {perm.action}
+                        </Badge>
+                        <EffectivePill effective={perm.effective} decidedBy={perm.decidedBy} />
+                      </button>
+                      <StagedMark staged={staged} />
+                      {canEditAccess && (
+                        <ThreeStateControl
+                          value={display}
+                          disabled={!canEditAccess}
+                          onChange={(next) => onStagePermission(perm, next)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -835,5 +1168,315 @@ function TraceLayerRow({
         </dl>
       )}
     </div>
+  );
+}
+
+type DiffRow = { key: string; label: string; baseline: ControlState; next: ControlState };
+
+function diffRows(
+  map: StageMap,
+  lookup: (key: string) => { name: string; baseline: ControlState } | undefined,
+): DiffRow[] {
+  return [...map.entries()].map(([key, effect]) => {
+    const found = lookup(key);
+    return {
+      key,
+      label: found?.name ?? key,
+      baseline: found?.baseline ?? "INHERIT",
+      next: effect === "CLEAR" ? "INHERIT" : effect,
+    };
+  });
+}
+
+const CONTROL_LABEL: Record<ControlState, string> = {
+  INHERIT: "Inherit",
+  ALLOW: "Allow",
+  DENY: "Deny",
+};
+
+/**
+ * The bulk commit flow (requirement 5) — ONE dialog covering both staging maps, even though only
+ * modules have a real bulk endpoint. Modules commit via one `bulkSetUserModuleOverrides` call
+ * (one server transaction, one audit row — task-12-report.md §3); permissions have no bulk
+ * endpoint (confirmed in that same report's Step-0 audit), so they commit as sequential individual
+ * POST/DELETE calls, batched here with per-item success/failure tracked so a partial failure is
+ * reported precisely rather than papered over (requirement 8's explicit fallback).
+ *
+ * Never auto-saves — this is the only place in the whole page that issues a write.
+ */
+function CommitDialog({
+  open,
+  onOpenChange,
+  data,
+  userId,
+  wsId,
+  stagedModules,
+  stagedPermissions,
+  stagedNonEnforcedChildren,
+  childIdByKey,
+  permissionIdByKey,
+  onSettled,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  data: AdminUserEffectiveAccess;
+  userId: string;
+  wsId: string;
+  stagedModules: StageMap;
+  stagedPermissions: StageMap;
+  stagedNonEnforcedChildren: EffectiveAccessChild[];
+  childIdByKey: Map<string, string>;
+  permissionIdByKey: Map<string, string>;
+  onSettled: (committedModuleKeys: string[], committedPermissionKeys: string[]) => void;
+}) {
+  const [reason, setReason] = useState("");
+
+  const moduleRows = useMemo(() => {
+    const byKey = new Map(
+      data.parents
+        .flatMap((p) => p.children)
+        .map((c) => [
+          c.key,
+          {
+            name: c.name,
+            baseline: (c.decidedBy === "USER_OVERRIDE" ? c.effective : "INHERIT") as ControlState,
+          },
+        ]),
+    );
+    return diffRows(stagedModules, (key) => byKey.get(key));
+  }, [data, stagedModules]);
+
+  const permissionRows = useMemo(() => {
+    const byKey = new Map(
+      data.permissions.map((p) => [
+        p.key,
+        {
+          name: p.key,
+          baseline: (p.decidedBy === "USER_OVERRIDE" ? p.effective : "INHERIT") as ControlState,
+        },
+      ]),
+    );
+    return diffRows(stagedPermissions, (key) => byKey.get(key));
+  }, [data, stagedPermissions]);
+
+  const allRows = [...moduleRows, ...permissionRows];
+  const allowedCount = allRows.filter((r) => r.next === "ALLOW").length;
+  const deniedCount = allRows.filter((r) => r.next === "DENY").length;
+  const clearedCount = allRows.filter(
+    (r) => r.next === "INHERIT" && r.baseline !== "INHERIT",
+  ).length;
+
+  const reasonValid = reason.trim().length >= 1 && reason.trim().length <= 1000;
+
+  const commitMutation = useMutation({
+    mutationFn: async () => {
+      const trimmedReason = reason.trim();
+
+      const moduleChanges: BulkModuleOverrideChangeInput[] = [];
+      const moduleKeysInBatch: string[] = [];
+      for (const [key, effect] of stagedModules) {
+        const childModuleId = childIdByKey.get(key);
+        // Missing id means the registry catalogue hasn't resolved this key (stale cache / race) —
+        // skip it rather than send an invalid request; it stays staged for the next attempt.
+        if (!childModuleId) continue;
+        moduleChanges.push({ childModuleId, effect });
+        moduleKeysInBatch.push(key);
+      }
+
+      let committedModuleKeys: string[] = [];
+      if (moduleChanges.length > 0) {
+        // One transaction, one audit row (task-12-report.md §3) — if this resolves, every item in
+        // the batch landed; if it throws, none did, and nothing here is marked committed.
+        await bulkSetUserModuleOverrides(userId, wsId, {
+          changes: moduleChanges,
+          reason: trimmedReason,
+        });
+        committedModuleKeys = moduleKeysInBatch;
+      }
+
+      const committedPermissionKeys: string[] = [];
+      const permissionFailures: { key: string; message: string }[] = [];
+      for (const [key, effect] of stagedPermissions) {
+        try {
+          if (effect === "CLEAR") {
+            const perm = data.permissions.find((p) => p.key === key);
+            const overrideId = perm?.trace.find(
+              (t) => t.layer === "USER_OVERRIDE" && t.sourceId,
+            )?.sourceId;
+            if (!overrideId) throw new Error("No existing override found to clear.");
+            await deleteUserPermissionOverride(userId, wsId, overrideId);
+          } else {
+            const permissionId = permissionIdByKey.get(key);
+            if (!permissionId) throw new Error("Unknown permission — try refreshing the page.");
+            await createUserPermissionOverride(userId, wsId, {
+              permissionId,
+              effect,
+              reason: trimmedReason,
+            });
+          }
+          committedPermissionKeys.push(key);
+        } catch (err) {
+          permissionFailures.push({
+            key,
+            message:
+              err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Failed",
+          });
+        }
+      }
+
+      return { committedModuleKeys, committedPermissionKeys, permissionFailures };
+    },
+    onSuccess: ({ committedModuleKeys, committedPermissionKeys, permissionFailures }) => {
+      onSettled(committedModuleKeys, committedPermissionKeys);
+
+      if (permissionFailures.length > 0) {
+        const savedParts: string[] = [];
+        if (committedModuleKeys.length > 0) {
+          savedParts.push(
+            `${committedModuleKeys.length} module change${committedModuleKeys.length === 1 ? "" : "s"}`,
+          );
+        }
+        if (committedPermissionKeys.length > 0) {
+          savedParts.push(
+            `${committedPermissionKeys.length} permission change${committedPermissionKeys.length === 1 ? "" : "s"}`,
+          );
+        }
+        toast.warning(
+          `Saved ${savedParts.length > 0 ? savedParts.join(" and ") : "nothing"}; ${permissionFailures.length} permission change${permissionFailures.length === 1 ? "" : "s"} failed and stayed staged.`,
+          { description: permissionFailures.map((f) => `${f.key}: ${f.message}`).join("; ") },
+        );
+        // Left open — some changes are still staged and need the operator's attention.
+        return;
+      }
+
+      // §3.4: never claim enforcement for a capability with no enforcement site. This toast is the
+      // one that fires for a batch containing such a change — it says intent was recorded, nothing
+      // stronger.
+      if (stagedNonEnforcedChildren.length > 0) {
+        toast.success(
+          "Intent recorded. Some of these capabilities have no enforcement site — access is not actually restricted until enforcement is wired.",
+        );
+      } else {
+        toast.success("Access changes saved.");
+      }
+      setReason("");
+      onOpenChange(false);
+    },
+    onError: (err) => {
+      const requestId = err instanceof ApiError ? err.requestId : undefined;
+      toast.error(err instanceof Error ? err.message : "Failed to save access changes.", {
+        description: requestId ? `Request ID: ${requestId}` : undefined,
+      });
+      // Staging stays intact — nothing here was cleared, and the dialog stays open so the operator
+      // can retry without re-doing the diff.
+    },
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setReason("");
+        onOpenChange(next);
+      }}
+    >
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            Review {allRows.length} staged change{allRows.length === 1 ? "" : "s"}
+          </DialogTitle>
+          <DialogDescription>
+            {deniedCount} capabilit{deniedCount === 1 ? "y" : "ies"} will be denied, {allowedCount}{" "}
+            allowed, {clearedCount} override{clearedCount === 1 ? "" : "s"} cleared.
+          </DialogDescription>
+        </DialogHeader>
+
+        {stagedNonEnforcedChildren.length > 0 && (
+          <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs text-warning">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-medium">
+                This capability has no enforcement site. Saving records your intent but will not
+                restrict the user until enforcement is wired.
+              </p>
+              <p className="mt-1 text-warning/90">
+                Applies to: {stagedNonEnforcedChildren.map((c) => c.name).join(", ")}
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="max-h-56 space-y-3 overflow-y-auto rounded-lg border p-3">
+          {moduleRows.length > 0 && (
+            <div>
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Modules
+              </p>
+              <ul className="space-y-1 text-xs">
+                {moduleRows.map((row) => (
+                  <li key={row.key} className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate">{row.label}</span>
+                    <span className="shrink-0 text-muted-foreground">
+                      {CONTROL_LABEL[row.baseline]} →{" "}
+                      <span className="font-medium text-foreground">{CONTROL_LABEL[row.next]}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {permissionRows.length > 0 && (
+            <div>
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Permissions
+              </p>
+              <ul className="space-y-1 text-xs">
+                {permissionRows.map((row) => (
+                  <li key={row.key} className="flex items-center justify-between gap-2">
+                    <code className="min-w-0 truncate">{row.label}</code>
+                    <span className="shrink-0 text-muted-foreground">
+                      {CONTROL_LABEL[row.baseline]} →{" "}
+                      <span className="font-medium text-foreground">{CONTROL_LABEL[row.next]}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium" htmlFor="commit-reason">
+            Reason <span className="text-destructive">*</span>
+          </label>
+          <Textarea
+            id="commit-reason"
+            value={reason}
+            maxLength={1000}
+            placeholder="Why is this change being made? Recorded in the audit log."
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={commitMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={!reasonValid || commitMutation.isPending}
+            onClick={() => commitMutation.mutate()}
+            className="bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
+          >
+            {commitMutation.isPending ? "Saving…" : "Confirm & save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

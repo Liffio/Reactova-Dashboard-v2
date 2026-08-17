@@ -23,12 +23,20 @@ import { cn } from "@/lib/utils";
 import { useAuthState } from "@/lib/auth/auth-store";
 import {
   clearImpersonationToken,
+  consumeImpersonationHandoff,
   getImpersonationClaims,
-  IMPERSONATION_TOKEN_STORAGE_KEY,
   type ImpersonationClaims,
 } from "@/lib/api/impersonation";
 import { endImpersonation } from "@/lib/api/impersonation-api";
 import { useImpersonationEndedListener } from "@/hooks/use-impersonation-ended";
+
+/**
+ * Where the operator lands once this tab falls back to the admin's own (untouched) session —
+ * i.e. after exit/expiry clears the imp token. Bare `/admin` is not a route in this app (no index
+ * route there); `/admin/users` is an extant one and the natural landing page for "I was just
+ * looking at a specific user's account."
+ */
+const ADMIN_LANDING_PATH = "/admin/users";
 
 /**
  * Fixed bar height, and the name of the CSS variable `_app.tsx`'s sticky TopBar offsets by (and
@@ -56,13 +64,26 @@ function formatRemaining(ms: number): string {
  * cleanup runs exactly once, on the render where the session ends (isid goes from a string to
  * null) OR the component unmounts — the two conditions spec §0.4 calls out by name.
  *
- * State starts `null` rather than lazily reading localStorage in `useState`'s initializer, and the
+ * State starts `null` rather than lazily reading storage in `useState`'s initializer, and the
  * real read happens in an effect instead. This app is SSR'd (TanStack Start): the server always
  * renders signed-out/no-session (no `window`), so the client's FIRST render must also produce
  * `null` to hydrate cleanly — effects run only after that first render commits, client-side only —
  * the same SSR-safety shape `auth-store.ts`/`guards.tsx`'s mount-gate use for anything read from
- * localStorage. Reload-safety (spec §5) still holds: this effect fires on every mount, including a
- * full page reload of the impersonated tab, so the real claims appear one paint after hydration.
+ * storage. Reload-safety (spec §5) still holds: `sessionStorage` survives a reload of the SAME tab
+ * (only clearing when the tab/window closes — a bonus: that doubles as a natural, if informal,
+ * exit), and this effect fires on every mount including a full reload, so the real claims appear
+ * one paint after hydration.
+ *
+ * `consumeImpersonationHandoff()` runs first, every mount: it's a no-op unless the URL fragment
+ * Task 18 hands the token off through (`#liffio_imp=<token>`) is actually present, so it's safe to
+ * call unconditionally rather than needing its own separate "is this the handoff navigation" gate.
+ *
+ * NOTE (R20): there is deliberately no cross-tab `storage`-event listener here. `sessionStorage` is
+ * scoped per tab — a write in one tab never fires a `storage` event in another, because there is no
+ * "another" sharing that storage object to fire it in. Nothing in this design relies on cross-tab
+ * imp-token sync; each tab's session is self-contained. `IMPERSONATION_ENDED_EVENT` (same-tab, from
+ * `http.ts`'s 401 handling) is the mechanism that matters for "the session died out from under
+ * this tab," and it's unaffected by the storage-backend change (see `onImpersonationEnded` below).
  */
 function useLiveImpersonationClaims(): ImpersonationClaims | null {
   const [claims, setClaims] = useState<ImpersonationClaims | null>(null);
@@ -71,6 +92,7 @@ function useLiveImpersonationClaims(): ImpersonationClaims | null {
   useEffect(() => {
     // The one-time "first client paint after hydration" read; the [sessionKey] effect below
     // takes over ticking once a session is found.
+    consumeImpersonationHandoff();
     setClaims(getImpersonationClaims());
   }, []);
 
@@ -82,39 +104,28 @@ function useLiveImpersonationClaims(): ImpersonationClaims | null {
     return () => window.clearInterval(id);
   }, [sessionKey]);
 
-  // Cross-tab: the admin console (Task 18) writes a rotated token on escalation, or the imp token
-  // is cleared by a force-revoke/exit driven from the OTHER tab. The native `storage` event only
-  // fires in tabs that did NOT make the write, which is exactly this one — pick it up immediately
-  // instead of waiting up to a second for the next tick.
-  useEffect(() => {
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === null || event.key === IMPERSONATION_TOKEN_STORAGE_KEY) {
-        setClaims(getImpersonationClaims());
-      }
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
   return claims;
 }
 
 /**
- * Common end-of-session recovery: clear the token, toast, and hard-reload to `/admin`.
+ * Common end-of-session recovery: clear the token, toast, and hard-reload to an extant admin
+ * route.
  *
  * A full reload (`window.location.href`), not a router navigation, is deliberate: this tab's
  * entire in-memory state — auth store, React Query cache, app-context's workspace list — was
  * populated AS THE TARGET via the imp token (that's the whole point of the token-resolution
- * change in http.ts). There is no admin session to fall back to IN THIS TAB/WINDOW — the
- * operator's real session lives in the OTHER tab (task-16-report §5's two-tab model) — so the only
- * correct recovery is to blow away this tab's client state entirely and let `/admin` re-bootstrap
- * from scratch. Its own guard sends this browser to `/login` if it has no admin session either
- * (e.g. a shared machine, or the admin signed out in the other tab too).
+ * change in http.ts). Once `clearImpersonationToken()` removes THIS tab's `sessionStorage` entry,
+ * `http.ts`'s token-resolution point falls through to the admin's own session token — still sitting
+ * untouched in this same tab's `localStorage` the whole time (the two-tab model, task-16-report
+ * §5) — so a full reload is what re-bootstraps this tab AS THE ADMIN rather than leaving stale,
+ * target-scoped React state around. `ADMIN_LANDING_PATH` (`/admin/users`), not bare `/admin` (not
+ * a route — R20 fix), is where that reload lands; its own guard sends this browser to `/login`
+ * instead if it turns out to have no admin session either (e.g. a shared machine).
  */
 function endImpersonationAndRedirect(message: string): void {
   clearImpersonationToken();
   toast.info(message);
-  window.location.href = "/admin";
+  window.location.href = ADMIN_LANDING_PATH;
 }
 
 function EscalateHintDialog({
@@ -215,7 +226,7 @@ export function ImpersonationBanner() {
       hasEndedRef.current = true;
       clearImpersonationToken();
       toast.success("Exited impersonation");
-      window.location.href = "/admin";
+      window.location.href = ADMIN_LANDING_PATH;
     }
   };
 

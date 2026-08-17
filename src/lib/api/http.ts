@@ -247,12 +247,22 @@ function resolveWorkspaceHeader(
  * `config.token === null` forces an unauthenticated request (unchanged). Otherwise, an explicit
  * `config.token` always wins — a caller that passed one asked for that exact token, not whatever
  * is ambient. Absent that, the impersonation token (Phase 6, spec §5.1) is preferred over the
- * admin's own session token: both live in this same browser's localStorage under separate keys
- * (`liffio_imp_token` vs `liffio_access_token`, see `impersonation.ts`), because the impersonated
- * tab and the admin's own tab are the same origin. Preferring the impersonation token here — the
- * single token-resolution point every request funnels through — is what makes every existing call
- * site (auth/me, workspace list, every feature API) authenticate as the target user with zero
- * per-call changes, instead of needing every one of them to thread an override through by hand.
+ * admin's own session token.
+ *
+ * This function runs on EVERY call to `apiRequest`/`apiUploadRequest`, in every tab that has this
+ * module loaded — including the admin's own console tab. That's exactly why `impersonation.ts`
+ * stores the imp token in `sessionStorage` (per-tab) rather than `localStorage` (shared by every
+ * tab of the origin, R20 fix): if it were `localStorage`, the admin's OWN tab would start
+ * preferring it too the instant Task 18 minted one in the SAME browser, silently flipping that
+ * tab's identity to the target (`/admin` calls would 403 `IMPERSONATION_FORBIDDEN`, `auth/me`
+ * would return the customer). With `sessionStorage`, `getImpersonationToken()` only ever returns
+ * non-null in the one tab that actually holds an impersonation session — the admin's console tab
+ * falls straight through to `authStore.getState().accessToken`, untouched, exactly like before
+ * this feature existed. Preferring the impersonation token here — the single token-resolution
+ * point every request funnels through — is what makes every existing call site in the
+ * IMPERSONATED tab (auth/me, workspace list, every feature API) authenticate as the target user
+ * with zero per-call changes, instead of needing every one of them to thread an override through
+ * by hand.
  */
 function resolveRequestToken(configToken: string | null | undefined): string | null {
   if (configToken === null) return null;
@@ -347,11 +357,15 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
       // otherwise) — the admin's OWN session in this browser is fine, so this must never route
       // through SESSION_EXPIRED_EVENT / force a logout.
       const freshImpToken = getImpersonationToken();
-      // IMPERSONATION_SUPERSEDED specifically can mean "escalation already replaced this token in
-      // localStorage" (task-16-report §5.2), not "the session is over" — if a DIFFERENT, still-valid
-      // token is already sitting in storage, this failure is just this request racing the token
-      // swap in the admin tab. Leave it be; the next call picks up the fresh token naturally
-      // (getImpersonationToken() always reads storage live) instead of tearing down the banner.
+      // IMPERSONATION_SUPERSEDED specifically can mean "a newer token already replaced this one in
+      // THIS tab's sessionStorage" (task-16-report §5.2's escalation-rotation case), not "the
+      // session is over" — if a DIFFERENT, still-valid token is already sitting in storage, this
+      // failure is just this request racing that swap. Leave it be; the next call picks up the
+      // fresh token naturally (getImpersonationToken() always reads storage live) instead of
+      // tearing down the banner. Note (R20): sessionStorage is per-tab, so the swap this guards
+      // against can only be a SAME-tab write (e.g. a future same-tab escalation-pickup flow) — it
+      // is not, and must not be, a mechanism for picking up a token written by another tab; there
+      // is no cross-tab imp-token sync in this design (see impersonation.ts's top comment).
       const supersededByFreshToken =
         code === "IMPERSONATION_SUPERSEDED" && freshImpToken !== null && freshImpToken !== token;
       if (!supersededByFreshToken) {

@@ -55,10 +55,24 @@ function formatRemaining(ms: number): string {
  * every tick. Keying on `isid` means the interval is created exactly once per session and its
  * cleanup runs exactly once, on the render where the session ends (isid goes from a string to
  * null) OR the component unmounts — the two conditions spec §0.4 calls out by name.
+ *
+ * State starts `null` rather than lazily reading localStorage in `useState`'s initializer, and the
+ * real read happens in an effect instead. This app is SSR'd (TanStack Start): the server always
+ * renders signed-out/no-session (no `window`), so the client's FIRST render must also produce
+ * `null` to hydrate cleanly — effects run only after that first render commits, client-side only —
+ * the same SSR-safety shape `auth-store.ts`/`guards.tsx`'s mount-gate use for anything read from
+ * localStorage. Reload-safety (spec §5) still holds: this effect fires on every mount, including a
+ * full page reload of the impersonated tab, so the real claims appear one paint after hydration.
  */
 function useLiveImpersonationClaims(): ImpersonationClaims | null {
-  const [claims, setClaims] = useState<ImpersonationClaims | null>(() => getImpersonationClaims());
+  const [claims, setClaims] = useState<ImpersonationClaims | null>(null);
   const sessionKey = claims?.isid ?? null;
+
+  useEffect(() => {
+    // The one-time "first client paint after hydration" read; the [sessionKey] effect below
+    // takes over ticking once a session is found.
+    setClaims(getImpersonationClaims());
+  }, []);
 
   useEffect(() => {
     if (!sessionKey) return;

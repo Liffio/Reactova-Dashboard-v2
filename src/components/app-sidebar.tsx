@@ -30,6 +30,7 @@ import {
   Coins,
   Plug,
   UserCog,
+  Eye,
 } from "lucide-react";
 
 import {
@@ -182,6 +183,12 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
         url: "/access-management",
         icon: KeyRound,
         platformPermission: "platform:user_manage",
+      },
+      {
+        title: "Impersonation",
+        url: "/admin/impersonation",
+        icon: Eye,
+        platformPermission: "platform:impersonate",
       },
       { title: "RBAC master", url: "/rbac-master", icon: ShieldCheck },
       { title: "Email templates", url: "/admin/email-templates", icon: Mail },

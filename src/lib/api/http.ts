@@ -4,8 +4,9 @@
  * never hardcode an endpoint or fetch a third-party host directly.
  */
 import { authStore } from "@/lib/auth/auth-store";
-import { SESSION_EXPIRED_EVENT } from "@/lib/session-events";
+import { IMPERSONATION_ENDED_EVENT, SESSION_EXPIRED_EVENT } from "@/lib/session-events";
 import { getActiveWorkspaceId } from "./active-workspace";
+import { clearImpersonationToken, getImpersonationToken } from "./impersonation";
 
 export const API_BASE: string =
   import.meta.env.VITE_API_URL ||
@@ -222,6 +223,13 @@ export type ApiRequestConfig = {
  *
  * Explicit wins; otherwise the active workspace. Anonymous public reads send nothing — those
  * endpoints are workspace-agnostic and a stray header on them is noise at best.
+ *
+ * Unchanged for impersonation (Task 19): the impersonation token's `ws` claim is DISPLAY ONLY
+ * (task-16-report §2) — the server is the one that enforces session-to-workspace scope
+ * (`impersonationWriteGuard`'s I3 check, task-17-report §3). This header should keep coming from
+ * whatever workspace is active on screen, exactly like every other request, so switching
+ * workspaces inside an impersonated tab behaves the same as it does for the target user; forcing
+ * it from the claim here would just duplicate a check the server already makes authoritatively.
  */
 function resolveWorkspaceHeader(
   config: { workspaceId?: string | null },
@@ -233,6 +241,36 @@ function resolveWorkspaceHeader(
   return id ? { "x-workspace-id": id } : {};
 }
 
+/**
+ * Which bearer token this request authenticates with.
+ *
+ * `config.token === null` forces an unauthenticated request (unchanged). Otherwise, an explicit
+ * `config.token` always wins — a caller that passed one asked for that exact token, not whatever
+ * is ambient. Absent that, the impersonation token (Phase 6, spec §5.1) is preferred over the
+ * admin's own session token: both live in this same browser's localStorage under separate keys
+ * (`liffio_imp_token` vs `liffio_access_token`, see `impersonation.ts`), because the impersonated
+ * tab and the admin's own tab are the same origin. Preferring the impersonation token here — the
+ * single token-resolution point every request funnels through — is what makes every existing call
+ * site (auth/me, workspace list, every feature API) authenticate as the target user with zero
+ * per-call changes, instead of needing every one of them to thread an override through by hand.
+ */
+function resolveRequestToken(configToken: string | null | undefined): string | null {
+  if (configToken === null) return null;
+  if (configToken !== undefined) return configToken;
+  return getImpersonationToken() ?? authStore.getState().accessToken;
+}
+
+/** requireAuth's impersonation branch (task-16-report §4): every one of these 401 codes means the
+ *  session behind this token is dead — ended, expired, escalated out from under it (superseded),
+ *  or structurally invalid. They can only ever come back for a request made with the impersonation
+ *  token, never the admin's own session token. */
+const IMPERSONATION_DEAD_CODES = new Set([
+  "IMPERSONATION_TOKEN_INVALID",
+  "IMPERSONATION_ENDED",
+  "IMPERSONATION_EXPIRED",
+  "IMPERSONATION_SUPERSEDED",
+]);
+
 export type ApiUploadConfig = {
   /** Same semantics as `ApiRequestConfig.workspaceId` — omit to use the active workspace. */
   workspaceId?: string | null;
@@ -240,7 +278,7 @@ export type ApiUploadConfig = {
 };
 
 export async function apiRequest<T>(path: string, config: ApiRequestConfig = {}): Promise<T> {
-  const token = config.token === null ? null : (config.token ?? authStore.getState().accessToken);
+  const token = resolveRequestToken(config.token);
   const method = config.method ?? "GET";
   const isPublicGet =
     method === "GET" &&
@@ -303,6 +341,26 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
     }
     const payload = await res.json().catch(() => ({}));
     const code = (payload as { code?: string })?.code;
+
+    if (res.status === 401 && code && IMPERSONATION_DEAD_CODES.has(code)) {
+      // This request authenticated with the impersonation token (these codes are impossible
+      // otherwise) — the admin's OWN session in this browser is fine, so this must never route
+      // through SESSION_EXPIRED_EVENT / force a logout.
+      const freshImpToken = getImpersonationToken();
+      // IMPERSONATION_SUPERSEDED specifically can mean "escalation already replaced this token in
+      // localStorage" (task-16-report §5.2), not "the session is over" — if a DIFFERENT, still-valid
+      // token is already sitting in storage, this failure is just this request racing the token
+      // swap in the admin tab. Leave it be; the next call picks up the fresh token naturally
+      // (getImpersonationToken() always reads storage live) instead of tearing down the banner.
+      const supersededByFreshToken =
+        code === "IMPERSONATION_SUPERSEDED" && freshImpToken !== null && freshImpToken !== token;
+      if (!supersededByFreshToken) {
+        clearImpersonationToken();
+        window.dispatchEvent(new Event(IMPERSONATION_ENDED_EVENT));
+      }
+      throw new ApiError(formatApiErrorBody(payload), code, res.status, payload, getRequestId(res));
+    }
+
     // Any "you're not properly authenticated" code — not just an expired token —
     // needs the same silent-refresh-then-logout recovery. Otherwise a stale/invalid
     // token (e.g. after a JWT secret rotation, or corrupted localStorage) leaves
@@ -328,7 +386,7 @@ export async function apiUploadRequest<T>(
   formData: FormData,
   config: ApiUploadConfig = {},
 ): Promise<T> {
-  const token = config.token ?? authStore.getState().accessToken;
+  const token = resolveRequestToken(config.token);
 
   let res: Response;
   try {

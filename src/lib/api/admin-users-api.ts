@@ -262,6 +262,29 @@ export function getAdminUserAiGenerations(
   );
 }
 
+/**
+ * Related users (Task 22, consumed by the Task 23 "Related" tab) — a fraud/abuse-review lead,
+ * NOT an identity claim. `reasons` carries both values when a user matches on both signals.
+ */
+export type RelatedUserMatchReason = "DEVICE_FINGERPRINT" | "SHARED_IP";
+
+export type AdminRelatedUser = {
+  userId: string;
+  email: string;
+  name: string | null;
+  reasons: RelatedUserMatchReason[];
+  matchedDeviceFingerprint: string | null;
+  matchedIps: string[];
+};
+
+export type AdminRelatedUsersResponse = {
+  items: AdminRelatedUser[];
+};
+
+export function getAdminUserRelated(userId: string) {
+  return apiRequest<AdminRelatedUsersResponse>(apiUri.admin.users.related(userId));
+}
+
 /* -------------------------------------------------------------------------
  * Effective access drill-down (Task 10) — `GET /admin/users/:userId/workspaces/:workspaceId/
  * effective-access`. Typed exactly to the "Response contract" in

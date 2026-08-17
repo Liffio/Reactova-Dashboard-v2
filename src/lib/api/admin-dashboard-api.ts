@@ -102,6 +102,34 @@ export function getAdminDashboardOverview(params: AdminDashboardWindowParams) {
 }
 
 /**
+ * §7.5 control-plane tiles (Task 22, consumed by Task 23's `PlatformMetricsPanel` extension) —
+ * current-state counts with no natural time window, so a sibling read alongside `overview()`
+ * rather than folded into it. Never cached server-side (`generatedAt` is this response's own
+ * timestamp, not a cache marker).
+ */
+export type AdminWorkspaceStatus =
+  | "ACTIVE"
+  | "PAUSED"
+  | "SUSPENDED"
+  | "PAYMENT_FAILED"
+  | "INSTAGRAM_DISCONNECTED";
+
+export type AdminDashboardTiles = {
+  capabilityCoverage: { enforced: number; declared: number; unmapped: number; total: number };
+  activeImpersonationSessions: number;
+  entitlementDrift: number;
+  workspacesByStatus: Array<{ status: AdminWorkspaceStatus; count: number }>;
+  failedDmJobsLast24h: number;
+  igAccountsWithFailures: number;
+  unprocessedBillingEventErrors: number;
+  generatedAt: string;
+};
+
+export function getAdminDashboardTiles() {
+  return apiRequest<AdminDashboardTiles>(apiUri.admin.dashboard.tiles);
+}
+
+/**
  * StatCard's `delta` is a fraction (it renders ×100). Undefined when there is no previous-period
  * baseline — a delta against zero reads as +∞ and the pill is better omitted.
  */

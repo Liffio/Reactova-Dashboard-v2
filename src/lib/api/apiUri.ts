@@ -277,6 +277,20 @@ export const apiUri = {
     dashboard: {
       overview: (params: { range?: string; start?: string; end?: string }) =>
         `${V1}/admin/dashboard/overview${listQs(params)}`,
+      /** §7.5 control-plane tiles (Task 22) — sibling read on the same router, current-state
+       *  counts with no time window, never cached. Gated `platform:metrics_read`. */
+      tiles: `${V1}/admin/dashboard/tiles`,
+    },
+    /** Capability coverage report (Task 22 item 5, spec §3 item 5) — reuses `moduleRegistry`'s
+     *  tree, additively carrying each child's `enforcementState`. Gated `platform:metrics_read`,
+     *  distinct from the `platform:module_manage`-gated registry CRUD console. */
+    capabilities: `${V1}/admin/capabilities`,
+    /** Saved views on the admin Users list (spec §4.3, Task 22). `filters` is validated
+     *  server-side against the exact schema `GET /admin/users`'s query string parses against.
+     *  Gated `platform:user_manage`. */
+    savedViews: {
+      list: `${V1}/admin/saved-views`,
+      item: (id: string) => `${V1}/admin/saved-views/${encodeURIComponent(id)}`,
     },
     /**
      * User-management control plane (Phase 2). Keyset-paginated list — query params match the
@@ -369,6 +383,9 @@ export const apiUri = {
        *  its own route-level middleware registered above the file's `USER_MANAGE` gate. */
       aiGenerations: (userId: string, params: { cursor?: string; limit?: number } = {}) =>
         `${V1}/admin/users/${encodeURIComponent(userId)}/ai-generations${listQs(params)}`,
+      /** `GET /admin/users/:userId/related` (Task 22) — device-fingerprint/shared-IP clustering,
+       *  a fraud/abuse-review lead, not an identity claim. Gated `platform:user_manage`. */
+      related: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/related`,
     },
     /**
      * Impersonation control plane (Task 18, server contract task-16-report.md §3.1–3.5).
@@ -432,6 +449,25 @@ export const apiUri = {
         `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/subscription/cancel-at-period-end`,
       subscriptionSync: (workspaceId: string) =>
         `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/subscription/sync`,
+      /**
+       * Support-ops read/write surfaces (Task 22, spec §6.9) — gated `platform:workspace_manage`.
+       * Instagram account health, DM job history, and pending-invite management for one workspace,
+       * consumed by the workspace drill-down's light support-ops section (Task 23).
+       */
+      instagram: (workspaceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/instagram`,
+      instagramRefresh: (workspaceId: string, accountId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/instagram/${encodeURIComponent(accountId)}/refresh`,
+      dmJobs: (
+        workspaceId: string,
+        params: { status?: string; cursor?: string; limit?: number } = {},
+      ) => `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/dm-jobs${listQs(params)}`,
+      invites: (workspaceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/invites`,
+      inviteResend: (workspaceId: string, inviteId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/invites/${encodeURIComponent(inviteId)}/resend`,
+      inviteItem: (workspaceId: string, inviteId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/invites/${encodeURIComponent(inviteId)}`,
     },
     audit: (params: Record<string, string | number | boolean | undefined> = {}) => {
       const qs = new URLSearchParams();

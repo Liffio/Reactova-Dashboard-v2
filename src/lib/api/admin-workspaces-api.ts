@@ -187,10 +187,7 @@ export type AdminApiCredential = {
   status: AdminApiCredentialStatus;
 };
 
-export function listWorkspaceApiCredentials(
-  workspaceId: string,
-  opts?: { signal?: AbortSignal },
-) {
+export function listWorkspaceApiCredentials(workspaceId: string, opts?: { signal?: AbortSignal }) {
   return apiRequest<{ ok: true; credentials: AdminApiCredential[] }>(
     apiUri.admin.workspaces.apiCredentials(workspaceId),
     { signal: opts?.signal },
@@ -239,9 +236,10 @@ export function getWorkspaceApiUsage(
   days?: number,
   opts?: { signal?: AbortSignal },
 ) {
-  return apiRequest<AdminWorkspaceApiUsage>(apiUri.admin.workspaces.apiUsage(workspaceId, { days }), {
-    signal: opts?.signal,
-  });
+  return apiRequest<AdminWorkspaceApiUsage>(
+    apiUri.admin.workspaces.apiUsage(workspaceId, { days }),
+    { signal: opts?.signal },
+  );
 }
 
 /** §6.8–§6.9 billing — gated `platform:billing_manage` for both reads and writes
@@ -291,10 +289,13 @@ export function listWorkspaceInvoicesAdmin(
   params: { limit?: number; offset?: number } = {},
   opts?: { signal?: AbortSignal },
 ) {
-  return apiRequest<{ ok: true; invoices: BillingInvoiceRow[]; total: number; limit: number; offset: number }>(
-    apiUri.admin.workspaces.invoices(workspaceId, params),
-    { signal: opts?.signal },
-  );
+  return apiRequest<{
+    ok: true;
+    invoices: BillingInvoiceRow[];
+    total: number;
+    limit: number;
+    offset: number;
+  }>(apiUri.admin.workspaces.invoices(workspaceId, params), { signal: opts?.signal });
 }
 
 /** `POST /admin/workspaces/:wsId/subscription/comp` — local-only upsert, `until` is an ISO date,
@@ -329,4 +330,126 @@ export function syncWorkspaceSubscriptionAdmin(workspaceId: string) {
     apiUri.admin.workspaces.subscriptionSync(workspaceId),
     { method: "POST", body: {} },
   );
+}
+
+/* -------------------------------------------------------------------------
+ * Support ops (Task 22, spec §6.9, consumed by Task 23's light workspace-drill-down section) —
+ * Instagram account health, DM job history, pending-invite management. Gated
+ * `platform:workspace_manage` throughout, a different permission from every mutation above this
+ * point in the file (`platform:package_manage`/`platform:ai_tokens_manage`/
+ * `platform:billing_manage`), so callers self-gate independently — never assume the page's own
+ * `USER_MANAGE` grant covers these.
+ * ---------------------------------------------------------------------- */
+
+/** `GET /admin/workspaces/:wsId/instagram` — `health` is `null` when no `ig_account_health` row
+ *  exists for this account's `ig_user_id` yet (never fabricated). Never carries an access token. */
+export type AdminIgAccountHealth = {
+  trustLevel: number;
+  consecutiveFailures: number;
+  totalDmsSent: number;
+  totalDmsFailed: number;
+  rateLimitEvents: number;
+  tokenRefreshFailures: number;
+  lastDowngradeAt: string | null;
+  lastPromotionAt: string | null;
+  trustEvaluatedAt: string | null;
+};
+
+export type AdminIgAccount = {
+  id: string;
+  platformUserId: string;
+  platformUsername: string;
+  isActive: boolean;
+  followerCount: number | null;
+  tokenExpiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  health: AdminIgAccountHealth | null;
+};
+
+export function listWorkspaceInstagramAccounts(
+  workspaceId: string,
+  opts?: { signal?: AbortSignal },
+) {
+  return apiRequest<{ ok: true; accounts: AdminIgAccount[] }>(
+    apiUri.admin.workspaces.instagram(workspaceId),
+    { signal: opts?.signal },
+  );
+}
+
+/** `POST /admin/workspaces/:wsId/instagram/:id/refresh` — SYNCHRONOUS, always 200 (never 202); a
+ *  direct server→Meta call, the same one `sendDm.ts`'s job makes reactively on a dead token. */
+export function refreshWorkspaceInstagramToken(workspaceId: string, accountId: string) {
+  return apiRequest<{ ok: true; id: string; tokenExpiresAt: string | null }>(
+    apiUri.admin.workspaces.instagramRefresh(workspaceId, accountId),
+    { method: "POST", body: {} },
+  );
+}
+
+export type AdminDmJobStatus = "QUEUED" | "SENT" | "FAILED" | "RETRYING";
+
+export type AdminDmJob = {
+  id: string;
+  automationId: string;
+  recipientIgId: string;
+  sourceMediaId: string | null;
+  status: AdminDmJobStatus;
+  sentAt: string | null;
+  error: string | null;
+  retryCount: number;
+  createdAt: string;
+};
+
+export function listWorkspaceDmJobs(
+  workspaceId: string,
+  params: { status?: AdminDmJobStatus; cursor?: string; limit?: number } = {},
+  opts?: { signal?: AbortSignal },
+) {
+  return apiRequest<{ ok: true; items: AdminDmJob[]; nextCursor: string | null }>(
+    apiUri.admin.workspaces.dmJobs(workspaceId, params),
+    { signal: opts?.signal },
+  );
+}
+
+export type AdminWorkspaceInviteStatus = "PENDING" | "EXPIRED";
+
+export type AdminWorkspaceInvite = {
+  id: string;
+  email: string;
+  status: AdminWorkspaceInviteStatus;
+  roleId: string;
+  inviterUserId: string;
+  resendCount: number;
+  expiresAt: string;
+  lastSentAt: string | null;
+  createdAt: string;
+};
+
+export function listWorkspaceInvitesAdmin(workspaceId: string, opts?: { signal?: AbortSignal }) {
+  return apiRequest<{ ok: true; invites: AdminWorkspaceInvite[] }>(
+    apiUri.admin.workspaces.invites(workspaceId),
+    { signal: opts?.signal },
+  );
+}
+
+/** Rate-limited by `inviteResendLimiter` (shared with `team.ts`'s tenant-facing resend — see
+ *  task-22-report.md §7's concern about the shared "no-ws" bucket across workspaces on this
+ *  admin path). */
+export function resendWorkspaceInviteAdmin(workspaceId: string, inviteId: string) {
+  return apiRequest<{
+    ok: true;
+    id: string;
+    resendCount: number;
+    expiresAt: string;
+    emailSent: boolean;
+    emailProvider: string | null;
+  }>(apiUri.admin.workspaces.inviteResend(workspaceId, inviteId), { method: "POST", body: {} });
+}
+
+/** `DELETE /admin/workspaces/:wsId/invites/:id` — revoke, sets `status=REVOKED`; never a hard
+ *  delete. */
+export function revokeWorkspaceInviteAdmin(workspaceId: string, inviteId: string) {
+  return apiRequest<{ ok: true }>(apiUri.admin.workspaces.inviteItem(workspaceId, inviteId), {
+    method: "DELETE",
+  });
 }

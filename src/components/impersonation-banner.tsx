@@ -9,25 +9,33 @@
  * own top nav, which §5.7 explicitly calls out as the failure mode to avoid.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { AlertTriangle, LogOut, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
-import { useAuthState } from "@/lib/auth/auth-store";
+import { TOKEN_STORAGE_KEY, useAuthState } from "@/lib/auth/auth-store";
+import { ApiError } from "@/lib/api/http";
 import {
   clearImpersonationToken,
   consumeImpersonationHandoff,
   getImpersonationClaims,
+  setImpersonationToken,
   type ImpersonationClaims,
 } from "@/lib/api/impersonation";
 import { endImpersonation } from "@/lib/api/impersonation-api";
+import { escalateImpersonation } from "@/lib/api/admin-impersonation-api";
 import { useImpersonationEndedListener } from "@/hooks/use-impersonation-ended";
 
 /**
@@ -85,26 +93,36 @@ function formatRemaining(ms: number): string {
  * `http.ts`'s 401 handling) is the mechanism that matters for "the session died out from under
  * this tab," and it's unaffected by the storage-backend change (see `onImpersonationEnded` below).
  */
-function useLiveImpersonationClaims(): ImpersonationClaims | null {
+function useLiveImpersonationClaims(): {
+  claims: ImpersonationClaims | null;
+  /** R22: an on-demand re-read, called right after `EscalateDialog` writes a freshly rotated
+   *  token into THIS tab's `sessionStorage` (via `setImpersonationToken`) — without this, the
+   *  banner would still flip to WRITE within a second via the ticker below, but a manual refresh
+   *  makes the mode badge/countdown update in the same paint as the dialog closing, not a beat
+   *  later. */
+  refresh: () => void;
+} {
   const [claims, setClaims] = useState<ImpersonationClaims | null>(null);
   const sessionKey = claims?.isid ?? null;
+
+  const refresh = useCallback(() => {
+    setClaims(getImpersonationClaims());
+  }, []);
 
   useEffect(() => {
     // The one-time "first client paint after hydration" read; the [sessionKey] effect below
     // takes over ticking once a session is found.
     consumeImpersonationHandoff();
-    setClaims(getImpersonationClaims());
-  }, []);
+    refresh();
+  }, [refresh]);
 
   useEffect(() => {
     if (!sessionKey) return;
-    const id = window.setInterval(() => {
-      setClaims(getImpersonationClaims());
-    }, 1000);
+    const id = window.setInterval(refresh, 1000);
     return () => window.clearInterval(id);
-  }, [sessionKey]);
+  }, [sessionKey, refresh]);
 
-  return claims;
+  return { claims, refresh };
 }
 
 /**
@@ -128,31 +146,179 @@ function endImpersonationAndRedirect(message: string): void {
   window.location.href = ADMIN_LANDING_PATH;
 }
 
-function EscalateHintDialog({
+/**
+ * Reads the ADMIN's own access token directly out of shared `localStorage` (R22). Both tabs are
+ * the same browser/origin, so this key is visible here even though it was written by the OTHER
+ * (admin console) tab — that's precisely how the admin's tab authenticated when it minted this
+ * impersonation session in the first place, and Task 19/R20 never touched it: only the
+ * impersonation token moved to per-tab `sessionStorage`, this one stayed exactly where it always
+ * was. Returns `null` under SSR or when genuinely absent (e.g. the admin signed in from a
+ * different browser and only ever shared the `#liffio_imp=` link — a real, if narrow, edge case).
+ */
+function getAdminSessionToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
+/**
+ * The REAL escalate-to-write flow (R22 — replaces the old `EscalateHintDialog`, which only told
+ * the operator to go do this somewhere else). Runs entirely IN this, the impersonated, tab:
+ *
+ * 1. Reads the admin's own token straight out of shared `localStorage` (`getAdminSessionToken`).
+ * 2. Calls `escalateImpersonation(sessionId, body, { token: adminToken })` — the explicit
+ *    `opts.token` override makes `http.ts`'s `resolveRequestToken` use THAT token for this one
+ *    call instead of the ambient impersonation token every other request in this tab prefers.
+ *    Server-side this is indistinguishable from a normal admin-console request: no `typ:
+ *    "impersonation"` claim on it, so `requireAuth` authenticates as the admin,
+ *    `requirePlatformAdmin` passes, and `IMPERSONATE_WRITE` + `requireTotpConfirm` verify the
+ *    ADMIN's own MFA — exactly §8.5's step-up, running against the right person.
+ * 3. On success, writes the rotated token into THIS SAME tab's `sessionStorage` via
+ *    `setImpersonationToken` and calls `onEscalated()` (the claims hook's `refresh`) — no new
+ *    tab, no teardown: this tab now simply holds the current, live, WRITE-mode token, so there is
+ *    no stale token left anywhere to come back `401 IMPERSONATION_SUPERSEDED` on the next request.
+ */
+function EscalateDialog({
+  sessionId,
   open,
   onOpenChange,
+  onEscalated,
 }: {
+  sessionId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onEscalated: () => void;
 }) {
+  const [reason, setReason] = useState("");
+  const [code, setCode] = useState("");
+  const [notEnrolled, setNotEnrolled] = useState(false);
+  const adminToken = open ? getAdminSessionToken() : null;
+
+  const reset = () => {
+    setReason("");
+    setCode("");
+    setNotEnrolled(false);
+  };
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      if (!adminToken) {
+        throw new Error(
+          "Escalation requires your admin session in this browser; escalate is unavailable here.",
+        );
+      }
+      return escalateImpersonation(
+        sessionId,
+        { reason: reason.trim(), confirmCode: code },
+        { token: adminToken },
+      );
+    },
+    onSuccess: (res) => {
+      setImpersonationToken(res.token);
+      onEscalated();
+      onOpenChange(false);
+      reset();
+      toast.success("Escalated to WRITE.");
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === "TOTP_REQUIRED") {
+        setNotEnrolled(true);
+        return;
+      }
+      if (err instanceof ApiError && err.code === "TOTP_INVALID") {
+        setCode("");
+        toast.error("Invalid code — try again.");
+        return;
+      }
+      if (
+        err instanceof ApiError &&
+        (err.code === "SESSION_NOT_LIVE" ||
+          err.code === "SESSION_ALREADY_WRITE" ||
+          err.code === "SESSION_NOT_FOUND")
+      ) {
+        onOpenChange(false);
+        reset();
+        toast.info(
+          err.code === "SESSION_ALREADY_WRITE"
+            ? "This session is already WRITE — it'll pick up the change on the next request."
+            : "This session is no longer live.",
+        );
+        return;
+      }
+      toast.error(err instanceof Error ? err.message : "Failed to escalate.");
+    },
+  });
+
+  const trimmedReasonLength = reason.trim().length;
+  const reasonValid = trimmedReasonLength >= 10 && trimmedReasonLength <= 1000;
+  const codeValid = code.length === 6;
+
+  const handleClose = () => {
+    if (mutation.isPending) return;
+    onOpenChange(false);
+    reset();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+    <Dialog open={open} onOpenChange={(next) => !next && handleClose()}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4" />
-            Escalate from your admin tab
+            Escalate to write
           </DialogTitle>
+          <DialogDescription>
+            Confirm with your own authenticator code to let this session perform write actions.
+          </DialogDescription>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Escalating to WRITE requires your own TOTP code and can only be authorized from your admin
-          console session — not from inside the customer&apos;s own session, which is all this tab
-          is. Switch back to the admin tab you started this impersonation from and use
-          &quot;Escalate to write&quot; there. This tab will pick up WRITE access automatically on
-          its next request once you do.
-        </p>
+
+        {!adminToken ? (
+          <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
+            Escalation requires your admin session in this browser; escalate is unavailable here.
+          </div>
+        ) : notEnrolled ? (
+          <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
+            Your admin account has no authenticator app enrolled. Set one up under Settings →
+            Security, then retry.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-1.5 text-left">
+              <Label htmlFor="banner-escalate-reason">
+                Reason <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="banner-escalate-reason"
+                value={reason}
+                maxLength={1000}
+                placeholder="Why does this session need write access?"
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2 text-left">
+              <Label>Your authenticator code</Label>
+              <InputOTP maxLength={6} value={code} onChange={(v) => setCode(v.replace(/\D/g, ""))}>
+                <InputOTPGroup>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <InputOTPSlot key={i} index={i} />
+                  ))}
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+          </div>
+        )}
+
         <DialogFooter>
-          <Button onClick={() => onOpenChange(false)}>Got it</Button>
+          <Button variant="outline" onClick={handleClose} disabled={mutation.isPending}>
+            Cancel
+          </Button>
+          {adminToken && !notEnrolled && (
+            <Button
+              disabled={!reasonValid || !codeValid || mutation.isPending}
+              onClick={() => mutation.mutate()}
+            >
+              {mutation.isPending ? "Escalating…" : "Escalate"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -160,9 +326,9 @@ function EscalateHintDialog({
 }
 
 export function ImpersonationBanner() {
-  const claims = useLiveImpersonationClaims();
+  const { claims, refresh: refreshClaims } = useLiveImpersonationClaims();
   const user = useAuthState((s) => s.user);
-  const [escalateHintOpen, setEscalateHintOpen] = useState(false);
+  const [escalateOpen, setEscalateOpen] = useState(false);
   const [exiting, setExiting] = useState(false);
   const hasEndedRef = useRef(false);
   const prevSessionKeyRef = useRef<string | null>(null);
@@ -256,7 +422,7 @@ export function ImpersonationBanner() {
               size="sm"
               variant="outline"
               className="h-7 border-current bg-transparent text-inherit hover:bg-black/10"
-              onClick={() => setEscalateHintOpen(true)}
+              onClick={() => setEscalateOpen(true)}
             >
               Escalate to write
             </Button>
@@ -274,7 +440,12 @@ export function ImpersonationBanner() {
           </Button>
         </div>
       </div>
-      <EscalateHintDialog open={escalateHintOpen} onOpenChange={setEscalateHintOpen} />
+      <EscalateDialog
+        sessionId={claims.isid}
+        open={escalateOpen}
+        onOpenChange={setEscalateOpen}
+        onEscalated={refreshClaims}
+      />
     </>
   );
 }

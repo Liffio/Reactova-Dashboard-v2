@@ -53,7 +53,14 @@ export type AuthState = {
   mfaOnboardingConsentAt: string | null;
 };
 
-const TOKEN_STORAGE_KEY = "liffio_access_token";
+/**
+ * Exported (R22) so `impersonation-banner.tsx` can read the admin's own session token directly
+ * out of `localStorage` from inside the IMPERSONATED tab — both tabs share the same origin's
+ * `localStorage`, which is exactly how the admin tab's session survived unmodified through Task
+ * 19/R20 (only `liffio_imp_token` moved to per-tab `sessionStorage`; this key was never touched).
+ * A single exported source of truth here means the two files can't drift on the literal string.
+ */
+export const TOKEN_STORAGE_KEY = "liffio_access_token";
 const TOKEN_EXPIRES_STORAGE_KEY = "liffio_access_token_expires_at";
 
 const isBrowser = typeof window !== "undefined";

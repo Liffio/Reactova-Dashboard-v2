@@ -54,10 +54,17 @@ export function startImpersonation(body: StartImpersonationBody) {
 }
 
 /* -------------------------------------------------------------------------
- * `POST /admin/impersonate/:sid/escalate` — task-16-report §3.2. ADMIN-tab-only: the target's
- * own TOTP would be demanded under an impersonation token, which is never what step-up means
- * here (task-16-report §5(2)) — so this can only ever be called from the admin console, against
- * a live session THIS admin started (404 `SESSION_NOT_FOUND` otherwise, no owner override).
+ * `POST /admin/impersonate/:sid/escalate` — task-16-report §3.2. Requires the ADMIN's own
+ * session + their own TOTP (task-16-report §5(2)) — under an impersonation token this is an
+ * `/admin` route (§8.1 refuses it) AND the step-up would demand the TARGET's TOTP, not the
+ * admin's. **R22**: this is called from `impersonation-banner.tsx`, IN the impersonated tab,
+ * passing the admin's own token (read straight out of shared `localStorage` — see
+ * `auth-store.ts`'s exported `TOKEN_STORAGE_KEY`) as an explicit `opts.token` override, so
+ * `http.ts`'s `resolveRequestToken` uses it instead of the ambient impersonation token for this
+ * one call. `requireAuth` then authenticates as the admin (no `typ: "impersonation"` claim on
+ * this request), `requirePlatformAdmin`/`IMPERSONATE_WRITE`/`requireTotpConfirm` all evaluate
+ * against the ADMIN, exactly as if this were a normal admin-console request — the fact that it
+ * physically originated from the impersonated tab's DOM is invisible to the server.
  * ---------------------------------------------------------------------- */
 
 export type EscalateImpersonationBody = {
@@ -70,9 +77,9 @@ export type EscalateImpersonationBody = {
 export type EscalateImpersonationResult = {
   ok: true;
   /** A NEW token — the previous one is dead the instant this returns (jti rotation,
-   *  `IMPERSONATION_SUPERSEDED` on the old one). This is why escalating can only rotate a token
-   *  that lives in the ALREADY-OPEN impersonated tab's own `sessionStorage`, never something this
-   *  (the admin) tab holds — see the live-sessions page's escalate flow. */
+   *  `IMPERSONATION_SUPERSEDED` on the old one). R22: the caller (the banner) writes this
+   *  straight into THIS SAME tab's own `sessionStorage` via `setImpersonationToken` — there is no
+   *  other tab in this flow, so there's nothing to hand off and nothing left to go stale. */
   token: string;
   /** Same absolute instant as the original session's `expiresAt` — escalating buys no extra time. */
   expiresAt: string;
@@ -83,11 +90,21 @@ export type EscalateImpersonationResult = {
  * Error codes (task-16-report §3.2): 400 `INVALID_SESSION_ID`, 400 `REASON_TOO_SHORT`,
  * 400 `TOTP_CODE_REQUIRED`, 403 `TOTP_REQUIRED` (operator not enrolled), 403 `TOTP_INVALID`,
  * 404 `SESSION_NOT_FOUND`, 409 `SESSION_NOT_LIVE`, 409 `SESSION_ALREADY_WRITE`.
+ *
+ * `opts.token` (R22): pass the ADMIN's own access token explicitly — required when calling this
+ * from the impersonated tab (where the ambient/default token `apiRequest` would otherwise pick is
+ * the impersonation token, which is exactly wrong for this endpoint). Omit only when calling from
+ * a genuine admin-console context that has no impersonation token in scope at all.
  */
-export function escalateImpersonation(sessionId: string, body: EscalateImpersonationBody) {
+export function escalateImpersonation(
+  sessionId: string,
+  body: EscalateImpersonationBody,
+  opts?: { token?: string },
+) {
   return apiRequest<EscalateImpersonationResult>(apiUri.admin.impersonate.escalate(sessionId), {
     method: "POST",
     body,
+    token: opts?.token,
   });
 }
 

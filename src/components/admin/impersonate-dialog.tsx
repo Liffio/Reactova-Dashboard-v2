@@ -43,6 +43,12 @@ import { startImpersonation } from "@/lib/api/admin-impersonation-api";
  * structural requirement: reusing the same tab for both roles cannot work under the sessionStorage
  * design, because `resolveRequestToken()` in http.ts prefers whatever imp token sits in THIS tab's
  * own `sessionStorage`, and a fragment on the CURRENT tab's URL would write one there).
+ *
+ * Popup-blocker fix: the actual `window.open` call is deferred to a real click on the success
+ * toast's own action button (`openImpersonatedTab`, below) rather than fired from inside the async
+ * `mutation.onSuccess` — a browser no longer credits that callback with the click that started the
+ * mutation by the time the network round trip resolves, so most popup blockers silently swallowed
+ * it. See `openImpersonatedTab`'s own comment for the retry-on-block handling.
  */
 
 const IMPERSONATE = "platform:impersonate";
@@ -54,6 +60,36 @@ const TICKET_REF_MAX_LENGTH = 255;
 /** Sentinel Select value for "no specific workspace" — `startImpersonation` maps this to `null`
  *  on the wire ("All workspaces"), never to an empty string. */
 const ALL_WORKSPACES_VALUE = "__all__";
+
+/**
+ * Opens the impersonated tab at `/dashboard#liffio_imp=<token>` (R20 — see the file-level doc
+ * comment) from a genuine, synchronous click on the toast's own action button, rather than from
+ * the async `mutation.onSuccess` callback that used to call `window.open` directly. That
+ * distinction matters: by the time an async callback resolves, most browsers no longer treat the
+ * call as "triggered by the user's click" and silently block the popup — which used to leave the
+ * dialog closed, the toast claiming success, and no second tab anywhere. Checking `window.open`'s
+ * return value (`null` on a block) and offering the SAME button again as a "Try again" action
+ * closes that gap instead of asserting success unconditionally.
+ */
+function openImpersonatedTab(token: string, expiresAt: string): void {
+  const open = () => {
+    const win = window.open(`/dashboard#liffio_imp=${encodeURIComponent(token)}`, "_blank");
+    if (!win) {
+      toast.error("Your browser blocked the popup.", {
+        description: "Allow popups for this site, then try again.",
+        duration: 15000,
+        action: { label: "Try again", onClick: open },
+      });
+      return;
+    }
+    toast.success("Opened the impersonated tab.");
+  };
+  toast.success("Impersonation started", {
+    description: `Ends at ${formatDateTime(expiresAt)}`,
+    duration: 15000,
+    action: { label: "Open impersonated tab", onClick: open },
+  });
+}
 
 export function ImpersonateDialog({
   targetUserId,
@@ -117,12 +153,15 @@ export function ImpersonateDialog({
         ...(bannedConfirmRequired ? { confirmBanned: true as const } : {}),
       }),
     onSuccess: (res) => {
-      // R20: open a genuinely NEW tab carrying the token in the fragment — never write storage
-      // from this tab, never navigate this tab there (see the file-level doc comment above).
-      window.open(`/dashboard#liffio_imp=${encodeURIComponent(res.token)}`, "_blank");
-      toast.success("Impersonation started — opened in a new tab", {
-        description: `Ends at ${formatDateTime(res.expiresAt)}`,
-      });
+      // Popup-blocker fix: `window.open` used to fire right here, inside the async
+      // mutation's onSuccess — after a network round trip, well past the point a browser still
+      // credits this call with the click that started it, so most popup blockers silently
+      // swallow it while the toast lied and said "opened in a new tab". Deferring the actual
+      // `window.open` to the toast action BUTTON's own onClick gives it a fresh, genuine click
+      // gesture to run on instead, which popup blockers do allow. `openImpersonatedTab` still
+      // follows R20 to the letter once it runs: a genuinely NEW tab carrying the token in the URL
+      // fragment, never a storage write or navigation from this (the admin's) tab.
+      openImpersonatedTab(res.token, res.expiresAt);
       onOpenChange(false);
     },
     onError: (err) => {

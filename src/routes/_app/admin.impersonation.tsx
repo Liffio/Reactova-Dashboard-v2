@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Ban, ShieldAlert, UserCog } from "lucide-react";
+import { AlertCircle, Ban, UserCog } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PlatformPermissionRoute } from "@/components/auth/guards";
@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import {
   Table,
   TableBody,
@@ -31,22 +30,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { formatDateTime } from "@/lib/format";
 import { ApiError } from "@/lib/api/http";
-import { useAuthState } from "@/lib/auth/auth-store";
 import { usePlatformCan } from "@/hooks/use-platform-authz";
 import {
-  escalateImpersonation,
   listActiveImpersonationSessions,
   revokeImpersonationSession,
   type ActiveImpersonationSession,
@@ -54,9 +43,17 @@ import {
 
 /**
  * Live impersonation sessions console (Task 18 requirement 4, spec §5.7/§6.10). Every currently
- * live session across the platform, refreshed on a poll, with a per-row force-revoke and — for a
- * session's OWN admin — an escalate-to-write action (the only place escalation can actually run;
- * see the file-level note on `EscalateDialog` below).
+ * live session across the platform, refreshed on a poll, with a per-row force-revoke.
+ *
+ * **R22 — escalation is NOT here.** It originally was (a per-row "Escalate" button that opened a
+ * NEW tab with the rotated token), but that shipped a real bug: the operator's actual impersonated
+ * tab never saw the new token, so it kept using the dead one and got `401
+ * IMPERSONATION_SUPERSEDED` on its next request — full-page-redirecting to "session ended" while
+ * the session was, in truth, alive and WRITE in a *third*, disconnected tab. Escalation now runs
+ * IN the impersonated tab itself, from `impersonation-banner.tsx`'s `EscalateDialog` — the token
+ * rotates in place, in the one tab that actually needs it, with no new tab and no teardown. See
+ * that file's doc comment for the full round-trip. This console keeps only what it can do without
+ * creating that class of bug: view live sessions, and force-revoke one from anywhere.
  */
 export const Route = createFileRoute("/_app/admin/impersonation")({
   head: () => ({ meta: [{ title: "Impersonation — Admin" }] }),
@@ -67,10 +64,9 @@ const IMPERSONATE = "platform:impersonate";
 const IMPERSONATE_WRITE = "platform:impersonate_write";
 const QUERY_KEY = ["admin-impersonation-active"] as const;
 
-/** Mirrors the server's `IMPERSONATION_REASON_MIN_LENGTH`/`_MAX_LENGTH`
- *  (`server/src/config/adminControlPlane.ts`), same as `impersonate-dialog.tsx`'s constants —
- *  the escalate reason goes through the same service-level validation as the start reason. */
-const REASON_MIN_LENGTH = 10;
+/** Mirrors the server's `IMPERSONATION_REASON_MAX_LENGTH`
+ *  (`server/src/config/adminControlPlane.ts`) — the revoke reason's cap, same as
+ *  `impersonate-dialog.tsx`'s constant. Revoke has no minimum (the field is optional here). */
 const REASON_MAX_LENGTH = 1000;
 
 /** React Query poller period — named constant per the brief, not a magic number at the call
@@ -146,172 +142,6 @@ function IdentityCell({ name, email }: { name: string | null; email: string }) {
       <p className="truncate text-sm font-medium">{name || "—"}</p>
       <p className="truncate text-xs text-muted-foreground">{email}</p>
     </div>
-  );
-}
-
-/** Opens the SAME `/dashboard#liffio_imp=<token>` handoff the start dialog uses (R20) — the only
- *  way to hand a freshly escalated token to the impersonated tab without writing storage from
- *  this (the admin's) tab. Task 19's `consumeImpersonationHandoff()` is idempotent and doesn't
- *  care whether the token behind the fragment is a first mint or an escalation rotation. */
-function openImpersonatedTab(token: string) {
-  window.open(`/dashboard#liffio_imp=${encodeURIComponent(token)}`, "_blank");
-}
-
-/**
- * Escalate-to-write (task-16-report §5(2)): structurally, this is the ONLY place a live session
- * can ever be escalated. It's an `/admin` route, so it 403s under an impersonation token (§8.1);
- * and the TOTP step-up verifies the CALLER's own enrollment, which under an impersonation token
- * would be the target's, not the admin's — there's no correct way to run it from the impersonated
- * tab. Task 19's banner instead shows an `EscalateHintDialog` that tells the operator to come
- * here. Consequently this dialog is only ever reachable for a session belonging to the CURRENT
- * admin (server also enforces this: 404 `SESSION_NOT_FOUND` for someone else's session) — the row
- * action that opens it is hidden entirely for other admins' rows rather than shown disabled, per
- * the "hide unauthorized actions" rule.
- */
-function EscalateDialog({
-  session,
-  open,
-  onOpenChange,
-  onEscalated,
-}: {
-  session: ActiveImpersonationSession;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onEscalated: () => void;
-}) {
-  const [reason, setReason] = useState("");
-  const [code, setCode] = useState("");
-  const [notEnrolled, setNotEnrolled] = useState(false);
-  const operatorHasTotp = useAuthState((s) => s.mfaEnabled);
-
-  const reset = () => {
-    setReason("");
-    setCode("");
-    setNotEnrolled(false);
-  };
-
-  const mutation = useMutation({
-    mutationFn: () =>
-      escalateImpersonation(session.id, { reason: reason.trim(), confirmCode: code }),
-    onSuccess: (res) => {
-      onOpenChange(false);
-      reset();
-      onEscalated();
-      toast.success(`Escalated ${session.targetEmail} to WRITE`, {
-        description: `Same expiry as before — ends at ${formatDateTime(res.expiresAt)}.`,
-        duration: 15000,
-        action: {
-          label: "Open impersonated tab",
-          onClick: () => openImpersonatedTab(res.token),
-        },
-      });
-    },
-    onError: (err) => {
-      if (err instanceof ApiError && err.code === "TOTP_REQUIRED") {
-        setNotEnrolled(true);
-        return;
-      }
-      if (err instanceof ApiError && err.code === "TOTP_INVALID") {
-        setCode("");
-        toast.error("Invalid code — try again.");
-        return;
-      }
-      if (
-        err instanceof ApiError &&
-        (err.code === "SESSION_NOT_LIVE" || err.code === "SESSION_NOT_FOUND")
-      ) {
-        onOpenChange(false);
-        reset();
-        onEscalated();
-        toast.error("That session is no longer live.");
-        return;
-      }
-      if (err instanceof ApiError && err.code === "SESSION_ALREADY_WRITE") {
-        onOpenChange(false);
-        reset();
-        onEscalated();
-        toast.info("Already escalated to WRITE.");
-        return;
-      }
-      const requestId = err instanceof ApiError ? err.requestId : undefined;
-      toast.error(err instanceof Error ? err.message : "Failed to escalate.", {
-        description: requestId ? `Request ID: ${requestId}` : undefined,
-      });
-    },
-  });
-
-  const trimmedReasonLength = reason.trim().length;
-  const reasonValid =
-    trimmedReasonLength >= REASON_MIN_LENGTH && trimmedReasonLength <= REASON_MAX_LENGTH;
-  const codeValid = code.length === 6 && !notEnrolled;
-
-  const handleClose = () => {
-    if (mutation.isPending) return;
-    onOpenChange(false);
-    reset();
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(next) => !next && handleClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4" /> Escalate to WRITE
-          </DialogTitle>
-          <DialogDescription>
-            Confirm with your own authenticator code to let {session.targetEmail}
-            &apos;s session perform write actions. The impersonated tab picks this up once you open
-            it with the new link below.
-          </DialogDescription>
-        </DialogHeader>
-
-        {notEnrolled ? (
-          <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
-            Your account has no authenticator app enrolled. Set one up under Settings → Security,
-            then retry.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-1.5 text-left">
-              <Label htmlFor="escalate-reason">
-                Reason <span className="text-destructive">*</span>
-              </Label>
-              <Textarea
-                id="escalate-reason"
-                value={reason}
-                maxLength={REASON_MAX_LENGTH}
-                placeholder="Why does this session need write access?"
-                onChange={(e) => setReason(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2 text-left">
-              <Label>Your authenticator code</Label>
-              <InputOTP maxLength={6} value={code} onChange={(v) => setCode(v.replace(/\D/g, ""))}>
-                <InputOTPGroup>
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <InputOTPSlot key={i} index={i} />
-                  ))}
-                </InputOTPGroup>
-              </InputOTP>
-            </div>
-          </div>
-        )}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={mutation.isPending}>
-            Cancel
-          </Button>
-          {!notEnrolled && (
-            <Button
-              disabled={!reasonValid || !codeValid || !operatorHasTotp || mutation.isPending}
-              onClick={() => mutation.mutate()}
-            >
-              {mutation.isPending ? "Escalating…" : "Escalate"}
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -400,20 +230,16 @@ function SessionRow({
   session,
   now,
   canWrite,
-  isOwnSession,
 }: {
   session: ActiveImpersonationSession;
   now: number;
   canWrite: boolean;
-  isOwnSession: boolean;
 }) {
-  const [escalateOpen, setEscalateOpen] = useState(false);
   const [revokeOpen, setRevokeOpen] = useState(false);
   const queryClient = useQueryClient();
   const refetchActive = () => void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
 
   const remainingMs = new Date(session.expiresAt).getTime() - now;
-  const canEscalate = canWrite && isOwnSession && session.mode === "VIEW_ONLY";
 
   return (
     <TableRow>
@@ -444,16 +270,6 @@ function SessionRow({
       <TableCell className="text-xs text-muted-foreground">{session.ticketRef ?? "—"}</TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1.5">
-          {canEscalate && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1 text-xs"
-              onClick={() => setEscalateOpen(true)}
-            >
-              <ShieldAlert className="h-3 w-3" /> Escalate
-            </Button>
-          )}
           {canWrite && (
             <Button
               size="sm"
@@ -466,14 +282,6 @@ function SessionRow({
           )}
         </div>
       </TableCell>
-      {canEscalate && (
-        <EscalateDialog
-          session={session}
-          open={escalateOpen}
-          onOpenChange={setEscalateOpen}
-          onEscalated={refetchActive}
-        />
-      )}
       {canWrite && (
         <RevokeDialog
           session={session}
@@ -487,7 +295,6 @@ function SessionRow({
 }
 
 function LiveSessionsTable() {
-  const currentUserId = useAuthState((s) => s.user?.id);
   const canWrite = usePlatformCan(IMPERSONATE_WRITE);
   // Forces a re-render every second so every row's countdown recomputes from `now` below — a
   // single shared timer, not one per row, cleared on unmount inside the hook itself.
@@ -554,13 +361,7 @@ function LiveSessionsTable() {
         </TableHeader>
         <TableBody>
           {items.map((session) => (
-            <SessionRow
-              key={session.id}
-              session={session}
-              now={now}
-              canWrite={canWrite}
-              isOwnSession={session.adminUserId === currentUserId}
-            />
+            <SessionRow key={session.id} session={session} now={now} canWrite={canWrite} />
           ))}
         </TableBody>
       </Table>

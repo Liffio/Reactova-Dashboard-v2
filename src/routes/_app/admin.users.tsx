@@ -11,6 +11,7 @@ import {
   MoreHorizontal,
   Search,
   SlidersHorizontal,
+  UserCog,
   UserX,
   X,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { PlatformPermissionRoute } from "@/components/auth/guards";
 import { PageErrorBoundary } from "@/components/error-boundary";
 import { EmptyState } from "@/components/admin/form-page";
+import { ImpersonateDialog } from "@/components/admin/impersonate-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useDebounced } from "@/hooks/use-debounced";
+import { usePlatformCan } from "@/hooks/use-platform-authz";
 import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api/http";
 import {
@@ -51,6 +54,10 @@ import {
 } from "@/lib/api/admin-users-api";
 
 const USER_MANAGE = "platform:user_manage";
+/** Separate axis from `USER_MANAGE` — Task 18. Gates the `i`-shortcut and the kebab's
+ *  "Impersonate" item specifically, so a `user_manage`-only operator doesn't get an affordance
+ *  they'd 403 on. */
+const IMPERSONATE = "platform:impersonate";
 const QUERY_KEY = "admin-users";
 const PAGE_SIZE = 50;
 /** Fetch the next page once the sentinel — the scroll position — is this close to the bottom. */
@@ -327,14 +334,18 @@ function UserRow({
   row,
   selected,
   dimmed,
+  canImpersonate,
   onOpen,
   onSelect,
+  onImpersonate,
 }: {
   row: AdminUserListItem;
   selected: boolean;
   dimmed: boolean;
+  canImpersonate: boolean;
   onOpen: () => void;
   onSelect: () => void;
+  onImpersonate: () => void;
 }) {
   return (
     <TableRow
@@ -393,6 +404,16 @@ function UserRow({
                 Open
               </Link>
             </DropdownMenuItem>
+            {canImpersonate && (
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onImpersonate();
+                }}
+              >
+                <UserCog className="mr-2 h-4 w-4" /> Impersonate
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </TableCell>
@@ -403,11 +424,15 @@ function UserRow({
 function UsersTable() {
   const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch();
+  const canImpersonate = usePlatformCan(IMPERSONATE);
 
   const [searchInput, setSearchInput] = useState(search.q ?? "");
   const debouncedSearch = useDebounced(searchInput, 250);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [impersonateTarget, setImpersonateTarget] = useState<{ id: string; label: string } | null>(
+    null,
+  );
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -550,12 +575,21 @@ function UsersTable() {
     [navigate],
   );
 
-  // Keyboard: `/` focuses search, `j`/`k` move row selection, `Enter` opens it, `Esc` clears
-  // selection and blurs search. Ignored while an input/textarea has focus (except `Esc`), and
-  // `j`/`k`/`Enter` are additionally ignored whenever focus sits on an interactive control
+  const openImpersonate = useCallback(
+    (row: AdminUserListItem) => {
+      if (!canImpersonate) return;
+      setImpersonateTarget({ id: row.id, label: row.name || row.email });
+    },
+    [canImpersonate],
+  );
+
+  // Keyboard: `/` focuses search, `j`/`k` move row selection, `Enter` opens it, `i` opens the
+  // Impersonate dialog for it (Task 18, only when `platform:impersonate`), `Esc` clears selection
+  // and blurs search. Ignored while an input/textarea has focus (except `Esc`), and
+  // `j`/`k`/`Enter`/`i` are additionally ignored whenever focus sits on an interactive control
   // (button, link, select trigger/listbox item, anything in the filters bar) — otherwise Tabbing
   // from a `j`-selected row to the Filters toggle, Clear filters, a kebab button, or a Select
-  // trigger and pressing Enter would silently navigate to the selected user instead of activating
+  // trigger and pressing Enter/`i` would silently act on the selected user instead of activating
   // the focused control.
   useEffect(() => {
     function isTypingTarget(target: EventTarget | null): boolean {
@@ -600,12 +634,20 @@ function UsersTable() {
       if (e.key === "Enter" && selectedId) {
         e.preventDefault();
         openUser(selectedId);
+        return;
+      }
+      if (e.key === "i" && selectedId && canImpersonate) {
+        const row = rows.find((r) => r.id === selectedId);
+        if (row) {
+          e.preventDefault();
+          openImpersonate(row);
+        }
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [rows, selectedId, rowVirtualizer, openUser]);
+  }, [rows, selectedId, rowVirtualizer, openUser, openImpersonate, canImpersonate]);
 
   // Belt-and-suspenders alongside the activeElement guard above: once focus actually lands on an
   // interactive control, or leaves the table region entirely, the keyboard-selected row no longer
@@ -854,8 +896,10 @@ function UsersTable() {
                     row={row}
                     selected={row.id === selectedId}
                     dimmed={isRefetching}
+                    canImpersonate={canImpersonate}
                     onOpen={() => openUser(row.id)}
                     onSelect={() => setSelectedId(row.id)}
+                    onImpersonate={() => openImpersonate(row)}
                   />
                 );
               })}
@@ -873,6 +917,15 @@ function UsersTable() {
           )}
         </div>
       )}
+
+      <ImpersonateDialog
+        targetUserId={impersonateTarget?.id ?? ""}
+        targetLabel={impersonateTarget?.label ?? ""}
+        open={Boolean(impersonateTarget)}
+        onOpenChange={(next) => {
+          if (!next) setImpersonateTarget(null);
+        }}
+      />
     </div>
   );
 }

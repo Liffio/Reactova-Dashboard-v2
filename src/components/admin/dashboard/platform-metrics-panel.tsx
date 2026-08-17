@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
   Area,
   AreaChart,
@@ -9,14 +10,20 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { LucideIcon } from "lucide-react";
 import {
+  AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   Building2,
   DollarSign,
+  Eye,
   Inbox,
   Instagram,
+  ListChecks,
+  SendHorizontal,
   Users,
+  Webhook,
 } from "lucide-react";
 
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -38,6 +45,8 @@ import { formatNum, formatMoneyCents, formatDateTime } from "@/lib/format";
 import {
   deltaFraction,
   getAdminDashboardOverview,
+  getAdminDashboardTiles,
+  type AdminDashboardTiles,
   type WindowPair,
 } from "@/lib/api/admin-dashboard-api";
 
@@ -75,6 +84,136 @@ const subscriptionStatusStyles: Record<string, string> = {
   CANCELED: "bg-destructive/10 text-destructive",
 };
 
+/** Same status vocabulary as `admin.users.$userId.workspaces.tsx`/`billing.tsx`'s own copies —
+ *  small per-file duplicate, matching this codebase's established convention for maps this size. */
+const WORKSPACE_STATUS_BAR_CLASS: Record<string, string> = {
+  ACTIVE: "bg-success",
+  PAUSED: "bg-warning",
+  SUSPENDED: "bg-destructive",
+  PAYMENT_FAILED: "bg-destructive",
+  INSTAGRAM_DISCONNECTED: "bg-warning",
+};
+
+function humanizeEnum(value: string): string {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(" ");
+}
+
+/**
+ * Visually mirrors `StatCard` (same padding/radius/label/value treatment) but adds an optional
+ * destructive accent — `StatCard` itself has no such prop, and every §7.5 tile except one
+ * (`activeImpersonationSessions`) uses the plain `StatCard` as-is. Link-wrapping (Capability
+ * coverage, Active impersonation) is done by the caller, not this component, so its `to` prop
+ * never has to fight TanStack Router's literal-union `Link` typing.
+ */
+function ControlPlaneTile({
+  label,
+  value,
+  icon: Icon,
+  hint,
+  accent,
+}: {
+  label: string;
+  value: string;
+  icon: LucideIcon;
+  hint?: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "group relative overflow-hidden rounded-2xl border bg-card p-5 shadow-soft transition-shadow hover:shadow-glow",
+        accent && "border-destructive/40 bg-destructive/5",
+      )}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {label}
+          </span>
+          <span
+            className={cn(
+              "font-display text-3xl font-semibold tracking-tight",
+              accent && "text-destructive",
+            )}
+          >
+            {value}
+          </span>
+        </div>
+        <div
+          className={cn(
+            "grid h-9 w-9 place-items-center rounded-lg",
+            accent ? "bg-destructive/10 text-destructive" : "bg-accent text-accent-foreground",
+          )}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+      {hint && <p className="mt-3 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function ControlPlaneTilesSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Skeleton key={i} className="h-28 rounded-2xl" />
+      ))}
+    </>
+  );
+}
+
+function WorkspacesByStatusCard({
+  tiles,
+  isLoading,
+}: {
+  tiles: AdminDashboardTiles | undefined;
+  isLoading: boolean;
+}) {
+  const rows = tiles?.workspacesByStatus ?? [];
+  const max = Math.max(1, ...rows.map((r) => r.count));
+
+  return (
+    <div className="rounded-2xl border bg-card p-6 shadow-soft">
+      <div className="mb-4">
+        <h3 className="font-display text-lg font-semibold">Workspaces by status</h3>
+        <p className="text-sm text-muted-foreground">Every status shown, even at zero</p>
+      </div>
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-8 rounded-lg" />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {rows.map((r) => (
+            <div key={r.status}>
+              <div className="mb-1 flex items-center justify-between text-xs">
+                <span className="font-medium">{humanizeEnum(r.status)}</span>
+                <span className="tabular-nums text-muted-foreground">{formatNum(r.count)}</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className={cn(
+                    "h-full rounded-full",
+                    WORKSPACE_STATUS_BAR_CLASS[r.status] ?? "bg-primary",
+                  )}
+                  style={{ width: `${Math.min((r.count / max) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SectionLabel({ children }: { children: string }) {
   return (
     <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -100,9 +239,20 @@ export function PlatformMetricsPanel() {
     staleTime: 30_000,
   });
 
+  // §7.5 control-plane tiles (Task 22/23) — current-state counts with no time window, so a
+  // separate query from `overviewQuery` rather than folded into its range-keyed cache entry.
+  // No `staleTime` — this endpoint carries its own `generatedAt` and is deliberately never cached
+  // server-side either, per task-22-report.md §4.
+  const tilesQuery = useQuery({
+    queryKey: ["admin-dashboard-tiles"],
+    queryFn: () => getAdminDashboardTiles(),
+    enabled: canRead,
+  });
+
   if (!canRead) return null;
 
   const data = overviewQuery.data;
+  const tiles = tilesQuery.data;
   const isLoading = overviewQuery.isLoading;
   const periodLabel = rangeLabel(range).toLowerCase();
 
@@ -587,6 +737,65 @@ export function PlatformMetricsPanel() {
           )}
         </div>
       </div>
+
+      {/* Control plane (§7.5) */}
+      <SectionLabel>Control plane</SectionLabel>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {tilesQuery.isLoading || !tiles ? (
+          <ControlPlaneTilesSkeleton />
+        ) : (
+          <>
+            <Link to="/admin/capabilities" className="block">
+              <ControlPlaneTile
+                label="Capability coverage"
+                value={`${formatNum(tiles.capabilityCoverage.enforced)}/${formatNum(tiles.capabilityCoverage.total)}`}
+                icon={ListChecks}
+                hint={`${formatNum(tiles.capabilityCoverage.declared)} declared · ${formatNum(tiles.capabilityCoverage.unmapped)} unmapped`}
+              />
+            </Link>
+            <Link to="/admin/impersonation" className="block">
+              <ControlPlaneTile
+                label="Active impersonation"
+                value={formatNum(tiles.activeImpersonationSessions)}
+                icon={Eye}
+                accent={tiles.activeImpersonationSessions > 0}
+                hint="Live sessions right now"
+              />
+            </Link>
+            <ControlPlaneTile
+              label="Entitlement drift"
+              value={formatNum(tiles.entitlementDrift)}
+              icon={AlertTriangle}
+              accent={tiles.entitlementDrift > 0}
+              hint="Workspaces where billing state disagrees with entitlement"
+            />
+            <ControlPlaneTile
+              label="Failed DM jobs (24h)"
+              value={formatNum(tiles.failedDmJobsLast24h)}
+              icon={SendHorizontal}
+              accent={tiles.failedDmJobsLast24h > 0}
+            />
+            <ControlPlaneTile
+              label="IG accounts failing"
+              value={formatNum(tiles.igAccountsWithFailures)}
+              icon={Instagram}
+              hint="Consecutive send failures > 0"
+            />
+            <ControlPlaneTile
+              label="Stripe webhook failures"
+              value={formatNum(tiles.unprocessedBillingEventErrors)}
+              icon={Webhook}
+              hint="Unprocessed billing events with an error"
+            />
+          </>
+        )}
+      </div>
+      <WorkspacesByStatusCard tiles={tiles} isLoading={tilesQuery.isLoading} />
+      {tiles && (
+        <p className="text-right text-[11px] text-muted-foreground">
+          Tiles generated {formatDateTime(tiles.generatedAt)}
+        </p>
+      )}
     </section>
   );
 }

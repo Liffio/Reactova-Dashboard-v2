@@ -350,6 +350,7 @@ type TabTo =
   | "/admin/users/$userId/workspaces"
   | "/admin/users/$userId/sessions"
   | "/admin/users/$userId/activity"
+  | "/admin/users/$userId/related"
   | "/admin/users/$userId/impersonation"
   | "/admin/users/$userId/ai-api"
   | "/admin/users/$userId/billing";
@@ -412,6 +413,13 @@ function TabNav({ userId }: { userId: string }) {
         active={pathname === `${base}/activity`}
       >
         Activity
+      </TabLink>
+      <TabLink
+        to="/admin/users/$userId/related"
+        userId={userId}
+        active={pathname === `${base}/related`}
+      >
+        Related
       </TabLink>
       <TabLink
         to="/admin/users/$userId/impersonation"

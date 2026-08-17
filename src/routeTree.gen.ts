@@ -67,6 +67,7 @@ import { Route as AppAdminCreatorManagementProfileIdRouteImport } from './routes
 import { Route as AppAdminUsersUserIdIndexRouteImport } from './routes/_app/admin.users.$userId.index'
 import { Route as AppAdminUsersUserIdWorkspacesRouteImport } from './routes/_app/admin.users.$userId.workspaces'
 import { Route as AppAdminUsersUserIdSessionsRouteImport } from './routes/_app/admin.users.$userId.sessions'
+import { Route as AppAdminUsersUserIdRelatedRouteImport } from './routes/_app/admin.users.$userId.related'
 import { Route as AppAdminUsersUserIdImpersonationRouteImport } from './routes/_app/admin.users.$userId.impersonation'
 import { Route as AppAdminUsersUserIdBillingRouteImport } from './routes/_app/admin.users.$userId.billing'
 import { Route as AppAdminUsersUserIdAiApiRouteImport } from './routes/_app/admin.users.$userId.ai-api'
@@ -370,6 +371,12 @@ const AppAdminUsersUserIdSessionsRoute =
     path: '/sessions',
     getParentRoute: () => AppAdminUsersUserIdRoute,
   } as any)
+const AppAdminUsersUserIdRelatedRoute =
+  AppAdminUsersUserIdRelatedRouteImport.update({
+    id: '/related',
+    path: '/related',
+    getParentRoute: () => AppAdminUsersUserIdRoute,
+  } as any)
 const AppAdminUsersUserIdImpersonationRoute =
   AppAdminUsersUserIdImpersonationRouteImport.update({
     id: '/impersonation',
@@ -460,6 +467,7 @@ export interface FileRoutesByFullPath {
   '/admin/users/$userId/ai-api': typeof AppAdminUsersUserIdAiApiRoute
   '/admin/users/$userId/billing': typeof AppAdminUsersUserIdBillingRoute
   '/admin/users/$userId/impersonation': typeof AppAdminUsersUserIdImpersonationRoute
+  '/admin/users/$userId/related': typeof AppAdminUsersUserIdRelatedRoute
   '/admin/users/$userId/sessions': typeof AppAdminUsersUserIdSessionsRoute
   '/admin/users/$userId/workspaces': typeof AppAdminUsersUserIdWorkspacesRoute
   '/admin/users/$userId/': typeof AppAdminUsersUserIdIndexRoute
@@ -523,6 +531,7 @@ export interface FileRoutesByTo {
   '/admin/users/$userId/ai-api': typeof AppAdminUsersUserIdAiApiRoute
   '/admin/users/$userId/billing': typeof AppAdminUsersUserIdBillingRoute
   '/admin/users/$userId/impersonation': typeof AppAdminUsersUserIdImpersonationRoute
+  '/admin/users/$userId/related': typeof AppAdminUsersUserIdRelatedRoute
   '/admin/users/$userId/sessions': typeof AppAdminUsersUserIdSessionsRoute
   '/admin/users/$userId/workspaces': typeof AppAdminUsersUserIdWorkspacesRoute
   '/admin/users/$userId': typeof AppAdminUsersUserIdIndexRoute
@@ -589,6 +598,7 @@ export interface FileRoutesById {
   '/_app/admin/users/$userId/ai-api': typeof AppAdminUsersUserIdAiApiRoute
   '/_app/admin/users/$userId/billing': typeof AppAdminUsersUserIdBillingRoute
   '/_app/admin/users/$userId/impersonation': typeof AppAdminUsersUserIdImpersonationRoute
+  '/_app/admin/users/$userId/related': typeof AppAdminUsersUserIdRelatedRoute
   '/_app/admin/users/$userId/sessions': typeof AppAdminUsersUserIdSessionsRoute
   '/_app/admin/users/$userId/workspaces': typeof AppAdminUsersUserIdWorkspacesRoute
   '/_app/admin/users/$userId/': typeof AppAdminUsersUserIdIndexRoute
@@ -655,6 +665,7 @@ export interface FileRouteTypes {
     | '/admin/users/$userId/ai-api'
     | '/admin/users/$userId/billing'
     | '/admin/users/$userId/impersonation'
+    | '/admin/users/$userId/related'
     | '/admin/users/$userId/sessions'
     | '/admin/users/$userId/workspaces'
     | '/admin/users/$userId/'
@@ -718,6 +729,7 @@ export interface FileRouteTypes {
     | '/admin/users/$userId/ai-api'
     | '/admin/users/$userId/billing'
     | '/admin/users/$userId/impersonation'
+    | '/admin/users/$userId/related'
     | '/admin/users/$userId/sessions'
     | '/admin/users/$userId/workspaces'
     | '/admin/users/$userId'
@@ -783,6 +795,7 @@ export interface FileRouteTypes {
     | '/_app/admin/users/$userId/ai-api'
     | '/_app/admin/users/$userId/billing'
     | '/_app/admin/users/$userId/impersonation'
+    | '/_app/admin/users/$userId/related'
     | '/_app/admin/users/$userId/sessions'
     | '/_app/admin/users/$userId/workspaces'
     | '/_app/admin/users/$userId/'
@@ -1213,6 +1226,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminUsersUserIdSessionsRouteImport
       parentRoute: typeof AppAdminUsersUserIdRoute
     }
+    '/_app/admin/users/$userId/related': {
+      id: '/_app/admin/users/$userId/related'
+      path: '/related'
+      fullPath: '/admin/users/$userId/related'
+      preLoaderRoute: typeof AppAdminUsersUserIdRelatedRouteImport
+      parentRoute: typeof AppAdminUsersUserIdRoute
+    }
     '/_app/admin/users/$userId/impersonation': {
       id: '/_app/admin/users/$userId/impersonation'
       path: '/impersonation'
@@ -1282,6 +1302,7 @@ interface AppAdminUsersUserIdRouteChildren {
   AppAdminUsersUserIdAiApiRoute: typeof AppAdminUsersUserIdAiApiRoute
   AppAdminUsersUserIdBillingRoute: typeof AppAdminUsersUserIdBillingRoute
   AppAdminUsersUserIdImpersonationRoute: typeof AppAdminUsersUserIdImpersonationRoute
+  AppAdminUsersUserIdRelatedRoute: typeof AppAdminUsersUserIdRelatedRoute
   AppAdminUsersUserIdSessionsRoute: typeof AppAdminUsersUserIdSessionsRoute
   AppAdminUsersUserIdWorkspacesRoute: typeof AppAdminUsersUserIdWorkspacesRoute
   AppAdminUsersUserIdIndexRoute: typeof AppAdminUsersUserIdIndexRoute
@@ -1293,6 +1314,7 @@ const AppAdminUsersUserIdRouteChildren: AppAdminUsersUserIdRouteChildren = {
   AppAdminUsersUserIdAiApiRoute: AppAdminUsersUserIdAiApiRoute,
   AppAdminUsersUserIdBillingRoute: AppAdminUsersUserIdBillingRoute,
   AppAdminUsersUserIdImpersonationRoute: AppAdminUsersUserIdImpersonationRoute,
+  AppAdminUsersUserIdRelatedRoute: AppAdminUsersUserIdRelatedRoute,
   AppAdminUsersUserIdSessionsRoute: AppAdminUsersUserIdSessionsRoute,
   AppAdminUsersUserIdWorkspacesRoute: AppAdminUsersUserIdWorkspacesRoute,
   AppAdminUsersUserIdIndexRoute: AppAdminUsersUserIdIndexRoute,

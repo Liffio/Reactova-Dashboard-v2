@@ -39,26 +39,48 @@ const ACTOR_TYPE_LABEL: Record<AdminUserAuditActorType, string> = {
   system: "System",
 };
 
-function ActorTypeBadge({ entry }: { entry: AdminUserAuditEntry }) {
+/** First 8 chars of a uuid — this tab has no name lookup for an arbitrary counterpart id (the
+ *  admin on the other side of an impersonation row isn't necessarily this page's user), so a
+ *  short, copyable-looking fragment plus a full-id tooltip is the honest thing to render rather
+ *  than guessing at a display name. */
+function shortId(id: string | null): string {
+  return id ? id.slice(0, 8) : "—";
+}
+
+/**
+ * T16 carry-in (task-21-brief.md item 5): `auditService.actorFromRequest` was corrected in
+ * task-16-report.md §5.5/§7 — during impersonation, `actorUserId` is the ADMIN (the human
+ * responsible) and `onBehalfOfUserId` is the CUSTOMER whose account it was done to/for. This
+ * tab's own query matches `actor_user_id = pageUserId OR on_behalf_of_user_id = pageUserId`, so
+ * an impersonation row can appear here from EITHER side depending on whether this page's user was
+ * the acting admin or the affected customer — the label below distinguishes the two rather than
+ * showing one static "Impersonation"/"On behalf of" string regardless of direction, which is what
+ * this component did before this fix (and would have been actively misleading under the pre-fix
+ * — backwards — attribution this component was originally written against).
+ */
+function ActorTypeBadge({ entry, pageUserId }: { entry: AdminUserAuditEntry; pageUserId: string }) {
   // Impersonation/on-behalf-of rows are the ones an operator most needs to notice — amber, per
   // task-8-brief.md requirement 3. `platform_admin`/`super_admin` rows get a distinct muted badge
   // so an ordinary admin-performed action reads as "an admin did this," not as impersonation. A
   // plain `user`/`api_key`/`system` row needs no badge at all.
-  if (entry.actorType === "impersonation") {
+  if (entry.actorType === "impersonation" || entry.onBehalfOfUserId) {
+    const pageUserIsTheAdmin = entry.actorUserId === pageUserId;
+    const counterpart = pageUserIsTheAdmin
+      ? `→ on behalf of ${shortId(entry.onBehalfOfUserId)}`
+      : `by admin ${shortId(entry.actorUserId)}`;
+    const title = pageUserIsTheAdmin
+      ? `This user (${entry.actorUserId}) was impersonating ${entry.onBehalfOfUserId ?? "unknown"} when this action happened.`
+      : `Admin ${entry.actorUserId ?? "unknown"} performed this action while impersonating this user.`;
     return (
-      <Badge
-        variant="outline"
-        className="gap-1 border-warning/30 bg-warning/10 text-[10px] text-warning"
-      >
-        <UserCog className="h-3 w-3" /> {ACTOR_TYPE_LABEL.impersonation}
-      </Badge>
-    );
-  }
-  if (entry.onBehalfOfUserId) {
-    return (
-      <Badge variant="outline" className="gap-1 text-[10px]">
-        <UserCog className="h-3 w-3" /> On behalf of
-      </Badge>
+      <span className="inline-flex items-center gap-1.5" title={title}>
+        <Badge
+          variant="outline"
+          className="gap-1 border-warning/30 bg-warning/10 text-[10px] text-warning"
+        >
+          <UserCog className="h-3 w-3" /> {ACTOR_TYPE_LABEL.impersonation}
+        </Badge>
+        <span className="font-mono text-[10px] text-muted-foreground">{counterpart}</span>
+      </span>
     );
   }
   if (entry.actorType === "platform_admin" || entry.actorType === "super_admin") {
@@ -74,7 +96,7 @@ function ActorTypeBadge({ entry }: { entry: AdminUserAuditEntry }) {
   return null;
 }
 
-function AuditRow({ entry }: { entry: AdminUserAuditEntry }) {
+function AuditRow({ entry, pageUserId }: { entry: AdminUserAuditEntry; pageUserId: string }) {
   const hasChanges = Boolean(entry.changes && Object.keys(entry.changes).length > 0);
   const hasMetadata = Boolean(entry.metadata && Object.keys(entry.metadata).length > 0);
 
@@ -87,7 +109,7 @@ function AuditRow({ entry }: { entry: AdminUserAuditEntry }) {
             {entry.resourceType}
             {entry.resourceId ? ` · ${entry.resourceId}` : ""}
           </span>
-          <ActorTypeBadge entry={entry} />
+          <ActorTypeBadge entry={entry} pageUserId={pageUserId} />
         </div>
         <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
           {formatDateTime(entry.createdAt)}
@@ -167,7 +189,7 @@ function ActivityTab() {
   return (
     <div className="space-y-2">
       {entries.map((entry) => (
-        <AuditRow key={entry.id} entry={entry} />
+        <AuditRow key={entry.id} entry={entry} pageUserId={userId} />
       ))}
       {auditQuery.hasNextPage && (
         <div className="flex justify-center pt-2">

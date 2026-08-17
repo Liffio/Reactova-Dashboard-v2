@@ -364,6 +364,11 @@ export const apiUri = {
        *  Gated `platform:user_manage`, not `platform:impersonate` — it's a read-only tab. */
       impersonations: (userId: string, params: { cursor?: string; limit?: number } = {}) =>
         `${V1}/admin/users/${encodeURIComponent(userId)}/impersonations${listQs(params)}`,
+      /** Keyset-paginated Lyra generation history across every workspace this user belongs to
+       *  (no `:wsId` scope — task-20-report.md §4). Gated `platform:ai_tokens_manage` ONLY, via
+       *  its own route-level middleware registered above the file's `USER_MANAGE` gate. */
+      aiGenerations: (userId: string, params: { cursor?: string; limit?: number } = {}) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/ai-generations${listQs(params)}`,
     },
     /**
      * Impersonation control plane (Task 18, server contract task-16-report.md §3.1–3.5).
@@ -394,6 +399,39 @@ export const apiUri = {
         `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/package`,
       limits: (workspaceId: string) =>
         `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/limits`,
+      /**
+       * §6.6–§6.8 workspace-scoped AI-tokens/API-access/billing routes (Task 20, consumed by the
+       * Task 21 "AI & API"/"Billing" detail tabs). Distinct from the legacy `admin.aiTokens`
+       * object above (`/admin/ai-tokens/...`, the pre-existing ai-tokens-master console) — these
+       * are the newer `:wsId`-first shape task-20-report.md §1 documents landing in
+       * `api/admin/workspaces.ts` alongside `package`/`limits` rather than bolted onto the legacy
+       * file. `workspaceGrant` above (`admin.aiTokens.workspaceGrant`) IS this task's "Grant"
+       * write — its path was kept stable and re-gated in place, not duplicated here.
+       */
+      aiTokens: (workspaceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/ai-tokens`,
+      aiTokensLedger: (workspaceId: string, params: { cursor?: string; limit?: number } = {}) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/ai-tokens/ledger${listQs(params)}`,
+      aiTokensAdjust: (workspaceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/ai-tokens/adjust`,
+      aiTokensResetPeriod: (workspaceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/ai-tokens/reset-period`,
+      apiCredentials: (workspaceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/api-credentials`,
+      apiCredential: (workspaceId: string, credentialId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/api-credentials/${encodeURIComponent(credentialId)}`,
+      apiUsage: (workspaceId: string, params: { days?: number } = {}) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/api-usage${listQs(params)}`,
+      subscription: (workspaceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/subscription`,
+      invoices: (workspaceId: string, params: { limit?: number; offset?: number } = {}) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/invoices${listQs(params)}`,
+      subscriptionComp: (workspaceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/subscription/comp`,
+      subscriptionCancelAtPeriodEnd: (workspaceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/subscription/cancel-at-period-end`,
+      subscriptionSync: (workspaceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/subscription/sync`,
     },
     audit: (params: Record<string, string | number | boolean | undefined> = {}) => {
       const qs = new URLSearchParams();

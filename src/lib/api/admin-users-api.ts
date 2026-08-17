@@ -188,7 +188,9 @@ export type AdminUserAuditActorType =
 export type AdminUserAuditEntry = {
   id: string;
   action: string;
-  resourceType: string;
+  /** Nullable — not every audit row carries a resource type (Task 6 finding, folded in here per
+   *  task-21-brief.md item 1). */
+  resourceType: string | null;
   resourceId: string | null;
   workspaceId: string | null;
   actorUserId: string | null;
@@ -219,6 +221,45 @@ export function getAdminUserAudit(
   return apiRequest<AdminUserAuditResponse>(apiUri.admin.users.audit(userId, params), {
     signal: opts?.signal,
   });
+}
+
+/** `GET /admin/users/:userId/ai-generations` — Lyra generation history, across every workspace
+ *  this user belongs to (no `:wsId` scope), keyset-paginated. Gated `platform:ai_tokens_manage`
+ *  ONLY (task-20-report.md §4's fix-round-1 footnote — NOT the file-level `platform:user_manage`
+ *  this page's shell otherwise gates on, so a `user_manage`-only operator can 403 here). Display
+ *  columns only — never `input`/`result`/`errorMessage`. Consumed by the Task 21 "AI & API" tab. */
+export type AdminUserAiGenerationStatus = "RUNNING" | "COMPLETED" | "FAILED";
+
+export type AdminUserAiGeneration = {
+  id: string;
+  workspaceId: string | null;
+  workspaceName: string | null;
+  task: string;
+  status: AdminUserAiGenerationStatus;
+  targetType: string | null;
+  targetId: string | null;
+  featureKey: string | null;
+  inputCharCount: number | null;
+  outputCharCount: number | null;
+  tokensConsumed: number | null;
+  createdAt: string;
+  completedAt: string | null;
+};
+
+export type AdminUserAiGenerationsResponse = {
+  items: AdminUserAiGeneration[];
+  nextCursor: string | null;
+};
+
+export function getAdminUserAiGenerations(
+  userId: string,
+  params: { cursor?: string; limit?: number } = {},
+  opts?: { signal?: AbortSignal },
+) {
+  return apiRequest<AdminUserAiGenerationsResponse>(
+    apiUri.admin.users.aiGenerations(userId, params),
+    { signal: opts?.signal },
+  );
 }
 
 /* -------------------------------------------------------------------------

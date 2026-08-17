@@ -13,6 +13,8 @@
  */
 import { apiUri } from "./apiUri";
 import { apiRequest } from "./http";
+import type { TokenBalance } from "./ai-tokens-api";
+import type { BillingInvoiceRow } from "./billing-api";
 
 /** Minimal — only the fields this UI reads. task-11-report.md §3 labels the full response
  *  `{ id, workspaceId, packageId, note, assignedByUserId, createdAt, updatedAt }`; typed in full
@@ -70,5 +72,261 @@ export function patchWorkspaceLimits(
   return apiRequest<{ ok: true; limitOverrides: Record<string, number> }>(
     apiUri.admin.workspaces.limits(workspaceId),
     { method: "PATCH", body },
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * §6.6 AI tokens / §6.7 API access / §6.8 Billing (Task 20, consumed by the Task 21 "AI & API"
+ * and "Billing" detail tabs). Typed exactly to task-20-report.md §4's verbatim request/response
+ * shapes. `TokenBalance` is reused from `ai-tokens-api.ts` rather than redeclared — the summary/
+ * adjust/reset-period responses' `balance` field is the report's own documented "same shape as
+ * `.balance` above" / the pre-existing `TokenBalanceView`, which is that exact type. The Grant
+ * write itself (`POST /admin/ai-tokens/workspaces/:workspaceId/grant`) is NOT re-declared here —
+ * its path was kept stable and just re-gated server-side (task-20-report.md §1), so the existing
+ * `grantAiTokens` in `ai-tokens-api.ts` is reused verbatim by the Task 21 tab, not duplicated.
+ * ---------------------------------------------------------------------- */
+
+/** `GET /admin/workspaces/:wsId/ai-tokens` — current-period summary. Gated
+ *  `platform:ai_tokens_manage`. */
+export type AdminWorkspaceTokenSummary = {
+  ok: true;
+  workspaceId: string;
+  balance: TokenBalance;
+  planKeySnapshot: string;
+  periodStart: string;
+  periodEnd: string;
+  lastResetAt: string;
+};
+
+export function getWorkspaceAiTokenSummary(workspaceId: string, opts?: { signal?: AbortSignal }) {
+  return apiRequest<AdminWorkspaceTokenSummary>(apiUri.admin.workspaces.aiTokens(workspaceId), {
+    signal: opts?.signal,
+  });
+}
+
+/** `GET /admin/workspaces/:wsId/ai-tokens/ledger?cursor=&limit=` — keyset-paginated. Gated
+ *  `platform:ai_tokens_manage`. */
+export type AdminWorkspaceLedgerEntryType =
+  | "CONSUMPTION"
+  | "MANUAL_GRANT"
+  | "PERIOD_RESET"
+  | "REFUND"
+  | "ADJUSTMENT";
+
+export type AdminWorkspaceLedgerEntry = {
+  id: string;
+  entryType: AdminWorkspaceLedgerEntryType;
+  userId: string | null;
+  aiGenerationId: string | null;
+  inputCharCount: number | null;
+  outputCharCount: number | null;
+  tokensDelta: number;
+  balanceAfter: number;
+  note: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+};
+
+export type AdminWorkspaceLedgerResponse = {
+  ok: true;
+  items: AdminWorkspaceLedgerEntry[];
+  nextCursor: string | null;
+};
+
+export function getWorkspaceAiTokenLedger(
+  workspaceId: string,
+  params: { cursor?: string; limit?: number } = {},
+  opts?: { signal?: AbortSignal },
+) {
+  return apiRequest<AdminWorkspaceLedgerResponse>(
+    apiUri.admin.workspaces.aiTokensLedger(workspaceId, params),
+    { signal: opts?.signal },
+  );
+}
+
+/** `POST /admin/workspaces/:wsId/ai-tokens/adjust` — `tokensDelta` non-zero (negative is the
+ *  deliberate admin-correction lever, unclamped — task-20-report.md §7's fix-round-1 note), `note`
+ *  1–1000 chars required. Gated `platform:ai_tokens_manage`. */
+export function adjustWorkspaceAiTokens(
+  workspaceId: string,
+  body: { tokensDelta: number; note: string },
+) {
+  return apiRequest<{ ok: true; balance: TokenBalance }>(
+    apiUri.admin.workspaces.aiTokensAdjust(workspaceId),
+    { method: "POST", body },
+  );
+}
+
+/** `POST /admin/workspaces/:wsId/ai-tokens/reset-period` — no body. Response is identical in
+ *  shape to `GET .../ai-tokens`. Gated `platform:ai_tokens_manage`. */
+export function resetWorkspaceAiTokenPeriod(workspaceId: string) {
+  return apiRequest<AdminWorkspaceTokenSummary>(
+    apiUri.admin.workspaces.aiTokensResetPeriod(workspaceId),
+    { method: "POST", body: {} },
+  );
+}
+
+/** `GET /admin/workspaces/:wsId/api-credentials` / `DELETE .../:id` / `PATCH .../:id` — gated
+ *  `platform:workspace_manage` (R2 mapping — task-20-report.md §4), not `platform:ai_tokens_manage`
+ *  or `platform:billing_manage`. `scopes` validation is structural only (no catalogue exists
+ *  anywhere in the codebase to validate membership against — task-20-report.md §1/§5 finding 2);
+ *  this module doesn't invent one either. Never carries `keyHash`. */
+export type AdminApiCredentialStatus = "active" | "expired" | "revoked";
+
+export type AdminApiCredential = {
+  id: string;
+  userId: string;
+  name: string;
+  keyPrefix: string;
+  scopes: string[];
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  status: AdminApiCredentialStatus;
+};
+
+export function listWorkspaceApiCredentials(
+  workspaceId: string,
+  opts?: { signal?: AbortSignal },
+) {
+  return apiRequest<{ ok: true; credentials: AdminApiCredential[] }>(
+    apiUri.admin.workspaces.apiCredentials(workspaceId),
+    { signal: opts?.signal },
+  );
+}
+
+export function revokeWorkspaceApiCredential(workspaceId: string, credentialId: string) {
+  return apiRequest<{ ok: true; id: string; revokedAt: string }>(
+    apiUri.admin.workspaces.apiCredential(workspaceId, credentialId),
+    { method: "DELETE" },
+  );
+}
+
+/** At least one of `scopes`/`expiresAt` is required by the server (`EMPTY_PATCH` otherwise); this
+ *  module doesn't enforce that client-side beyond what the dialog itself always sends both. */
+export function updateWorkspaceApiCredential(
+  workspaceId: string,
+  credentialId: string,
+  body: { scopes?: string[]; expiresAt?: string | null },
+) {
+  return apiRequest<{ ok: true; credential: AdminApiCredential }>(
+    apiUri.admin.workspaces.apiCredential(workspaceId, credentialId),
+    { method: "PATCH", body },
+  );
+}
+
+/** `GET /admin/workspaces/:wsId/api-usage?days=` — `days` clamped server-side to `[1, 90]`. Gated
+ *  `platform:workspace_manage`. */
+export type AdminWorkspaceApiUsageTotals = {
+  schedulerPosts: number;
+  automations: number;
+  apiRequests: number;
+};
+
+export type AdminWorkspaceApiUsageDay = AdminWorkspaceApiUsageTotals & { usageDate: string };
+
+export type AdminWorkspaceApiUsage = {
+  ok: true;
+  days: number;
+  totals: AdminWorkspaceApiUsageTotals;
+  series: AdminWorkspaceApiUsageDay[];
+};
+
+export function getWorkspaceApiUsage(
+  workspaceId: string,
+  days?: number,
+  opts?: { signal?: AbortSignal },
+) {
+  return apiRequest<AdminWorkspaceApiUsage>(apiUri.admin.workspaces.apiUsage(workspaceId, { days }), {
+    signal: opts?.signal,
+  });
+}
+
+/** §6.8–§6.9 billing — gated `platform:billing_manage` for both reads and writes
+ *  (task-20-report.md §4 — the catalogue has only this one key for the whole surface). */
+export const BILLING_PLANS = ["FREE", "STARTER", "PRO", "BUSINESS", "AGENCY"] as const;
+export type AdminBillingPlan = (typeof BILLING_PLANS)[number];
+
+/**
+ * The subscription detail's nested raw `workspace_subscriptions` row — not enumerated in
+ * task-20-report.md (it labels the field just `WorkspaceSubscription | null`); typed minimally
+ * per Task 13's established discipline for un-enumerated "row" shapes (see
+ * `admin-users-api.ts`'s `UserPermissionOverrideRow` for the precedent). The tab never reads this
+ * directly — it renders the flattened `plan`/`status`/`billingStatus`/etc. fields alongside it.
+ */
+export type AdminWorkspaceSubscriptionRow = Record<string, unknown>;
+
+export type AdminWorkspaceSubscriptionDetail = {
+  workspaceId: string;
+  plan: AdminBillingPlan;
+  displayName: string;
+  status: string;
+  billingStatus: string;
+  billingCycleEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  limits: Record<string, unknown>;
+  features: Record<string, unknown>;
+  subscription: AdminWorkspaceSubscriptionRow | null;
+  billing: { stripeCustomerId: string | null; stripeSubscriptionId: string | null };
+  hasActiveSubscription: boolean;
+};
+
+export function getWorkspaceSubscriptionAdmin(
+  workspaceId: string,
+  opts?: { signal?: AbortSignal },
+) {
+  return apiRequest<{ ok: true; subscription: AdminWorkspaceSubscriptionDetail | null }>(
+    apiUri.admin.workspaces.subscription(workspaceId),
+    { signal: opts?.signal },
+  );
+}
+
+/** Reuses `BillingInvoiceRow` from `billing-api.ts` (the tenant-facing module) — task-20-report.md
+ *  §4 doesn't re-enumerate the invoice row's fields, only naming the type `BillingInvoice[]`; this
+ *  is that same shape rather than a re-guessed duplicate. */
+export function listWorkspaceInvoicesAdmin(
+  workspaceId: string,
+  params: { limit?: number; offset?: number } = {},
+  opts?: { signal?: AbortSignal },
+) {
+  return apiRequest<{ ok: true; invoices: BillingInvoiceRow[]; total: number; limit: number; offset: number }>(
+    apiUri.admin.workspaces.invoices(workspaceId, params),
+    { signal: opts?.signal },
+  );
+}
+
+/** `POST /admin/workspaces/:wsId/subscription/comp` — local-only upsert, `until` is an ISO date,
+ *  `reason` 1–1000 chars. */
+export function compWorkspacePlan(
+  workspaceId: string,
+  body: { plan: AdminBillingPlan; until: string; reason: string },
+) {
+  return apiRequest<{ ok: true; workspaceId: string; plan: AdminBillingPlan; until: string }>(
+    apiUri.admin.workspaces.subscriptionComp(workspaceId),
+    { method: "POST", body },
+  );
+}
+
+/** `PATCH /admin/workspaces/:wsId/subscription/cancel-at-period-end` — 404s `SUBSCRIPTION_NOT_FOUND`
+ *  when the workspace has no subscription row yet; calls Stripe when a real (non-`manual_`)
+ *  subscription is attached, otherwise flips the local flag only (`viaStripe` says which). */
+export function setWorkspaceCancelAtPeriodEnd(workspaceId: string, value: boolean) {
+  return apiRequest<{ ok: true; cancelAtPeriodEnd: boolean; viaStripe: boolean }>(
+    apiUri.admin.workspaces.subscriptionCancelAtPeriodEnd(workspaceId),
+    { method: "PATCH", body: { value } },
+  );
+}
+
+/** `POST /admin/workspaces/:wsId/subscription/sync` — delegates to the reused
+ *  `billingService.syncWorkspaceSubscription`; a real Stripe/Razorpay re-pull, NOT a 501 stub
+ *  (task-20-report.md §2's billing-sync decision). Can 400 `BILLING_SYNC_FAILED` (Stripe not
+ *  configured / no customer / no subscription found) — callers should surface that message, not
+ *  treat it as an unexpected error. */
+export function syncWorkspaceSubscriptionAdmin(workspaceId: string) {
+  return apiRequest<{ ok: true; subscription: AdminWorkspaceSubscriptionDetail }>(
+    apiUri.admin.workspaces.subscriptionSync(workspaceId),
+    { method: "POST", body: {} },
   );
 }

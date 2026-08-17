@@ -66,6 +66,7 @@ import { Route as AppAdminCreatorManagementProfileIdRouteImport } from './routes
 import { Route as AppAdminUsersUserIdIndexRouteImport } from './routes/_app/admin.users.$userId.index'
 import { Route as AppAdminUsersUserIdWorkspacesRouteImport } from './routes/_app/admin.users.$userId.workspaces'
 import { Route as AppAdminUsersUserIdSessionsRouteImport } from './routes/_app/admin.users.$userId.sessions'
+import { Route as AppAdminUsersUserIdImpersonationRouteImport } from './routes/_app/admin.users.$userId.impersonation'
 import { Route as AppAdminUsersUserIdActivityRouteImport } from './routes/_app/admin.users.$userId.activity'
 import { Route as AppAdminUsersUserIdWorkspacesWsIdRouteImport } from './routes/_app/admin.users.$userId.workspaces_.$wsId'
 
@@ -361,6 +362,12 @@ const AppAdminUsersUserIdSessionsRoute =
     path: '/sessions',
     getParentRoute: () => AppAdminUsersUserIdRoute,
   } as any)
+const AppAdminUsersUserIdImpersonationRoute =
+  AppAdminUsersUserIdImpersonationRouteImport.update({
+    id: '/impersonation',
+    path: '/impersonation',
+    getParentRoute: () => AppAdminUsersUserIdRoute,
+  } as any)
 const AppAdminUsersUserIdActivityRoute =
   AppAdminUsersUserIdActivityRouteImport.update({
     id: '/activity',
@@ -429,6 +436,7 @@ export interface FileRoutesByFullPath {
   '/admin/plugins/signing-keys': typeof AppAdminPluginsSigningKeysRoute
   '/admin/users/$userId': typeof AppAdminUsersUserIdRouteWithChildren
   '/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
+  '/admin/users/$userId/impersonation': typeof AppAdminUsersUserIdImpersonationRoute
   '/admin/users/$userId/sessions': typeof AppAdminUsersUserIdSessionsRoute
   '/admin/users/$userId/workspaces': typeof AppAdminUsersUserIdWorkspacesRoute
   '/admin/users/$userId/': typeof AppAdminUsersUserIdIndexRoute
@@ -488,6 +496,7 @@ export interface FileRoutesByTo {
   '/admin/plugins/docs': typeof AppAdminPluginsDocsRoute
   '/admin/plugins/signing-keys': typeof AppAdminPluginsSigningKeysRoute
   '/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
+  '/admin/users/$userId/impersonation': typeof AppAdminUsersUserIdImpersonationRoute
   '/admin/users/$userId/sessions': typeof AppAdminUsersUserIdSessionsRoute
   '/admin/users/$userId/workspaces': typeof AppAdminUsersUserIdWorkspacesRoute
   '/admin/users/$userId': typeof AppAdminUsersUserIdIndexRoute
@@ -550,6 +559,7 @@ export interface FileRoutesById {
   '/_app/admin/plugins_/signing-keys': typeof AppAdminPluginsSigningKeysRoute
   '/_app/admin/users/$userId': typeof AppAdminUsersUserIdRouteWithChildren
   '/_app/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
+  '/_app/admin/users/$userId/impersonation': typeof AppAdminUsersUserIdImpersonationRoute
   '/_app/admin/users/$userId/sessions': typeof AppAdminUsersUserIdSessionsRoute
   '/_app/admin/users/$userId/workspaces': typeof AppAdminUsersUserIdWorkspacesRoute
   '/_app/admin/users/$userId/': typeof AppAdminUsersUserIdIndexRoute
@@ -612,6 +622,7 @@ export interface FileRouteTypes {
     | '/admin/plugins/signing-keys'
     | '/admin/users/$userId'
     | '/admin/users/$userId/activity'
+    | '/admin/users/$userId/impersonation'
     | '/admin/users/$userId/sessions'
     | '/admin/users/$userId/workspaces'
     | '/admin/users/$userId/'
@@ -671,6 +682,7 @@ export interface FileRouteTypes {
     | '/admin/plugins/docs'
     | '/admin/plugins/signing-keys'
     | '/admin/users/$userId/activity'
+    | '/admin/users/$userId/impersonation'
     | '/admin/users/$userId/sessions'
     | '/admin/users/$userId/workspaces'
     | '/admin/users/$userId'
@@ -732,6 +744,7 @@ export interface FileRouteTypes {
     | '/_app/admin/plugins_/signing-keys'
     | '/_app/admin/users/$userId'
     | '/_app/admin/users/$userId/activity'
+    | '/_app/admin/users/$userId/impersonation'
     | '/_app/admin/users/$userId/sessions'
     | '/_app/admin/users/$userId/workspaces'
     | '/_app/admin/users/$userId/'
@@ -1155,6 +1168,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminUsersUserIdSessionsRouteImport
       parentRoute: typeof AppAdminUsersUserIdRoute
     }
+    '/_app/admin/users/$userId/impersonation': {
+      id: '/_app/admin/users/$userId/impersonation'
+      path: '/impersonation'
+      fullPath: '/admin/users/$userId/impersonation'
+      preLoaderRoute: typeof AppAdminUsersUserIdImpersonationRouteImport
+      parentRoute: typeof AppAdminUsersUserIdRoute
+    }
     '/_app/admin/users/$userId/activity': {
       id: '/_app/admin/users/$userId/activity'
       path: '/activity'
@@ -1200,6 +1220,7 @@ const AppAdminCreatorsRouteWithChildren =
 
 interface AppAdminUsersUserIdRouteChildren {
   AppAdminUsersUserIdActivityRoute: typeof AppAdminUsersUserIdActivityRoute
+  AppAdminUsersUserIdImpersonationRoute: typeof AppAdminUsersUserIdImpersonationRoute
   AppAdminUsersUserIdSessionsRoute: typeof AppAdminUsersUserIdSessionsRoute
   AppAdminUsersUserIdWorkspacesRoute: typeof AppAdminUsersUserIdWorkspacesRoute
   AppAdminUsersUserIdIndexRoute: typeof AppAdminUsersUserIdIndexRoute
@@ -1208,6 +1229,7 @@ interface AppAdminUsersUserIdRouteChildren {
 
 const AppAdminUsersUserIdRouteChildren: AppAdminUsersUserIdRouteChildren = {
   AppAdminUsersUserIdActivityRoute: AppAdminUsersUserIdActivityRoute,
+  AppAdminUsersUserIdImpersonationRoute: AppAdminUsersUserIdImpersonationRoute,
   AppAdminUsersUserIdSessionsRoute: AppAdminUsersUserIdSessionsRoute,
   AppAdminUsersUserIdWorkspacesRoute: AppAdminUsersUserIdWorkspacesRoute,
   AppAdminUsersUserIdIndexRoute: AppAdminUsersUserIdIndexRoute,

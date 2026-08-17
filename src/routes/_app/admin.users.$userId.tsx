@@ -91,10 +91,10 @@ import {
 
 /**
  * Detail shell (Task 8) — left rail identity card + tab nav + `<Outlet/>`. Every tab is a
- * separate route file (`admin.users.$userId.{index,workspaces,sessions,activity}.tsx`) so each
- * is deep-linkable and lazily loaded, per spec §7.2. Only the four tabs that exist today are
- * wired up — Access/Billing/AI & API/Impersonation arrive in later phases; no stubs for them
- * here.
+ * separate route file (`admin.users.$userId.{index,workspaces,sessions,activity,
+ * impersonation}.tsx`) so each is deep-linkable and lazily loaded, per spec §7.2. Impersonation
+ * (Task 18) is now wired up; Access/Billing/AI & API still arrive in later phases — no stubs for
+ * those here.
  *
  * Action bar + danger zone (Task 15) — every mutation dialog lives in this file rather than a
  * shared `src/components/admin/` module: they're specific to this one page, and the codebase's
@@ -349,7 +349,8 @@ type TabTo =
   | "/admin/users/$userId"
   | "/admin/users/$userId/workspaces"
   | "/admin/users/$userId/sessions"
-  | "/admin/users/$userId/activity";
+  | "/admin/users/$userId/activity"
+  | "/admin/users/$userId/impersonation";
 
 function TabLink({
   to,
@@ -409,6 +410,13 @@ function TabNav({ userId }: { userId: string }) {
         active={pathname === `${base}/activity`}
       >
         Activity
+      </TabLink>
+      <TabLink
+        to="/admin/users/$userId/impersonation"
+        userId={userId}
+        active={pathname === `${base}/impersonation`}
+      >
+        Impersonation
       </TabLink>
     </nav>
   );

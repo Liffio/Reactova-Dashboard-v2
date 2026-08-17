@@ -31,6 +31,7 @@ import {
   Plug,
   UserCog,
   Eye,
+  ListChecks,
 } from "lucide-react";
 
 import {
@@ -136,6 +137,7 @@ const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   KeyRound,
   plug: Plug,
   UserCog,
+  ListChecks,
 };
 
 const resolveNavIcon = (name: string | null): typeof LayoutDashboard =>
@@ -189,6 +191,12 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
         url: "/admin/impersonation",
         icon: Eye,
         platformPermission: "platform:impersonate",
+      },
+      {
+        title: "Capability coverage",
+        url: "/admin/capabilities",
+        icon: ListChecks,
+        platformPermission: "platform:metrics_read",
       },
       { title: "RBAC master", url: "/rbac-master", icon: ShieldCheck },
       { title: "Email templates", url: "/admin/email-templates", icon: Mail },

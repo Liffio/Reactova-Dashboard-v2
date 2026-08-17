@@ -57,6 +57,7 @@ import { Route as AppAdminImpersonationRouteImport } from './routes/_app/admin.i
 import { Route as AppAdminEmailTemplatesRouteImport } from './routes/_app/admin.email-templates'
 import { Route as AppAdminCreatorsRouteImport } from './routes/_app/admin.creators'
 import { Route as AppAdminCreatorManagementRouteImport } from './routes/_app/admin.creator-management'
+import { Route as AppAdminCapabilitiesRouteImport } from './routes/_app/admin.capabilities'
 import { Route as AppAdminAffiliatesRouteImport } from './routes/_app/admin.affiliates'
 import { Route as AppAdminUsersUserIdRouteImport } from './routes/_app/admin.users.$userId'
 import { Route as AppAdminPluginsSigningKeysRouteImport } from './routes/_app/admin.plugins_.signing-keys'
@@ -313,6 +314,11 @@ const AppAdminCreatorManagementRoute =
     path: '/admin/creator-management',
     getParentRoute: () => AppRoute,
   } as any)
+const AppAdminCapabilitiesRoute = AppAdminCapabilitiesRouteImport.update({
+  id: '/admin/capabilities',
+  path: '/admin/capabilities',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAdminAffiliatesRoute = AppAdminAffiliatesRouteImport.update({
   id: '/admin/affiliates',
   path: '/admin/affiliates',
@@ -423,6 +429,7 @@ export interface FileRoutesByFullPath {
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
+  '/admin/capabilities': typeof AppAdminCapabilitiesRoute
   '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
@@ -486,6 +493,7 @@ export interface FileRoutesByTo {
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
+  '/admin/capabilities': typeof AppAdminCapabilitiesRoute
   '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
@@ -550,6 +558,7 @@ export interface FileRoutesById {
   '/auth/handoff': typeof AuthHandoffRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/_app/admin/affiliates': typeof AppAdminAffiliatesRoute
+  '/_app/admin/capabilities': typeof AppAdminCapabilitiesRoute
   '/_app/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/_app/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/_app/admin/email-templates': typeof AppAdminEmailTemplatesRoute
@@ -615,6 +624,7 @@ export interface FileRouteTypes {
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
+    | '/admin/capabilities'
     | '/admin/creator-management'
     | '/admin/creators'
     | '/admin/email-templates'
@@ -678,6 +688,7 @@ export interface FileRouteTypes {
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
+    | '/admin/capabilities'
     | '/admin/creator-management'
     | '/admin/creators'
     | '/admin/email-templates'
@@ -741,6 +752,7 @@ export interface FileRouteTypes {
     | '/auth/handoff'
     | '/leads-captured/$slug'
     | '/_app/admin/affiliates'
+    | '/_app/admin/capabilities'
     | '/_app/admin/creator-management'
     | '/_app/admin/creators'
     | '/_app/admin/email-templates'
@@ -1131,6 +1143,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminCreatorManagementRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/capabilities': {
+      id: '/_app/admin/capabilities'
+      path: '/admin/capabilities'
+      fullPath: '/admin/capabilities'
+      preLoaderRoute: typeof AppAdminCapabilitiesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/admin/affiliates': {
       id: '/_app/admin/affiliates'
       path: '/admin/affiliates'
@@ -1314,6 +1333,7 @@ interface AppRouteChildren {
   AppSettingsRoute: typeof AppSettingsRoute
   AppShortLinksRoute: typeof AppShortLinksRoute
   AppAdminAffiliatesRoute: typeof AppAdminAffiliatesRoute
+  AppAdminCapabilitiesRoute: typeof AppAdminCapabilitiesRoute
   AppAdminCreatorManagementRoute: typeof AppAdminCreatorManagementRouteWithChildren
   AppAdminCreatorsRoute: typeof AppAdminCreatorsRouteWithChildren
   AppAdminEmailTemplatesRoute: typeof AppAdminEmailTemplatesRoute
@@ -1355,6 +1375,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsRoute: AppSettingsRoute,
   AppShortLinksRoute: AppShortLinksRoute,
   AppAdminAffiliatesRoute: AppAdminAffiliatesRoute,
+  AppAdminCapabilitiesRoute: AppAdminCapabilitiesRoute,
   AppAdminCreatorManagementRoute: AppAdminCreatorManagementRouteWithChildren,
   AppAdminCreatorsRoute: AppAdminCreatorsRouteWithChildren,
   AppAdminEmailTemplatesRoute: AppAdminEmailTemplatesRoute,

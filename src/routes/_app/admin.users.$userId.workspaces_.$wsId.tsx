@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   AlertTriangle,
-  Check,
   ChevronRight,
   KeyRound,
   Search,
@@ -15,6 +14,7 @@ import {
 import { PlatformPermissionRoute } from "@/components/auth/guards";
 import { PageErrorBoundary } from "@/components/error-boundary";
 import { BackLink, CopyableKey, EmptyState, FormActions } from "@/components/admin/form-page";
+import { EnforcementBadge } from "@/components/admin/enforcement-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,7 +80,6 @@ import {
   type EffectiveAccessLayer,
   type EffectiveAccessPermission,
   type EffectiveAccessTraceEntry,
-  type ModuleEnforcementState,
 } from "@/lib/api/admin-users-api";
 
 /**
@@ -1543,39 +1542,6 @@ function EffectivePill({
     >
       DENY
     </Badge>
-  );
-}
-
-/** ENFORCED (green check) vs NOT ENFORCED (amber triangle, covering both DECLARED and UNMAPPED —
- *  the tooltip is what tells those two apart). */
-function EnforcementBadge({ state }: { state: ModuleEnforcementState }) {
-  if (state === "ENFORCED") {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="inline-flex items-center text-success">
-            <Check className="h-3.5 w-3.5" />
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>A real permission check in the backend enforces this.</TooltipContent>
-      </Tooltip>
-    );
-  }
-  const detail =
-    state === "DECLARED"
-      ? "Declared in the registry, but nothing in the backend checks it yet — toggling this module changes nothing today."
-      : "Unmapped — no permission backs this module/action at all. There's no enforcement point to toggle.";
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex items-center text-warning">
-          <AlertTriangle className="h-3.5 w-3.5" />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent className="max-w-xs">
-        Not enforced ({state === "DECLARED" ? "declared" : "unmapped"}) — {detail}
-      </TooltipContent>
-    </Tooltip>
   );
 }
 

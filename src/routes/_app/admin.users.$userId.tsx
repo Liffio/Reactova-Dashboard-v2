@@ -63,10 +63,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api/http";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { useAuthState } from "@/lib/auth/auth-store";
 import { usePlatformCan } from "@/hooks/use-platform-authz";
 import {
   activateAdminUser,
@@ -77,6 +80,7 @@ import {
   getAdminUser,
   resendAdminUserVerification,
   resetAdminUserMfa,
+  setAdminUserPassword,
   unbanAdminUser,
   unlinkAdminUserGoogle,
   verifyAdminUserEmail,
@@ -692,8 +696,12 @@ function UnbanAction({ userId }: { userId: string }) {
  * `authMethods` — the server 400s `NO_GOOGLE_LINK` otherwise, so hiding avoids a guaranteed
  * error), Reset MFA (always available — task-14-report.md §7 documents the server treating a
  * reset against a target with nothing enabled as a legitimate, still-audited action, not a
- * no-op to prevent). `Set password` (buried in a "Danger zone" section, spec §6.4) lands in the
- * next commit alongside its TOTP step-up.
+ * no-op to prevent), then a "Danger zone" separator with `Set password` — buried per spec §6.4,
+ * disabled with an explanatory tooltip when the OPERATOR (not the target) has no TOTP enrolled.
+ * `mfaEnabled` on the auth store is exactly that signal (`src/api/routes/auth.ts`:
+ * `mfaEnabled: user.mfaTotpEnabled`, the same flag `requireTotpConfirm` checks server-side) — this
+ * proactively disables the item rather than only reacting to a 403 after the fact; the dialog
+ * itself still handles a stale-cache 403 `TOTP_REQUIRED` as a fallback.
  */
 function UserKebabMenu({ userId, user }: { userId: string; user: AdminUserDetail }) {
   const [deactivateOpen, setDeactivateOpen] = useState(false);
@@ -703,8 +711,13 @@ function UserKebabMenu({ userId, user }: { userId: string; user: AdminUserDetail
   const [changeEmailOpen, setChangeEmailOpen] = useState(false);
   const [unlinkGoogleOpen, setUnlinkGoogleOpen] = useState(false);
   const [resetMfaOpen, setResetMfaOpen] = useState(false);
+  const [setPasswordOpen, setSetPasswordOpen] = useState(false);
 
   const hasGoogle = user.authMethods.includes("google");
+  const operatorHasTotp = useAuthState((s) => s.mfaEnabled);
+  const setPasswordDisabledReason = !operatorHasTotp
+    ? "Enrol an authenticator app under Settings → Security to use this."
+    : null;
 
   return (
     <>
@@ -754,6 +767,33 @@ function UserKebabMenu({ userId, user }: { userId: string; user: AdminUserDetail
           >
             <ShieldAlert className="mr-2 h-4 w-4" /> Reset MFA
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Danger zone
+          </DropdownMenuLabel>
+          {setPasswordDisabledReason ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="block cursor-not-allowed">
+                  <DropdownMenuItem
+                    disabled
+                    className="text-destructive"
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <KeyRound className="mr-2 h-4 w-4" /> Set password
+                  </DropdownMenuItem>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{setPasswordDisabledReason}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <DropdownMenuItem
+              onClick={() => setSetPasswordOpen(true)}
+              className="text-destructive focus:text-destructive"
+            >
+              <KeyRound className="mr-2 h-4 w-4" /> Set password
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -768,6 +808,7 @@ function UserKebabMenu({ userId, user }: { userId: string; user: AdminUserDetail
         onOpenChange={setUnlinkGoogleOpen}
       />
       <ResetMfaDialog userId={userId} open={resetMfaOpen} onOpenChange={setResetMfaOpen} />
+      <SetPasswordDialog userId={userId} open={setPasswordOpen} onOpenChange={setSetPasswordOpen} />
     </>
   );
 }
@@ -1101,5 +1142,158 @@ function ResetMfaDialog({ userId, open, onOpenChange }: KebabDialogProps) {
         placeholder="Why is MFA being reset?"
       />
     </ConfirmActionDialog>
+  );
+}
+
+/**
+ * `Set password` — buried in the kebab's "Danger zone" (spec §6.4). Two steps: (1) warning +
+ * required reason + new password, with the ONLY strength hint the server actually enforces
+ * (`z.string().min(8)`, task-14-report.md §3 — no character-class rules exist server-side, so
+ * none are invented here); (2) the operator's own 6-digit TOTP code (`InputOTP`, the exact
+ * pattern `admin.plugins.tsx`'s `LifecycleDialog` already uses for its step-up), fed to the
+ * server as `confirmCode`. A reactive `TOTP_REQUIRED` (stale `mfaEnabled` cache — the kebab
+ * already disables the trigger proactively) swaps step 2 to an inline "not enrolled" message
+ * instead of the OTP input, matching the brief's "surface the 403 TOTP_REQUIRED cleanly".
+ */
+function SetPasswordDialog({ userId, open, onOpenChange }: KebabDialogProps) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [password, setPassword] = useState("");
+  const [reason, setReason] = useState("");
+  const [code, setCode] = useState("");
+  const [notEnrolled, setNotEnrolled] = useState(false);
+  const invalidate = useInvalidateUser(userId);
+
+  const reset = () => {
+    setStep(1);
+    setPassword("");
+    setReason("");
+    setCode("");
+    setNotEnrolled(false);
+  };
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      setAdminUserPassword(userId, { password, reason: reason.trim(), confirmCode: code }),
+    onSuccess: () => {
+      toast.success("Password set.", {
+        description: "All of this user's sessions were revoked and they've been emailed.",
+      });
+      onOpenChange(false);
+      reset();
+      invalidate();
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === "TOTP_REQUIRED") {
+        setNotEnrolled(true);
+        return;
+      }
+      if (err instanceof ApiError && err.code === "TOTP_INVALID") {
+        setCode("");
+        toast.error("Invalid code — try again.");
+        return;
+      }
+      if (err instanceof ApiError && err.code === "TARGET_IS_PLATFORM_ADMIN") {
+        onOpenChange(false);
+        reset();
+        toast.error("Refused — this account holds platform-admin authority.", {
+          description: "Platform admins can't have their password set through this action.",
+        });
+        return;
+      }
+      errorToast(err, "Failed to set password.");
+    },
+  });
+
+  const step1Valid = password.length >= 8 && isReasonValid(reason);
+  const step2Valid = code.length === 6 && !notEnrolled;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (mutation.isPending) return;
+        onOpenChange(next);
+        if (!next) reset();
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Set a new password</DialogTitle>
+          <DialogDescription>
+            {step === 1
+              ? "Sets the account's password directly and signs it out of every active session. Use this only when the user can't use \"Forgot password\" themselves."
+              : "Confirm with your own authenticator code to finish."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === 1 ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+              High-risk action — the new password takes effect immediately and the user isn't asked
+              to confirm it.
+            </div>
+            <div className="space-y-1.5 text-left">
+              <Label htmlFor="set-password-value">New password</Label>
+              <Input
+                id="set-password-value"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+              <p className="text-[11px] text-muted-foreground">At least 8 characters.</p>
+            </div>
+            <ReasonField
+              id="set-password-reason"
+              value={reason}
+              onChange={setReason}
+              placeholder="Why is this password being set directly?"
+            />
+          </div>
+        ) : notEnrolled ? (
+          <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
+            Your account has no authenticator app enrolled. Set one up under Settings → Security,
+            then retry.
+          </div>
+        ) : (
+          <div className="space-y-2 text-left">
+            <Label>Your authenticator code</Label>
+            <InputOTP maxLength={6} value={code} onChange={(v) => setCode(v.replace(/\D/g, ""))}>
+              <InputOTPGroup>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <InputOTPSlot key={i} index={i} />
+                ))}
+              </InputOTPGroup>
+            </InputOTP>
+          </div>
+        )}
+
+        <DialogFooter>
+          {step === 1 ? (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" disabled={!step1Valid} onClick={() => setStep(2)}>
+                Continue
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => setStep(1)} disabled={mutation.isPending}>
+                Back
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={!step2Valid || mutation.isPending}
+                onClick={() => mutation.mutate()}
+              >
+                {mutation.isPending ? "Setting…" : "Set password"}
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

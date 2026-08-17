@@ -20,6 +20,7 @@ import { initThemeStore } from "@/state/theme-store";
 import { PublicBioLinkApp } from "@/components/public/public-bio-link";
 import { ShortLinkRedirect } from "@/components/public/short-link-redirect";
 import { BetaBanner } from "@/components/beta-banner";
+import { ImpersonationBanner } from "@/components/impersonation-banner";
 
 const host = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
 const isBioDomain = host === "bio.liffio.com" || host.startsWith("bio.liffio.");
@@ -146,7 +147,15 @@ function RootShell({ children }: { children: ReactNode }) {
           data-website-id="2e8812e6-33e7-4cf1-8cb4-25f074a36b0f"
         />
       </head>
-      <body>
+      {/*
+        `paddingTop` reads `--liffio-imp-banner-h` (default 0px, unset), the CSS variable
+        `ImpersonationBanner` sets only while it is actually rendered (see that file). This is
+        what makes spec §5.7's "body content shifts down by the bar height; do not overlay it"
+        hold for EVERY route under the main SPA branch (not just `_app`'s authenticated shell,
+        which also offsets its own sticky TopBar by the same variable — see `_app.tsx`), harmless
+        (0px) the rest of the time.
+      */}
+      <body style={{ paddingTop: "var(--liffio-imp-banner-h, 0px)" }}>
         {children}
         <Scripts />
       </body>
@@ -182,6 +191,15 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AppProvider>
+          {/*
+            Mounted at the root — not inside `_app.tsx` — so it covers EVERY authenticated route,
+            including `/onboarding` (a sibling of `_app`, not a child of it; see its route file)
+            and `/dashboard`, per spec §5.7's requirement. It renders purely from
+            `getImpersonationClaims()` (localStorage), so it needs no auth/workspace context of
+            its own and is safe to mount unconditionally here, ahead of `AppProvider`'s own
+            auth/me resolution.
+          */}
+          <ImpersonationBanner />
           <BetaBanner />
           <RouteProgress />
           <Outlet />

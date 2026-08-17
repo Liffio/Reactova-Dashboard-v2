@@ -311,7 +311,16 @@ function TopBar() {
   const logoutMutation = useLogoutMutation();
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur md:px-6">
+    <header
+      // `top` reads `--liffio-imp-banner-h` (see `impersonation-banner.tsx`), which is 0px unless
+      // an impersonation session is active. Without this, this sticky header would settle at
+      // literal `top: 0` once scrolled — directly BEHIND the impersonation bar's higher z-index
+      // (`fixed`, always pinned at screen y 0..40) — hiding the customer's own top nav, exactly
+      // what spec §5.7 says not to do. `paddingTop` on `<body>` (`__root.tsx`) covers the
+      // unscrolled case; this covers the scrolled one.
+      style={{ top: "var(--liffio-imp-banner-h, 0px)" }}
+      className="sticky z-20 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur md:px-6"
+    >
       <SidebarTrigger className="-ml-1" />
       <div className="hidden h-5 w-px bg-border md:block" />
       {/* Hidden on the narrowest screens: the topbar there is already tight, and the id is

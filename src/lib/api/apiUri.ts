@@ -69,6 +69,16 @@ export const apiUri = {
     },
   },
 
+  /**
+   * The impersonated tab's own exit door (task-16-report §3.7/§5). Deliberately NOT under
+   * `/admin` — it authenticates with the impersonation token itself (no :sid, no body; it ends
+   * whatever session that token names) so exiting never depends on the admin's own session still
+   * being reachable from this tab.
+   */
+  impersonation: {
+    end: `${V1}/impersonation/end`,
+  },
+
   /** Registry-driven tenant sidebar; server filters it to what the caller can read. */
   navigation: `${V1}/navigation`,
 

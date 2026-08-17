@@ -1321,10 +1321,29 @@ function AbacAssignSection({
   const [selectedPolicyId, setSelectedPolicyId] = useState("");
   const [assignConfirmOpen, setAssignConfirmOpen] = useState(false);
   const [sessionAssignments, setSessionAssignments] = useState<
-    { assignmentId: string; policyKey: string }[]
+    { assignmentId: string; policyKey: string; policyEffect: "ALLOW" | "DENY" }[]
   >([]);
+  // Which session-assigned row Unassign is being confirmed for — `null` means the dialog is
+  // closed. Review round-1 finding: Unassign used to fire the DELETE directly on click with no
+  // confirmation at all, the only destructive action on this page that skipped one (contrast
+  // `PackageSection`'s hard confirm). Fixed by routing the click through this state instead of
+  // straight into `unassignMutation.mutate`.
+  const [unassignTarget, setUnassignTarget] = useState<{
+    assignmentId: string;
+    policyKey: string;
+    policyEffect: "ALLOW" | "DENY";
+  } | null>(null);
 
   const nextPolicy = policies.find((p) => p.id === selectedPolicyId) ?? null;
+  const assignedPolicyIds = new Set(
+    sessionAssignments
+      .map((a) => policies.find((p) => p.key === a.policyKey)?.id)
+      .filter((id): id is string => !!id),
+  );
+  // Already assigned this session — offering it again would let the operator create a second
+  // session-tracked row for the same policy (confusing, and a plausible source of duplicate-looking
+  // list entries even though `assignmentId` itself would differ).
+  const assignablePolicies = policies.filter((p) => !assignedPolicyIds.has(p.id));
 
   const assignMutation = useMutation({
     mutationFn: () => assignUserPolicy(userId, wsId, { policyId: selectedPolicyId }),
@@ -1336,7 +1355,11 @@ function AbacAssignSection({
       toast.success(`Policy assigned: ${assignedKey}.`);
       setSessionAssignments((prev) => [
         ...prev,
-        { assignmentId: res.assignment.id, policyKey: assignedKey },
+        {
+          assignmentId: res.assignment.id,
+          policyKey: assignedKey,
+          policyEffect: nextPolicy?.effect ?? "ALLOW",
+        },
       ]);
       setAssignConfirmOpen(false);
       setSelectedPolicyId("");
@@ -1355,6 +1378,7 @@ function AbacAssignSection({
     onSuccess: (_res, assignmentId) => {
       setSessionAssignments((prev) => prev.filter((a) => a.assignmentId !== assignmentId));
       toast.success("Policy unassigned.");
+      setUnassignTarget(null);
       onMutated();
     },
     onError: (err) => {
@@ -1379,7 +1403,7 @@ function AbacAssignSection({
             <SelectValue placeholder="Select a policy" />
           </SelectTrigger>
           <SelectContent>
-            {policies.map((p) => (
+            {assignablePolicies.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.key} ({p.effect})
               </SelectItem>
@@ -1404,14 +1428,19 @@ function AbacAssignSection({
               key={a.assignmentId}
               className="flex items-center justify-between gap-2 rounded-lg border bg-muted/20 px-2.5 py-1.5 text-xs"
             >
-              <code>{a.policyKey}</code>
+              <span className="flex items-center gap-1.5">
+                <code>{a.policyKey}</code>
+                <Badge variant="outline" className="text-[9px]">
+                  {a.policyEffect}
+                </Badge>
+              </span>
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
                 className="h-6 px-2 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive"
                 disabled={unassignMutation.isPending}
-                onClick={() => unassignMutation.mutate(a.assignmentId)}
+                onClick={() => setUnassignTarget(a)}
               >
                 Unassign
               </Button>
@@ -1440,6 +1469,39 @@ function AbacAssignSection({
               }}
             >
               {assignMutation.isPending ? "Assigning…" : "Assign"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={unassignTarget !== null}
+        onOpenChange={(next) => {
+          if (!next) setUnassignTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unassign {unassignTarget?.policyKey}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This is a {unassignTarget?.policyEffect} policy. Removing it stops applying its
+              conditions to this user in this workspace immediately
+              {unassignTarget?.policyEffect === "DENY"
+                ? " — access it was blocking may become available again."
+                : " — access it was granting may go away."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unassignMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={unassignMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (unassignTarget) unassignMutation.mutate(unassignTarget.assignmentId);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {unassignMutation.isPending ? "Unassigning…" : "Unassign"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2062,11 +2124,17 @@ function CommitDialog({
 
       const moduleChanges: BulkModuleOverrideChangeInput[] = [];
       const moduleKeysInBatch: string[] = [];
+      const skippedModuleKeys: string[] = [];
       for (const [key, effect] of stagedModules) {
         const childModuleId = childIdByKey.get(key);
         // Missing id means the registry catalogue hasn't resolved this key (stale cache / race) —
         // skip it rather than send an invalid request; it stays staged for the next attempt.
-        if (!childModuleId) continue;
+        // Not silent: collected below so the operator is told which rows were skipped, rather than
+        // wondering why a staged change didn't land.
+        if (!childModuleId) {
+          skippedModuleKeys.push(key);
+          continue;
+        }
         moduleChanges.push({ childModuleId, effect });
         moduleKeysInBatch.push(key);
       }
@@ -2083,7 +2151,7 @@ function CommitDialog({
       }
 
       const committedPermissionKeys: string[] = [];
-      const permissionFailures: { key: string; message: string }[] = [];
+      const permissionFailures: { key: string; message: string; requestId?: string }[] = [];
       for (const [key, effect] of stagedPermissions) {
         try {
           if (effect === "CLEAR") {
@@ -2108,14 +2176,43 @@ function CommitDialog({
             key,
             message:
               err instanceof ApiError ? err.message : err instanceof Error ? err.message : "Failed",
+            requestId: err instanceof ApiError ? err.requestId : undefined,
           });
         }
       }
 
-      return { committedModuleKeys, committedPermissionKeys, permissionFailures };
+      return {
+        committedModuleKeys,
+        committedPermissionKeys,
+        permissionFailures,
+        skippedModuleKeys,
+      };
     },
-    onSuccess: ({ committedModuleKeys, committedPermissionKeys, permissionFailures }) => {
+    onSuccess: ({
+      committedModuleKeys,
+      committedPermissionKeys,
+      permissionFailures,
+      skippedModuleKeys,
+    }) => {
       onSettled(committedModuleKeys, committedPermissionKeys);
+
+      if (skippedModuleKeys.length > 0) {
+        toast.warning(
+          `${skippedModuleKeys.length} module change${skippedModuleKeys.length === 1 ? "" : "s"} couldn't be resolved and stayed staged — try again after the page finishes loading.`,
+          { description: skippedModuleKeys.join(", ") },
+        );
+      }
+
+      // §3.4: never claim enforcement for a capability with no enforcement site. This caveat must
+      // appear whenever the COMMITTED portion of this save included one of those changes, on
+      // EVERY success path — clean save and partial-failure save alike, not just the clean-save
+      // branch (task-13 review round 1 finding: the partial-failure toast used to skip this check
+      // entirely, so a batch that saved a non-enforced module change while a permission call
+      // failed used to read as a plain, unqualified save).
+      const intentOnlyCaveat =
+        committedModuleKeys.length > 0 && stagedNonEnforcedChildren.length > 0
+          ? " Some of these capabilities have no enforcement site — access is not actually restricted until enforcement is wired."
+          : "";
 
       if (permissionFailures.length > 0) {
         const savedParts: string[] = [];
@@ -2130,20 +2227,22 @@ function CommitDialog({
           );
         }
         toast.warning(
-          `Saved ${savedParts.length > 0 ? savedParts.join(" and ") : "nothing"}; ${permissionFailures.length} permission change${permissionFailures.length === 1 ? "" : "s"} failed and stayed staged.`,
-          { description: permissionFailures.map((f) => `${f.key}: ${f.message}`).join("; ") },
+          `Saved ${savedParts.length > 0 ? savedParts.join(" and ") : "nothing"}; ${permissionFailures.length} permission change${permissionFailures.length === 1 ? "" : "s"} failed and stayed staged.${intentOnlyCaveat}`,
+          {
+            description: permissionFailures
+              .map(
+                (f) =>
+                  `${f.key}: ${f.message}${f.requestId ? ` (Request ID: ${f.requestId})` : ""}`,
+              )
+              .join("; "),
+          },
         );
         // Left open — some changes are still staged and need the operator's attention.
         return;
       }
 
-      // §3.4: never claim enforcement for a capability with no enforcement site. This toast is the
-      // one that fires for a batch containing such a change — it says intent was recorded, nothing
-      // stronger.
-      if (stagedNonEnforcedChildren.length > 0) {
-        toast.success(
-          "Intent recorded. Some of these capabilities have no enforcement site — access is not actually restricted until enforcement is wired.",
-        );
+      if (intentOnlyCaveat) {
+        toast.success(`Intent recorded.${intentOnlyCaveat}`);
       } else {
         toast.success("Access changes saved.");
       }

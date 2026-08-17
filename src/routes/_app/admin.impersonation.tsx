@@ -67,6 +67,12 @@ const IMPERSONATE = "platform:impersonate";
 const IMPERSONATE_WRITE = "platform:impersonate_write";
 const QUERY_KEY = ["admin-impersonation-active"] as const;
 
+/** Mirrors the server's `IMPERSONATION_REASON_MIN_LENGTH`/`_MAX_LENGTH`
+ *  (`server/src/config/adminControlPlane.ts`), same as `impersonate-dialog.tsx`'s constants —
+ *  the escalate reason goes through the same service-level validation as the start reason. */
+const REASON_MIN_LENGTH = 10;
+const REASON_MAX_LENGTH = 1000;
+
 /** React Query poller period — named constant per the brief, not a magic number at the call
  *  site. React Query owns the interval's lifecycle (clears it on unmount / when the query is
  *  disabled), so there's no manual `setInterval` here to leak. */
@@ -234,7 +240,9 @@ function EscalateDialog({
     },
   });
 
-  const reasonValid = reason.trim().length >= 10 && reason.trim().length <= 1000;
+  const trimmedReasonLength = reason.trim().length;
+  const reasonValid =
+    trimmedReasonLength >= REASON_MIN_LENGTH && trimmedReasonLength <= REASON_MAX_LENGTH;
   const codeValid = code.length === 6 && !notEnrolled;
 
   const handleClose = () => {
@@ -271,7 +279,7 @@ function EscalateDialog({
               <Textarea
                 id="escalate-reason"
                 value={reason}
-                maxLength={1000}
+                maxLength={REASON_MAX_LENGTH}
                 placeholder="Why does this session need write access?"
                 onChange={(e) => setReason(e.target.value)}
               />
@@ -344,7 +352,14 @@ function RevokeDialog({
   });
 
   return (
-    <AlertDialog open={open} onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (mutation.isPending) return;
+        onOpenChange(next);
+        if (!next) setReason("");
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Force-revoke this session?</AlertDialogTitle>
@@ -358,7 +373,7 @@ function RevokeDialog({
           <Textarea
             id="revoke-reason"
             value={reason}
-            maxLength={1000}
+            maxLength={REASON_MAX_LENGTH}
             placeholder="Recorded on the audit row. Defaults to a standard message if left blank."
             onChange={(e) => setReason(e.target.value)}
           />

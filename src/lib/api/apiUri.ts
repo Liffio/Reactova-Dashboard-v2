@@ -323,6 +323,33 @@ export const apiUri = {
         `${V1}/admin/users/${encodeURIComponent(userId)}/workspaces/${encodeURIComponent(workspaceId)}/policy`,
       policyItem: (userId: string, workspaceId: string, assignmentId: string) =>
         `${V1}/admin/users/${encodeURIComponent(userId)}/workspaces/${encodeURIComponent(workspaceId)}/policy/${encodeURIComponent(assignmentId)}`,
+      /**
+       * Identity & security mutations (Task 14, consumed by the Task 15 action bar / danger
+       * zone). `PATCH` on `detail(userId)` above IS `updateUserProfile` — same path, different
+       * method, no separate builder needed.
+       */
+      deactivate: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/deactivate`,
+      activate: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/activate`,
+      forcePasswordReset: (userId: string) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/force-password-reset`,
+      setPassword: (userId: string) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/set-password`,
+      revokeSessions: (userId: string) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/revoke-sessions`,
+      resetMfa: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/reset-mfa`,
+      verifyEmail: (userId: string) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/verify-email`,
+      resendVerification: (userId: string) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/resend-verification`,
+      changeEmail: (userId: string) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/change-email`,
+      googleLink: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/google-link`,
+      /** Ban/unban/notes — legacy carry-over routes (task-5), not part of Task 14's set but
+       *  needed by the Task 15 action bar / Overview notes editor; were missing from this module
+       *  before this task added them. */
+      ban: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/ban`,
+      unban: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/unban`,
+      notes: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/notes`,
     },
     /**
      * Workspace-level entitlement mutations (Task 11, consumed by the Task 13 drill-down editor).

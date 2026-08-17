@@ -464,3 +464,164 @@ export function removeUserPolicy(userId: string, workspaceId: string, assignment
     { method: "DELETE" },
   );
 }
+
+/* -------------------------------------------------------------------------
+ * Identity & security mutations (Task 14, consumed by Task 15's action bar +
+ * danger zone). Typed exactly to task-14-report.md §3's verbatim request/response shapes,
+ * including its fix-round-1 appendix (TARGET_IS_PLATFORM_ADMIN now also covers a
+ * legacy-flag-only super admin on set-password/reset-mfa; change-email's 409 covers a TOCTOU
+ * race, not just the pre-check). All eleven routes share the generic contract already
+ * established by the read endpoints: 400 INVALID_USER_ID, 404 (default) for an unknown user,
+ * 400 IMMUTABLE_USER for an env-immutable target — none of that is re-typed per function below,
+ * it's the same `ApiError.code` surface every admin-users mutation already produces.
+ * ---------------------------------------------------------------------- */
+
+/** `PATCH /admin/users/:id` — profile edit (name/phone/country). No UI in Task 15 consumes this
+ *  yet (not one of the brief's listed action-bar/kebab items) — typed here per item 1's "extend
+ *  with all Task 14 endpoints", ready for a future profile-edit surface. */
+export function updateAdminUserProfile(
+  userId: string,
+  body: { name?: string; phoneNumber?: string | null; country?: string | null },
+) {
+  return apiRequest<{
+    ok: true;
+    user: { id: string; name: string; phoneNumber: string | null; country: string | null };
+  }>(apiUri.admin.users.detail(userId), { method: "PATCH", body });
+}
+
+/** `POST /admin/users/:id/deactivate` — `reason` required (1-1000 chars). Revokes all sessions. */
+export function deactivateAdminUser(userId: string, reason: string) {
+  return apiRequest<{ ok: true }>(apiUri.admin.users.deactivate(userId), {
+    method: "POST",
+    body: { reason },
+  });
+}
+
+/** `POST /admin/users/:id/activate` — `reason` required. */
+export function activateAdminUser(userId: string, reason: string) {
+  return apiRequest<{ ok: true }>(apiUri.admin.users.activate(userId), {
+    method: "POST",
+    body: { reason },
+  });
+}
+
+/** `POST /admin/users/:id/force-password-reset` — ruling R14: revokes all sessions; if `notify`,
+ *  a Brevo security email tells the user to use "Forgot password" themselves. NEVER writes a
+ *  password hash or a reset token — this is not the same action as `setAdminUserPassword`. No
+ *  `reason` field on this endpoint's contract (unlike every other mutation here). */
+export function forceAdminUserPasswordReset(userId: string, notify: boolean) {
+  return apiRequest<{ ok: true }>(apiUri.admin.users.forcePasswordReset(userId), {
+    method: "POST",
+    body: { notify },
+  });
+}
+
+/** `POST /admin/users/:id/set-password` — spec §8.5's danger path. `confirmCode` is the ADMIN's
+ *  own 6-digit TOTP code, verified and stripped by the `requireTotpConfirm` step-up middleware
+ *  before this body's other fields are ever parsed server-side. Extra errors beyond the generic
+ *  contract: 400 `TOTP_CODE_REQUIRED`, 403 `TOTP_REQUIRED` (operator has no TOTP enrolled), 403
+ *  `TOTP_INVALID`, 403 `TARGET_IS_PLATFORM_ADMIN` (refuses ANY platform-admin target, including
+ *  one who is a super admin solely via the legacy `user_config.is_super_admin` flag — fix round
+ *  1). */
+export function setAdminUserPassword(
+  userId: string,
+  body: { password: string; reason: string; confirmCode: string },
+) {
+  return apiRequest<{ ok: true }>(apiUri.admin.users.setPassword(userId), {
+    method: "POST",
+    body,
+  });
+}
+
+/** `POST /admin/users/:id/revoke-sessions` — omit `sessionId` to revoke ALL of the user's
+ *  sessions. Extra errors: 404 `SESSION_NOT_FOUND`, 409 `SESSION_ALREADY_REVOKED` (revoked/removed
+ *  between the tab's list render and this call). */
+export function revokeAdminUserSessions(userId: string, sessionId?: string) {
+  return apiRequest<{ ok: true; revokedCount: number }>(apiUri.admin.users.revokeSessions(userId), {
+    method: "POST",
+    body: sessionId ? { sessionId } : {},
+  });
+}
+
+/** `POST /admin/users/:id/reset-mfa` — `method: "ALL"` disables TOTP + SMS_OTP rows only, never
+ *  EMAIL_OTP (the always-available fallback channel — see task-14-report.md §9). `reason`
+ *  required. Extra error: 403 `TARGET_IS_PLATFORM_ADMIN` (same legacy-flag-aware guard as
+ *  set-password). */
+export function resetAdminUserMfa(userId: string, method: "ALL" | "TOTP" | "SMS", reason: string) {
+  return apiRequest<{ ok: true; disabledMethods: ("TOTP" | "EMAIL_OTP" | "SMS_OTP")[] }>(
+    apiUri.admin.users.resetMfa(userId),
+    { method: "POST", body: { method, reason } },
+  );
+}
+
+/** `POST /admin/users/:id/verify-email` — force-marks verified now (skips OTP). `reason`
+ *  required. */
+export function verifyAdminUserEmail(userId: string, reason: string) {
+  return apiRequest<{ ok: true }>(apiUri.admin.users.verifyEmail(userId), {
+    method: "POST",
+    body: { reason },
+  });
+}
+
+/** `POST /admin/users/:id/resend-verification` — no request body; reuses the existing
+ *  verification-send service (cooldown-aware). `outcome` distinguishes a real send from an
+ *  already-verified account, an active cooldown (`retryAfterSec` present), or a send failure. */
+export function resendAdminUserVerification(userId: string) {
+  return apiRequest<{
+    ok: true;
+    outcome: "sent" | "already_verified" | "cooldown" | "email_failed";
+    retryAfterSec?: number;
+  }>(apiUri.admin.users.resendVerification(userId), { method: "POST", body: {} });
+}
+
+/** `POST /admin/users/:id/change-email` — uniqueness-checked (409 `EMAIL_ALREADY_IN_USE`, both
+ *  the fast pre-check and a TOCTOU-safe catch on the write itself per fix round 1); normalizes
+ *  the address (trim + lower-case, returned in `email`); clears verification state and sends a
+ *  fresh verification email; revokes all sessions. `reason` required. */
+export function changeAdminUserEmail(userId: string, email: string, reason: string) {
+  return apiRequest<{ ok: true; email: string }>(apiUri.admin.users.changeEmail(userId), {
+    method: "POST",
+    body: { email, reason },
+  });
+}
+
+/** `DELETE /admin/users/:id/google-link` — clears `googleId`. `reason` required. Extra errors:
+ *  400 `NO_PASSWORD_AUTH` (no password set — would lock the user out), 400 `NO_GOOGLE_LINK`
+ *  (nothing to unlink). */
+export function unlinkAdminUserGoogle(userId: string, reason: string) {
+  return apiRequest<{ ok: true }>(apiUri.admin.users.googleLink(userId), {
+    method: "DELETE",
+    body: { reason },
+  });
+}
+
+/* -------------------------------------------------------------------------
+ * Ban / unban / admin notes — legacy routes carried over from the pre-control-plane
+ * `adminUsers.ts` (task-5/task-14-report.md §1: "unchanged from task-5... just re-gated onto the
+ * granular permission"). Not part of Task 14's eleven, and were missing from this module before
+ * Task 15 added them per the brief's item 7/8 explicit "add if missing" instruction.
+ * ---------------------------------------------------------------------- */
+
+/** `POST /admin/users/:id/ban` — `reason` required (server: `min(1)`, not the 1-1000 `reasonSchema`
+ *  every Task 14 mutation uses — this route predates that convention). Guard: 400 (plain string
+ *  error, no typed `code`) refusing an env-immutable super-admin target. */
+export function banAdminUser(userId: string, reason: string) {
+  return apiRequest<{ ok: true }>(apiUri.admin.users.ban(userId), {
+    method: "POST",
+    body: { reason },
+  });
+}
+
+/** `POST /admin/users/:id/unban` — no request body. */
+export function unbanAdminUser(userId: string) {
+  return apiRequest<{ ok: true }>(apiUri.admin.users.unban(userId), { method: "POST", body: {} });
+}
+
+/** `PATCH /admin/users/:id/notes` — `notes` may be an empty string (clears the field); the server
+ *  schema (`z.string()`) has no length cap, unlike the reason fields above. */
+export function setAdminUserNotes(userId: string, notes: string) {
+  return apiRequest<{ ok: true }>(apiUri.admin.users.notes(userId), {
+    method: "PATCH",
+    body: { notes },
+  });
+}

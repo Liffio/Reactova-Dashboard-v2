@@ -1,18 +1,29 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, XCircle } from "lucide-react";
 
 import { FormSection } from "@/components/admin/form-page";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/format";
-import { getAdminUser } from "@/lib/api/admin-users-api";
+import { toast } from "@/lib/toast";
+import { ApiError } from "@/lib/api/http";
+import { usePlatformCan } from "@/hooks/use-platform-authz";
+import { getAdminUser, setAdminUserNotes } from "@/lib/api/admin-users-api";
+
+const USER_MANAGE = "platform:user_manage";
 
 /**
- * Overview tab — identity summary (fields not already on the rail), counts, admin notes
- * (read-only; editing is a later phase), ban details, email-verification state. Per spec §7.2 /
- * task-8-brief.md requirement 3.
+ * Overview tab — identity summary (fields not already on the rail), counts, admin notes, ban
+ * details, email-verification state. Per spec §7.2 / task-8-brief.md requirement 3.
+ *
+ * Admin notes (Task 15) — editable textarea + save via `PATCH /admin/users/:id/notes`
+ * (task-14-report.md §1: a legacy carry-over route, not one of Task 14's eleven). Plain
+ * save+refetch, no optimistic update (per the brief — this is a low-frequency, low-risk edit).
+ * Hidden behind `platform:user_manage`, falling back to the prior read-only rendering otherwise.
  */
 export const Route = createFileRoute("/_app/admin/users/$userId/")({
   head: () => ({ meta: [{ title: "Overview — User — Admin" }] }),
@@ -121,13 +132,7 @@ function OverviewTab() {
         ) : null}
       </FormSection>
 
-      <FormSection title="Admin notes" description="Read-only — editing arrives in a later phase.">
-        {user.adminNotes ? (
-          <p className="whitespace-pre-wrap text-sm">{user.adminNotes}</p>
-        ) : (
-          <p className="text-sm text-muted-foreground">No notes on file.</p>
-        )}
-      </FormSection>
+      <AdminNotesSection userId={user.id} notes={user.adminNotes} />
     </div>
   );
 }
@@ -138,5 +143,78 @@ function OverviewRow({ label, children }: { label: string; children: ReactNode }
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="font-medium">{children}</dd>
     </div>
+  );
+}
+
+function AdminNotesSection({ userId, notes }: { userId: string; notes: string | null }) {
+  const canManage = usePlatformCan(USER_MANAGE);
+  const queryClient = useQueryClient();
+  const [draft, setDraft] = useState(notes ?? "");
+
+  // The detail query can refetch out from under an untouched textarea (e.g. another mutation's
+  // invalidation) — keep the draft in sync with the server value whenever it changes and the
+  // operator hasn't started editing away from it.
+  useEffect(() => {
+    setDraft(notes ?? "");
+  }, [notes]);
+
+  const dirty = draft !== (notes ?? "");
+
+  const mutation = useMutation({
+    mutationFn: () => setAdminUserNotes(userId, draft),
+    onSuccess: () => {
+      toast.success("Notes saved.");
+      void queryClient.invalidateQueries({ queryKey: ["admin-user", userId] });
+    },
+    onError: (err) => {
+      const requestId = err instanceof ApiError ? err.requestId : undefined;
+      toast.error(err instanceof Error ? err.message : "Failed to save notes.", {
+        description: requestId ? `Request ID: ${requestId}` : undefined,
+      });
+    },
+  });
+
+  if (!canManage) {
+    return (
+      <FormSection title="Admin notes">
+        {notes ? (
+          <p className="whitespace-pre-wrap text-sm">{notes}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">No notes on file.</p>
+        )}
+      </FormSection>
+    );
+  }
+
+  return (
+    <FormSection
+      title="Admin notes"
+      description="Visible only to platform admins — never shown to the user."
+      actions={
+        dirty ? (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={mutation.isPending}
+              onClick={() => setDraft(notes ?? "")}
+            >
+              Cancel
+            </Button>
+            <Button size="sm" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+              {mutation.isPending ? "Saving…" : "Save notes"}
+            </Button>
+          </div>
+        ) : undefined
+      }
+    >
+      <Textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Add a note for other admins…"
+        className="min-h-24"
+        disabled={mutation.isPending}
+      />
+    </FormSection>
   );
 }

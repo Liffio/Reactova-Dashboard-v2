@@ -1,16 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   AlertCircle,
+  Bookmark,
+  BookmarkPlus,
   ChevronDown,
   ChevronsUpDown,
   ChevronUp,
   Loader2,
   MoreHorizontal,
+  Pencil,
   Search,
   SlidersHorizontal,
+  Trash2,
   UserCog,
   UserX,
   X,
@@ -24,6 +34,7 @@ import { ImpersonateDialog } from "@/components/admin/impersonate-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   DropdownMenu,
@@ -41,10 +52,30 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useDebounced } from "@/hooks/use-debounced";
 import { usePlatformCan } from "@/hooks/use-platform-authz";
 import { cn } from "@/lib/utils";
+import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api/http";
 import {
   listAdminUsers,
@@ -52,6 +83,13 @@ import {
   type AdminUserListItem,
   type AdminUserListParams,
 } from "@/lib/api/admin-users-api";
+import {
+  createSavedView,
+  deleteSavedView,
+  listSavedViews,
+  updateSavedView,
+  type AdminSavedView,
+} from "@/lib/api/admin-saved-views-api";
 
 const USER_MANAGE = "platform:user_manage";
 /** Separate axis from `USER_MANAGE` — Task 18. Gates the `i`-shortcut and the kebab's
@@ -139,6 +177,56 @@ function toIsoDayStart(date: string | undefined): string | undefined {
 }
 function toIsoDayEnd(date: string | undefined): string | undefined {
   return date ? `${date}T23:59:59.999Z` : undefined;
+}
+
+/**
+ * Saved views (spec §4.3, §7.1) — a view's `filters` blob is the exact wire shape
+ * `apiUri.admin.users.list` would encode into the query string (every value stringified),
+ * matching the schema `GET /admin/users`'s own query string parses against
+ * (task-22-report.md §3/§6 — the server validates `filters` against that same `listQuerySchema`).
+ * `filtersToSearch` is the inverse, reusing this route's own `strParam`/`boolParam`/`oneOf`
+ * coercion helpers so applying a saved view behaves exactly like following a shared URL.
+ */
+function searchToFilters(search: AdminUsersSearch): Record<string, string> {
+  const out: Record<string, string> = {};
+  const entries: Array<[string, string | boolean | undefined]> = [
+    ["q", search.q],
+    ["sort", search.sort],
+    ["dir", search.dir],
+    ["status", search.status],
+    ["plan", search.plan],
+    ["verified", search.verified],
+    ["has_mfa", search.has_mfa],
+    ["workspace_status", search.workspace_status],
+    ["created_after", search.created_after],
+    ["created_before", search.created_before],
+  ];
+  for (const [key, value] of entries) {
+    if (value !== undefined && value !== "") out[key] = String(value);
+  }
+  return out;
+}
+
+function filtersToSearch(filters: Record<string, unknown>): AdminUsersSearch {
+  return {
+    q: strParam(filters.q),
+    sort: oneOf(filters.sort, SORT_VALUES),
+    dir: oneOf(filters.dir, DIR_VALUES),
+    status: oneOf(filters.status, STATUS_VALUES),
+    plan: strParam(filters.plan),
+    verified: boolParam(filters.verified),
+    has_mfa: boolParam(filters.has_mfa),
+    workspace_status: strParam(filters.workspace_status),
+    created_after: strParam(filters.created_after),
+    created_before: strParam(filters.created_before),
+  };
+}
+
+function savedViewErrorToast(err: unknown, fallback: string) {
+  const requestId = err instanceof ApiError ? err.requestId : undefined;
+  toast.error(err instanceof Error ? err.message : fallback, {
+    description: requestId ? `Request ID: ${requestId}` : undefined,
+  });
 }
 
 /** Interactive controls (native or ARIA) whose Enter/Space keypress must be left alone — the
@@ -421,6 +509,370 @@ function UserRow({
   );
 }
 
+/** "Save this view" — captures `search` (the current `validateSearch` state) as a named,
+ *  optionally-shared saved view. Cancel/close routes through `handleClose` so a typed
+ *  name/share-toggle never survives past a Cancel and repopulates the next time this
+ *  always-mounted dialog opens (see `admin.users.$userId.billing.tsx`'s `CompPlanDialog` for the
+ *  same convention this mirrors). */
+function SaveViewDialog({
+  open,
+  onOpenChange,
+  search,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  search: AdminUsersSearch;
+}) {
+  const [name, setName] = useState("");
+  const [isShared, setIsShared] = useState(false);
+  const queryClient = useQueryClient();
+
+  const reset = () => {
+    setName("");
+    setIsShared(false);
+  };
+  const handleClose = () => {
+    onOpenChange(false);
+    reset();
+  };
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      createSavedView({ name: name.trim(), filters: searchToFilters(search), isShared }),
+    onSuccess: () => {
+      toast.success("View saved.");
+      handleClose();
+      void queryClient.invalidateQueries({ queryKey: ["admin-saved-views"] });
+    },
+    onError: (err) => savedViewErrorToast(err, "Failed to save this view."),
+  });
+
+  const nameValid = name.trim().length >= 1 && name.trim().length <= 255;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (mutation.isPending) return;
+        if (next) onOpenChange(next);
+        else handleClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Save this view</DialogTitle>
+          <DialogDescription>
+            Captures the current search, sort, and filters as a reusable view.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="save-view-name">Name</Label>
+            <Input
+              id="save-view-name"
+              value={name}
+              maxLength={255}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Unverified, last 30 days"
+            />
+          </div>
+          <label className="flex items-start gap-2.5 rounded-lg border p-3 text-sm">
+            <Checkbox
+              checked={isShared}
+              onCheckedChange={(v) => setIsShared(v === true)}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="block font-medium">Share with other admins</span>
+              <span className="block text-xs text-muted-foreground">
+                Visible to every admin who can reach this page, not just you.
+              </span>
+            </span>
+          </label>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose} disabled={mutation.isPending}>
+            Cancel
+          </Button>
+          <Button disabled={!nameValid || mutation.isPending} onClick={() => mutation.mutate()}>
+            {mutation.isPending ? "Saving…" : "Save view"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Rename — re-seeds `name` from `view.name` on every open (not just on mount: this dialog stays
+ *  mounted across open/close cycles as a sibling of `SavedViewRow`'s other controls), and Cancel
+ *  routes through the same `handleClose` the Dialog's own `onOpenChange(false)` branch uses, so a
+ *  half-typed rename never survives a Cancel. */
+function RenameViewDialog({
+  view,
+  open,
+  onOpenChange,
+}: {
+  view: AdminSavedView;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [name, setName] = useState(view.name);
+  const queryClient = useQueryClient();
+
+  const handleClose = () => {
+    onOpenChange(false);
+    setName(view.name);
+  };
+
+  const mutation = useMutation({
+    mutationFn: () => updateSavedView(view.id, { name: name.trim() }),
+    onSuccess: () => {
+      toast.success("View renamed.");
+      onOpenChange(false);
+      void queryClient.invalidateQueries({ queryKey: ["admin-saved-views"] });
+    },
+    onError: (err) => savedViewErrorToast(err, "Failed to rename this view."),
+  });
+
+  const nameValid = name.trim().length >= 1 && name.trim().length <= 255;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (mutation.isPending) return;
+        if (next) {
+          setName(view.name);
+          onOpenChange(next);
+        } else {
+          handleClose();
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Rename view</DialogTitle>
+        </DialogHeader>
+        <Input value={name} maxLength={255} onChange={(e) => setName(e.target.value)} />
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose} disabled={mutation.isPending}>
+            Cancel
+          </Button>
+          <Button disabled={!nameValid || mutation.isPending} onClick={() => mutation.mutate()}>
+            {mutation.isPending ? "Saving…" : "Rename"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** One row in the Views dialog. Apply is the row's own click target (own AND shared rows); own
+ *  rows additionally get a Share switch (fires immediately — a lightweight preference toggle, no
+ *  confirm needed, D5 audit-detached server-side per task-22-report.md §6) plus Rename/Delete.
+ *  Shared-not-own rows are apply-only, per the contract's own-only PATCH/DELETE scoping. */
+function SavedViewRow({ view, onApply }: { view: AdminSavedView; onApply: () => void }) {
+  const queryClient = useQueryClient();
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const invalidate = () => void queryClient.invalidateQueries({ queryKey: ["admin-saved-views"] });
+
+  const shareMutation = useMutation({
+    mutationFn: (next: boolean) => updateSavedView(view.id, { isShared: next }),
+    onSuccess: invalidate,
+    onError: (err) => savedViewErrorToast(err, "Failed to update sharing."),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteSavedView(view.id),
+    onSuccess: () => {
+      toast.success("View deleted.");
+      setDeleteOpen(false);
+      invalidate();
+    },
+    onError: (err) => savedViewErrorToast(err, "Failed to delete this view."),
+  });
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border p-2.5">
+      <button
+        type="button"
+        onClick={onApply}
+        className="min-w-0 flex-1 truncate text-left text-sm font-medium hover:text-primary"
+      >
+        {view.name}
+      </button>
+      {!view.isOwn && (
+        <Badge variant="outline" className="shrink-0 text-[10px]">
+          Shared
+        </Badge>
+      )}
+      {view.isOwn && (
+        <>
+          <label className="flex shrink-0 items-center gap-1.5 text-[10px] text-muted-foreground">
+            Shared
+            <Switch
+              checked={view.isShared}
+              onCheckedChange={(v) => shareMutation.mutate(v)}
+              disabled={shareMutation.isPending}
+            />
+          </label>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            aria-label="Rename view"
+            onClick={() => setRenameOpen(true)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+            aria-label="Delete view"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+          <RenameViewDialog view={view} open={renameOpen} onOpenChange={setRenameOpen} />
+          <AlertDialog
+            open={deleteOpen}
+            onOpenChange={(next) => !deleteMutation.isPending && setDeleteOpen(next)}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete "{view.name}"?</AlertDialogTitle>
+                <AlertDialogDescription>This can't be undone.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={deleteMutation.isPending}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    deleteMutation.mutate();
+                  }}
+                >
+                  {deleteMutation.isPending ? "Deleting…" : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Views picker + manager, combined into one dialog (own + shared, shared badged; apply
+ *  navigates; own rows get rename/delete/share) — a single surface rather than a picker dropdown
+ *  plus a separate manager page, matching the brief's "keep it light" mechanical-UI guidance. */
+function ViewsDialog({
+  open,
+  onOpenChange,
+  views,
+  onApply,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  views: AdminSavedView[];
+  onApply: (view: AdminSavedView) => void;
+}) {
+  const mine = views.filter((v) => v.isOwn);
+  const shared = views.filter((v) => !v.isOwn);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Saved views</DialogTitle>
+          <DialogDescription>Apply a saved view, or manage your own.</DialogDescription>
+        </DialogHeader>
+        {views.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">No saved views yet.</p>
+        ) : (
+          <div className="max-h-96 space-y-4 overflow-y-auto">
+            {mine.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Mine
+                </p>
+                {mine.map((v) => (
+                  <SavedViewRow key={v.id} view={v} onApply={() => onApply(v)} />
+                ))}
+              </div>
+            )}
+            {shared.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Shared by other admins
+                </p>
+                {shared.map((v) => (
+                  <SavedViewRow key={v.id} view={v} onApply={() => onApply(v)} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Toolbar entry point — "Save view" opens the save dialog; "Views" opens the picker/manager.
+ *  `onApply` is the caller's own navigate-with-search callback, keeping this component decoupled
+ *  from `useNavigate`'s typed-route plumbing. */
+function SavedViewsControls({
+  search,
+  onApply,
+}: {
+  search: AdminUsersSearch;
+  onApply: (next: AdminUsersSearch) => void;
+}) {
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
+
+  const viewsQuery = useQuery({
+    queryKey: ["admin-saved-views"],
+    queryFn: () => listSavedViews(),
+  });
+  const views = viewsQuery.data?.views ?? [];
+
+  return (
+    <>
+      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setSaveOpen(true)}>
+        <BookmarkPlus className="h-3.5 w-3.5" /> Save view
+      </Button>
+      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setManageOpen(true)}>
+        <Bookmark className="h-3.5 w-3.5" /> Views
+        {views.length > 0 && (
+          <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
+            {views.length}
+          </Badge>
+        )}
+      </Button>
+      <SaveViewDialog open={saveOpen} onOpenChange={setSaveOpen} search={search} />
+      <ViewsDialog
+        open={manageOpen}
+        onOpenChange={setManageOpen}
+        views={views}
+        onApply={(view) => {
+          onApply(filtersToSearch(view.filters));
+          setManageOpen(false);
+        }}
+      />
+    </>
+  );
+}
+
 function UsersTable() {
   const navigate = useNavigate({ from: Route.fullPath });
   const search = Route.useSearch();
@@ -483,6 +935,16 @@ function UsersTable() {
   const clearFilters = useCallback(() => {
     void navigate({ search: (prev) => ({ q: prev.q, sort: prev.sort, dir: prev.dir }) });
   }, [navigate]);
+
+  /** Applying a saved view replaces the URL search state wholesale (not merged into `prev`) — a
+   *  saved view is a complete snapshot, so any filter not present in it should clear, exactly
+   *  like following a shared link would. */
+  const applySavedView = useCallback(
+    (next: AdminUsersSearch) => {
+      void navigate({ search: () => next });
+    },
+    [navigate],
+  );
 
   const activeFilterCount = [
     search.status,
@@ -697,6 +1159,7 @@ function UsersTable() {
               <X className="h-3.5 w-3.5" /> Clear filters
             </Button>
           )}
+          <SavedViewsControls search={search} onApply={applySavedView} />
           <span className="ml-auto text-xs text-muted-foreground">
             {total !== undefined
               ? `${total.toLocaleString()} user${total === 1 ? "" : "s"}`

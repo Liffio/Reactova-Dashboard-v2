@@ -15,6 +15,7 @@ import {
   ShieldOff,
   Unlink,
   UserCheck,
+  UserCog,
   UserX,
 } from "lucide-react";
 
@@ -22,6 +23,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { PlatformPermissionRoute } from "@/components/auth/guards";
 import { PageErrorBoundary } from "@/components/error-boundary";
 import { CopyableKey } from "@/components/admin/form-page";
+import { ImpersonateDialog } from "@/components/admin/impersonate-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -97,11 +99,18 @@ import {
  * Action bar + danger zone (Task 15) — every mutation dialog lives in this file rather than a
  * shared `src/components/admin/` module: they're specific to this one page, and the codebase's
  * own convention (Task 8/10's shell/drill-down files) is a page owns its dialogs locally rather
- * than centralising page-specific furniture. `Impersonate` is deliberately NOT stubbed — it
- * arrives in Phase 6, per the brief.
+ * than centralising page-specific furniture. `Impersonate` (Task 18, Phase 6) is the one
+ * exception: `ImpersonateDialog` lives in `src/components/admin/impersonate-dialog.tsx` instead,
+ * because it's reused verbatim from the user LIST page's kebab/`i`-shortcut, which has no
+ * `AdminUserDetail` to read a target label from — a shared component with `{targetUserId,
+ * targetLabel}` props is the natural fit, not a duplicate implementation per page.
  */
 
 const USER_MANAGE = "platform:user_manage";
+/** Separate axis from `USER_MANAGE` — Task 18. Gates the Impersonate action specifically, so a
+ *  `platform:user_manage`-only operator (who can see and edit this page) doesn't get an
+ *  impersonate button they'd 403 on. */
+const IMPERSONATE = "platform:impersonate";
 
 export const Route = createFileRoute("/_app/admin/users/$userId")({
   head: () => ({ meta: [{ title: "User — Admin" }] }),
@@ -536,10 +545,34 @@ function UserActionBar({ userId, user }: { userId: string; user: AdminUserDetail
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <ImpersonateAction userId={userId} user={user} />
       <ForcePasswordResetAction userId={userId} />
       {user.ban.isBanned ? <UnbanAction userId={userId} /> : <BanAction userId={userId} />}
       <UserKebabMenu userId={userId} user={user} />
     </div>
+  );
+}
+
+/** Primary "Impersonate" button (brief requirement 2) — self-gated on `platform:impersonate`
+ *  independently of `UserActionBar`'s own `platform:user_manage` gate above, per the brief's
+ *  "hide otherwise". */
+function ImpersonateAction({ userId, user }: { userId: string; user: AdminUserDetail }) {
+  const canImpersonate = usePlatformCan(IMPERSONATE);
+  const [open, setOpen] = useState(false);
+  if (!canImpersonate) return null;
+
+  return (
+    <>
+      <Button size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
+        <UserCog className="h-3.5 w-3.5" /> Impersonate
+      </Button>
+      <ImpersonateDialog
+        targetUserId={userId}
+        targetLabel={user.name || user.email}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
   );
 }
 

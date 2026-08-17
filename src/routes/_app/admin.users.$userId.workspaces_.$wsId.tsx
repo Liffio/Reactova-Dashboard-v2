@@ -4,9 +4,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   AlertTriangle,
+  Ban,
   ChevronRight,
   KeyRound,
+  RefreshCw,
   Search,
+  Send,
   ShieldAlert,
   ShieldQuestion,
 } from "lucide-react";
@@ -51,6 +54,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format";
 import { toast } from "@/lib/toast";
@@ -62,6 +73,14 @@ import {
   assignWorkspacePackageAdmin,
   unassignWorkspacePackageAdmin,
   patchWorkspaceLimits,
+  listWorkspaceInstagramAccounts,
+  refreshWorkspaceInstagramToken,
+  listWorkspaceDmJobs,
+  listWorkspaceInvitesAdmin,
+  resendWorkspaceInviteAdmin,
+  revokeWorkspaceInviteAdmin,
+  type AdminDmJobStatus,
+  type AdminWorkspaceInvite,
 } from "@/lib/api/admin-workspaces-api";
 import {
   getAdminUserWorkspaces,
@@ -104,6 +123,10 @@ const USER_MANAGE = "platform:user_manage";
  *  each mutation section gates independently rather than assuming the page-level grant covers
  *  everything on it (requirement 9). */
 const PACKAGE_MANAGE = "platform:package_manage";
+/** Gates the light support-ops surfaces (Task 22 §6.9, Task 23 item 5) — Instagram health,
+ *  DM job history, and invite management, all `platform:workspace_manage`-gated server-side.
+ *  A third, independent axis from `USER_MANAGE`/`PACKAGE_MANAGE` above (requirement 9). */
+const WORKSPACE_MANAGE = "platform:workspace_manage";
 
 export const Route = createFileRoute("/_app/admin/users/$userId/workspaces_/$wsId")({
   head: () => ({ meta: [{ title: "Workspace Access — User — Admin" }] }),
@@ -486,6 +509,11 @@ function EffectiveAccessPageInner({ userId, wsId }: { userId: string; wsId: stri
               />
             </div>
           </div>
+
+          <WorkspaceSupportOpsSection
+            wsId={wsId}
+            workspaceName={membership?.workspaceName ?? "this workspace"}
+          />
 
           {totalStaged > 0 && (
             <FormActions hint={`${totalStaged} staged change${totalStaged === 1 ? "" : "s"}`}>
@@ -2331,5 +2359,463 @@ function CommitDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Support ops (Task 22 spec §6.9, Task 23 item 5) — Instagram account health, DM job failures,
+ * and pending invites for this one workspace. Kept LIGHT per the brief: read-only tables plus
+ * two small confirmed actions (force-refresh a token, resend/revoke an invite) — no new page.
+ * Collapsed by default (`open` starts false): this page is already dense, and support ops is a
+ * secondary, occasional-use surface. Gated `WORKSPACE_MANAGE`, independently of every other
+ * section on this page (requirement 9's established precedent — see `PackageSection`/
+ * `RoleSection`'s own independent gates above).
+ * ---------------------------------------------------------------------- */
+
+function supportOpsErrorToast(err: unknown, fallback: string) {
+  const requestId = err instanceof ApiError ? err.requestId : undefined;
+  toast.error(err instanceof Error ? err.message : fallback, {
+    description: requestId ? `Request ID: ${requestId}` : undefined,
+  });
+}
+
+function SupportOpsErrorNote({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const requestId = error instanceof ApiError ? error.requestId : undefined;
+  const message = error instanceof Error ? error.message : "Something went wrong.";
+  return (
+    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs">
+      <p className="font-medium text-destructive">{message}</p>
+      {requestId && (
+        <p className="mt-1 text-muted-foreground">
+          Request ID: <span className="font-mono">{requestId}</span>
+        </p>
+      )}
+      <button
+        type="button"
+        className="mt-2 rounded border px-2 py-1 text-[11px] hover:bg-muted"
+        onClick={onRetry}
+      >
+        Retry
+      </button>
+    </div>
+  );
+}
+
+function SupportOpsTableSkeleton() {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Skeleton key={i} className="h-9 w-full" />
+      ))}
+    </div>
+  );
+}
+
+/** No documented trust-level scale beyond the raw 0-100-ish number (task-22-report.md carries no
+ *  bucketing convention) — a plain three-tier read is a reasonable, clearly-labeled judgment
+ *  call; the raw number is always shown alongside the color, never hidden behind the tier alone. */
+function TrustBadge({ trustLevel }: { trustLevel: number }) {
+  const toneClassName =
+    trustLevel >= 70
+      ? "border-success/30 bg-success/10 text-success"
+      : trustLevel >= 40
+        ? "border-warning/30 bg-warning/10 text-warning"
+        : "border-destructive/30 bg-destructive/10 text-destructive";
+  return (
+    <Badge variant="outline" className={cn("text-[10px] tabular-nums", toneClassName)}>
+      Trust {trustLevel}
+    </Badge>
+  );
+}
+
+function InstagramAccountsCard({ wsId }: { wsId: string }) {
+  const queryClient = useQueryClient();
+  const accountsQuery = useQuery({
+    queryKey: ["admin-workspace", wsId, "instagram"],
+    queryFn: () => listWorkspaceInstagramAccounts(wsId),
+  });
+  const accounts = accountsQuery.data?.accounts ?? [];
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
+  const refreshMutation = useMutation({
+    mutationFn: (accountId: string) => refreshWorkspaceInstagramToken(wsId, accountId),
+    onSuccess: (res) => {
+      toast.success(
+        res.tokenExpiresAt
+          ? `Token refreshed — expires ${formatDateTime(res.tokenExpiresAt)}.`
+          : "Token refreshed.",
+      );
+      setRefreshingId(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin-workspace", wsId, "instagram"] });
+    },
+    onError: (err) => {
+      setRefreshingId(null);
+      supportOpsErrorToast(err, "Failed to refresh this account's token.");
+    },
+  });
+
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Instagram accounts
+      </h3>
+      {accountsQuery.isLoading ? (
+        <SupportOpsTableSkeleton />
+      ) : accountsQuery.isError ? (
+        <SupportOpsErrorNote
+          error={accountsQuery.error}
+          onRetry={() => void accountsQuery.refetch()}
+        />
+      ) : accounts.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No Instagram accounts connected.</p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Account</TableHead>
+                <TableHead>Trust</TableHead>
+                <TableHead className="text-right">Failures</TableHead>
+                <TableHead>Token expires</TableHead>
+                <TableHead className="w-24" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {accounts.map((acct) => {
+                const isRefreshing = refreshMutation.isPending && refreshingId === acct.id;
+                return (
+                  <TableRow key={acct.id}>
+                    <TableCell>
+                      <p className="text-sm font-medium">@{acct.platformUsername}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {acct.isActive ? "Active" : "Inactive"}
+                        {acct.followerCount != null
+                          ? ` · ${acct.followerCount.toLocaleString()} followers`
+                          : ""}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      {acct.health ? (
+                        <TrustBadge trustLevel={acct.health.trustLevel} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No health data</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-xs">
+                      {acct.health ? (
+                        <span
+                          className={cn(
+                            acct.health.consecutiveFailures > 0 && "font-medium text-destructive",
+                          )}
+                        >
+                          {acct.health.consecutiveFailures}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                      {acct.tokenExpiresAt ? formatDateTime(acct.tokenExpiresAt) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1 text-xs"
+                        disabled={refreshMutation.isPending}
+                        onClick={() => {
+                          setRefreshingId(acct.id);
+                          refreshMutation.mutate(acct.id);
+                        }}
+                      >
+                        <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
+                        Refresh
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const DM_JOB_STATUS_VALUES: readonly AdminDmJobStatus[] = ["QUEUED", "SENT", "FAILED", "RETRYING"];
+
+const DM_JOB_STATUS_CLASS: Record<AdminDmJobStatus, string> = {
+  QUEUED: "border-muted-foreground/30 text-muted-foreground",
+  SENT: "border-success/30 bg-success/10 text-success",
+  FAILED: "border-destructive/30 bg-destructive/10 text-destructive",
+  RETRYING: "border-warning/30 bg-warning/10 text-warning",
+};
+
+/** Defaults to `FAILED` — the brief's own framing for this surface ("failed DM jobs"); the status
+ *  Select lets an operator widen it without leaving the card. */
+function DmJobsCard({ wsId }: { wsId: string }) {
+  const [status, setStatus] = useState<AdminDmJobStatus | "ALL">("FAILED");
+  const jobsQuery = useQuery({
+    queryKey: ["admin-workspace", wsId, "dm-jobs", status],
+    queryFn: () =>
+      listWorkspaceDmJobs(wsId, { status: status === "ALL" ? undefined : status, limit: 25 }),
+  });
+  const jobs = jobsQuery.data?.items ?? [];
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          DM jobs
+        </h3>
+        <Select value={status} onValueChange={(v) => setStatus(v as AdminDmJobStatus | "ALL")}>
+          <SelectTrigger className="h-7 w-32 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All statuses</SelectItem>
+            {DM_JOB_STATUS_VALUES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {humanizeKey(s)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {jobsQuery.isLoading ? (
+        <SupportOpsTableSkeleton />
+      ) : jobsQuery.isError ? (
+        <SupportOpsErrorNote error={jobsQuery.error} onRetry={() => void jobsQuery.refetch()} />
+      ) : jobs.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          No {status === "ALL" ? "" : `${status.toLowerCase()} `}DM jobs.
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Status</TableHead>
+                <TableHead>Recipient</TableHead>
+                <TableHead>Error</TableHead>
+                <TableHead className="text-right">Retries</TableHead>
+                <TableHead>Created</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {jobs.map((job) => (
+                <TableRow key={job.id}>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={cn("text-[10px]", DM_JOB_STATUS_CLASS[job.status])}
+                    >
+                      {humanizeKey(job.status)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{job.recipientIgId}</TableCell>
+                  <TableCell
+                    className="max-w-[220px] truncate text-xs text-destructive"
+                    title={job.error ?? undefined}
+                  >
+                    {job.error ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-xs">
+                    {job.retryCount}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                    {formatDateTime(job.createdAt)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Resend is rate-limited server-side (`inviteResendLimiter`, shared with `team.ts`'s
+ *  tenant-facing resend — task-22-report.md §7); a 429 surfaces through the generic
+ *  `supportOpsErrorToast` like any other typed error, nothing special-cased here. Revoke is
+ *  confirm-gated (AlertDialog) — the one destructive action on this card. */
+function WorkspaceInvitesCard({ wsId }: { wsId: string }) {
+  const queryClient = useQueryClient();
+  const invitesQuery = useQuery({
+    queryKey: ["admin-workspace", wsId, "invites"],
+    queryFn: () => listWorkspaceInvitesAdmin(wsId),
+  });
+  const invites = invitesQuery.data?.invites ?? [];
+  const [revokeTarget, setRevokeTarget] = useState<AdminWorkspaceInvite | null>(null);
+
+  const invalidate = () =>
+    void queryClient.invalidateQueries({ queryKey: ["admin-workspace", wsId, "invites"] });
+
+  const resendMutation = useMutation({
+    mutationFn: (inviteId: string) => resendWorkspaceInviteAdmin(wsId, inviteId),
+    onSuccess: (res) => {
+      toast.success(
+        res.emailSent ? "Invite resent." : "Invite refreshed, but the email failed to send.",
+      );
+      invalidate();
+    },
+    onError: (err) => supportOpsErrorToast(err, "Failed to resend this invite."),
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: (inviteId: string) => revokeWorkspaceInviteAdmin(wsId, inviteId),
+    onSuccess: () => {
+      toast.success("Invite revoked.");
+      setRevokeTarget(null);
+      invalidate();
+    },
+    onError: (err) => supportOpsErrorToast(err, "Failed to revoke this invite."),
+  });
+
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Pending invites
+      </h3>
+      {invitesQuery.isLoading ? (
+        <SupportOpsTableSkeleton />
+      ) : invitesQuery.isError ? (
+        <SupportOpsErrorNote
+          error={invitesQuery.error}
+          onRetry={() => void invitesQuery.refetch()}
+        />
+      ) : invites.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No pending or recently expired invites.</p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Expires</TableHead>
+                <TableHead className="text-right">Resent</TableHead>
+                <TableHead className="w-32" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {invites.map((invite) => (
+                <TableRow key={invite.id}>
+                  <TableCell className="text-sm">{invite.email}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px]",
+                        invite.status === "PENDING"
+                          ? "border-success/30 bg-success/10 text-success"
+                          : "border-muted-foreground/30 text-muted-foreground",
+                      )}
+                    >
+                      {humanizeKey(invite.status)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                    {formatDateTime(invite.expiresAt)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-xs">
+                    {invite.resendCount}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1 text-xs"
+                        disabled={resendMutation.isPending}
+                        onClick={() => resendMutation.mutate(invite.id)}
+                      >
+                        <Send className="h-3.5 w-3.5" /> Resend
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1 text-xs text-destructive hover:text-destructive"
+                        onClick={() => setRevokeTarget(invite)}
+                      >
+                        <Ban className="h-3.5 w-3.5" /> Revoke
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <AlertDialog
+        open={!!revokeTarget}
+        onOpenChange={(next) => !revokeMutation.isPending && !next && setRevokeTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke this invite?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {revokeTarget?.email} will no longer be able to accept it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={revokeMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={revokeMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (revokeTarget) revokeMutation.mutate(revokeTarget.id);
+              }}
+            >
+              {revokeMutation.isPending ? "Revoking…" : "Revoke invite"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function WorkspaceSupportOpsSection({
+  wsId,
+  workspaceName,
+}: {
+  wsId: string;
+  workspaceName: string;
+}) {
+  const canManage = usePlatformCan(WORKSPACE_MANAGE);
+  const [open, setOpen] = useState(false);
+  if (!canManage) return null;
+
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="rounded-2xl border bg-card shadow-soft"
+    >
+      <CollapsibleTrigger asChild>
+        <button type="button" className="flex w-full items-center gap-2 p-4 text-left sm:p-5">
+          <ChevronRight
+            className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-90")}
+          />
+          <div className="min-w-0 flex-1">
+            <h2 className="font-display text-sm font-semibold">Support ops</h2>
+            <p className="text-xs text-muted-foreground">
+              Instagram health, DM job failures, and pending invites for {workspaceName}.
+            </p>
+          </div>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-5 border-t p-4 sm:p-5">
+        <InstagramAccountsCard wsId={wsId} />
+        <DmJobsCard wsId={wsId} />
+        <WorkspaceInvitesCard wsId={wsId} />
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

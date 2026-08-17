@@ -1,7 +1,22 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, ArrowLeft, ShieldOff } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Ban,
+  KeyRound,
+  Mail,
+  MailCheck,
+  MoreHorizontal,
+  Send,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldOff,
+  Unlink,
+  UserCheck,
+  UserX,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PlatformPermissionRoute } from "@/components/auth/guards";
@@ -10,19 +25,76 @@ import { CopyableKey } from "@/components/admin/form-page";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api/http";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { getAdminUser, type AdminUserDetail } from "@/lib/api/admin-users-api";
+import { usePlatformCan } from "@/hooks/use-platform-authz";
+import {
+  activateAdminUser,
+  banAdminUser,
+  changeAdminUserEmail,
+  deactivateAdminUser,
+  forceAdminUserPasswordReset,
+  getAdminUser,
+  resendAdminUserVerification,
+  resetAdminUserMfa,
+  unbanAdminUser,
+  unlinkAdminUserGoogle,
+  verifyAdminUserEmail,
+  type AdminUserDetail,
+} from "@/lib/api/admin-users-api";
 
 /**
  * Detail shell (Task 8) — left rail identity card + tab nav + `<Outlet/>`. Every tab is a
  * separate route file (`admin.users.$userId.{index,workspaces,sessions,activity}.tsx`) so each
  * is deep-linkable and lazily loaded, per spec §7.2. Only the four tabs that exist today are
  * wired up — Access/Billing/AI & API/Impersonation arrive in later phases; no stubs for them
- * here. No action bar: user-level mutations (ban, force-password-reset, impersonate, …) are
- * Phase 5+, so there is nothing yet for a "danger zone" to do.
+ * here.
+ *
+ * Action bar + danger zone (Task 15) — every mutation dialog lives in this file rather than a
+ * shared `src/components/admin/` module: they're specific to this one page, and the codebase's
+ * own convention (Task 8/10's shell/drill-down files) is a page owns its dialogs locally rather
+ * than centralising page-specific furniture. `Impersonate` is deliberately NOT stubbed — it
+ * arrives in Phase 6, per the brief.
  */
 
 const USER_MANAGE = "platform:user_manage";
@@ -73,11 +145,14 @@ function AdminUserDetailPage() {
         title={detailQuery.data?.name || detailQuery.data?.email || "User"}
         description={detailQuery.data?.email}
         actions={
-          <Button variant="outline" size="sm" className="gap-1.5" asChild>
-            <Link to="/admin/users">
-              <ArrowLeft className="h-3.5 w-3.5" /> Back to users
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {detailQuery.data && <UserActionBar userId={userId} user={detailQuery.data} />}
+            <Button variant="outline" size="sm" className="gap-1.5" asChild>
+              <Link to="/admin/users">
+                <ArrowLeft className="h-3.5 w-3.5" /> Back to users
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -323,5 +398,708 @@ function TabNav({ userId }: { userId: string }) {
         Activity
       </TabLink>
     </nav>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * Action bar + danger zone (Task 15) — spec §7.2 (action bar) + §6.4 (password handling UX).
+ * Every mutation below hits an endpoint frozen by task-14-report.md (or, for ban/unban/notes,
+ * the legacy carry-over routes documented in that report's §1). All query invalidation goes
+ * through `useInvalidateUser`: a single prefix invalidation of `["admin-user", userId]` refreshes
+ * the shell's own detail query plus the Sessions/Workspaces/Activity tabs' queries in one call
+ * (React Query's `invalidateQueries` does prefix matching), which is simpler and safer than
+ * hand-picking which sub-key each of the eleven-plus mutations happens to touch.
+ * ---------------------------------------------------------------------- */
+
+function useInvalidateUser(userId: string): () => void {
+  const queryClient = useQueryClient();
+  return () => void queryClient.invalidateQueries({ queryKey: ["admin-user", userId] });
+}
+
+/** Shared error toast — server messages on typed errors (`ApiError`) are already the
+ *  human-readable string a `BaseError` subclass was thrown with, so this just forwards it plus
+ *  the request id for support to trace. Matches the exact pattern already used by the Task 10
+ *  drill-down (`admin.users.$userId.workspaces_.$wsId.tsx`). */
+function errorToast(err: unknown, fallback: string) {
+  const requestId = err instanceof ApiError ? err.requestId : undefined;
+  toast.error(err instanceof Error ? err.message : fallback, {
+    description: requestId ? `Request ID: ${requestId}` : undefined,
+  });
+}
+
+function isReasonValid(reason: string): boolean {
+  const trimmed = reason.trim();
+  return trimmed.length >= 1 && trimmed.length <= 1000;
+}
+
+/** The reason field every mutation but `force-password-reset`/`resend-verification`/`unban`
+ *  requires (task-14-report.md's `reasonSchema`: 1-1000 chars). */
+function ReasonField({
+  id,
+  value,
+  onChange,
+  placeholder,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <div className="space-y-1.5 text-left">
+      <label className="text-sm font-medium" htmlFor={id}>
+        Reason <span className="text-destructive">*</span>
+      </label>
+      <Textarea
+        id={id}
+        value={value}
+        maxLength={1000}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+/** Generic confirm shell (AlertDialog) shared by every reason-gated mutation below — the exact
+ *  header/footer boilerplate `admin.users.$userId.workspaces_.$wsId.tsx`'s role-change/unassign
+ *  dialogs already established, factored out once here since Task 15 needs it ~9 times.
+ *  `destructive` drives the same `bg-destructive text-destructive-foreground hover:bg-destructive/90`
+ *  action-button override that file uses for its own destructive confirms. */
+function ConfirmActionDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  destructive,
+  confirmLabel,
+  pendingLabel,
+  pending,
+  disabled,
+  onConfirm,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: ReactNode;
+  description?: ReactNode;
+  destructive?: boolean;
+  confirmLabel: string;
+  pendingLabel?: string;
+  pending: boolean;
+  disabled?: boolean;
+  onConfirm: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <AlertDialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          {description && <AlertDialogDescription>{description}</AlertDialogDescription>}
+        </AlertDialogHeader>
+        {children && <div className="space-y-3">{children}</div>}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={disabled || pending}
+            onClick={(e) => {
+              e.preventDefault();
+              onConfirm();
+            }}
+            className={
+              destructive
+                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                : undefined
+            }
+          >
+            {pending ? (pendingLabel ?? "Working…") : confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/** Top of the action bar: `Force password reset` (prominent, always visible) + the state-swapped
+ *  `Ban`/`Unban` button + the kebab. Renders nothing without `platform:user_manage` — the route
+ *  itself already gates the whole page on this same permission, but the brief calls for the bar
+ *  itself to also self-gate (requirement 9), so this is belt-and-suspenders against the page ever
+ *  being reachable some other way in the future. */
+function UserActionBar({ userId, user }: { userId: string; user: AdminUserDetail }) {
+  const canManage = usePlatformCan(USER_MANAGE);
+  if (!canManage) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <ForcePasswordResetAction userId={userId} />
+      {user.ban.isBanned ? <UnbanAction userId={userId} /> : <BanAction userId={userId} />}
+      <UserKebabMenu userId={userId} user={user} />
+    </div>
+  );
+}
+
+/** Dialog is a plain `Dialog`, not an `AlertDialog` — it carries a checkbox, not just a
+ *  confirm/cancel pair, matching this codebase's convention of reserving `AlertDialog` for
+ *  reason-only confirms. Copy is R14 verbatim: sessions revoked now, the user is not emailed a
+ *  "reset link" — if notified, they're told to use "Forgot password" themselves. No `reason`
+ *  field: `force-password-reset`'s contract (`{ notify: boolean }`) doesn't have one. */
+function ForcePasswordResetAction({ userId }: { userId: string }) {
+  const [open, setOpen] = useState(false);
+  const [notify, setNotify] = useState(true);
+  const invalidate = useInvalidateUser(userId);
+
+  const mutation = useMutation({
+    mutationFn: () => forceAdminUserPasswordReset(userId, notify),
+    onSuccess: () => {
+      toast.success("Sessions revoked.", {
+        description: notify
+          ? 'The user has been emailed to sign back in with "Forgot password".'
+          : undefined,
+      });
+      setOpen(false);
+      invalidate();
+    },
+    onError: (err) => errorToast(err, "Failed to force a password reset."),
+  });
+
+  return (
+    <>
+      <Button size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
+        <KeyRound className="h-3.5 w-3.5" /> Force password reset
+      </Button>
+      <Dialog open={open} onOpenChange={(next) => !mutation.isPending && setOpen(next)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Force a password reset?</DialogTitle>
+            <DialogDescription>
+              This immediately signs the user out of every active session. It does{" "}
+              <strong>not</strong> change their password — they still have to set a new one
+              themselves, via "Forgot password", the next time they try to sign in.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="flex items-start gap-2.5 rounded-lg border p-3 text-sm">
+            <Checkbox
+              checked={notify}
+              onCheckedChange={(v) => setNotify(v === true)}
+              className="mt-0.5"
+            />
+            <span>
+              Email the user now to let them know their sessions were revoked and they should use
+              "Forgot password" to sign back in.
+            </span>
+          </label>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={mutation.isPending}>
+              Cancel
+            </Button>
+            <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+              {mutation.isPending ? "Revoking…" : "Force password reset"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function BanAction({ userId }: { userId: string }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const invalidate = useInvalidateUser(userId);
+
+  const mutation = useMutation({
+    mutationFn: () => banAdminUser(userId, reason.trim()),
+    onSuccess: () => {
+      toast.success("User banned.");
+      setOpen(false);
+      setReason("");
+      invalidate();
+    },
+    onError: (err) => errorToast(err, "Failed to ban user."),
+  });
+
+  return (
+    <>
+      <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
+        <Ban className="h-3.5 w-3.5" /> Ban
+      </Button>
+      <ConfirmActionDialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setReason("");
+        }}
+        title="Ban this user?"
+        description="Every further request from this account is blocked immediately, including on sessions that are already signed in. This does not delete the account or its data."
+        destructive
+        confirmLabel="Ban user"
+        pendingLabel="Banning…"
+        pending={mutation.isPending}
+        disabled={!isReasonValid(reason)}
+        onConfirm={() => mutation.mutate()}
+      >
+        <ReasonField
+          id="ban-reason"
+          value={reason}
+          onChange={setReason}
+          placeholder="Why is this account being banned?"
+        />
+      </ConfirmActionDialog>
+    </>
+  );
+}
+
+function UnbanAction({ userId }: { userId: string }) {
+  const [open, setOpen] = useState(false);
+  const invalidate = useInvalidateUser(userId);
+
+  const mutation = useMutation({
+    mutationFn: () => unbanAdminUser(userId),
+    onSuccess: () => {
+      toast.success("User unbanned.");
+      setOpen(false);
+      invalidate();
+    },
+    onError: (err) => errorToast(err, "Failed to unban user."),
+  });
+
+  return (
+    <>
+      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
+        <ShieldCheck className="h-3.5 w-3.5" /> Unban
+      </Button>
+      <ConfirmActionDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Unban this user?"
+        description="Restores this account's access immediately."
+        confirmLabel="Unban user"
+        pendingLabel="Unbanning…"
+        pending={mutation.isPending}
+        onConfirm={() => mutation.mutate()}
+      />
+    </>
+  );
+}
+
+/**
+ * Kebab menu — Deactivate/Activate (state-swapped, mirroring Ban/Unban), Verify email + Resend
+ * verification (both hidden once the account is already verified — a force-verify or a fresh OTP
+ * send are no-ops at that point, and the codebase's own "hidden, not disabled-broken" ethos for
+ * pointless actions extends naturally from permission-gating to state-gating here), Change email
+ * (always available), Unlink Google (hidden unless `google` is actually one of the user's
+ * `authMethods` — the server 400s `NO_GOOGLE_LINK` otherwise, so hiding avoids a guaranteed
+ * error), Reset MFA (always available — task-14-report.md §7 documents the server treating a
+ * reset against a target with nothing enabled as a legitimate, still-audited action, not a
+ * no-op to prevent). `Set password` (buried in a "Danger zone" section, spec §6.4) lands in the
+ * next commit alongside its TOTP step-up.
+ */
+function UserKebabMenu({ userId, user }: { userId: string; user: AdminUserDetail }) {
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [activateOpen, setActivateOpen] = useState(false);
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [resendOpen, setResendOpen] = useState(false);
+  const [changeEmailOpen, setChangeEmailOpen] = useState(false);
+  const [unlinkGoogleOpen, setUnlinkGoogleOpen] = useState(false);
+  const [resetMfaOpen, setResetMfaOpen] = useState(false);
+
+  const hasGoogle = user.authMethods.includes("google");
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="icon" className="h-8 w-8" aria-label="More actions">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-60">
+          {user.isActive ? (
+            <DropdownMenuItem
+              onClick={() => setDeactivateOpen(true)}
+              className="text-destructive focus:text-destructive"
+            >
+              <UserX className="mr-2 h-4 w-4" /> Deactivate
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onClick={() => setActivateOpen(true)}>
+              <UserCheck className="mr-2 h-4 w-4" /> Activate
+            </DropdownMenuItem>
+          )}
+          {!user.emailVerified && (
+            <DropdownMenuItem onClick={() => setVerifyOpen(true)}>
+              <MailCheck className="mr-2 h-4 w-4" /> Verify email
+            </DropdownMenuItem>
+          )}
+          {!user.emailVerified && (
+            <DropdownMenuItem onClick={() => setResendOpen(true)}>
+              <Send className="mr-2 h-4 w-4" /> Resend verification
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={() => setChangeEmailOpen(true)}>
+            <Mail className="mr-2 h-4 w-4" /> Change email
+          </DropdownMenuItem>
+          {hasGoogle && (
+            <DropdownMenuItem
+              onClick={() => setUnlinkGoogleOpen(true)}
+              className="text-destructive focus:text-destructive"
+            >
+              <Unlink className="mr-2 h-4 w-4" /> Unlink Google
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            onClick={() => setResetMfaOpen(true)}
+            className="text-destructive focus:text-destructive"
+          >
+            <ShieldAlert className="mr-2 h-4 w-4" /> Reset MFA
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DeactivateDialog userId={userId} open={deactivateOpen} onOpenChange={setDeactivateOpen} />
+      <ActivateDialog userId={userId} open={activateOpen} onOpenChange={setActivateOpen} />
+      <VerifyEmailDialog userId={userId} open={verifyOpen} onOpenChange={setVerifyOpen} />
+      <ResendVerificationDialog userId={userId} open={resendOpen} onOpenChange={setResendOpen} />
+      <ChangeEmailDialog userId={userId} open={changeEmailOpen} onOpenChange={setChangeEmailOpen} />
+      <UnlinkGoogleDialog
+        userId={userId}
+        open={unlinkGoogleOpen}
+        onOpenChange={setUnlinkGoogleOpen}
+      />
+      <ResetMfaDialog userId={userId} open={resetMfaOpen} onOpenChange={setResetMfaOpen} />
+    </>
+  );
+}
+
+type KebabDialogProps = { userId: string; open: boolean; onOpenChange: (open: boolean) => void };
+
+function DeactivateDialog({ userId, open, onOpenChange }: KebabDialogProps) {
+  const [reason, setReason] = useState("");
+  const invalidate = useInvalidateUser(userId);
+
+  const mutation = useMutation({
+    mutationFn: () => deactivateAdminUser(userId, reason.trim()),
+    onSuccess: () => {
+      toast.success("User deactivated.");
+      onOpenChange(false);
+      setReason("");
+      invalidate();
+    },
+    onError: (err) => errorToast(err, "Failed to deactivate user."),
+  });
+
+  return (
+    <ConfirmActionDialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (!next) setReason("");
+      }}
+      title="Deactivate this user?"
+      description="Revokes every active session immediately."
+      destructive
+      confirmLabel="Deactivate"
+      pendingLabel="Deactivating…"
+      pending={mutation.isPending}
+      disabled={!isReasonValid(reason)}
+      onConfirm={() => mutation.mutate()}
+    >
+      <ReasonField
+        id="deactivate-reason"
+        value={reason}
+        onChange={setReason}
+        placeholder="Why is this account being deactivated?"
+      />
+    </ConfirmActionDialog>
+  );
+}
+
+function ActivateDialog({ userId, open, onOpenChange }: KebabDialogProps) {
+  const [reason, setReason] = useState("");
+  const invalidate = useInvalidateUser(userId);
+
+  const mutation = useMutation({
+    mutationFn: () => activateAdminUser(userId, reason.trim()),
+    onSuccess: () => {
+      toast.success("User activated.");
+      onOpenChange(false);
+      setReason("");
+      invalidate();
+    },
+    onError: (err) => errorToast(err, "Failed to activate user."),
+  });
+
+  return (
+    <ConfirmActionDialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (!next) setReason("");
+      }}
+      title="Activate this user?"
+      confirmLabel="Activate"
+      pendingLabel="Activating…"
+      pending={mutation.isPending}
+      disabled={!isReasonValid(reason)}
+      onConfirm={() => mutation.mutate()}
+    >
+      <ReasonField
+        id="activate-reason"
+        value={reason}
+        onChange={setReason}
+        placeholder="Why is this account being activated?"
+      />
+    </ConfirmActionDialog>
+  );
+}
+
+function VerifyEmailDialog({ userId, open, onOpenChange }: KebabDialogProps) {
+  const [reason, setReason] = useState("");
+  const invalidate = useInvalidateUser(userId);
+
+  const mutation = useMutation({
+    mutationFn: () => verifyAdminUserEmail(userId, reason.trim()),
+    onSuccess: () => {
+      toast.success("Email marked verified.");
+      onOpenChange(false);
+      setReason("");
+      invalidate();
+    },
+    onError: (err) => errorToast(err, "Failed to verify email."),
+  });
+
+  return (
+    <ConfirmActionDialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (!next) setReason("");
+      }}
+      title="Mark this email verified?"
+      description="Skips the OTP flow and marks the account verified immediately."
+      confirmLabel="Verify email"
+      pendingLabel="Verifying…"
+      pending={mutation.isPending}
+      disabled={!isReasonValid(reason)}
+      onConfirm={() => mutation.mutate()}
+    >
+      <ReasonField
+        id="verify-email-reason"
+        value={reason}
+        onChange={setReason}
+        placeholder="Why is this being force-verified?"
+      />
+    </ConfirmActionDialog>
+  );
+}
+
+/** No reason field — `resend-verification`'s contract takes no request body at all. Branches the
+ *  success toast on `outcome` per task-14-report.md's four-value union. */
+function ResendVerificationDialog({ userId, open, onOpenChange }: KebabDialogProps) {
+  const mutation = useMutation({
+    mutationFn: () => resendAdminUserVerification(userId),
+    onSuccess: (res) => {
+      onOpenChange(false);
+      if (res.outcome === "sent") {
+        toast.success("Verification email sent.");
+      } else if (res.outcome === "already_verified") {
+        toast.info("This account is already verified.");
+      } else if (res.outcome === "cooldown") {
+        toast.warning(
+          res.retryAfterSec
+            ? `Please wait ${res.retryAfterSec}s before resending.`
+            : "A verification email was sent recently — please wait before resending.",
+        );
+      } else {
+        toast.error("The verification email failed to send. Try again shortly.");
+      }
+    },
+    onError: (err) => errorToast(err, "Failed to resend verification."),
+  });
+
+  return (
+    <ConfirmActionDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Resend the verification email?"
+      confirmLabel="Resend"
+      pendingLabel="Sending…"
+      pending={mutation.isPending}
+      onConfirm={() => mutation.mutate()}
+    />
+  );
+}
+
+const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
+
+function ChangeEmailDialog({ userId, open, onOpenChange }: KebabDialogProps) {
+  const [email, setEmail] = useState("");
+  const [reason, setReason] = useState("");
+  const invalidate = useInvalidateUser(userId);
+  const emailValid = EMAIL_PATTERN.test(email.trim());
+
+  const reset = () => {
+    setEmail("");
+    setReason("");
+  };
+
+  const mutation = useMutation({
+    mutationFn: () => changeAdminUserEmail(userId, email.trim(), reason.trim()),
+    onSuccess: (res) => {
+      toast.success(`Email changed to ${res.email}.`);
+      onOpenChange(false);
+      reset();
+      invalidate();
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.code === "EMAIL_ALREADY_IN_USE") {
+        toast.error("That email is already in use by another account.");
+        return;
+      }
+      errorToast(err, "Failed to change email.");
+    },
+  });
+
+  return (
+    <ConfirmActionDialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (!next) reset();
+      }}
+      title="Change this user's email?"
+      description="Clears verification state, sends a fresh verification email to the new address, and revokes every active session."
+      confirmLabel="Change email"
+      pendingLabel="Changing…"
+      pending={mutation.isPending}
+      disabled={!emailValid || !isReasonValid(reason)}
+      onConfirm={() => mutation.mutate()}
+    >
+      <div className="space-y-1.5 text-left">
+        <Label htmlFor="change-email-value">New email</Label>
+        <Input
+          id="change-email-value"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="name@example.com"
+        />
+      </div>
+      <ReasonField
+        id="change-email-reason"
+        value={reason}
+        onChange={setReason}
+        placeholder="Why is this email changing?"
+      />
+    </ConfirmActionDialog>
+  );
+}
+
+function UnlinkGoogleDialog({ userId, open, onOpenChange }: KebabDialogProps) {
+  const [reason, setReason] = useState("");
+  const invalidate = useInvalidateUser(userId);
+
+  const mutation = useMutation({
+    mutationFn: () => unlinkAdminUserGoogle(userId, reason.trim()),
+    onSuccess: () => {
+      toast.success("Google account unlinked.");
+      onOpenChange(false);
+      setReason("");
+      invalidate();
+    },
+    onError: (err) => errorToast(err, "Failed to unlink Google."),
+  });
+
+  return (
+    <ConfirmActionDialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (!next) setReason("");
+      }}
+      title="Unlink Google sign-in?"
+      description="The user will need a password to sign back in — refused server-side if the account has none set."
+      destructive
+      confirmLabel="Unlink Google"
+      pendingLabel="Unlinking…"
+      pending={mutation.isPending}
+      disabled={!isReasonValid(reason)}
+      onConfirm={() => mutation.mutate()}
+    >
+      <ReasonField
+        id="unlink-google-reason"
+        value={reason}
+        onChange={setReason}
+        placeholder="Why is Google sign-in being unlinked?"
+      />
+    </ConfirmActionDialog>
+  );
+}
+
+const MFA_METHOD_LABEL: Record<"ALL" | "TOTP" | "SMS", string> = {
+  ALL: "All methods",
+  TOTP: "Authenticator (TOTP)",
+  SMS: "SMS",
+};
+
+function ResetMfaDialog({ userId, open, onOpenChange }: KebabDialogProps) {
+  const [method, setMethod] = useState<"ALL" | "TOTP" | "SMS">("ALL");
+  const [reason, setReason] = useState("");
+  const invalidate = useInvalidateUser(userId);
+
+  const mutation = useMutation({
+    mutationFn: () => resetAdminUserMfa(userId, method, reason.trim()),
+    onSuccess: (res) => {
+      toast.success(
+        res.disabledMethods.length > 0
+          ? `Disabled: ${res.disabledMethods.join(", ")}.`
+          : "No enabled methods matched — nothing to disable.",
+      );
+      onOpenChange(false);
+      setReason("");
+      invalidate();
+    },
+    onError: (err) => errorToast(err, "Failed to reset MFA."),
+  });
+
+  return (
+    <ConfirmActionDialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (!next) setReason("");
+      }}
+      title="Reset MFA for this user?"
+      description="Disables the selected method(s) immediately. The account's email-OTP fallback is never affected."
+      destructive
+      confirmLabel="Reset MFA"
+      pendingLabel="Resetting…"
+      pending={mutation.isPending}
+      disabled={!isReasonValid(reason)}
+      onConfirm={() => mutation.mutate()}
+    >
+      <div className="space-y-1.5 text-left">
+        <Label>Method</Label>
+        <Select value={method} onValueChange={(v) => setMethod(v as "ALL" | "TOTP" | "SMS")}>
+          <SelectTrigger className="h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(MFA_METHOD_LABEL) as Array<"ALL" | "TOTP" | "SMS">).map((key) => (
+              <SelectItem key={key} value={key}>
+                {MFA_METHOD_LABEL[key]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <ReasonField
+        id="reset-mfa-reason"
+        value={reason}
+        onChange={setReason}
+        placeholder="Why is MFA being reset?"
+      />
+    </ConfirmActionDialog>
   );
 }

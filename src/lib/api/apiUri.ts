@@ -360,6 +360,26 @@ export const apiUri = {
       ban: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/ban`,
       unban: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/unban`,
       notes: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/notes`,
+      /** Keyset-paginated impersonation history for this user (as TARGET) — task-16-report §3.6.
+       *  Gated `platform:user_manage`, not `platform:impersonate` — it's a read-only tab. */
+      impersonations: (userId: string, params: { cursor?: string; limit?: number } = {}) =>
+        `${V1}/admin/users/${encodeURIComponent(userId)}/impersonations${listQs(params)}`,
+    },
+    /**
+     * Impersonation control plane (Task 18, server contract task-16-report.md §3.1–3.5).
+     * `start`/`active` are gated `platform:impersonate`; `escalate`/`revoke` additionally require
+     * `platform:impersonate_write` (+ TOTP step-up on escalate). `end` (self-exit, no `:sid`) is
+     * intentionally NOT here — that's `apiUri.impersonation.end` above, called with the
+     * impersonation token itself from the IMPERSONATED tab, not the admin console.
+     */
+    impersonate: {
+      start: `${V1}/admin/impersonate`,
+      active: `${V1}/admin/impersonate/active`,
+      escalate: (sessionId: string) =>
+        `${V1}/admin/impersonate/${encodeURIComponent(sessionId)}/escalate`,
+      end: (sessionId: string) => `${V1}/admin/impersonate/${encodeURIComponent(sessionId)}/end`,
+      revoke: (sessionId: string) =>
+        `${V1}/admin/impersonate/${encodeURIComponent(sessionId)}/revoke`,
     },
     /**
      * Workspace-level entitlement mutations (Task 11, consumed by the Task 13 drill-down editor).

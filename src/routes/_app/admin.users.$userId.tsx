@@ -91,10 +91,10 @@ import {
 
 /**
  * Detail shell (Task 8) — left rail identity card + tab nav + `<Outlet/>`. Every tab is a
- * separate route file (`admin.users.$userId.{index,workspaces,sessions,activity,
- * impersonation}.tsx`) so each is deep-linkable and lazily loaded, per spec §7.2. Impersonation
- * (Task 18) is now wired up; Access/Billing/AI & API still arrive in later phases — no stubs for
- * those here.
+ * separate route file (`admin.users.$userId.{index,workspaces,sessions,activity,impersonation,
+ * ai-api,billing}.tsx`) so each is deep-linkable and lazily loaded, per spec §7.2. Impersonation
+ * (Task 18) and AI & API / Billing (Task 21) are wired up; the per-workspace Access drill-down is
+ * its own route (`workspaces_.$wsId`), not a tab here.
  *
  * Action bar + danger zone (Task 15) — every mutation dialog lives in this file rather than a
  * shared `src/components/admin/` module: they're specific to this one page, and the codebase's
@@ -350,7 +350,9 @@ type TabTo =
   | "/admin/users/$userId/workspaces"
   | "/admin/users/$userId/sessions"
   | "/admin/users/$userId/activity"
-  | "/admin/users/$userId/impersonation";
+  | "/admin/users/$userId/impersonation"
+  | "/admin/users/$userId/ai-api"
+  | "/admin/users/$userId/billing";
 
 function TabLink({
   to,
@@ -417,6 +419,20 @@ function TabNav({ userId }: { userId: string }) {
         active={pathname === `${base}/impersonation`}
       >
         Impersonation
+      </TabLink>
+      <TabLink
+        to="/admin/users/$userId/ai-api"
+        userId={userId}
+        active={pathname === `${base}/ai-api`}
+      >
+        AI & API
+      </TabLink>
+      <TabLink
+        to="/admin/users/$userId/billing"
+        userId={userId}
+        active={pathname === `${base}/billing`}
+      >
+        Billing
       </TabLink>
     </nav>
   );

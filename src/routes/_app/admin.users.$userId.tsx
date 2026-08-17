@@ -1207,13 +1207,26 @@ function SetPasswordDialog({ userId, open, onOpenChange }: KebabDialogProps) {
   const step1Valid = password.length >= 8 && isReasonValid(reason);
   const step2Valid = code.length === 6 && !notEnrolled;
 
+  // Every close affordance (Escape, overlay click, the DialogContent's own X, and the step-1
+  // Cancel button below) must route through this — it's the only thing that clears the typed
+  // password/reason/code. `onOpenChange`'s `next=false` branch and Cancel's `onClick` both call
+  // it directly rather than relying on a shared `next` callback, since Cancel doesn't go through
+  // Radix's `onOpenChange` at all (it's a plain button, not `DialogClose`).
+  const handleClose = () => {
+    onOpenChange(false);
+    reset();
+  };
+
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         if (mutation.isPending) return;
-        onOpenChange(next);
-        if (!next) reset();
+        if (next) {
+          onOpenChange(next);
+        } else {
+          handleClose();
+        }
       }}
     >
       <DialogContent className="sm:max-w-md">
@@ -1271,7 +1284,7 @@ function SetPasswordDialog({ userId, open, onOpenChange }: KebabDialogProps) {
         <DialogFooter>
           {step === 1 ? (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button variant="outline" onClick={handleClose}>
                 Cancel
               </Button>
               <Button variant="destructive" disabled={!step1Valid} onClick={() => setStep(2)}>
@@ -1280,7 +1293,14 @@ function SetPasswordDialog({ userId, open, onOpenChange }: KebabDialogProps) {
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={() => setStep(1)} disabled={mutation.isPending}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setStep(1);
+                  setNotEnrolled(false);
+                }}
+                disabled={mutation.isPending}
+              >
                 Back
               </Button>
               <Button

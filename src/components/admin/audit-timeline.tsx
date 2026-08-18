@@ -24,7 +24,9 @@ import {
   ShieldOff,
   ShieldPlus,
   SlidersHorizontal,
+  Unlink,
   UserCog,
+  UserMinus,
   X,
 } from "lucide-react";
 
@@ -80,6 +82,7 @@ type Descriptor = { label: string; icon: ComponentType<{ className?: string }>; 
 const ACTION_MAP: Record<string, Descriptor> = {
   // Packages
   package_create: { label: "Created package", icon: Plus, tone: "create" },
+  package_update: { label: "Updated package details", icon: Pencil, tone: "update" },
   package_features_set: {
     label: "Updated package features",
     icon: SlidersHorizontal,
@@ -87,17 +90,23 @@ const ACTION_MAP: Record<string, Descriptor> = {
   },
   package_limits_set: { label: "Updated package limits", icon: SlidersHorizontal, tone: "update" },
   package_publish: { label: "Published package", icon: Rocket, tone: "billing" },
+  package_apply_live: { label: "Applied package live", icon: Rocket, tone: "billing" },
   package_archive: { label: "Archived package", icon: Archive, tone: "delete" },
   // Workspace ↔ package
+  workspace_package_assign: {
+    label: "Assigned workspace package",
+    icon: PackageIcon,
+    tone: "access",
+  },
   workspace_package_change: {
     label: "Changed workspace package",
     icon: PackageIcon,
     tone: "access",
   },
-  workspace_package_assign: {
-    label: "Assigned workspace package",
+  workspace_package_clear: {
+    label: "Removed workspace package",
     icon: PackageIcon,
-    tone: "access",
+    tone: "delete",
   },
   // Access / capabilities
   admin_access_matrix_apply: {
@@ -105,17 +114,80 @@ const ACTION_MAP: Record<string, Descriptor> = {
     icon: ShieldCheck,
     tone: "access",
   },
+  user_module_overrides_bulk_apply: {
+    label: "Updated capability access",
+    icon: SlidersHorizontal,
+    tone: "access",
+  },
+  role_permissions_set: { label: "Updated role permissions", icon: ShieldCheck, tone: "access" },
+  user_workspace_access_set: {
+    label: "Updated workspace access",
+    icon: ShieldCheck,
+    tone: "access",
+  },
+  user_workspace_role_change: { label: "Changed workspace role", icon: UserCog, tone: "access" },
+  user_membership_remove: { label: "Removed from workspace", icon: UserMinus, tone: "delete" },
+  user_module_override_create: {
+    label: "Granted module override",
+    icon: ShieldPlus,
+    tone: "access",
+  },
+  user_module_override_update: {
+    label: "Updated module override",
+    icon: ShieldCheck,
+    tone: "access",
+  },
+  user_module_override_remove: {
+    label: "Removed module override",
+    icon: ShieldMinus,
+    tone: "access",
+  },
+  user_permission_override_create: {
+    label: "Granted permission override",
+    icon: ShieldPlus,
+    tone: "access",
+  },
+  user_permission_override_update: {
+    label: "Updated permission override",
+    icon: ShieldCheck,
+    tone: "access",
+  },
+  user_permission_override_remove: {
+    label: "Removed permission override",
+    icon: ShieldMinus,
+    tone: "access",
+  },
+  user_policy_assign: { label: "Assigned policy", icon: ShieldCheck, tone: "access" },
+  user_policy_unassign: { label: "Unassigned policy", icon: ShieldMinus, tone: "access" },
   // AI tokens
-  update_ai_token_plan_config: { label: "Updated AI token plan", icon: Coins, tone: "ai" },
   admin_ai_tokens_grant: { label: "Granted AI tokens", icon: Coins, tone: "ai" },
+  admin_ai_tokens_adjust: { label: "Adjusted AI tokens", icon: Coins, tone: "ai" },
+  admin_ai_tokens_period_reset: { label: "Reset AI token period", icon: RefreshCw, tone: "ai" },
+  update_ai_token_plan_config: { label: "Updated AI token plan", icon: Coins, tone: "ai" },
+  update_ai_token_global_settings: { label: "Updated AI token settings", icon: Coins, tone: "ai" },
+  update_ai_feature_registry: { label: "Updated AI feature metering", icon: Coins, tone: "ai" },
   // Module registry
   module_parent_create: { label: "Created module", icon: Boxes, tone: "module" },
   module_parent_update: { label: "Updated module", icon: Boxes, tone: "module" },
   module_child_create: { label: "Created capability", icon: Boxes, tone: "module" },
   module_child_update: { label: "Updated capability", icon: Boxes, tone: "module" },
+  module_child_map: { label: "Linked capability to module", icon: Boxes, tone: "module" },
+  module_child_unmap: { label: "Unlinked capability", icon: Boxes, tone: "module" },
   // Billing
   admin_billing_sync: { label: "Synced billing", icon: RefreshCw, tone: "billing" },
   admin_billing_comp: { label: "Comped subscription", icon: Gift, tone: "billing" },
+  admin_billing_cancel_at_period_end: {
+    label: "Set cancel at period end",
+    icon: RefreshCw,
+    tone: "billing",
+  },
+  // API credentials
+  admin_api_credential_revoke: {
+    label: "Revoked API credential",
+    icon: KeyRound,
+    tone: "security",
+  },
+  admin_api_credential_update: { label: "Updated API credential", icon: KeyRound, tone: "update" },
   // Impersonation
   impersonation_start: { label: "Started impersonation", icon: UserCog, tone: "impersonation" },
   impersonation_escalate: {
@@ -126,22 +198,28 @@ const ACTION_MAP: Record<string, Descriptor> = {
   impersonation_end: { label: "Ended impersonation", icon: UserCog, tone: "impersonation" },
   // Platform admin
   platform_admin_grant: { label: "Granted platform admin", icon: ShieldPlus, tone: "admin" },
+  platform_admin_regrant: { label: "Re-granted platform admin", icon: ShieldPlus, tone: "admin" },
+  platform_admin_scope_update: {
+    label: "Updated platform admin scope",
+    icon: ShieldCheck,
+    tone: "admin",
+  },
   platform_admin_revoke: { label: "Revoked platform admin", icon: ShieldMinus, tone: "admin" },
   // User identity / security
+  user_profile_update: { label: "Updated profile", icon: Pencil, tone: "update" },
+  admin_user_notes_update: { label: "Updated admin notes", icon: Pencil, tone: "neutral" },
   admin_user_ban: { label: "Banned user", icon: Ban, tone: "security" },
   admin_user_unban: { label: "Unbanned user", icon: ShieldCheck, tone: "security" },
-  admin_user_deactivate: { label: "Deactivated account", icon: ShieldOff, tone: "security" },
-  admin_user_activate: { label: "Activated account", icon: ShieldCheck, tone: "create" },
-  admin_user_force_password_reset: {
-    label: "Forced password reset",
-    icon: KeyRound,
-    tone: "security",
-  },
-  admin_user_set_password: { label: "Set password", icon: KeyRound, tone: "security" },
-  admin_user_revoke_sessions: { label: "Revoked sessions", icon: LogOut, tone: "security" },
-  admin_user_reset_mfa: { label: "Reset MFA", icon: ShieldOff, tone: "security" },
-  admin_user_verify_email: { label: "Verified email", icon: MailCheck, tone: "update" },
-  admin_user_change_email: { label: "Changed email", icon: Mail, tone: "update" },
+  user_deactivate: { label: "Deactivated account", icon: ShieldOff, tone: "security" },
+  user_activate: { label: "Activated account", icon: ShieldCheck, tone: "create" },
+  user_force_password_reset: { label: "Forced password reset", icon: KeyRound, tone: "security" },
+  user_set_password: { label: "Set password", icon: KeyRound, tone: "security" },
+  user_sessions_revoke: { label: "Revoked sessions", icon: LogOut, tone: "security" },
+  user_mfa_reset: { label: "Reset MFA", icon: ShieldOff, tone: "security" },
+  user_verify_email: { label: "Verified email", icon: MailCheck, tone: "update" },
+  user_change_email: { label: "Changed email", icon: Mail, tone: "update" },
+  user_google_unlink: { label: "Unlinked Google", icon: Unlink, tone: "security" },
+  user_resend_verification: { label: "Resent verification email", icon: Mail, tone: "update" },
 };
 
 const TONE_BY_RESOURCE: Record<string, Tone> = {

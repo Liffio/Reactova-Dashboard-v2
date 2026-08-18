@@ -1,14 +1,16 @@
-import { useMemo, useState, type ComponentType } from "react";
+import { Fragment, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { format, formatDistanceToNowStrict, isToday, isYesterday } from "date-fns";
 import {
   Activity as ActivityIcon,
   Archive,
+  ArrowRight,
   Ban,
   Boxes,
   Building2,
-  ChevronDown,
+  Clock,
   Coins,
   Gift,
+  Hash,
   KeyRound,
   Loader2,
   LogOut,
@@ -26,6 +28,7 @@ import {
   ShieldPlus,
   SlidersHorizontal,
   Unlink,
+  User,
   UserCog,
   UserMinus,
   X,
@@ -37,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { EmptyState } from "@/components/admin/form-page";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format";
@@ -340,46 +344,271 @@ function ChangePills({ changes }: { changes: Record<string, unknown> }) {
   );
 }
 
-/** Keys we don't surface as loose metadata chips — either already shown elsewhere or internal. */
-const METADATA_HIDDEN = new Set(["reason"]);
+/** Metadata keys not repeated in the drawer's "Context" list — shown elsewhere or internal-only. */
+const DRAWER_META_HIDDEN = new Set(["reason", "targetUserId"]);
 
-function MetadataDetails({ entry }: { entry: AuditTimelineEntry }) {
-  const [open, setOpen] = useState(false);
-  const meta = entry.metadata ?? {};
-  const metaEntries = Object.entries(meta).filter(([k]) => !METADATA_HIDDEN.has(k));
-  const hasExtra = metaEntries.length > 0 || entry.ipAddress || entry.userAgent || entry.resourceId;
-  if (!hasExtra) return null;
+/** Full (untruncated) rendering of a value for the detail drawer — objects/arrays as pretty JSON,
+ *  ISO strings as a readable date-time, primitives as-is. */
+function fullValue(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return value.toLocaleString();
+  if (typeof value === "string") {
+    if (ISO_RE.test(value)) {
+      const d = new Date(value);
+      if (!Number.isNaN(d.getTime())) return formatDateTime(value);
+    }
+    return value;
+  }
+  return JSON.stringify(value, null, 2);
+}
 
+/** One value box in the drawer — red for the old value, green for the new, muted for a plain one. */
+function ValueBox({
+  value,
+  tone,
+  label,
+}: {
+  value: unknown;
+  tone: "old" | "new" | "plain";
+  label?: string;
+}) {
+  const cls =
+    tone === "old"
+      ? "border-destructive/20 bg-destructive/5 text-destructive"
+      : tone === "new"
+        ? "border-success/25 bg-success/5 text-success"
+        : "border-border bg-muted/40 text-foreground";
   return (
-    <div className="mt-2">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-      >
-        <ChevronDown className={cn("h-3 w-3 transition-transform", open && "rotate-180")} />
-        {open ? "Hide details" : "Details"}
-      </button>
-      {open && (
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-lg bg-muted/30 p-2.5 text-[11px]">
-          {entry.resourceId && <DetailRow label="Resource id" value={entry.resourceId} mono />}
-          {metaEntries.map(([k, v]) => (
-            <DetailRow key={k} label={humanize(k)} value={formatValue(v)} />
-          ))}
-          {entry.ipAddress && <DetailRow label="IP address" value={entry.ipAddress} mono />}
-          {entry.userAgent && <DetailRow label="User agent" value={entry.userAgent} />}
-        </dl>
+    <div className={cn("min-w-0 flex-1 rounded-lg border px-2.5 py-2", cls)}>
+      {label && (
+        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-70">
+          {label}
+        </div>
+      )}
+      <div className="whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed">
+        {fullValue(value)}
+      </div>
+    </div>
+  );
+}
+
+/** One field's change: a labelled Before → After pair, or a single value for a non-diff shape. */
+function ChangeDetailRow({ field, value }: { field: string; value: unknown }) {
+  return (
+    <div className="rounded-xl border bg-card p-3">
+      <div className="mb-2 text-xs font-medium">{humanize(field)}</div>
+      {isFromTo(value) ? (
+        <div className="flex items-stretch gap-2">
+          <ValueBox tone="old" label="Before" value={value.from} />
+          <div className="flex shrink-0 items-center text-muted-foreground">
+            <ArrowRight className="h-4 w-4" />
+          </div>
+          <ValueBox tone="new" label="After" value={value.to} />
+        </div>
+      ) : (
+        <ValueBox tone="plain" value={value} />
       )}
     </div>
   );
 }
 
-function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+/** A labelled row in the drawer's overview card. */
+function OverviewRow({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  children: ReactNode;
+}) {
   return (
-    <>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className={cn("min-w-0 break-words text-foreground", mono && "font-mono")}>{value}</dd>
-    </>
+    <div className="flex items-start gap-3">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          {label}
+        </div>
+        <div className="mt-0.5 text-sm">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      {children}
+    </h4>
+  );
+}
+
+/** The full, structured detail view shown in the side drawer when an audit entry is clicked. */
+function AuditDetailBody({
+  entry,
+  pageUserId,
+}: {
+  entry: AuditTimelineEntry;
+  pageUserId?: string;
+}) {
+  const { label, icon: Icon, tone } = describeAction(entry.action, entry.resourceType);
+  const toneCls = TONE[tone];
+  const isImpersonation = entry.actorType === "impersonation" || Boolean(entry.onBehalfOfUserId);
+  const reason =
+    entry.metadata && typeof entry.metadata.reason === "string" ? entry.metadata.reason : null;
+  const changeEntries = Object.entries(entry.changes ?? {});
+  const metaEntries = Object.entries(entry.metadata ?? {}).filter(
+    ([k]) => !DRAWER_META_HIDDEN.has(k),
+  );
+  void pageUserId;
+
+  return (
+    <div className="flex flex-col gap-5 pb-2">
+      <SheetHeader className="space-y-0 text-left">
+        <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
+              toneCls.bg,
+            )}
+          >
+            <Icon className={cn("h-5 w-5", toneCls.text)} />
+          </div>
+          <div className="min-w-0">
+            <SheetTitle className="leading-tight">{label}</SheetTitle>
+            <p className="font-mono text-[11px] text-muted-foreground">{entry.action}</p>
+          </div>
+        </div>
+      </SheetHeader>
+
+      {/* Overview */}
+      <div className="space-y-3 rounded-xl border bg-card p-4">
+        <OverviewRow icon={User} label="Performed by">
+          <div className="flex items-center gap-2">
+            <ActorAvatar entry={entry} />
+            <div className="min-w-0">
+              <div className="font-medium">{actorLabel(entry)}</div>
+              {entry.actorName && entry.actorEmail && (
+                <div className="truncate text-xs text-muted-foreground">{entry.actorEmail}</div>
+              )}
+              <div className="text-[11px] text-muted-foreground">
+                {ACTOR_LABEL[entry.actorType]}
+                {entry.actorUserId ? ` · ${shortId(entry.actorUserId)}` : ""}
+              </div>
+            </div>
+          </div>
+        </OverviewRow>
+        {isImpersonation && (
+          <OverviewRow icon={UserCog} label="On behalf of">
+            {onBehalfLabel(entry)}
+          </OverviewRow>
+        )}
+        <OverviewRow icon={Clock} label="When">
+          {formatDateTime(entry.createdAt)}
+          <span className="text-muted-foreground">
+            {" "}
+            · {formatDistanceToNowStrict(new Date(entry.createdAt), { addSuffix: true })}
+          </span>
+        </OverviewRow>
+        {entry.workspaceName && (
+          <OverviewRow icon={Building2} label="Workspace">
+            {entry.workspaceName}
+          </OverviewRow>
+        )}
+        {entry.resourceType && (
+          <OverviewRow icon={Hash} label="Resource">
+            <span className="font-mono text-xs">{entry.resourceType}</span>
+            {entry.resourceId && (
+              <span className="ml-1 font-mono text-[11px] text-muted-foreground">
+                {shortId(entry.resourceId)}
+              </span>
+            )}
+          </OverviewRow>
+        )}
+      </div>
+
+      {reason && (
+        <div>
+          <SectionLabel>Reason</SectionLabel>
+          <p className="rounded-xl border border-border bg-muted/30 p-3 text-sm italic text-muted-foreground">
+            “{reason}”
+          </p>
+        </div>
+      )}
+
+      {changeEntries.length > 0 && (
+        <div>
+          <SectionLabel>What changed</SectionLabel>
+          <div className="space-y-2">
+            {changeEntries.map(([key, value]) => (
+              <ChangeDetailRow key={key} field={key} value={value} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {metaEntries.length > 0 && (
+        <div>
+          <SectionLabel>Context</SectionLabel>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-xl border bg-card p-3 text-sm">
+            {metaEntries.map(([k, v]) => (
+              <Fragment key={k}>
+                <dt className="text-muted-foreground">{humanize(k)}</dt>
+                <dd className="min-w-0 whitespace-pre-wrap break-words font-mono text-xs">
+                  {fullValue(v)}
+                </dd>
+              </Fragment>
+            ))}
+          </dl>
+        </div>
+      )}
+
+      {(entry.ipAddress || entry.userAgent || entry.resourceId) && (
+        <div>
+          <SectionLabel>Technical</SectionLabel>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-xl border bg-card p-3 text-xs">
+            {entry.resourceId && (
+              <Fragment>
+                <dt className="text-muted-foreground">Resource id</dt>
+                <dd className="min-w-0 break-all font-mono">{entry.resourceId}</dd>
+              </Fragment>
+            )}
+            {entry.ipAddress && (
+              <Fragment>
+                <dt className="text-muted-foreground">IP address</dt>
+                <dd className="font-mono">{entry.ipAddress}</dd>
+              </Fragment>
+            )}
+            {entry.userAgent && (
+              <Fragment>
+                <dt className="text-muted-foreground">User agent</dt>
+                <dd className="min-w-0 break-words">{entry.userAgent}</dd>
+              </Fragment>
+            )}
+          </dl>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The side drawer wrapper. Open when `entry` is set. */
+function AuditDetailSheet({
+  entry,
+  pageUserId,
+  onOpenChange,
+}: {
+  entry: AuditTimelineEntry | null;
+  pageUserId?: string;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Sheet open={Boolean(entry)} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-lg">
+        {entry && <AuditDetailBody entry={entry} pageUserId={pageUserId} />}
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -398,10 +627,12 @@ function TimelineRow({
   entry,
   isLast,
   pageUserId,
+  onSelect,
 }: {
   entry: AuditTimelineEntry;
   isLast: boolean;
   pageUserId?: string;
+  onSelect: () => void;
 }) {
   const { label, icon: Icon, tone } = describeAction(entry.action, entry.resourceType);
   const toneCls = TONE[tone];
@@ -426,7 +657,19 @@ function TimelineRow({
         <Icon className={cn("h-4 w-4", toneCls.text)} />
       </div>
 
-      <div className="min-w-0 flex-1 rounded-xl border bg-card p-3 shadow-soft">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onSelect}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onSelect();
+          }
+        }}
+        aria-label={`View details: ${describeAction(entry.action, entry.resourceType).label}`}
+        className="min-w-0 flex-1 cursor-pointer rounded-xl border bg-card p-3 text-left shadow-soft transition-colors hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
         <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
           <div className="min-w-0">
             <p className="text-sm font-medium leading-snug">{label}</p>
@@ -488,7 +731,6 @@ function TimelineRow({
         {entry.changes && Object.keys(entry.changes).length > 0 && (
           <ChangePills changes={entry.changes} />
         )}
-        <MetadataDetails entry={entry} />
       </div>
     </li>
   );
@@ -540,6 +782,7 @@ export function AuditTimeline({
 }: AuditTimelineProps) {
   const [search, setSearch] = useState("");
   const [actorFilter, setActorFilter] = useState("all");
+  const [selected, setSelected] = useState<AuditTimelineEntry | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -673,6 +916,7 @@ export function AuditTimeline({
                     entry={entry}
                     isLast={i === group.items.length - 1}
                     pageUserId={pageUserId}
+                    onSelect={() => setSelected(entry)}
                   />
                 ))}
               </ol>
@@ -693,6 +937,14 @@ export function AuditTimeline({
           </Button>
         </div>
       )}
+
+      <AuditDetailSheet
+        entry={selected}
+        pageUserId={pageUserId}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null);
+        }}
+      />
     </div>
   );
 }

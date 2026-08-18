@@ -172,6 +172,29 @@ export const apiUri = {
     export: `${V1}/leads/export`,
   },
 
+  auditLogs: {
+    list: (
+      params: {
+        cursor?: string;
+        limit?: number;
+        actorId?: string;
+        action?: string;
+        from?: string;
+        to?: string;
+      } = {},
+    ) => `${V1}/audit-logs${listQs(params)}`,
+    archive: (
+      params: {
+        cursor?: string;
+        limit?: number;
+        actorId?: string;
+        action?: string;
+        from?: string;
+        to?: string;
+      } = {},
+    ) => `${V1}/audit-logs/archive${listQs(params)}`,
+  },
+
   analytics: {
     overview: `${V1}/analytics/overview`,
     page: `${V1}/analytics/page`,

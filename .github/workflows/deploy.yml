@@ -244,8 +244,21 @@ jobs:
             fi
             echo "Asset check passed — $ASSET returned $ASSET_STATUS"
 
-            # ── 7. Prune old dangling images ─────────────────────────────────────────
+            # ── 7. Retain only the last 3 app images; prune the rest ─────────────────
+            # Every deploy pulls a new ghcr.io/…/liffio-frontend:<sha> image. Left unchecked
+            # these accumulate and fill the droplet disk — a full disk makes the NEXT
+            # `docker compose pull` (this app AND the backend, same droplet) fail with
+            # "no space left on device". `docker images` lists newest-first; keep the 3
+            # most-recent UNIQUE image IDs (running + 2 for rollback) and force-remove older
+            # ones, then drop dangling layers. Scoped to this repo, so the backend's images are
+            # untouched. `xargs -r` no-ops on empty; `|| true` so a referenced image never fails deploy.
+            KEEP=3
+            docker images "${LIFFIO_IMAGE}" --format '{{.ID}}' \
+              | awk '!seen[$0]++' \
+              | tail -n +$((KEEP + 1)) \
+              | xargs -r docker rmi -f 2>/dev/null || true
             docker image prune -f
+            echo "Image prune complete (kept last ${KEEP} images)."
             echo ""
             echo "Deployment complete: ${LIFFIO_IMAGE}:${IMAGE_TAG}"
             docker compose ps

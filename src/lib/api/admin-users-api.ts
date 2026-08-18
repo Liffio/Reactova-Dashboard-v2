@@ -199,6 +199,9 @@ export type AdminUserAuditEntry = {
    *  showing a bare uuid. Null for system/api-key rows or a since-deleted user. */
   actorEmail: string | null;
   actorName: string | null;
+  /** Resolved workspace name for a workspace-scoped row (plan/package/AI-token/billing change) so
+   *  the timeline can say WHICH of the user's workspaces changed. Null for platform-tier rows. */
+  workspaceName: string | null;
   onBehalfOfUserId: string | null;
   onBehalfOfEmail: string | null;
   onBehalfOfName: string | null;

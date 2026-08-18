@@ -5,6 +5,7 @@ import {
   Archive,
   Ban,
   Boxes,
+  Building2,
   ChevronDown,
   Coins,
   Gift,
@@ -455,6 +456,12 @@ function TimelineRow({
                     {ACTOR_LABEL[entry.actorType]}
                   </Badge>
                 )
+              )}
+              {entry.workspaceName && (
+                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <Building2 className="h-3 w-3 shrink-0" />
+                  {entry.workspaceName}
+                </span>
               )}
               {entry.resourceType && (
                 <span className="font-mono text-[10px] text-muted-foreground/80">

@@ -248,6 +248,20 @@
   }
 }
 
+/* ─── Cards: shadow-defined, not outlined (product preference) ─────────────── */
+@layer components {
+  /* Neutralise the default 1px border on card surfaces (`bg-card`) so cards read as
+     shadow-lifted panels rather than outlined boxes. Only the DEFAULT border colour is
+     dropped: any explicit border utility — a colour (`border-primary`,
+     `border-destructive/30`), a side (`border-b`/`border-t`), a width (`border-2`), or a
+     style (`border-dashed`) — carries a `border-…` class and is left untouched, so
+     error / selected / divider treatments still show. Inputs (`bg-background` / `bg-input`)
+     and standalone table wrappers keep their borders — they are not `bg-card`. */
+  .bg-card:not([class*="border-"]) {
+    border-color: transparent;
+  }
+}
+
 /* ─── Utilities ───────────────────────────────────────────── */
 @utility transition-base {
   transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);

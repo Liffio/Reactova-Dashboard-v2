@@ -195,7 +195,13 @@ export type AdminUserAuditEntry = {
   workspaceId: string | null;
   actorUserId: string | null;
   actorType: AdminUserAuditActorType;
+  /** Resolved from `users` so the timeline can name the actor ("Sam Lee changed …") rather than
+   *  showing a bare uuid. Null for system/api-key rows or a since-deleted user. */
+  actorEmail: string | null;
+  actorName: string | null;
   onBehalfOfUserId: string | null;
+  onBehalfOfEmail: string | null;
+  onBehalfOfName: string | null;
   changes: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   ipAddress: string | null;

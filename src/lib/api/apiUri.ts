@@ -506,6 +506,10 @@ export const apiUri = {
       limits: (id: string) => `${V1}/admin/packages/${id}/limits`,
       publishStatus: (id: string) => `${V1}/admin/packages/${id}/publish-status`,
       publish: (id: string) => `${V1}/admin/packages/${id}/publish`,
+      /** Keyset-paginated change history for one package (`resource_type='package'`), backing the
+       *  package-detail Change history timeline — same shape as the per-user audit trail. */
+      audit: (id: string, params: { cursor?: string; limit?: number } = {}) =>
+        `${V1}/admin/packages/${id}/audit${listQs(params)}`,
       /**
        * Force the saved contents live for every workspace on this package, now.
        *

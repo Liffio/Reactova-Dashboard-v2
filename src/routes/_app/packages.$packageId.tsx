@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Package as PackageIcon, Zap } from "lucide-react";
 import { toast } from "@/lib/toast";
 
@@ -33,12 +33,14 @@ import {
 import {
   applyPackageLive,
   getPackage,
+  getPackageAudit,
   setPackageFeatures,
   setPackageLimits,
   updatePackage,
   type PackageDetail,
   type PackageLimit,
 } from "@/lib/api/registry-api";
+import { AuditTimeline } from "@/components/admin/audit-timeline";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -426,7 +428,45 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
             disabled={!dirty}
           />
         </FormActions>
+
+        <FormSection
+          title="Change history"
+          description="Every change made to this package — who did it, when, and exactly what changed. Package-level edits only (features, limits, pricing, publish, archive)."
+        >
+          <PackageChangeHistory packageId={pkg.id} />
+        </FormSection>
       </div>
     </div>
+  );
+}
+
+const AUDIT_PAGE_SIZE = 25;
+
+/** Package change history — same shared `<AuditTimeline>` the user Activity tab uses, scoped to
+ *  this package's `audit_logs` rows. Keyset-paginated with a "Load more" button. */
+function PackageChangeHistory({ packageId }: { packageId: string }) {
+  const auditQuery = useInfiniteQuery({
+    queryKey: ["package-audit", packageId],
+    queryFn: ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) =>
+      getPackageAudit(packageId, { limit: AUDIT_PAGE_SIZE, cursor: pageParam }, { signal }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+
+  const entries = auditQuery.data?.pages.flatMap((p) => p.items) ?? [];
+
+  return (
+    <AuditTimeline
+      entries={entries}
+      isLoading={auditQuery.isLoading}
+      isError={auditQuery.isError}
+      error={auditQuery.error}
+      hasNextPage={auditQuery.hasNextPage}
+      isFetchingNextPage={auditQuery.isFetchingNextPage}
+      fetchNextPage={() => void auditQuery.fetchNextPage()}
+      onRetry={() => void auditQuery.refetch()}
+      emptyTitle="No changes yet"
+      emptyHint="No edits have been recorded for this package."
+    />
   );
 }

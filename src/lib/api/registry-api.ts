@@ -1,5 +1,6 @@
 import { apiUri } from "./apiUri";
 import { apiRequest } from "./http";
+import type { AdminUserAuditResponse } from "./admin-users-api";
 
 /**
  * Module registry + package builder.
@@ -325,4 +326,15 @@ export const publishPackage = (id: string, providers?: BillingProvider[]) =>
   apiRequest<PublishResult>(apiUri.admin.packages.publish(id), {
     method: "POST",
     body: providers ? { providers } : {},
+  });
+
+/** Keyset-paginated change history for one package. Same response shape as the per-user audit
+ *  trail, so the shared `<AuditTimeline>` renders both. */
+export const getPackageAudit = (
+  packageId: string,
+  params: { cursor?: string; limit?: number } = {},
+  opts?: { signal?: AbortSignal },
+) =>
+  apiRequest<AdminUserAuditResponse>(apiUri.admin.packages.audit(packageId, params), {
+    signal: opts?.signal,
   });

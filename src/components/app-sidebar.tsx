@@ -32,6 +32,7 @@ import {
   UserCog,
   Eye,
   ListChecks,
+  ScrollText,
 } from "lucide-react";
 
 import {
@@ -138,6 +139,7 @@ const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   plug: Plug,
   UserCog,
   ListChecks,
+  ScrollText,
 };
 
 const resolveNavIcon = (name: string | null): typeof LayoutDashboard =>

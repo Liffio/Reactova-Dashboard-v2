@@ -50,6 +50,7 @@ import { Route as AppPackagesAssignRouteImport } from './routes/_app/packages.as
 import { Route as AppPackagesPackageIdRouteImport } from './routes/_app/packages.$packageId'
 import { Route as AppModuleRegistryNewRouteImport } from './routes/_app/module-registry.new'
 import { Route as AppModuleRegistryDocsRouteImport } from './routes/_app/module-registry.docs'
+import { Route as AppModuleRegistryArrangeRouteImport } from './routes/_app/module-registry.arrange'
 import { Route as AppModuleRegistryParentIdRouteImport } from './routes/_app/module-registry.$parentId'
 import { Route as AppAutomationsNewRouteImport } from './routes/_app/automations.new'
 import { Route as AppAdminUsersRouteImport } from './routes/_app/admin.users'
@@ -280,6 +281,12 @@ const AppModuleRegistryDocsRoute = AppModuleRegistryDocsRouteImport.update({
   path: '/module-registry/docs',
   getParentRoute: () => AppRoute,
 } as any)
+const AppModuleRegistryArrangeRoute =
+  AppModuleRegistryArrangeRouteImport.update({
+    id: '/module-registry/arrange',
+    path: '/module-registry/arrange',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppModuleRegistryParentIdRoute =
   AppModuleRegistryParentIdRouteImport.update({
     id: '/module-registry/$parentId',
@@ -458,6 +465,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AppAdminUsersRouteWithChildren
   '/automations/new': typeof AppAutomationsNewRoute
   '/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
+  '/module-registry/arrange': typeof AppModuleRegistryArrangeRoute
   '/module-registry/docs': typeof AppModuleRegistryDocsRoute
   '/module-registry/new': typeof AppModuleRegistryNewRoute
   '/packages/$packageId': typeof AppPackagesPackageIdRoute
@@ -524,6 +532,7 @@ export interface FileRoutesByTo {
   '/admin/plugins': typeof AppAdminPluginsRoute
   '/automations/new': typeof AppAutomationsNewRoute
   '/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
+  '/module-registry/arrange': typeof AppModuleRegistryArrangeRoute
   '/module-registry/docs': typeof AppModuleRegistryDocsRoute
   '/module-registry/new': typeof AppModuleRegistryNewRoute
   '/packages/$packageId': typeof AppPackagesPackageIdRoute
@@ -592,6 +601,7 @@ export interface FileRoutesById {
   '/_app/admin/users': typeof AppAdminUsersRouteWithChildren
   '/_app/automations/new': typeof AppAutomationsNewRoute
   '/_app/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
+  '/_app/module-registry/arrange': typeof AppModuleRegistryArrangeRoute
   '/_app/module-registry/docs': typeof AppModuleRegistryDocsRoute
   '/_app/module-registry/new': typeof AppModuleRegistryNewRoute
   '/_app/packages/$packageId': typeof AppPackagesPackageIdRoute
@@ -661,6 +671,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/automations/new'
     | '/module-registry/$parentId'
+    | '/module-registry/arrange'
     | '/module-registry/docs'
     | '/module-registry/new'
     | '/packages/$packageId'
@@ -727,6 +738,7 @@ export interface FileRouteTypes {
     | '/admin/plugins'
     | '/automations/new'
     | '/module-registry/$parentId'
+    | '/module-registry/arrange'
     | '/module-registry/docs'
     | '/module-registry/new'
     | '/packages/$packageId'
@@ -794,6 +806,7 @@ export interface FileRouteTypes {
     | '/_app/admin/users'
     | '/_app/automations/new'
     | '/_app/module-registry/$parentId'
+    | '/_app/module-registry/arrange'
     | '/_app/module-registry/docs'
     | '/_app/module-registry/new'
     | '/_app/packages/$packageId'
@@ -1129,6 +1142,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppModuleRegistryDocsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/module-registry/arrange': {
+      id: '/_app/module-registry/arrange'
+      path: '/module-registry/arrange'
+      fullPath: '/module-registry/arrange'
+      preLoaderRoute: typeof AppModuleRegistryArrangeRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/module-registry/$parentId': {
       id: '/_app/module-registry/$parentId'
       path: '/module-registry/$parentId'
@@ -1403,6 +1423,7 @@ interface AppRouteChildren {
   AppAdminUsersRoute: typeof AppAdminUsersRouteWithChildren
   AppAutomationsNewRoute: typeof AppAutomationsNewRoute
   AppModuleRegistryParentIdRoute: typeof AppModuleRegistryParentIdRoute
+  AppModuleRegistryArrangeRoute: typeof AppModuleRegistryArrangeRoute
   AppModuleRegistryDocsRoute: typeof AppModuleRegistryDocsRoute
   AppModuleRegistryNewRoute: typeof AppModuleRegistryNewRoute
   AppPackagesPackageIdRoute: typeof AppPackagesPackageIdRoute
@@ -1446,6 +1467,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdminUsersRoute: AppAdminUsersRouteWithChildren,
   AppAutomationsNewRoute: AppAutomationsNewRoute,
   AppModuleRegistryParentIdRoute: AppModuleRegistryParentIdRoute,
+  AppModuleRegistryArrangeRoute: AppModuleRegistryArrangeRoute,
   AppModuleRegistryDocsRoute: AppModuleRegistryDocsRoute,
   AppModuleRegistryNewRoute: AppModuleRegistryNewRoute,
   AppPackagesPackageIdRoute: AppPackagesPackageIdRoute,

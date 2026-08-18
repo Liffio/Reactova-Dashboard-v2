@@ -512,6 +512,10 @@ export const apiUri = {
       parent: (id: string) => `${V1}/admin/registry/parents/${id}`,
       /** What disabling this module would take offline — backs the confirmation dialog. */
       parentImpact: (id: string) => `${V1}/admin/registry/parents/${id}/impact`,
+      /** Drag-and-drop sidebar arrange: rewrite group + order for all sidebar parents at once. */
+      parentsReorder: `${V1}/admin/registry/parents/reorder`,
+      parentChildrenReorder: (parentId: string) =>
+        `${V1}/admin/registry/parents/${parentId}/children/reorder`,
       children: (p: { page?: number; limit?: number; q?: string; parentModuleId?: string } = {}) =>
         `${V1}/admin/registry/children${listQs(p)}`,
       child: (id: string) => `${V1}/admin/registry/children/${id}`,

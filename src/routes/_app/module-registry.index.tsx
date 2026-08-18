@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Boxes, ChevronRight, Code2, Copy, Plus, Search } from "lucide-react";
+import { ArrowUpDown, BookOpen, Boxes, ChevronRight, Code2, Copy, Plus, Search } from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -81,6 +81,12 @@ function ModuleRegistryPage() {
               <Link to="/module-registry/docs">
                 <BookOpen className="h-3.5 w-3.5" />
                 Developer guide
+              </Link>
+            </Button>
+            <Button size="sm" variant="outline" asChild className="gap-1.5">
+              <Link to="/module-registry/arrange">
+                <ArrowUpDown className="h-3.5 w-3.5" />
+                Arrange sidebar
               </Link>
             </Button>
             <Button

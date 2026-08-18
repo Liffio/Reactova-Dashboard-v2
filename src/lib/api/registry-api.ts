@@ -106,6 +106,20 @@ export const updateParentModule = (id: string, body: Partial<Omit<ParentModule, 
 export const getDisableImpact = (id: string) =>
   apiRequest<DisableImpact>(apiUri.admin.registry.parentImpact(id));
 
+/** Rewrite the whole sidebar layout — each group's parents in order — in one call. */
+export const reorderParents = (groups: Array<{ group: string; parentIds: string[] }>) =>
+  apiRequest<{ modules: RegistryTreeNode[] }>(apiUri.admin.registry.parentsReorder, {
+    method: "PUT",
+    body: { groups },
+  });
+
+/** Reorder one parent's capabilities (module_mappings.sort_order). */
+export const reorderParentChildren = (parentModuleId: string, childModuleIds: string[]) =>
+  apiRequest<{ module: RegistryTreeNode | null }>(
+    apiUri.admin.registry.parentChildrenReorder(parentModuleId),
+    { method: "PUT", body: { childModuleIds } },
+  );
+
 export const listChildModules = (params: ListQuery & { parentModuleId?: string } = {}) =>
   apiRequest<Paged<ChildModule>>(apiUri.admin.registry.children(params));
 

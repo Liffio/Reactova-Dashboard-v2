@@ -59,6 +59,7 @@ import { Route as AppAdminCreatorsRouteImport } from './routes/_app/admin.creato
 import { Route as AppAdminCreatorManagementRouteImport } from './routes/_app/admin.creator-management'
 import { Route as AppAdminCapabilitiesRouteImport } from './routes/_app/admin.capabilities'
 import { Route as AppAdminAffiliatesRouteImport } from './routes/_app/admin.affiliates'
+import { Route as AppAdminUsersIndexRouteImport } from './routes/_app/admin.users.index'
 import { Route as AppAdminUsersUserIdRouteImport } from './routes/_app/admin.users.$userId'
 import { Route as AppAdminPluginsSigningKeysRouteImport } from './routes/_app/admin.plugins_.signing-keys'
 import { Route as AppAdminPluginsDocsRouteImport } from './routes/_app/admin.plugins_.docs'
@@ -325,6 +326,11 @@ const AppAdminAffiliatesRoute = AppAdminAffiliatesRouteImport.update({
   path: '/admin/affiliates',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminUsersIndexRoute = AppAdminUsersIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppAdminUsersRoute,
+} as any)
 const AppAdminUsersUserIdRoute = AppAdminUsersUserIdRouteImport.update({
   id: '/$userId',
   path: '/$userId',
@@ -463,6 +469,7 @@ export interface FileRoutesByFullPath {
   '/admin/plugins/docs': typeof AppAdminPluginsDocsRoute
   '/admin/plugins/signing-keys': typeof AppAdminPluginsSigningKeysRoute
   '/admin/users/$userId': typeof AppAdminUsersUserIdRouteWithChildren
+  '/admin/users/': typeof AppAdminUsersIndexRoute
   '/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
   '/admin/users/$userId/ai-api': typeof AppAdminUsersUserIdAiApiRoute
   '/admin/users/$userId/billing': typeof AppAdminUsersUserIdBillingRoute
@@ -507,7 +514,6 @@ export interface FileRoutesByTo {
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
   '/admin/impersonation': typeof AppAdminImpersonationRoute
   '/admin/plugins': typeof AppAdminPluginsRoute
-  '/admin/users': typeof AppAdminUsersRouteWithChildren
   '/automations/new': typeof AppAutomationsNewRoute
   '/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
   '/module-registry/docs': typeof AppModuleRegistryDocsRoute
@@ -527,6 +533,7 @@ export interface FileRoutesByTo {
   '/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
   '/admin/plugins/docs': typeof AppAdminPluginsDocsRoute
   '/admin/plugins/signing-keys': typeof AppAdminPluginsSigningKeysRoute
+  '/admin/users': typeof AppAdminUsersIndexRoute
   '/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
   '/admin/users/$userId/ai-api': typeof AppAdminUsersUserIdAiApiRoute
   '/admin/users/$userId/billing': typeof AppAdminUsersUserIdBillingRoute
@@ -594,6 +601,7 @@ export interface FileRoutesById {
   '/_app/admin/plugins_/docs': typeof AppAdminPluginsDocsRoute
   '/_app/admin/plugins_/signing-keys': typeof AppAdminPluginsSigningKeysRoute
   '/_app/admin/users/$userId': typeof AppAdminUsersUserIdRouteWithChildren
+  '/_app/admin/users/': typeof AppAdminUsersIndexRoute
   '/_app/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
   '/_app/admin/users/$userId/ai-api': typeof AppAdminUsersUserIdAiApiRoute
   '/_app/admin/users/$userId/billing': typeof AppAdminUsersUserIdBillingRoute
@@ -661,6 +669,7 @@ export interface FileRouteTypes {
     | '/admin/plugins/docs'
     | '/admin/plugins/signing-keys'
     | '/admin/users/$userId'
+    | '/admin/users/'
     | '/admin/users/$userId/activity'
     | '/admin/users/$userId/ai-api'
     | '/admin/users/$userId/billing'
@@ -705,7 +714,6 @@ export interface FileRouteTypes {
     | '/admin/email-templates'
     | '/admin/impersonation'
     | '/admin/plugins'
-    | '/admin/users'
     | '/automations/new'
     | '/module-registry/$parentId'
     | '/module-registry/docs'
@@ -725,6 +733,7 @@ export interface FileRouteTypes {
     | '/admin/creators/$profileId'
     | '/admin/plugins/docs'
     | '/admin/plugins/signing-keys'
+    | '/admin/users'
     | '/admin/users/$userId/activity'
     | '/admin/users/$userId/ai-api'
     | '/admin/users/$userId/billing'
@@ -791,6 +800,7 @@ export interface FileRouteTypes {
     | '/_app/admin/plugins_/docs'
     | '/_app/admin/plugins_/signing-keys'
     | '/_app/admin/users/$userId'
+    | '/_app/admin/users/'
     | '/_app/admin/users/$userId/activity'
     | '/_app/admin/users/$userId/ai-api'
     | '/_app/admin/users/$userId/billing'
@@ -1170,6 +1180,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminAffiliatesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/users/': {
+      id: '/_app/admin/users/'
+      path: '/'
+      fullPath: '/admin/users/'
+      preLoaderRoute: typeof AppAdminUsersIndexRouteImport
+      parentRoute: typeof AppAdminUsersRoute
+    }
     '/_app/admin/users/$userId': {
       id: '/_app/admin/users/$userId'
       path: '/$userId'
@@ -1327,10 +1344,12 @@ const AppAdminUsersUserIdRouteWithChildren =
 
 interface AppAdminUsersRouteChildren {
   AppAdminUsersUserIdRoute: typeof AppAdminUsersUserIdRouteWithChildren
+  AppAdminUsersIndexRoute: typeof AppAdminUsersIndexRoute
 }
 
 const AppAdminUsersRouteChildren: AppAdminUsersRouteChildren = {
   AppAdminUsersUserIdRoute: AppAdminUsersUserIdRouteWithChildren,
+  AppAdminUsersIndexRoute: AppAdminUsersIndexRoute,
 }
 
 const AppAdminUsersRouteWithChildren = AppAdminUsersRoute._addFileChildren(

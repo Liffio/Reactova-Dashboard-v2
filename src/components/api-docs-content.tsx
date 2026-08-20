@@ -1,4 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
+
 import { API_BASE } from "@/lib/api/http";
+import { getBillingConfig } from "@/lib/api/billing-api";
 
 const baseUrl = API_BASE.replace(/\/$/, "");
 
@@ -27,7 +30,55 @@ export function Section({
   );
 }
 
+/**
+ * The API plan table, from `/billing/config` rather than five hardcoded arrays. (S5.3)
+ *
+ * 🚩 What stood here was:
+ *
+ * ```
+ * ["Starter", "$9",  "2",  "10",  "5"],
+ * ["Pro",     "$29", "5",  "50",  "25"],
+ * ["Business","$79", "10", "200", "100"],
+ * ["Agency",  "$299","50", "Unlimited","Unlimited"],
+ * ```
+ *
+ * **Every number in it was already wrong**, and merge 1b makes it wrong a second way. It listed a
+ * retired tier and omitted Growth entirely — the same three defects `billings.tsx` had, in a third
+ * copy of the same server state.
+ *
+ * Editing the literals would have bought one release. `/billing/config` already serves
+ * `displayName`, `pricing` and `limits` per plan, so this table now follows the server and is right
+ * across 1b without anyone remembering it exists.
+ *
+ * ⚠️ **Retired tiers are filtered out** via `sellable`, so PRO stops being documented as a plan
+ * anybody can buy an API key on.
+ *
+ * ⚠️ **This page documents an API D4 withholds from the V4 launch.** Under D4 every tier's
+ * `maxApiCredentials` is 0, so once 1b lands this table will honestly read "0 keys" on every row.
+ * That is the correct output, not a bug — and it makes the page's own premise visible, which
+ * editing the literals to a friendlier number would have hidden.
+ */
 export function ApiDocsContent() {
+  const configQuery = useQuery({ queryKey: ["billing-config"], queryFn: getBillingConfig });
+
+  const fmt = (n: number | undefined): string => {
+    if (n === undefined || n === null) return "—";
+    // -1 and the 999999 sentinel both mean "no cap" in this codebase.
+    if (n < 0 || n >= 999_999) return "Unlimited";
+    return n === 0 ? "—" : String(n);
+  };
+
+  const planRows = (configQuery.data?.plans ?? [])
+    .filter((p) => p.sellable)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((p) => ({
+      plan: p.displayName,
+      price: `$${p.pricing.monthlyUsd}`,
+      keys: fmt(p.limits.maxApiCredentials),
+      posts: fmt(p.limits.schedulerPostsPerDay),
+      autos: fmt(p.limits.automationsPerDay),
+    }));
+
   return (
     <article className="space-y-10 text-foreground">
       <Section id="authentication" title="Authentication">
@@ -66,19 +117,13 @@ Content-Type: application/json`}</Code>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {[
-                ["Free", "$0", "—", "—", "—"],
-                ["Starter", "$9", "2", "10", "5"],
-                ["Pro", "$29", "5", "50", "25"],
-                ["Business", "$79", "10", "200", "100"],
-                ["Agency", "$299", "50", "Unlimited", "Unlimited"],
-              ].map(([plan, price, keys, posts, autos]) => (
-                <tr key={plan} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-2.5 font-medium">{plan}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{price}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{keys}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{posts}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{autos}</td>
+              {planRows.map((row) => (
+                <tr key={row.plan} className="hover:bg-muted/30 transition-colors">
+                  <td className="px-4 py-2.5 font-medium">{row.plan}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{row.price}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{row.keys}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{row.posts}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{row.autos}</td>
                 </tr>
               ))}
             </tbody>

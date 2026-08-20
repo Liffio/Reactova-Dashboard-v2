@@ -207,6 +207,8 @@ export const apiUri = {
     invoices: `${V1}/billing/invoices`,
     invoicesAll: `${V1}/billing/invoices/all`,
     checkout: `${V1}/billing/checkout`,
+    /** The PACKAGE path (S5.2). Sells a `packageId`, not a `Plan` — which is how Growth is sold. */
+    packageCheckout: `${V1}/billing/package-checkout`,
     portal: `${V1}/billing/portal`,
     sync: `${V1}/billing/sync`,
     cancel: `${V1}/billing/cancel`,

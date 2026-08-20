@@ -128,6 +128,45 @@ export type CheckoutResponse = {
   status?: string;
 };
 
+export type PackageCheckoutInput = {
+  packageId: string;
+  interval: "monthly" | "yearly";
+  /**
+   * The buyer's state, for Indian GST place of supply. (S4.4c)
+   *
+   * Required by the server when the resolved currency is INR — it decides IGST vs CGST+SGST — and
+   * refused with `PLACE_OF_SUPPLY_REQUIRED` if absent. The currency itself is **not** sent: the
+   * server derives it from the account's country, so a client cannot ask to be charged in one.
+   */
+  placeOfSupplyState?: string;
+};
+
+/**
+ * Buy a PACKAGE. (S5.2)
+ *
+ * 🚩 This is the path that makes packages the commercial reality rather than an admin-console
+ * artefact. `POST /billing/package-checkout` has existed and been fully implemented since Phase 5.1
+ * with **no frontend caller at all**, so every purchase went through the legacy plan path and landed
+ * on the `Plan` enum — **which has no Growth**, by deliberate design (`Package.entity.ts`: packages
+ * exist so new tiers can be sold without widening an enum billing, quotas and provider mapping all
+ * key off).
+ *
+ * ⚠️ **No `provider` is sent.** D19 made Razorpay the only gateway and S4.4b removed the client's
+ * say: `resolveCheckoutProvider` answers it server-side. A `provider` field here would be a fourth
+ * place that could disagree.
+ *
+ * ⚠️ **No quarterly.** `packageCheckoutSchema` accepts monthly and yearly only, and
+ * `intervalToDb` throws `UNSUPPORTED_INTERVAL` otherwise — packages carry no quarterly price
+ * column. The plan path still offers quarterly for the tiers that predate packages.
+ */
+export function createPackageCheckout(workspaceId: string, body: PackageCheckoutInput) {
+  return apiRequest<CheckoutResponse>(apiUri.billing.packageCheckout, {
+    method: "POST",
+    workspaceId,
+    body,
+  });
+}
+
 export function createBillingCheckout(workspaceId: string, body: CheckoutInput) {
   return apiRequest<CheckoutResponse>(apiUri.billing.checkout, {
     method: "POST",

@@ -135,7 +135,25 @@ function BillingPage() {
       void queryClient.invalidateQueries({ queryKey: ["billing-invoices", workspaceId] });
       void refreshAuth();
     },
-    onError: (e) => toast.error((e as Error).message),
+    /*
+     * A neutral message, not the raw server string. (S3P.2a)
+     *
+     * syncWorkspaceSubscription picks its provider by reading the local workspace_subscriptions
+     * row. A workspace that has paid through Razorpay but whose row was never written -- both
+     * settlement observers missed, which is G56 -- falls through to the Stripe path and throws
+     * "No Stripe subscription found for this workspace". Surfacing that verbatim tells a paying
+     * Razorpay customer about a provider they did not use, which is the same defect as the Manage
+     * button above wearing different words.
+     *
+     * The raw error still reaches the console for support. What the customer gets is what they can
+     * act on: try again, then ask a human. Recovering that case is S3P.2b.
+     */
+    onError: (e) => {
+      console.error("[billing] sync failed", e);
+      toast.error(
+        "Could not refresh billing just now. Try again, or contact support if your payment has not appeared.",
+      );
+    },
   });
 
   useEffect(() => {
@@ -303,7 +321,23 @@ function BillingPage() {
               <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
               Sync
             </Button>
-            {sub?.hasActiveSubscription && (
+            {/*
+             * Gated on stripeCustomerId, not on hasActiveSubscription. (S3P.2a)
+             *
+             * This rendered for ANY active subscription, provider-blind, and called
+             * createPortalSession -> stripe.billingPortal.sessions.create, which throws when the
+             * user has no Stripe customer. Under D19 that is EVERY Razorpay customer, so a paying
+             * customer clicked "Manage" and got a toast reading "Stripe customer portal is not
+             * available for this account" -- a broken control naming a provider they did not use.
+             *
+             * stripeCustomerId is the exact predicate the backend checks, so the button now
+             * renders when and only when the call can succeed. NOT deleted outright: Stripe is
+             * dormant, not removed, and the existing Stripe subscriptions still have a real portal
+             * -- it is the only way those accounts can change a card.
+             *
+             * Razorpay has no hosted portal. The self-serve replacement is S3P.2d/e, deferred.
+             */}
+            {sub?.billing?.stripeCustomerId && (
               <Button
                 size="sm"
                 variant="outline"

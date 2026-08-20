@@ -64,6 +64,18 @@ export type BillingSubscription = {
   limits: Record<string, number>;
   features: Record<string, boolean>;
   hasActiveSubscription: boolean;
+  /**
+   * Already sent by `getWorkspaceSubscription`; declared here in S3P.2a because the billing page
+   * needs it to decide whether the Stripe customer portal can work at all.
+   *
+   * `stripeCustomerId` is non-null only for a workspace that was billed through Stripe. Under D19
+   * Stripe is dormant, so this is null for every new customer and non-null for the existing rows
+   * that still legitimately have a portal.
+   */
+  billing?: {
+    stripeCustomerId: string | null;
+    stripeSubscriptionId: string | null;
+  };
 };
 
 export type BillingInvoiceRow = {

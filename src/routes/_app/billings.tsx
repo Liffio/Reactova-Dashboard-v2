@@ -36,6 +36,9 @@ import {
 import {
   cancelBillingSubscription,
   createBillingCheckout,
+  createPackageCheckout,
+  getSellablePackages,
+  type PackageCheckoutInput,
   createBillingPortalSession,
   getBillingConfig,
   getBillingSubscription,
@@ -109,6 +112,26 @@ function BillingPage() {
   const [payingRazorpay, setPayingRazorpay] = useState(false);
   const userEmail = useAuthState((s) => s.user?.email);
 
+  /**
+   * The packages a tenant may buy. (S5.2 / S4.7)
+   *
+   * 🚩 The page renders PLANS from `/billing/config`; **checkout needs a PACKAGE id.** Until
+   * `/billing/packages` existed there was no way to obtain one, so every purchase went through the
+   * legacy plan path onto the `Plan` enum — which has no Growth. This query is what closes that.
+   *
+   * Matched to a plan card by `key`, lowercased: `BILLING_PLANS` is keyed `STARTER`/`GROWTH`/… and
+   * `packages.key` is `starter`/`growth`/… . The two catalogues are deliberately separate — a
+   * package need not correspond to a plan at all — so a card with no matching package simply falls
+   * back to the plan path rather than breaking.
+   */
+  const packagesQuery = useQuery({
+    queryKey: ["billing-packages"],
+    queryFn: getSellablePackages,
+  });
+
+  const packageForPlan = (planKey: string) =>
+    packagesQuery.data?.packages.find((p) => p.key.toUpperCase() === planKey.toUpperCase());
+
   const configQuery = useQuery({
     queryKey: ["billing-config"],
     queryFn: getBillingConfig,
@@ -167,6 +190,25 @@ function BillingPage() {
     void navigate({ to: "/billings", replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkoutStatus]);
+
+  /**
+   * Buy a PACKAGE. (S5.2)
+   *
+   * Preferred over `checkoutMutation` wherever a package exists for the tier, because the package
+   * path carries the capability ceiling and the plan path does not — and because it is the only way
+   * to sell a tier the `Plan` enum has never heard of.
+   *
+   * ⚠️ No `provider` and no `currency` are sent. D19 made Razorpay the only gateway and S4.4
+   * moved currency onto the customer's country, both resolved server-side. A client that could ask
+   * for either would be a second place they could disagree.
+   */
+  const packageCheckoutMutation = useMutation({
+    mutationFn: (body: PackageCheckoutInput) => createPackageCheckout(workspaceId, body),
+    onSuccess: ({ checkoutUrl }) => {
+      if (checkoutUrl) window.location.href = checkoutUrl;
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
 
   const checkoutMutation = useMutation({
     mutationFn: (body: CheckoutInput) => createBillingCheckout(workspaceId, body),
@@ -256,6 +298,30 @@ function BillingPage() {
 
   const startCheckout = (planKey: string, gateway: Gateway) => {
     setGatewayChoice(null);
+
+    /**
+     * 🚩 The package path first, whenever a package exists for this tier. (S5.2)
+     *
+     * `POST /billing/package-checkout` is what makes packages the commercial reality rather than an
+     * admin-console artefact: it carries the **capability ceiling**, which the plan path does not,
+     * and it is the only way to sell a tier the `Plan` enum has never heard of — Growth.
+     *
+     * Matched by `key`: `BILLING_PLANS` is keyed `STARTER`/`GROWTH`, `packages.key` is
+     * `starter`/`growth`. The catalogues are deliberately separate — a package need not correspond
+     * to a plan — so a card with no matching package falls back to the plan path rather than
+     * breaking.
+     *
+     * ✅ **Quarterly is not a concern here**, though S5.2 flagged it as one: `packageCheckoutSchema`
+     * accepts monthly and yearly only, and **this page's interval state is already
+     * `"monthly" | "yearly"`.** The quarterly selector lives on `/checkout` (`:136`), which is the
+     * plan path and keeps its quarterly SKUs. Nothing is lost by routing this page to packages.
+     */
+    const pkg = packageForPlan(planKey);
+    if (pkg) {
+      packageCheckoutMutation.mutate({ packageId: pkg.id, interval });
+      return;
+    }
+
     if (gateway === "razorpay") {
       void startRazorpayCheckout(planKey);
     } else {

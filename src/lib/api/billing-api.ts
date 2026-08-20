@@ -128,6 +128,30 @@ export type CheckoutResponse = {
   status?: string;
 };
 
+/**
+ * A package a tenant may buy. (S4.7)
+ *
+ * ⚠️ Non-public and inactive packages are excluded **server-side**, in the query. The client does
+ * not filter — which is deliberate: `is_public` is what keeps Growth off the pricing page until D2,
+ * and a visibility rule enforced in a React component is one refactor away from not being enforced.
+ */
+export type SellablePackage = {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  sortOrder: number;
+  badge: string | null;
+  monthlyPriceUsdCents: number;
+  yearlyPriceUsdCents: number | null;
+  monthlyPriceInrPaise: number | null;
+  yearlyPriceInrPaise: number | null;
+};
+
+export function getSellablePackages() {
+  return apiRequest<{ packages: SellablePackage[] }>(apiUri.billing.packages);
+}
+
 export type PackageCheckoutInput = {
   packageId: string;
   interval: "monthly" | "yearly";

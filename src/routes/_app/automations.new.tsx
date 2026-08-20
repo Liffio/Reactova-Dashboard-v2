@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Check,
@@ -167,6 +167,7 @@ const defaultForm: BuilderForm = {
 
 function AutomationBuilder() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { current, user } = useApp();
   const workspaceId = current.id;
   // Backend-resolved capability flags. Controls for features this account lacks are not rendered
@@ -393,6 +394,11 @@ function AutomationBuilder() {
     mutationFn: (status: "ACTIVE" | "DRAFT") => createAutomation(workspaceId, buildPayload(status)),
     onSuccess: async (_, status) => {
       await autosave.clear();
+      // The listing page's cache stays fresh for staleTime (30s), so without this the
+      // just-created automation is missing from /automations until the cache expires.
+      void queryClient.invalidateQueries({ queryKey: ["automations"] });
+      void queryClient.invalidateQueries({ queryKey: ["automation-status-counts", workspaceId] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", workspaceId] });
       toast.success(
         status === "ACTIVE" ? `"${form.name}" is live` : `"${form.name}" saved as draft`,
       );

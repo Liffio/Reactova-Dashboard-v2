@@ -265,6 +265,35 @@ function BillingPage() {
 
   // Always open the payment-type step, even with a single usable gateway — the user
   // should see and confirm how they are about to pay, never be bounced straight out.
+  /**
+   * D20's "Contact us" has to reach something. (S3P.2c)
+   *
+   * D20 settled that self-serve downgrade is NOT built for V1 — and correctly: `createCheckout`
+   * never reads or cancels the existing subscription, so enabling the path would leave the customer
+   * with two live subscriptions, both billing, with the first one orphaned beyond the product's
+   * ability to cancel it (`12-downgrade.md` §2).
+   *
+   * But the button was `disabled` with the label "Contact us" and no contact attached — a label on
+   * a dead control. **A customer who wants to pay you less rather than leave is the one you most
+   * want to reach**, and the page was silently declining that conversation.
+   *
+   * This does not implement downgrade. It carries the workspace and the target tier to a human, so
+   * the request is actionable without a round trip asking which workspace and which plan.
+   */
+  const handleDowngradeRequest = (planKey: string) => {
+    const subject = `Downgrade request: ${sub?.plan ?? "current plan"} to ${planKey}`;
+    const body = [
+      `I would like to move this workspace to the ${planKey} plan.`,
+      "",
+      `Workspace: ${workspaceId}`,
+      `Current plan: ${sub?.plan ?? "unknown"}`,
+      `Requested plan: ${planKey}`,
+    ].join("\n");
+    window.location.href = `mailto:support@liffio.com?subject=${encodeURIComponent(
+      subject,
+    )}&body=${encodeURIComponent(body)}`;
+  };
+
   const handleUpgradeClick = (planKey: string) => {
     const options = gatewayOptions(planKey);
     if (!options.some((o) => o.available)) {
@@ -475,12 +504,21 @@ function BillingPage() {
                       }
                       disabled={
                         isCurrent ||
-                        isDowngrade ||
                         checkoutMutation.isPending ||
                         payingRazorpay ||
                         plan.plan === "FREE"
                       }
-                      onClick={() => !isCurrent && !isDowngrade && handleUpgradeClick(plan.plan)}
+                      onClick={() => {
+                        if (isCurrent) return;
+                        // A downgrade goes to a human, never to checkout: D20 keeps the mechanism
+                        // unbuilt, and starting a checkout here would create a SECOND live
+                        // subscription rather than replacing the first.
+                        if (isDowngrade) {
+                          handleDowngradeRequest(plan.plan);
+                          return;
+                        }
+                        handleUpgradeClick(plan.plan);
+                      }}
                     >
                       {isCurrent ? "Current plan" : isDowngrade ? "Contact us" : "Upgrade"}
                     </Button>

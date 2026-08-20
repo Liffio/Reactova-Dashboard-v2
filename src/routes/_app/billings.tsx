@@ -71,7 +71,23 @@ function BillingRoute() {
   );
 }
 
-const planOrder = ["FREE", "STARTER", "PRO", "BUSINESS", "AGENCY"];
+/*
+ * The hardcoded `planOrder` that stood here is DELETED. (S5.5)
+ *
+ * It read ["FREE", "STARTER", "PRO", "BUSINESS", "AGENCY"] and was wrong in three ways at once,
+ * all of them because `indexOf("GROWTH")` returned -1:
+ *
+ *   1. Every customer saw the Growth card as `isDowngrade` -> disabled, "Contact us".
+ *      GROWTH COULD NOT BE PURCHASED IN-APP AT ALL.
+ *   2. A Growth customer had currentPlanIndex = -1, so every tier read "Upgrade" -- including
+ *      Starter, an actual downgrade offered as an upgrade.
+ *   3. Retired PRO was still in the array and the plan list was unfiltered, so "Pro (retired)"
+ *      rendered as a purchasable card.
+ *
+ * This array had already been wrong once before, about PRO's position. A third hand-edit buys one
+ * release of correctness, so the client no longer holds an opinion about the ladder: the server
+ * sends `rank` (tier order) and `sellable` (on the ladder at all), and `sortOrder` for display.
+ */
 
 const statusStyles: Record<string, string> = {
   ACTIVE: "border-success/30 bg-success/10 text-success",
@@ -257,11 +273,17 @@ function BillingPage() {
   });
 
   const sub = subQuery.data;
-  const plans = (configQuery.data?.plans ?? []).sort(
-    (a, b) => planOrder.indexOf(a.plan) - planOrder.indexOf(b.plan),
-  );
+  // Retired tiers are dropped, not merely disabled: a card nobody may buy is noise on a pricing
+  // page. Sorted by the server's display order, which puts a retired tier last if one is ever
+  // shown again.
+  const plans = (configQuery.data?.plans ?? [])
+    .filter((p) => p.sellable)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
   const invoices = invoicesQuery.data?.invoices ?? [];
-  const currentPlanIndex = planOrder.indexOf(sub?.plan ?? "FREE");
+  // Tier comparison uses `rank`, never `sortOrder`. A plan the server does not recognise has
+  // rank null and is treated as not comparable, so nothing is labelled a downgrade by accident.
+  const currentRank =
+    configQuery.data?.plans.find((p) => p.plan === (sub?.plan ?? "FREE"))?.rank ?? null;
 
   return (
     <div>
@@ -363,9 +385,12 @@ function BillingPage() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               {plans.map((plan) => {
-                const planIdx = planOrder.indexOf(plan.plan);
                 const isCurrent = plan.plan === sub?.plan;
-                const isDowngrade = planIdx < currentPlanIndex;
+                // D20: downgrade stays disabled and routed to support. This decides only WHICH
+                // plans are downgrades -- which is what was broken. Unknown rank on either side
+                // means "not comparable", so it is not offered as an upgrade either.
+                const isDowngrade =
+                  plan.rank !== null && currentRank !== null && plan.rank < currentRank;
                 const price =
                   interval === "yearly"
                     ? (plan.pricing.yearlyUsd ?? plan.pricing.monthlyUsd)

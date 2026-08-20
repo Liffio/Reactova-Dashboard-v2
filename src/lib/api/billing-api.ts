@@ -6,7 +6,26 @@ export type BillingPlanConfig = {
   displayName: string;
   description: string;
   highlights: string[];
+  /** Display order. PRO sorts LAST here because it is retired. Not a tier comparison — see `rank`. */
   sortOrder: number;
+  /**
+   * Tier order, from the server's `PLAN_ORDER`. Use this and only this to decide
+   * upgrade-versus-downgrade.
+   *
+   * It deliberately DISAGREES with `sortOrder` about PRO: `sortOrder` puts it last (retired,
+   * belongs at the bottom of the page), `rank` puts it beside GROWTH (it carries Growth's
+   * capabilities and limits). Comparing tiers with `sortOrder` would rank retired PRO above AGENCY.
+   *
+   * `null` means the server does not recognise the plan — treat as not comparable, never as 0.
+   */
+  rank: number | null;
+  /**
+   * Is this tier on the commercial ladder at all? `false` for retired tiers.
+   *
+   * NOT the same as "can I check out right now" — that is `checkout` below. A tier can be sellable
+   * with no checkout id yet, which is exactly GROWTH's state until the SKUs are published.
+   */
+  sellable: boolean;
   pricing: {
     monthlyUsd: number;
     quarterlyUsd: number | null;

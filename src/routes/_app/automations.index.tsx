@@ -8,6 +8,7 @@ import {
   Pause,
   Play,
   Plus,
+  RefreshCw,
   Search,
   Trash2,
   Zap,
@@ -151,16 +152,31 @@ function AutomationsPage() {
         title="Automations"
         description="Trigger DMs from comments — every keyword gets its own message and link."
         actions={
-          <Button
-            size="sm"
-            asChild
-            className="gap-1.5 bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
-          >
-            <Link to="/automations/new">
-              <Plus className="h-4 w-4" />
-              New automation
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={list.isFetching}
+              onClick={() => {
+                void list.refetch();
+                void countsQuery.refetch();
+              }}
+            >
+              <RefreshCw className={list.isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+              Sync
+            </Button>
+            <Button
+              size="sm"
+              asChild
+              className="gap-1.5 bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
+            >
+              <Link to="/automations/new">
+                <Plus className="h-4 w-4" />
+                New automation
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -201,6 +217,11 @@ function AutomationsPage() {
             ))}
           </div>
         </div>
+
+        <p className="text-xs text-muted-foreground">
+          DM sent counts are not updated automatically — click Sync to refresh them without
+          reloading the page.
+        </p>
 
         {list.error && (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">

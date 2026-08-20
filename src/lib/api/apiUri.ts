@@ -34,6 +34,8 @@ export const apiUri = {
     logout: `${V1}/auth/logout`,
     refresh: `${V1}/auth/refresh`,
     me: `${V1}/auth/me`,
+    /** Set-once country capture (S5.6). Makes CHECKOUT_COUNTRY_REQUIRED recoverable. */
+    meCountry: `${V1}/auth/me/country`,
     permissions: `${V1}/auth/permissions`,
     activeWorkspace: `${V1}/auth/active-workspace`,
     google: `${V1}/auth/google`,

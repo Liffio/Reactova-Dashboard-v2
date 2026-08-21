@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  cardPriceText,
   formatInrPaise,
   formatUsdCents,
   inrPaiseForInterval,
@@ -161,5 +162,91 @@ describe("formatting", () => {
   it("returns null for null, so callers render nothing rather than '₹NaN'", () => {
     expect(formatInrPaise(null)).toBeNull();
     expect(formatUsdCents(null)).toBeNull();
+  });
+});
+
+describe("cardPriceText — the plan card renders the CUSTOMER's currency", () => {
+  /**
+   * The defect: the card printed a hardcoded `$` JSX literal over `plan.pricing.monthlyUsd`, with
+   * **no country read anywhere in the file**. Not a bad default — no condition at all. So a
+   * `country = "IN"` customer shopped in dollars and was charged in rupees by a server that had
+   * resolved their currency correctly the whole time.
+   */
+  const business = pkg({
+    key: "business",
+    monthlyPriceUsdCents: 5900,
+    yearlyPriceUsdCents: 59000,
+    monthlyPriceInrPaise: 249900,
+    yearlyPriceInrPaise: 2499900,
+  });
+
+  it("🔴 an IN customer sees rupees", () => {
+    expect(
+      cardPriceText({ displayCurrency: "INR", pkg: business, planUsd: 59, interval: "monthly" })
+    ).toBe("₹2,499");
+  });
+
+  it("🔴 a US customer sees dollars", () => {
+    expect(
+      cardPriceText({ displayCurrency: "USD", pkg: business, planUsd: 59, interval: "monthly" })
+    ).toBe("$59");
+  });
+
+  it("🔴 a NULL-country customer sees dollars — the decision, pinned", () => {
+    // Deliberate: USD, not a prompt before any price has been seen. A country prompt shown before
+    // browsing is a worse first impression than one shown when someone has decided to buy — and
+    // checkout already refuses null-country with CHECKOUT_COUNTRY_REQUIRED, which is where S5.6's
+    // prompt belongs. This assertion is what makes that a decision rather than an accident.
+    expect(
+      cardPriceText({ displayCurrency: null, pkg: business, planUsd: 59, interval: "monthly" })
+    ).toBe("$59");
+  });
+
+  it("reads the yearly figure for the yearly interval, in both currencies", () => {
+    expect(
+      cardPriceText({ displayCurrency: "INR", pkg: business, planUsd: 590, interval: "yearly" })
+    ).toBe("₹24,999");
+    expect(
+      cardPriceText({ displayCurrency: "USD", pkg: business, planUsd: 590, interval: "yearly" })
+    ).toBe("$590");
+  });
+
+  it("₹0 for a free tier — free is free in every currency", () => {
+    const free = pkg({ key: "free", monthlyPriceUsdCents: 0, monthlyPriceInrPaise: 0 });
+    expect(
+      cardPriceText({ displayCurrency: "INR", pkg: free, planUsd: 0, interval: "monthly" })
+    ).toBe("₹0");
+    expect(
+      cardPriceText({ displayCurrency: "USD", pkg: free, planUsd: 0, interval: "monthly" })
+    ).toBe("$0");
+  });
+
+  it("⚠️ falls back to USD for a paid tier with no authored INR — never converts", () => {
+    // D4: showing the real price in the wrong currency is recoverable; showing an invented number
+    // in the right one is not. This is the same rule that made `?? 84` wrong.
+    const noInr = pkg({ key: "starter", monthlyPriceUsdCents: 900, monthlyPriceInrPaise: null });
+    const shown = cardPriceText({
+      displayCurrency: "INR",
+      pkg: noInr,
+      planUsd: 9,
+      interval: "monthly",
+    });
+    expect(shown).toBe("$9");
+    expect(shown).not.toContain("₹");
+  });
+
+  it("falls back to the plan figure when no package exists for the tier", () => {
+    expect(
+      cardPriceText({ displayCurrency: "USD", pkg: undefined, planUsd: 29, interval: "monthly" })
+    ).toBe("$29");
+  });
+
+  it("prefers the PACKAGE usd figure over the plan one when they disagree", () => {
+    // The package catalogue is what checkout charges from. If the two ever diverge, the card must
+    // show what the customer will actually be billed, not what the plan payload happens to say.
+    const drifted = pkg({ key: "business", monthlyPriceUsdCents: 5900 });
+    expect(
+      cardPriceText({ displayCurrency: "USD", pkg: drifted, planUsd: 79, interval: "monthly" })
+    ).toBe("$59");
   });
 });

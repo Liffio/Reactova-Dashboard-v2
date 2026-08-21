@@ -51,6 +51,13 @@ import {
   openRazorpaySubscriptionCheckout,
   RazorpayCheckoutCancelled,
 } from "@/lib/razorpay-checkout";
+import {
+  formatInrPaise,
+  formatUsdCents,
+  inrPaiseForInterval,
+  packageGatewayAvailability,
+  usdCentsForInterval,
+} from "@/lib/billing/pricing";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { useApp } from "@/state/app-context";
 
@@ -226,34 +233,20 @@ function BillingPage() {
   const gatewayOptions = (
     planKey: string,
   ): { value: Gateway; available: boolean; reason?: string }[] => {
-    const planCfg = configQuery.data?.plans.find((p) => p.plan === planKey);
+    /**
+     * 🔴 Availability comes from the PACKAGE, not from `plan.checkout`.
+     *
+     * Those flags are built from the plan path's env SKUs (`RAZORPAY_PLAN_*`), and GROWTH has none
+     * declared — so every flag was false and `handleUpgradeClick` returned early before the
+     * gateway chooser could open. `startCheckout` below already prefers the package path; this is
+     * what lets anyone reach it. See `@/lib/billing/pricing`.
+     */
     const providers = configQuery.data?.providers;
-
-    const stripeConfigured = Boolean(providers?.stripe.configured);
-    const stripePriced = Boolean(planCfg?.checkout?.stripe?.[interval]);
-    const razorpayConfigured = Boolean(providers?.razorpay.configured && providers.razorpay.keyId);
-    const razorpayPriced = Boolean(planCfg?.checkout?.razorpay?.[interval]);
-
-    return [
-      {
-        value: "stripe",
-        available: stripeConfigured && stripePriced,
-        reason: !stripeConfigured
-          ? "Temporarily unavailable"
-          : !stripePriced
-            ? `Not available for ${interval} billing`
-            : undefined,
-      },
-      {
-        value: "razorpay",
-        available: razorpayConfigured && razorpayPriced,
-        reason: !razorpayConfigured
-          ? "Temporarily unavailable"
-          : !razorpayPriced
-            ? `Not available for ${interval} billing`
-            : undefined,
-      },
-    ];
+    return packageGatewayAvailability({
+      pkg: packageForPlan(planKey),
+      stripeConfigured: Boolean(providers?.stripe.configured),
+      razorpayConfigured: Boolean(providers?.razorpay.configured && providers.razorpay.keyId),
+    });
   };
 
   // Razorpay pays inside a modal on this page, so on success the page can refetch and
@@ -680,12 +673,17 @@ function BillingPage() {
           </DialogHeader>
           {gatewayChoice &&
             (() => {
-              const planCfg = configQuery.data?.plans.find((p) => p.plan === gatewayChoice);
-              const usd =
-                interval === "yearly"
-                  ? (planCfg?.pricing.yearlyUsd ?? planCfg?.pricing.monthlyUsd)
-                  : planCfg?.pricing.monthlyUsd;
-              const inrRate = configQuery.data?.usdToInrRate ?? 84;
+              /**
+               * 🔴 Both prices are read from the PACKAGE, authored per tier.
+               *
+               * This computed INR as `usd * (config.usdToInrRate ?? 84)`. `usdToInrRate` does not
+               * exist on `/billing/config`, so the fallback always fired and every INR price was
+               * inflated 1.5–2×. **There is no FX derivation anywhere in the product (D4)** — the
+               * catalogue holds the authored figure, so it is read, not computed.
+               */
+              const pkg = packageForPlan(gatewayChoice);
+              const usdText = formatUsdCents(usdCentsForInterval(pkg, interval));
+              const inrText = formatInrPaise(inrPaiseForInterval(pkg, interval));
               const options = gatewayOptions(gatewayChoice);
 
               const meta: Record<
@@ -696,13 +694,13 @@ function BillingPage() {
                   icon: CreditCard,
                   title: "Credit / Debit card",
                   sub: "Visa, Mastercard, Amex — via Stripe",
-                  price: usd != null ? `$${usd}` : null,
+                  price: usdText,
                 },
                 razorpay: {
                   icon: IndianRupee,
                   title: "UPI / NetBanking / Cards",
                   sub: "India — via Razorpay",
-                  price: usd != null ? `₹${(usd * inrRate).toLocaleString("en-IN")}` : null,
+                  price: inrText,
                 },
               };
 

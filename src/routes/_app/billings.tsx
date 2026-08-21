@@ -36,6 +36,9 @@ import {
 import {
   cancelBillingSubscription,
   createBillingCheckout,
+  createPackageCheckout,
+  getSellablePackages,
+  type PackageCheckoutInput,
   createBillingPortalSession,
   getBillingConfig,
   getBillingSubscription,
@@ -71,7 +74,23 @@ function BillingRoute() {
   );
 }
 
-const planOrder = ["FREE", "STARTER", "PRO", "BUSINESS", "AGENCY"];
+/*
+ * The hardcoded `planOrder` that stood here is DELETED. (S5.5)
+ *
+ * It read ["FREE", "STARTER", "PRO", "BUSINESS", "AGENCY"] and was wrong in three ways at once,
+ * all of them because `indexOf("GROWTH")` returned -1:
+ *
+ *   1. Every customer saw the Growth card as `isDowngrade` -> disabled, "Contact us".
+ *      GROWTH COULD NOT BE PURCHASED IN-APP AT ALL.
+ *   2. A Growth customer had currentPlanIndex = -1, so every tier read "Upgrade" -- including
+ *      Starter, an actual downgrade offered as an upgrade.
+ *   3. Retired PRO was still in the array and the plan list was unfiltered, so "Pro (retired)"
+ *      rendered as a purchasable card.
+ *
+ * This array had already been wrong once before, about PRO's position. A third hand-edit buys one
+ * release of correctness, so the client no longer holds an opinion about the ladder: the server
+ * sends `rank` (tier order) and `sellable` (on the ladder at all), and `sortOrder` for display.
+ */
 
 const statusStyles: Record<string, string> = {
   ACTIVE: "border-success/30 bg-success/10 text-success",
@@ -92,6 +111,26 @@ function BillingPage() {
   const [gatewayChoice, setGatewayChoice] = useState<string | null>(null);
   const [payingRazorpay, setPayingRazorpay] = useState(false);
   const userEmail = useAuthState((s) => s.user?.email);
+
+  /**
+   * The packages a tenant may buy. (S5.2 / S4.7)
+   *
+   * 🚩 The page renders PLANS from `/billing/config`; **checkout needs a PACKAGE id.** Until
+   * `/billing/packages` existed there was no way to obtain one, so every purchase went through the
+   * legacy plan path onto the `Plan` enum — which has no Growth. This query is what closes that.
+   *
+   * Matched to a plan card by `key`, lowercased: `BILLING_PLANS` is keyed `STARTER`/`GROWTH`/… and
+   * `packages.key` is `starter`/`growth`/… . The two catalogues are deliberately separate — a
+   * package need not correspond to a plan at all — so a card with no matching package simply falls
+   * back to the plan path rather than breaking.
+   */
+  const packagesQuery = useQuery({
+    queryKey: ["billing-packages"],
+    queryFn: getSellablePackages,
+  });
+
+  const packageForPlan = (planKey: string) =>
+    packagesQuery.data?.packages.find((p) => p.key.toUpperCase() === planKey.toUpperCase());
 
   const configQuery = useQuery({
     queryKey: ["billing-config"],
@@ -119,7 +158,25 @@ function BillingPage() {
       void queryClient.invalidateQueries({ queryKey: ["billing-invoices", workspaceId] });
       void refreshAuth();
     },
-    onError: (e) => toast.error((e as Error).message),
+    /*
+     * A neutral message, not the raw server string. (S3P.2a)
+     *
+     * syncWorkspaceSubscription picks its provider by reading the local workspace_subscriptions
+     * row. A workspace that has paid through Razorpay but whose row was never written -- both
+     * settlement observers missed, which is G56 -- falls through to the Stripe path and throws
+     * "No Stripe subscription found for this workspace". Surfacing that verbatim tells a paying
+     * Razorpay customer about a provider they did not use, which is the same defect as the Manage
+     * button above wearing different words.
+     *
+     * The raw error still reaches the console for support. What the customer gets is what they can
+     * act on: try again, then ask a human. Recovering that case is S3P.2b.
+     */
+    onError: (e) => {
+      console.error("[billing] sync failed", e);
+      toast.error(
+        "Could not refresh billing just now. Try again, or contact support if your payment has not appeared.",
+      );
+    },
   });
 
   useEffect(() => {
@@ -133,6 +190,25 @@ function BillingPage() {
     void navigate({ to: "/billings", replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkoutStatus]);
+
+  /**
+   * Buy a PACKAGE. (S5.2)
+   *
+   * Preferred over `checkoutMutation` wherever a package exists for the tier, because the package
+   * path carries the capability ceiling and the plan path does not — and because it is the only way
+   * to sell a tier the `Plan` enum has never heard of.
+   *
+   * ⚠️ No `provider` and no `currency` are sent. D19 made Razorpay the only gateway and S4.4
+   * moved currency onto the customer's country, both resolved server-side. A client that could ask
+   * for either would be a second place they could disagree.
+   */
+  const packageCheckoutMutation = useMutation({
+    mutationFn: (body: PackageCheckoutInput) => createPackageCheckout(workspaceId, body),
+    onSuccess: ({ checkoutUrl }) => {
+      if (checkoutUrl) window.location.href = checkoutUrl;
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
 
   const checkoutMutation = useMutation({
     mutationFn: (body: CheckoutInput) => createBillingCheckout(workspaceId, body),
@@ -222,6 +298,30 @@ function BillingPage() {
 
   const startCheckout = (planKey: string, gateway: Gateway) => {
     setGatewayChoice(null);
+
+    /**
+     * 🚩 The package path first, whenever a package exists for this tier. (S5.2)
+     *
+     * `POST /billing/package-checkout` is what makes packages the commercial reality rather than an
+     * admin-console artefact: it carries the **capability ceiling**, which the plan path does not,
+     * and it is the only way to sell a tier the `Plan` enum has never heard of — Growth.
+     *
+     * Matched by `key`: `BILLING_PLANS` is keyed `STARTER`/`GROWTH`, `packages.key` is
+     * `starter`/`growth`. The catalogues are deliberately separate — a package need not correspond
+     * to a plan — so a card with no matching package falls back to the plan path rather than
+     * breaking.
+     *
+     * ✅ **Quarterly is not a concern here**, though S5.2 flagged it as one: `packageCheckoutSchema`
+     * accepts monthly and yearly only, and **this page's interval state is already
+     * `"monthly" | "yearly"`.** The quarterly selector lives on `/checkout` (`:136`), which is the
+     * plan path and keeps its quarterly SKUs. Nothing is lost by routing this page to packages.
+     */
+    const pkg = packageForPlan(planKey);
+    if (pkg) {
+      packageCheckoutMutation.mutate({ packageId: pkg.id, interval });
+      return;
+    }
+
     if (gateway === "razorpay") {
       void startRazorpayCheckout(planKey);
     } else {
@@ -231,6 +331,35 @@ function BillingPage() {
 
   // Always open the payment-type step, even with a single usable gateway — the user
   // should see and confirm how they are about to pay, never be bounced straight out.
+  /**
+   * D20's "Contact us" has to reach something. (S3P.2c)
+   *
+   * D20 settled that self-serve downgrade is NOT built for V1 — and correctly: `createCheckout`
+   * never reads or cancels the existing subscription, so enabling the path would leave the customer
+   * with two live subscriptions, both billing, with the first one orphaned beyond the product's
+   * ability to cancel it (`12-downgrade.md` §2).
+   *
+   * But the button was `disabled` with the label "Contact us" and no contact attached — a label on
+   * a dead control. **A customer who wants to pay you less rather than leave is the one you most
+   * want to reach**, and the page was silently declining that conversation.
+   *
+   * This does not implement downgrade. It carries the workspace and the target tier to a human, so
+   * the request is actionable without a round trip asking which workspace and which plan.
+   */
+  const handleDowngradeRequest = (planKey: string) => {
+    const subject = `Downgrade request: ${sub?.plan ?? "current plan"} to ${planKey}`;
+    const body = [
+      `I would like to move this workspace to the ${planKey} plan.`,
+      "",
+      `Workspace: ${workspaceId}`,
+      `Current plan: ${sub?.plan ?? "unknown"}`,
+      `Requested plan: ${planKey}`,
+    ].join("\n");
+    window.location.href = `mailto:support@liffio.com?subject=${encodeURIComponent(
+      subject,
+    )}&body=${encodeURIComponent(body)}`;
+  };
+
   const handleUpgradeClick = (planKey: string) => {
     const options = gatewayOptions(planKey);
     if (!options.some((o) => o.available)) {
@@ -257,11 +386,17 @@ function BillingPage() {
   });
 
   const sub = subQuery.data;
-  const plans = (configQuery.data?.plans ?? []).sort(
-    (a, b) => planOrder.indexOf(a.plan) - planOrder.indexOf(b.plan),
-  );
+  // Retired tiers are dropped, not merely disabled: a card nobody may buy is noise on a pricing
+  // page. Sorted by the server's display order, which puts a retired tier last if one is ever
+  // shown again.
+  const plans = (configQuery.data?.plans ?? [])
+    .filter((p) => p.sellable)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
   const invoices = invoicesQuery.data?.invoices ?? [];
-  const currentPlanIndex = planOrder.indexOf(sub?.plan ?? "FREE");
+  // Tier comparison uses `rank`, never `sortOrder`. A plan the server does not recognise has
+  // rank null and is treated as not comparable, so nothing is labelled a downgrade by accident.
+  const currentRank =
+    configQuery.data?.plans.find((p) => p.plan === (sub?.plan ?? "FREE"))?.rank ?? null;
 
   return (
     <div>
@@ -281,7 +416,23 @@ function BillingPage() {
               <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
               Sync
             </Button>
-            {sub?.hasActiveSubscription && (
+            {/*
+             * Gated on stripeCustomerId, not on hasActiveSubscription. (S3P.2a)
+             *
+             * This rendered for ANY active subscription, provider-blind, and called
+             * createPortalSession -> stripe.billingPortal.sessions.create, which throws when the
+             * user has no Stripe customer. Under D19 that is EVERY Razorpay customer, so a paying
+             * customer clicked "Manage" and got a toast reading "Stripe customer portal is not
+             * available for this account" -- a broken control naming a provider they did not use.
+             *
+             * stripeCustomerId is the exact predicate the backend checks, so the button now
+             * renders when and only when the call can succeed. NOT deleted outright: Stripe is
+             * dormant, not removed, and the existing Stripe subscriptions still have a real portal
+             * -- it is the only way those accounts can change a card.
+             *
+             * Razorpay has no hosted portal. The self-serve replacement is S3P.2d/e, deferred.
+             */}
+            {sub?.billing?.stripeCustomerId && (
               <Button
                 size="sm"
                 variant="outline"
@@ -363,9 +514,12 @@ function BillingPage() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               {plans.map((plan) => {
-                const planIdx = planOrder.indexOf(plan.plan);
                 const isCurrent = plan.plan === sub?.plan;
-                const isDowngrade = planIdx < currentPlanIndex;
+                // D20: downgrade stays disabled and routed to support. This decides only WHICH
+                // plans are downgrades -- which is what was broken. Unknown rank on either side
+                // means "not comparable", so it is not offered as an upgrade either.
+                const isDowngrade =
+                  plan.rank !== null && currentRank !== null && plan.rank < currentRank;
                 const price =
                   interval === "yearly"
                     ? (plan.pricing.yearlyUsd ?? plan.pricing.monthlyUsd)
@@ -416,12 +570,21 @@ function BillingPage() {
                       }
                       disabled={
                         isCurrent ||
-                        isDowngrade ||
                         checkoutMutation.isPending ||
                         payingRazorpay ||
                         plan.plan === "FREE"
                       }
-                      onClick={() => !isCurrent && !isDowngrade && handleUpgradeClick(plan.plan)}
+                      onClick={() => {
+                        if (isCurrent) return;
+                        // A downgrade goes to a human, never to checkout: D20 keeps the mechanism
+                        // unbuilt, and starting a checkout here would create a SECOND live
+                        // subscription rather than replacing the first.
+                        if (isDowngrade) {
+                          handleDowngradeRequest(plan.plan);
+                          return;
+                        }
+                        handleUpgradeClick(plan.plan);
+                      }}
                     >
                       {isCurrent ? "Current plan" : isDowngrade ? "Contact us" : "Upgrade"}
                     </Button>

@@ -246,3 +246,28 @@ export function markInboxRead(notificationId: string) {
 export function markAllInboxRead() {
   return apiRequest<void>(apiUri.auth.inbox.markAllRead, { method: "POST" });
 }
+
+/**
+ * Set the account's country, once. (S5.6)
+ *
+ * 🚩 **Why the customer is asked rather than detected.** Google OAuth signup writes
+ * `country: null` — the callback is a redirect with no form — and every account created before S4.4
+ * has a null too. Under D19 there is one gateway, so country is the only thing deciding INR versus
+ * USD, and `createPackageCheckout` **refuses** with `CHECKOUT_COUNTRY_REQUIRED` rather than guessing.
+ *
+ * That refusal was a dead end until this existed: nothing could supply the missing value.
+ *
+ * ⚠️ **Do not replace this with IP detection.** D2 is explicit that country comes from signup, and
+ * a detected country makes a customer's price depend on where they opened their browser — an Indian
+ * customer travelling would be charged in USD at roughly double the INR sheet.
+ *
+ * ⚠️ **Set-once.** The server answers `409 COUNTRY_ALREADY_SET` if one is present: country selects
+ * the currency, and currency is baked into a Razorpay subscription at creation. Changing it later is
+ * a support action, where the subscription can be handled at the same time.
+ */
+export function setAccountCountry(country: string) {
+  return apiRequest<{ country: string }>(apiUri.auth.meCountry, {
+    method: "PATCH",
+    body: { country },
+  });
+}

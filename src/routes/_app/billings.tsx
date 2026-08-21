@@ -52,6 +52,7 @@ import {
   RazorpayCheckoutCancelled,
 } from "@/lib/razorpay-checkout";
 import {
+  cardPriceText,
   formatInrPaise,
   formatUsdCents,
   inrPaiseForInterval,
@@ -118,6 +119,14 @@ function BillingPage() {
   const [gatewayChoice, setGatewayChoice] = useState<string | null>(null);
   const [payingRazorpay, setPayingRazorpay] = useState(false);
   const userEmail = useAuthState((s) => s.user?.email);
+  /**
+   * 🔴 The customer's own currency, resolved by the SERVER. (S5.7)
+   *
+   * The cards used to print a hardcoded `$` with no country read anywhere in this file — so an
+   * Indian customer shopped in dollars and was charged in rupees. `undefined` while the session is
+   * still loading is treated as `null`: USD, which is what was shown before, rather than a flicker.
+   */
+  const displayCurrency = useAuthState((s) => s.user?.displayCurrency) ?? null;
 
   /**
    * The packages a tenant may buy. (S5.2 / S4.7)
@@ -517,6 +526,13 @@ function BillingPage() {
                   interval === "yearly"
                     ? (plan.pricing.yearlyUsd ?? plan.pricing.monthlyUsd)
                     : plan.pricing.monthlyUsd;
+                // Authored INR lives on the package, which this page already fetches. Never converted.
+                const priceText = cardPriceText({
+                  displayCurrency,
+                  pkg: packageForPlan(plan.plan),
+                  planUsd: price,
+                  interval,
+                });
                 return (
                   <div
                     key={plan.plan}
@@ -536,9 +552,7 @@ function BillingPage() {
                       <span className="font-display text-sm font-semibold">{plan.displayName}</span>
                     </div>
                     <div className="mb-4 mt-2">
-                      <span className="font-display text-3xl font-bold">
-                        ${price === 0 ? "0" : price.toFixed(0)}
-                      </span>
+                      <span className="font-display text-3xl font-bold">{priceText}</span>
                       {price > 0 && (
                         <span className="text-xs text-muted-foreground">
                           /{interval === "yearly" ? "yr" : "mo"}

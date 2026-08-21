@@ -16,6 +16,17 @@ export type AuthUser = {
   name: string;
   email: string;
   country?: string | null;
+  /**
+   * The currency this customer browses and is charged in, RESOLVED SERVER-SIDE. (S5.7)
+   *
+   * ⚠️ **Do not derive this from `country` here.** It comes from the same
+   * `resolveCheckoutCurrency` the checkout path uses; recomputing it client-side is how the plan
+   * and package payloads came to disagree about price and purchasability.
+   *
+   * `null` = the server could not resolve a country. Cards show USD; checkout refuses with
+   * `CHECKOUT_COUNTRY_REQUIRED`, which is where the country prompt belongs.
+   */
+  displayCurrency?: "USD" | "INR" | null;
 };
 
 export type AuthMePayload = {

@@ -111,3 +111,55 @@ export function formatUsdCents(cents: number | null): string | null {
   if (cents == null) return null;
   return `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(cents / 100)}`;
 }
+
+/** What the customer browses in. `null` = the server could not resolve their country. */
+export type DisplayCurrency = "USD" | "INR" | null;
+
+/**
+ * The price to print on a plan card, in the customer's own currency.
+ *
+ * ## The defect this replaces
+ *
+ * The card rendered a hardcoded `$` JSX literal over `plan.pricing.monthlyUsd`. There was **no
+ * country read anywhere in the file** — not a bad default, no condition at all. So a
+ * `country = "IN"` customer shopped in dollars and was charged in rupees by a server that had
+ * resolved their currency correctly the whole time.
+ *
+ * `displayCurrency` comes from the session payload, resolved by the **same** `resolveCheckoutCurrency`
+ * the checkout path uses. It is not recomputed here from `country`.
+ *
+ * ## 🔴 Never converts — D4
+ *
+ * INR is read from the package catalogue's authored figure. When a paid tier has no authored INR
+ * for the interval, this falls back to **USD**, not to a conversion: showing the real price in the
+ * wrong currency is recoverable, showing an invented number in the right one is not. That is the
+ * same rule that made `?? 84` wrong.
+ *
+ * ⚠️ **Free is free in every currency.** `₹0` needs no authored figure, so a zero-priced tier
+ * renders in the display currency rather than falling back.
+ */
+export function cardPriceText(input: {
+  displayCurrency: DisplayCurrency;
+  pkg: SellablePackage | undefined;
+  /** The plan payload's USD figure, in whole dollars — the fallback and the USD source. */
+  planUsd: number | null;
+  interval: PaidInterval;
+}): string {
+  const { displayCurrency, pkg, planUsd, interval } = input;
+
+  const usdText = (() => {
+    const cents = usdCentsForInterval(pkg, interval);
+    if (cents != null) return formatUsdCents(cents)!;
+    if (planUsd == null) return "—";
+    return `$${Math.round(planUsd)}`;
+  })();
+
+  if (displayCurrency !== "INR") return usdText;
+
+  const paise = inrPaiseForInterval(pkg, interval);
+  if (paise != null) return formatInrPaise(paise)!;
+  // Free: ₹0 is correct without an authored figure, in any currency.
+  if (planUsd === 0) return "₹0";
+  // A paid tier with no authored INR. Fall back rather than convert.
+  return usdText;
+}

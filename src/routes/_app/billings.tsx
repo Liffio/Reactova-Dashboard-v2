@@ -502,7 +502,23 @@ function BillingPage() {
                   variant={interval === iv ? "default" : "outline"}
                   onClick={() => setInterval(iv)}
                 >
-                  {iv === "yearly" ? "Yearly (save ~20%)" : "Monthly"}
+                  {/*
+                   * 🔴 "save ~20%" OVERSTATED the discount. MEASURED against live production
+                   * prices: the yearly price is EXACTLY ten months' price on every tier in USD
+                   * (9→90, 29→290, 59→590, 549→5490 — ratio 10.00), which is a 16.7% saving, not 20%.
+                   * INR is the same shape at 10.00–10.02 (16.5–16.7%).
+                   *
+                   * "2 months free" is preferred over "save 17%" because it is exactly true rather
+                   * than rounded, and it survives a price change as long as the 10× ratio holds —
+                   * a percentage goes stale the moment any tier is repriced.
+                   *
+                   * ⚠️ It is exact in USD and 1.98 months in INR (₹4,999 against ten months at
+                   * ₹4,990 — nine rupees). Immaterial, and it does not overstate the way 20% did.
+                   *
+                   * ✅ This also brings the app into line with the marketing page, which already
+                   * says "SAVE 17%" — the two were contradicting each other.
+                   */}
+                  {iv === "yearly" ? "Yearly (2 months free)" : "Monthly"}
                 </Button>
               ))}
             </div>

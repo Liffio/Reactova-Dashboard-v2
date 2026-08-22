@@ -338,6 +338,12 @@ function findItem(
  * list corrupts the cursor window, so every other case increments a counter and
  * the UI offers "N new" instead.
  *
+ * Rollup (Phase 3) makes `notification:new` an upsert, not an insert: a rolled
+ * increment re-emits an id the reader may already hold, with a new count and
+ * title. Such a payload is replaced in place — prepending it would duplicate a
+ * React key, and counting it as "new" would double-count a row already on
+ * screen and already in the badge.
+ *
  * Listener registration and teardown are paired in one effect (§0.3.7).
  */
 export function useNotificationRealtime(
@@ -359,12 +365,51 @@ export function useNotificationRealtime(
     if (!socket) return;
 
     const onNew = (payload: Record<string, unknown>) => {
-      queryClient.setQueryData<{ count: number }>(unreadKey(workspaceId), (prev) =>
-        prev ? { count: prev.count + 1 } : prev,
-      );
+      // The socket payload carries the same fields the feed returns, so a
+      // pushed row renders without a refetch.
+      const item = payload as unknown as NotificationItem;
+      const isRolledIncrement = (item?.rolledCount ?? 1) > 1;
+
+      // A rolled increment reuses a row that was already unread, so the badge
+      // must not move — it counted that row when the group opened.
+      if (!isRolledIncrement) {
+        queryClient.setQueryData<{ count: number }>(unreadKey(workspaceId), (prev) =>
+          prev ? { count: prev.count + 1 } : prev,
+        );
+      }
       void queryClient.invalidateQueries({ queryKey: ["notifications", "facets", workspaceId] });
 
       const { filters, limit, canPrepend } = latest.current;
+
+      if (!item?.id || (payload.workspaceId as string) !== workspaceId) {
+        setNewSinceLoad((n) => n + 1);
+        return;
+      }
+
+      // Replace-in-place first, and regardless of filters or page depth:
+      // swapping a row already inside the loaded window changes neither the
+      // window size nor any cursor, so it is always safe — unlike a prepend.
+      const key = listKey(workspaceId, filters, limit);
+      const cached = queryClient.getQueryData<ListCache>(key);
+      const alreadyLoaded =
+        cached?.pages.some((page) => page.items.some((existing) => existing.id === item.id)) ??
+        false;
+
+      if (alreadyLoaded) {
+        queryClient.setQueryData<ListCache>(key, (data) =>
+          data
+            ? {
+                ...data,
+                pages: data.pages.map((page) => ({
+                  ...page,
+                  items: page.items.map((existing) => (existing.id === item.id ? item : existing)),
+                })),
+              }
+            : data,
+        );
+        return;
+      }
+
       const unfiltered =
         filters.categories.length === 0 &&
         filters.status === "all" &&
@@ -377,18 +422,9 @@ export function useNotificationRealtime(
         return;
       }
 
-      // The socket payload carries the same fields the feed returns, so a
-      // pushed row renders without a refetch.
-      const item = payload as unknown as NotificationItem;
-      if (!item?.id || (payload.workspaceId as string) !== workspaceId) {
-        setNewSinceLoad((n) => n + 1);
-        return;
-      }
-
-      queryClient.setQueryData<ListCache>(listKey(workspaceId, filters, limit), (data) => {
+      queryClient.setQueryData<ListCache>(key, (data) => {
         if (!data || data.pages.length === 0) return data;
         const [first, ...rest] = data.pages;
-        if (first.items.some((existing) => existing.id === item.id)) return data;
         return {
           ...data,
           pages: [{ ...first, items: [item, ...first.items] }, ...rest],

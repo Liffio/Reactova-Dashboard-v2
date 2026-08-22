@@ -7,17 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { FormSection } from "@/components/admin/form-page";
+import {
+  ConfirmCodeDialog,
+  useConfirmCode,
+  type ConfirmCodeState,
+} from "@/components/admin/confirm-code";
 import {
   getPublishStatus,
   publishPackage,
@@ -79,9 +74,19 @@ export function PackagePublish({
     queryFn: () => getPublishStatus(packageId),
   });
 
+  const stepUp = useConfirmCode();
+  const [publishError, setPublishError] = useState<string | null>(null);
+
+  const closeConfirm = () => {
+    setConfirmProvider(null);
+    setPublishError(null);
+    stepUp.reset();
+  };
+
   const publish = useMutation({
-    mutationFn: (provider: BillingProvider) => publishPackage(packageId, [provider]),
-    onSuccess: (res, provider) => {
+    mutationFn: ({ provider, confirmCode }: { provider: BillingProvider; confirmCode: string }) =>
+      publishPackage(packageId, confirmCode, [provider]),
+    onSuccess: (res, { provider }) => {
       const parts = [
         res.created && `${res.created} created`,
         res.repriced && `${res.repriced} repriced`,
@@ -93,9 +98,11 @@ export function PackagePublish({
           : `${PROVIDER_LABEL[provider]} already in sync.`,
       );
       void queryClient.invalidateQueries({ queryKey: ["package-publish-status", packageId] });
-      setConfirmProvider(null);
+      closeConfirm();
     },
-    onError: (e) => toast.error((e as Error).message),
+    // Kept in the dialog rather than a toast: a rejected code has to be retypeable without
+    // rebuilding the diff the operator just read and agreed to.
+    onError: (err) => setPublishError(stepUp.applyError(err)),
   });
 
   if (statusQuery.isLoading) {
@@ -134,12 +141,14 @@ export function PackagePublish({
       {confirmProvider && (
         <PublishConfirmDialog
           open
-          onOpenChange={(v) => !v && setConfirmProvider(null)}
+          onOpenChange={(v) => !v && closeConfirm()}
           provider={confirmProvider}
           packageKey={packageKey}
           actions={status.actions.filter((a) => a.provider === confirmProvider && isPending(a))}
           pending={publish.isPending}
-          onConfirm={() => publish.mutate(confirmProvider)}
+          stepUp={stepUp}
+          formError={publishError}
+          onConfirm={() => publish.mutate({ provider: confirmProvider, confirmCode: stepUp.code })}
         />
       )}
     </FormSection>
@@ -278,6 +287,10 @@ function ActionRow({ action }: { action: PublishStatusAction }) {
  * Confirmation before a publish. When nothing is retired it is a plain confirm; when a price is
  * repriced or removed it names the grandfathered subscribers and requires the package key typed, so
  * a money-affecting change can't be a stray click.
+ *
+ * `POST /:id/publish` is guarded by `requireTotpConfirm` (S0.11), so the authenticator code sits
+ * below the typed-key gate and both must pass. They are not redundant: typing the key proves the
+ * operator read *this* diff, the code proves it is *them*.
  */
 function PublishConfirmDialog({
   open,
@@ -286,6 +299,8 @@ function PublishConfirmDialog({
   packageKey,
   actions,
   pending,
+  stepUp,
+  formError,
   onConfirm,
 }: {
   open: boolean;
@@ -294,6 +309,8 @@ function PublishConfirmDialog({
   packageKey: string;
   actions: PublishStatusAction[];
   pending: boolean;
+  stepUp: ConfirmCodeState;
+  formError: string | null;
   onConfirm: () => void;
 }) {
   const [typed, setTyped] = useState("");
@@ -306,42 +323,46 @@ function PublishConfirmDialog({
   const confirmed = !requiresTyped || typed.trim() === packageKey;
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Publish to {PROVIDER_LABEL[provider]}?</AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div className="space-y-3 text-sm">
-              <ul className="space-y-1.5 rounded-lg border bg-muted/30 p-3 text-xs">
-                {actions.map((action, i) => (
-                  <ActionRow key={i} action={action} />
-                ))}
-              </ul>
+    <ConfirmCodeDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Publish to ${PROVIDER_LABEL[provider]}?`}
+      confirmLabel={`Publish to ${PROVIDER_LABEL[provider]}`}
+      pendingLabel="Publishing…"
+      pending={pending}
+      disabled={!confirmed}
+      state={stepUp}
+      formError={formError}
+      onConfirm={onConfirm}
+      description={
+        <>
+          <ul className="space-y-1.5 rounded-lg border bg-muted/30 p-3 text-xs">
+            {actions.map((action, i) => (
+              <ActionRow key={i} action={action} />
+            ))}
+          </ul>
 
-              {requiresTyped && (
-                <p>
-                  {stranded > 0 ? (
-                    <>
-                      {stranded} active subscription{stranded === 1 ? "" : "s"} stay on the current
-                      price. Publishing does <strong>not</strong> move them — repricing an existing
-                      customer is a separate, deliberate action.
-                    </>
-                  ) : (
-                    "This retires a published price. Existing subscriptions, if any, keep the price they were sold."
-                  )}
-                </p>
+          {requiresTyped && (
+            <p>
+              {stranded > 0 ? (
+                <>
+                  {stranded} active subscription{stranded === 1 ? "" : "s"} stay on the current
+                  price. Publishing does <strong>not</strong> move them — repricing an existing
+                  customer is a separate, deliberate action.
+                </>
+              ) : (
+                "This retires a published price. Existing subscriptions, if any, keep the price they were sold."
               )}
-
-              {requiresTyped && (
-                <p>
-                  Type <code className="font-mono font-semibold">{packageKey}</code> to confirm.
-                </p>
-              )}
-            </div>
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-
-        {requiresTyped && (
+            </p>
+          )}
+        </>
+      }
+    >
+      {requiresTyped && (
+        <div className="space-y-1.5">
+          <p className="text-sm">
+            Type <code className="font-mono font-semibold">{packageKey}</code> to confirm.
+          </p>
           <Input
             className="font-mono"
             value={typed}
@@ -349,21 +370,8 @@ function PublishConfirmDialog({
             placeholder={packageKey}
             aria-label="Type the package key to confirm"
           />
-        )}
-
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={!confirmed || pending}
-            onClick={(e) => {
-              e.preventDefault();
-              onConfirm();
-            }}
-          >
-            {pending ? "Publishing…" : `Publish to ${PROVIDER_LABEL[provider]}`}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+        </div>
+      )}
+    </ConfirmCodeDialog>
   );
 }

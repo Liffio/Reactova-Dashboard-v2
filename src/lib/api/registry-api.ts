@@ -166,6 +166,15 @@ export const createPackage = (body: {
   badge?: string | null;
 }) => apiRequest<PackageRow>(apiUri.admin.packages.list(), { method: "POST", body });
 
+/**
+ * Partial update. Send **only the fields that changed** — see `@/lib/admin/package-step-up`.
+ *
+ * `confirmCode` is optional here and required by the server only when the body touches a
+ * structural field (price, `isActive`, `isPublic`, `sortOrder`). Use `packagePatchNeedsStepUp` on
+ * the body you are about to send to decide whether to collect one; the server answers the same
+ * question the same way, on key presence, before its zod parse. The field is stripped server-side
+ * before the handler runs, so it never reaches an audit row.
+ */
 export const updatePackage = (
   id: string,
   body: Partial<{
@@ -178,7 +187,12 @@ export const updatePackage = (
     sortOrder: number;
     badge: string | null;
   }>,
-) => apiRequest<PackageRow>(apiUri.admin.packages.item(id), { method: "PATCH", body });
+  confirmCode?: string,
+) =>
+  apiRequest<PackageRow>(apiUri.admin.packages.item(id), {
+    method: "PATCH",
+    body: confirmCode ? { ...body, confirmCode } : body,
+  });
 
 export const archivePackage = (id: string) =>
   apiRequest<{ ok: true }>(apiUri.admin.packages.item(id), { method: "DELETE" });
@@ -216,8 +230,12 @@ export type ApplyLiveResult = {
   truncated: boolean;
 };
 
-export const applyPackageLive = (id: string) =>
-  apiRequest<ApplyLiveResult>(apiUri.admin.packages.applyLive(id), { method: "POST" });
+/** Guarded by `requireTotpConfirm` (S0.11) — `confirmCode` is not optional. */
+export const applyPackageLive = (id: string, confirmCode: string) =>
+  apiRequest<ApplyLiveResult>(apiUri.admin.packages.applyLive(id), {
+    method: "POST",
+    body: { confirmCode },
+  });
 
 /**
  * A workspace as the assign screen needs it: identity, current package, member count.
@@ -256,13 +274,20 @@ export const clearWorkspacePackage = (workspaceId: string) =>
     method: "DELETE",
   });
 
+/**
+ * Whole-set replace, guarded by `requireTotpConfirm` (S0.11) — `confirmCode` is not optional.
+ *
+ * Required rather than optional on purpose: the compiler is what proves no call site was missed,
+ * and a missed one fails at runtime with a 400 the operator can do nothing about.
+ */
 export const setPackageFeatures = (
   id: string,
   features: Array<{ parentKey: string; childKey: string | null }>,
+  confirmCode: string,
 ) =>
   apiRequest<PackageDetail>(apiUri.admin.packages.features(id), {
     method: "PUT",
-    body: { features },
+    body: { features, confirmCode },
   });
 
 /** The limit keys a package may override, matching the server's `LIMIT_KEYS`. */
@@ -277,10 +302,11 @@ export const PACKAGE_LIMIT_KEYS = [
   "automationsPerDay",
 ] as const;
 
-export const setPackageLimits = (id: string, limits: PackageLimit[]) =>
+/** Guarded by `requireTotpConfirm` (S0.11) — `confirmCode` is not optional. */
+export const setPackageLimits = (id: string, limits: PackageLimit[], confirmCode: string) =>
   apiRequest<PackageLimit[]>(apiUri.admin.packages.limits(id), {
     method: "PUT",
-    body: { limits },
+    body: { limits, confirmCode },
   });
 
 // ── Publishing to payment providers ─────────────────────────────────────────────────────────────
@@ -336,10 +362,11 @@ export type PublishResult = {
 export const getPublishStatus = (id: string) =>
   apiRequest<PublishStatus>(apiUri.admin.packages.publishStatus(id));
 
-export const publishPackage = (id: string, providers?: BillingProvider[]) =>
+/** Guarded by `requireTotpConfirm` (S0.11) — `confirmCode` is not optional. */
+export const publishPackage = (id: string, confirmCode: string, providers?: BillingProvider[]) =>
   apiRequest<PublishResult>(apiUri.admin.packages.publish(id), {
     method: "POST",
-    body: providers ? { providers } : {},
+    body: providers ? { providers, confirmCode } : { confirmCode },
   });
 
 /** Keyset-paginated change history for one package. Same response shape as the per-user audit

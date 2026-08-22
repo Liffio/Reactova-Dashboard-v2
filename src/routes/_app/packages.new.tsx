@@ -17,12 +17,13 @@ import {
   ToggleRow,
 } from "@/components/admin/form-page";
 import { PackageFeaturePicker } from "@/components/admin/package-feature-picker";
+import { ConfirmCodeDialog, useConfirmCode } from "@/components/admin/confirm-code";
 import {
   summarise,
   usePackageFeatureSelection,
   type FeatureSelection,
 } from "@/hooks/use-package-features";
-import { createPackage, setPackageFeatures } from "@/lib/api/registry-api";
+import { createPackage, setPackageFeatures, type PackageRow } from "@/lib/api/registry-api";
 import { useTouched } from "@/hooks/use-touched";
 import { lengthError } from "@/lib/validation";
 
@@ -72,44 +73,89 @@ function NewPackagePage() {
   const isValid = !nameErr && !usdErr && !inrErr && !badgeErr;
 
   /**
-   * Two calls, because creating a package and setting its contents are separate endpoints.
+   * Creating with contents needs an authenticator code, because the second call is guarded.
    *
-   * If the contents call fails the package still exists, so the operator is sent to its edit page
-   * with an explicit warning rather than being left on a form that looks like it did nothing —
-   * pressing Create again would make a second package.
+   * `POST /admin/packages` is not guarded, but `PUT /:id/features` is (S0.11) — so a package with
+   * nothing ticked creates in one unguarded call, and a package with contents steps up. That split
+   * is the server's, not a choice made here.
    */
+  const stepUp = useConfirmCode();
+  const [stepUpOpen, setStepUpOpen] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const needsStepUp = selection.length > 0;
+
+  /**
+   * The package, once it exists.
+   *
+   * Two calls, because creating a package and setting its contents are separate endpoints — and
+   * the second one can be refused for a bad code while the first has already succeeded. Holding
+   * the created row here makes the retry re-run only the half that failed; without it, a mistyped
+   * code on the contents call would create a second package on the next attempt.
+   */
+  const [created, setCreated] = useState<PackageRow | null>(null);
+
   const create = useMutation({
-    mutationFn: async () => {
-      const created = await createPackage({
-        name: name.trim(),
-        description: description.trim() || null,
-        // Entered in major units, stored in minor units, so nothing rounds badly.
-        monthlyPriceUsdCents: usd ? Math.round(Number(usd) * 100) : 0,
-        monthlyPriceInrPaise: inr ? Math.round(Number(inr) * 100) : null,
-        badge: badge.trim() || null,
-        isPublic,
-      });
+    mutationFn: async (confirmCode: string | undefined) => {
+      if (needsStepUp && !confirmCode) {
+        throw new Error("Creating a package with contents needs an authenticator code.");
+      }
+
+      const row =
+        created ??
+        (await createPackage({
+          name: name.trim(),
+          description: description.trim() || null,
+          // Entered in major units, stored in minor units, so nothing rounds badly.
+          monthlyPriceUsdCents: usd ? Math.round(Number(usd) * 100) : 0,
+          monthlyPriceInrPaise: inr ? Math.round(Number(inr) * 100) : null,
+          badge: badge.trim() || null,
+          isPublic,
+        }));
+      setCreated(row);
 
       if (selection.length > 0) {
-        try {
-          await setPackageFeatures(created.id, selection);
-        } catch (err) {
-          return { created, featuresError: (err as Error).message };
-        }
+        await setPackageFeatures(row.id, selection, confirmCode ?? "");
       }
-      return { created, featuresError: null as string | null };
+      return row;
     },
-    onSuccess: ({ created, featuresError }) => {
+    onSuccess: (row) => {
+      setStepUpOpen(false);
+      stepUp.reset();
       void queryClient.invalidateQueries({ queryKey: ["packages"] });
-      if (featuresError) {
-        toast.error(`Package created, but its contents did not save: ${featuresError}`);
-      } else {
-        toast.success(`Package "${created.name}" created`);
-      }
-      void navigate({ to: "/packages/$packageId", params: { packageId: created.id } });
+      toast.success(`Package "${row.name}" created`);
+      void navigate({ to: "/packages/$packageId", params: { packageId: row.id } });
     },
-    onError: (e) => toast.error((e as Error).message),
+    onError: (err) => {
+      const rest = stepUp.applyError(err);
+      if (rest === null) {
+        setCreateError(null);
+        setStepUpOpen(true);
+        return;
+      }
+      if (stepUpOpen) {
+        setCreateError(rest);
+      } else {
+        toast.error(rest);
+      }
+    },
   });
+
+  /**
+   * Giving up after the package exists but before its contents saved.
+   *
+   * The row is already there, so leaving the operator on a form that looks untouched would invite
+   * a second package. Same landing as the pre-existing partial-failure path: the edit page, with
+   * the tick boxes to redo and a warning saying so.
+   */
+  const abandonStepUp = () => {
+    setStepUpOpen(false);
+    setCreateError(null);
+    stepUp.reset();
+    if (!created) return;
+    void queryClient.invalidateQueries({ queryKey: ["packages"] });
+    toast.warning(`"${created.name}" was created, but its contents were not saved.`);
+    void navigate({ to: "/packages/$packageId", params: { packageId: created.id } });
+  };
 
   const counts = summarise(selection);
   const canSave = name.trim().length > 0;
@@ -220,13 +266,44 @@ function NewPackagePage() {
             onSave={() => {
               // Reveal every field's error at once, then only proceed if the form is valid.
               touched.submit();
-              if (isValid) create.mutate();
+              if (!isValid) return;
+              if (needsStepUp) {
+                stepUp.reset();
+                setCreateError(null);
+                setStepUpOpen(true);
+                return;
+              }
+              create.mutate(undefined);
             }}
             saving={create.isPending}
             saveLabel="Create package"
             savingLabel="Creating…"
           />
         </FormActions>
+
+        <ConfirmCodeDialog
+          open={stepUpOpen}
+          onOpenChange={(next) => !next && abandonStepUp()}
+          title="Confirm the package contents"
+          confirmLabel={created ? "Save contents" : "Create package"}
+          pendingLabel="Creating…"
+          pending={create.isPending}
+          state={stepUp}
+          formError={createError}
+          onConfirm={() => create.mutate(stepUp.code)}
+          description={
+            <>
+              <p>
+                Setting what a package includes needs a second factor. Your ticks stay on the page —
+                a wrong code can be retyped here without redoing them.
+              </p>
+              <p className="text-muted-foreground">
+                {counts.features} feature{counts.features === 1 ? "" : "s"} across {counts.modules}{" "}
+                module{counts.modules === 1 ? "" : "s"}.
+              </p>
+            </>
+          }
+        />
       </div>
     </div>
   );

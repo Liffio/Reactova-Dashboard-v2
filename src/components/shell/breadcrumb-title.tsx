@@ -54,7 +54,10 @@ export function MobileWorkspaceCrumb() {
       <span className="truncate text-sm font-medium">{page}</span>
       <span className="flex items-center gap-1.5">
         <span className="truncate text-[10px] text-muted-foreground">{current.name}</span>
-        <WorkspaceIdChip humanId={current.humanId} className="hidden h-4 px-1 text-[9px] sm:inline-flex" />
+        <WorkspaceIdChip
+          humanId={current.humanId}
+          className="hidden h-4 px-1 text-[9px] sm:inline-flex"
+        />
       </span>
     </div>
   );

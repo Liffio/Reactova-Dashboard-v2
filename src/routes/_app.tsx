@@ -23,6 +23,7 @@ import { useTheme } from "@/state/theme-store";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLogoutMutation } from "@/hooks/use-auth";
 import { useSessionWatcher } from "@/hooks/use-session-watcher";
+import { useWorkspaceEvents } from "@/hooks/use-workspace-events";
 import { loginPathWithRedirect } from "@/lib/auth/auth-navigation";
 import { useApp } from "@/state/app-context";
 import { CreatorAssistant } from "@/components/creator-assistant/creator-assistant";
@@ -175,7 +176,19 @@ function TopBar() {
 
 function AppLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { current } = useApp();
   useSessionWatcher();
+  /**
+   * Mounted here and **exactly once**.
+   *
+   * Everything behind this shipped and was doing nothing: `realtimePublisher`, the socket rooms,
+   * the per-access-level projection registry and the Redis fan-out all existed, and this hook had
+   * zero call sites — events were arriving at the shared socket and being dropped on the floor.
+   *
+   * A second mount would register a second `workspace:event` handler and process every event
+   * twice, which is why this belongs to the layout rather than to any page that wants live data.
+   */
+  useWorkspaceEvents(current.id);
 
   return (
     <ProtectedRoute>

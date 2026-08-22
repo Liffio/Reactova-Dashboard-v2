@@ -1,18 +1,7 @@
 import { Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-
-/**
- * Both the topbar field and the mobile icon ask for the same thing, and the palette that answers
- * is mounted once at the layout root. A DOM event rather than a context keeps the two triggers
- * from having to sit inside a provider that exists only to carry one boolean, and lets the global
- * ⌘K listener and a click go through exactly the same path.
- */
-export const OPEN_SEARCH_EVENT = "liffio:open-search";
-
-export function openGlobalSearch(): void {
-  window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT));
-}
+import { openGlobalSearch } from "@/lib/global-search-events";
 
 /** Desktop topbar trigger. A button, not an input — the field it opens lives in the palette. */
 export function SearchTrigger({ className }: { className?: string }) {

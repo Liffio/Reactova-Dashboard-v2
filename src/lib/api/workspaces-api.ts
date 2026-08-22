@@ -5,6 +5,9 @@ export type WorkspaceApi = {
   id: string;
   userId: string;
   igHandle?: string | null;
+  igFollowerCount?: number | null;
+  /** ISO timestamp. Long-lived Instagram tokens lapse on a 60-day cycle. */
+  igTokenExpiresAt?: string | null;
   /**
    * The connected Instagram account's avatar, served straight from Instagram's CDN.
    *

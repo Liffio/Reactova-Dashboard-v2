@@ -11,10 +11,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AppSidebar } from "@/components/app-sidebar";
+import { InstagramAccountPill } from "@/components/shell/instagram-account-pill";
+import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trigger";
+import { BreadcrumbTitle, MobileWorkspaceCrumb } from "@/components/shell/breadcrumb-title";
 import { AccessChangedModal } from "@/components/access/access-changed-modal";
 import { RegistryUpdatedListener } from "@/components/plugins/registry-updated-listener";
 import { NotificationsMenu } from "@/components/notifications/notifications-menu";
-import { WorkspaceIdChip } from "@/components/workspace-id-chip";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { PageTransition } from "@/components/page-transition";
 import { useTheme } from "@/state/theme-store";
@@ -92,15 +94,27 @@ function TopBar() {
       // what spec §5.7 says not to do. `paddingTop` on `<body>` (`__root.tsx`) covers the
       // unscrolled case; this covers the scrolled one.
       style={{ top: "var(--liffio-imp-banner-h, 0px)" }}
-      className="sticky z-20 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur md:px-6"
+      // `saturate(1.4)` alongside the blur: a plain backdrop-blur desaturates whatever scrolls
+      // under the bar, which turns the brand gradient into grey mush the moment it passes behind.
+      className="sticky z-20 flex h-[60px] items-center gap-3 border-b bg-topbar px-4 backdrop-blur-md backdrop-saturate-150 md:px-6"
     >
       <SidebarTrigger className="-ml-1" />
       <div className="hidden h-5 w-px bg-border md:block" />
-      {/* Hidden on the narrowest screens: the topbar there is already tight, and the id is
-          always available on the Settings page. */}
-      <WorkspaceIdChip humanId={current.humanId} className="hidden sm:inline-flex" />
-      <div className="min-w-0 flex-1" />
+      <BreadcrumbTitle />
+      <MobileWorkspaceCrumb />
+
+      {/* The search field is centred in the remaining space rather than pinned to either side, so
+          it stays the visual centre of the bar as the breadcrumb and the action cluster change
+          width. Below md it collapses to the icon in the action group. */}
+      <div className="hidden min-w-0 flex-1 justify-center px-2 md:flex">
+        <SearchTrigger />
+      </div>
+      <div className="min-w-0 flex-1 md:hidden" />
+
       <div className="ml-auto flex items-center gap-2">
+        <SearchIconTrigger className="md:hidden" />
+        <InstagramAccountPill />
+        <div className="hidden h-5 w-px bg-border sm:block" />
         <CreatorAssistant />
         <ThemeToggle />
         <NotificationsMenu />

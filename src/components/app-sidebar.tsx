@@ -58,6 +58,11 @@ type NavItem = {
   title: string;
   url: string;
   icon: typeof LayoutDashboard;
+  /**
+   * Optional pill on the right of the row. Hidden when the sidebar collapses to icons, where
+   * there is no room for it and it would sit on top of the glyph.
+   */
+  count?: number;
   /** Module key gating visibility (requires `<module>:read`). */
   module?: string;
   /**
@@ -307,10 +312,27 @@ export function AppSidebar() {
     ? tenantSections
     : tenantSections.map((section) => ({ ...section, items: section.items.filter(canSee) }));
 
+  /**
+   * Counts, attached after filtering so a hidden module never gets one.
+   *
+   * There is no unread-leads concept anywhere in the schema — no `read_at`, no last-seen marker —
+   * so the badge shows leads captured this month, which `useApp()` already holds for the switcher
+   * and which therefore costs no extra request. `title` says which it is, because a bare number
+   * beside "Leads" would otherwise read as "waiting for you".
+   */
+  const COUNT_FOR: Record<string, number | undefined> = {
+    "/leads-captured": current.leadsThisMonth || undefined,
+  };
+
   const sections = [
     ...filteredTenantSections,
     ...adminSections.map((section) => ({ ...section, items: section.items.filter(canSee) })),
-  ].filter((section) => section.items.length > 0);
+  ]
+    .map((section) => ({
+      ...section,
+      items: section.items.map((item) => ({ ...item, count: COUNT_FOR[item.url] })),
+    }))
+    .filter((section) => section.items.length > 0);
 
   /**
    * Exactly one entry highlights: the longest URL that matches.
@@ -357,15 +379,37 @@ export function AppSidebar() {
                       delay: si * 0.04 + ii * 0.03,
                     }}
                   >
-                    <SidebarMenuItem>
+                    <SidebarMenuItem className="relative">
+                      {item.url === activeUrl && (
+                        <span
+                          aria-hidden
+                          className="pointer-events-none absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-[3px] bg-brand-gradient"
+                        />
+                      )}
                       <SidebarMenuButton
                         asChild
                         isActive={item.url === activeUrl}
                         tooltip={item.title}
+                        className={
+                          item.url === activeUrl
+                            ? // Light gets a raised white surface plus a shadow; dark gets the
+                              // surface alone. A drop shadow against `oklch(.13 .006 252)` is
+                              // invisible, so in dark the elevation has to be carried by value.
+                              "bg-sidebar-active shadow-soft dark:shadow-none"
+                            : "hover:bg-sidebar-hover"
+                        }
                       >
                         <Link to={item.url} className="flex items-center gap-2.5">
                           <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
+                          <span className="flex-1 truncate">{item.title}</span>
+                          {typeof item.count === "number" && item.count > 0 && (
+                            <span
+                              title={`${item.count} this month`}
+                              className="ml-auto rounded-full border border-primary-edge bg-primary-wash px-1.5 py-px text-[10px] font-semibold tabular-nums leading-4 text-primary group-data-[collapsible=icon]:hidden"
+                            >
+                              {item.count > 99 ? "99+" : item.count}
+                            </span>
+                          )}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

@@ -221,8 +221,14 @@ export const apiUri = {
 
   notifications: {
     list: `${V1}/notifications`,
-    markRead: `${V1}/notifications/mark-read`,
-    markAllRead: `${V1}/notifications/mark-all-read`,
+    detail: (id: string) => `${V1}/notifications/${encodeURIComponent(id)}`,
+    facets: `${V1}/notifications/facets`,
+    unreadCount: `${V1}/notifications/unread-count`,
+    read: (id: string) => `${V1}/notifications/${encodeURIComponent(id)}/read`,
+    readAll: `${V1}/notifications/read-all`,
+    archive: (id: string) => `${V1}/notifications/${encodeURIComponent(id)}/archive`,
+    unarchive: (id: string) => `${V1}/notifications/${encodeURIComponent(id)}/unarchive`,
+    bulk: `${V1}/notifications/bulk`,
     preferences: `${V1}/notifications/preferences`,
   },
 

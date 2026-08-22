@@ -51,7 +51,10 @@ import {
 import { mfaSetupStart, mfaSetupVerify, mfaSetupCancel, mfaSetChannels } from "@/lib/api/auth-api";
 import { apiRequest } from "@/lib/api/http";
 import { apiUri } from "@/lib/api/apiUri";
-import { listNotifications, updateNotificationPreference } from "@/lib/api/notifications-api";
+import {
+  getNotificationPreferences,
+  updateNotificationPreference,
+} from "@/lib/api/notifications-api";
 import {
   listTeamInvites,
   getTeamOptions,
@@ -582,18 +585,24 @@ function NotificationsSettings() {
   const { current } = useApp();
   const workspaceId = current.id;
 
+  const queryClient = useQueryClient();
+
+  // Preferences have their own endpoint now. They used to ride along on the
+  // notification feed response, which meant this page fetched (and discarded) a
+  // page of notifications to render a list of toggles.
   const notifQuery = useQuery({
-    queryKey: ["notifications", workspaceId],
-    queryFn: () => listNotifications(workspaceId),
+    queryKey: ["notification-preferences", workspaceId],
+    queryFn: () => getNotificationPreferences(workspaceId),
     enabled: Boolean(workspaceId) && workspaceId !== "default",
   });
 
   const updateMutation = useMutation({
     mutationFn: (body: { type: string; isEnabled: boolean }) =>
-      updateNotificationPreference(
-        workspaceId,
-        body as Parameters<typeof updateNotificationPreference>[1],
-      ),
+      updateNotificationPreference(workspaceId, body),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({
+        queryKey: ["notification-preferences", workspaceId],
+      }),
     onError: (e) => toast.error((e as Error).message),
   });
 

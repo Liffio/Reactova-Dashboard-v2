@@ -1,8 +1,20 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
+import { AlertTriangle } from "lucide-react";
 
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ApiError, formatApiErrorBody } from "@/lib/api/http";
 
 /**
@@ -135,5 +147,108 @@ export function ConfirmCodeField({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * The step-up dialog: whatever the action needs to say, then the code field, then confirm.
+ *
+ * 🚩 **It never closes itself.** A wrong or expired code has to be recoverable where the operator
+ * is standing — the package features editor is a whole-set replace, so unmounting the form to
+ * show an error would mean re-ticking every box to try again. `onConfirm` fires the mutation and
+ * nothing here reacts to its outcome; the owner closes the dialog on success and, on failure,
+ * feeds the error to `state.applyError` and puts whatever comes back in `formError`. The dialog,
+ * the code field and the form behind it all stay exactly as they were.
+ *
+ * `children` renders above the code field, for anything the action has to show or collect first
+ * (a diff to review, a package key to type).
+ */
+export function ConfirmCodeDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  confirmLabel,
+  pendingLabel,
+  pending = false,
+  disabled = false,
+  state,
+  formError,
+  destructive = false,
+  children,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (next: boolean) => void;
+  title: ReactNode;
+  description?: ReactNode;
+  confirmLabel: string;
+  pendingLabel: string;
+  pending?: boolean;
+  /** Extra gate beyond a complete code — e.g. the publish dialog's typed package key. */
+  disabled?: boolean;
+  state: ConfirmCodeState;
+  /** Whatever `applyError` handed back because it wasn't about the code. */
+  formError?: string | null;
+  destructive?: boolean;
+  children?: ReactNode;
+  /** Fires the mutation. Must not close the dialog — the owner does that, on success only. */
+  onConfirm: () => void;
+}) {
+  return (
+    <AlertDialog
+      open={open}
+      // Escape and the overlay must not yank the form out from under an in-flight write.
+      onOpenChange={(next) => !pending && onOpenChange(next)}
+    >
+      <AlertDialogContent className="max-h-[90vh] overflow-y-auto">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          {description ? (
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">{description}</div>
+            </AlertDialogDescription>
+          ) : (
+            // Radix warns without a description; the title alone is the whole message here.
+            <AlertDialogDescription className="sr-only">
+              This action needs your authenticator code.
+            </AlertDialogDescription>
+          )}
+        </AlertDialogHeader>
+
+        <div className="space-y-4">
+          {children}
+          <ConfirmCodeField state={state} disabled={pending} />
+          {formError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              {/* Verbatim: the server's wording is often the only thing that says which half of a
+                  multi-call save went through. */}
+              <AlertDescription className="whitespace-pre-wrap">{formError}</AlertDescription>
+            </Alert>
+          )}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={pending || disabled || !state.isComplete}
+            className={
+              destructive
+                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                : undefined
+            }
+            onClick={(e) => {
+              // Radix closes on activate by default — the whole point of this dialog is that a
+              // rejected code leaves it open.
+              e.preventDefault();
+              onConfirm();
+            }}
+          >
+            {pending ? pendingLabel : confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

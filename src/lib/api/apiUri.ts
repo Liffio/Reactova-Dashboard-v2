@@ -34,6 +34,8 @@ export const apiUri = {
     logout: `${V1}/auth/logout`,
     refresh: `${V1}/auth/refresh`,
     me: `${V1}/auth/me`,
+    /** Set-once country capture (S5.6). Makes CHECKOUT_COUNTRY_REQUIRED recoverable. */
+    meCountry: `${V1}/auth/me/country`,
     permissions: `${V1}/auth/permissions`,
     activeWorkspace: `${V1}/auth/active-workspace`,
     google: `${V1}/auth/google`,
@@ -207,6 +209,10 @@ export const apiUri = {
     invoices: `${V1}/billing/invoices`,
     invoicesAll: `${V1}/billing/invoices/all`,
     checkout: `${V1}/billing/checkout`,
+    /** The sellable-package list (S4.7). Non-public/inactive are excluded server-side. */
+    packages: `${V1}/billing/packages`,
+    /** The PACKAGE path (S5.2). Sells a `packageId`, not a `Plan` — which is how Growth is sold. */
+    packageCheckout: `${V1}/billing/package-checkout`,
     portal: `${V1}/billing/portal`,
     sync: `${V1}/billing/sync`,
     cancel: `${V1}/billing/cancel`,

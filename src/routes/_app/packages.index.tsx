@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CopyableKey, EmptyState } from "@/components/admin/form-page";
+import { ConfirmCodeDialog, useConfirmCode } from "@/components/admin/confirm-code";
 import { useDebounced } from "@/hooks/use-debounced";
 import {
   archivePackage,
@@ -162,13 +163,31 @@ function PackageCard({ pkg, onChanged }: { pkg: PackageRow; onChanged: () => voi
 
   const open = () => void navigate({ to: "/packages/$packageId", params: { packageId: pkg.id } });
 
+  /**
+   * `isActive` is one of S0.11's structural PATCH fields, so this toggle always steps up — there
+   * is no unguarded version of it to fall back to. It is also the one guarded call site the
+   * compiler cannot catch: `updatePackage`'s `confirmCode` has to stay optional for the
+   * name-and-description saves that legitimately go without one.
+   */
+  const [confirmToggle, setConfirmToggle] = useState(false);
+  const toggleCode = useConfirmCode();
+  const [toggleError, setToggleError] = useState<string | null>(null);
+
+  const closeToggle = () => {
+    setConfirmToggle(false);
+    setToggleError(null);
+    toggleCode.reset();
+  };
+
   const toggleActive = useMutation({
-    mutationFn: () => updatePackage(pkg.id, { isActive: !pkg.isActive }),
+    mutationFn: (confirmCode: string) =>
+      updatePackage(pkg.id, { isActive: !pkg.isActive }, confirmCode),
     onSuccess: () => {
       toast.success(pkg.isActive ? "Package deactivated" : "Package activated");
+      closeToggle();
       onChanged();
     },
-    onError: (e) => toast.error((e as Error).message),
+    onError: (err) => setToggleError(toggleCode.applyError(err)),
   });
 
   const archive = useMutation({
@@ -242,7 +261,17 @@ function PackageCard({ pkg, onChanged }: { pkg: PackageRow; onChanged: () => voi
           >
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
               Active
-              <Switch checked={pkg.isActive} onCheckedChange={() => toggleActive.mutate()} />
+              <Switch
+                checked={pkg.isActive}
+                disabled={toggleActive.isPending}
+                // The switch stays where it was until the server agrees — it renders from
+                // `pkg.isActive`, so an abandoned dialog leaves nothing half-flipped.
+                onCheckedChange={() => {
+                  toggleCode.reset();
+                  setToggleError(null);
+                  setConfirmToggle(true);
+                }}
+              />
             </label>
             <Button
               size="sm"
@@ -257,6 +286,29 @@ function PackageCard({ pkg, onChanged }: { pkg: PackageRow; onChanged: () => voi
           </div>
         </div>
       </div>
+
+      <ConfirmCodeDialog
+        open={confirmToggle}
+        onOpenChange={(next) => !next && closeToggle()}
+        title={pkg.isActive ? `Deactivate ${pkg.name}?` : `Activate ${pkg.name}?`}
+        confirmLabel={pkg.isActive ? "Deactivate" : "Activate"}
+        pendingLabel="Saving…"
+        pending={toggleActive.isPending}
+        destructive={pkg.isActive}
+        state={toggleCode}
+        formError={toggleError}
+        onConfirm={() => toggleActive.mutate(toggleCode.code)}
+        description={
+          pkg.isActive ? (
+            <p>
+              It stops being sellable and can no longer be made the default. Workspaces already on
+              it keep what they have.
+            </p>
+          ) : (
+            <p>It becomes sellable again and can be assigned to new workspaces.</p>
+          )
+        }
+      />
 
       <AlertDialog open={confirmArchive} onOpenChange={setConfirmArchive}>
         <AlertDialogContent>

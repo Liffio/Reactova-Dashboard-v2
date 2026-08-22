@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import {
   createBillingCheckout,
   getBillingConfig,
+  getSellablePackages,
   verifyRazorpayCheckout,
   type CheckoutInput,
 } from "@/lib/api/billing-api";
@@ -18,6 +19,7 @@ import {
   openRazorpaySubscriptionCheckout,
   RazorpayCheckoutCancelled,
 } from "@/lib/razorpay-checkout";
+import { formatInrPaise, inrPaiseForInterval } from "@/lib/billing/pricing";
 import { useAuthState } from "@/lib/auth/auth-store";
 
 type Interval = "monthly" | "quarterly" | "yearly";
@@ -35,38 +37,18 @@ export const Route = createFileRoute("/checkout")({
   component: CheckoutRoute,
 });
 
-const PLAN_LABELS: Record<string, string> = {
-  PRO: "Pro",
-  BUSINESS: "Business",
-  AGENCY: "Agency",
-};
-
-const PLAN_HIGHLIGHTS: Record<string, string[]> = {
-  PRO: [
-    "5 Instagram accounts",
-    "50,000 automated DMs / month",
-    "All 8 automation trigger types",
-    "Short links + lead capture",
-    "Post scheduler",
-    "Priority email support",
-  ],
-  BUSINESS: [
-    "10 Instagram accounts",
-    "Unlimited automated DMs",
-    "Full conversion analytics",
-    "5 team member seats",
-    "External API access",
-    "Everything in Pro",
-  ],
-  AGENCY: [
-    "Unlimited accounts",
-    "White-label dashboard",
-    "Client sub-workspaces",
-    "Full API + webhooks",
-    "Custom onboarding",
-    "Everything in Business",
-  ],
-};
+/*
+ * PLAN_LABELS and PLAN_HIGHLIGHTS are DELETED. (S5.1)
+ *
+ * They listed Pro, Business and Agency — no Starter, no Growth — and the highlights were hardcoded
+ * marketing copy ("5 Instagram accounts", "50,000 automated DMs / month") matching neither V4 nor
+ * the current BILLING_PLANS. Editing them would have meant inventing numbers and then owning a
+ * second price list that drifts from the first.
+ *
+ * /billing/config already serves displayName and highlights per plan, from BILLING_PLANS. Reading
+ * them means this page is right whenever the server is — including across merge 1b, which changes
+ * those values without touching this file.
+ */
 
 function CheckoutRoute() {
   return (
@@ -79,7 +61,8 @@ function CheckoutRoute() {
 function PostRegistrationCheckout() {
   const navigate = useNavigate();
   const search = Route.useSearch();
-  const plan = (search.plan ?? "PRO").toUpperCase();
+  // Resolved below from the server's ladder — never defaulted here. (S5.1)
+  const requestedPlan = search.plan?.toUpperCase();
   const workspaceId = useAuthState((s) => s.workspaceId) ?? "";
   const userEmail = useAuthState((s) => s.user?.email);
 
@@ -88,13 +71,44 @@ function PostRegistrationCheckout() {
   const [paying, setPaying] = useState(false);
 
   const configQuery = useQuery({ queryKey: ["billing-config"], queryFn: getBillingConfig });
+  /**
+   * The authored INR prices live on the PACKAGE catalogue, not on `/billing/config`. (D4)
+   *
+   * This page is the plan path and keeps its plan-driven gateway and interval logic — but a price
+   * is a price, and the only authored INR figures in the product are these.
+   */
+  const packagesQuery = useQuery({
+    queryKey: ["billing-sellable-packages"],
+    queryFn: getSellablePackages,
+  });
   const checkoutMutation = useMutation({
     mutationFn: (body: CheckoutInput) => createBillingCheckout(workspaceId, body),
   });
 
   const config = configQuery.data;
-  const planConfig = config?.plans.find((p) => p.plan === plan);
-  const inrRate = config?.usdToInrRate ?? 84;
+
+  /**
+   * 🚩 No PRO default. (S5.1)
+   *
+   * This read `search.plan ?? "PRO"`, so **a user landing on /checkout with no query parameter was
+   * offered a retired tier** — non-public since D18, excluded from `getPaidPlans` since S1.1, and
+   * unbuyable. V4 §25.13 flagged it and it was still true at this SHA.
+   *
+   * The fallback is now the **cheapest sellable paid plan the server reports**, by `rank` — the two
+   * fields S5.5 added for the billing page. Derived, so it cannot name a retired tier and needs no
+   * editing when the ladder changes. If config has not loaded there is simply no plan, and the page
+   * says so rather than guessing.
+   */
+  const sellablePaid = (config?.plans ?? [])
+    .filter((p) => p.sellable && p.plan !== "FREE" && p.rank !== null)
+    .sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+  const planConfig =
+    (requestedPlan
+      ? config?.plans.find((p) => p.plan === requestedPlan && p.sellable)
+      : undefined) ?? sellablePaid[0];
+  const plan = planConfig?.plan ?? "";
+  // Matched by key: BILLING_PLANS is keyed STARTER/GROWTH, packages.key is starter/growth.
+  const pkg = packagesQuery.data?.packages.find((p) => p.key.toUpperCase() === plan.toUpperCase());
 
   const gateways: { value: Gateway; label: string; detail: string; icon: typeof CreditCard }[] = [
     {
@@ -157,11 +171,22 @@ function PostRegistrationCheckout() {
   };
 
   const priceDisplay = () => {
+    if (gateway === "razorpay") {
+      /**
+       * 🔴 Read, never converted. This was `usd * (config.usdToInrRate ?? 84)`, and
+       * `usdToInrRate` does not exist on `/billing/config` — so the fallback always fired and the
+       * figure shown was inflated 1.5–2×. **There is no FX derivation anywhere (D4).**
+       *
+       * ⚠️ **Quarterly has no authored INR** — the package catalogue carries monthly and yearly
+       * only. It shows an em dash rather than a converted number: no price is better than a wrong
+       * one, and inventing one here is the defect this replaced.
+       */
+      if (interval === "quarterly") return "—";
+      const paise = inrPaiseForInterval(pkg, interval);
+      return paise == null ? "—" : `${formatInrPaise(paise)}/mo`;
+    }
     const usd = usdForInterval();
     if (usd == null) return "—";
-    if (gateway === "razorpay") {
-      return `₹${(usd * inrRate).toLocaleString("en-IN")}/mo`;
-    }
     return `$${usd}/mo`;
   };
 
@@ -184,7 +209,7 @@ function PostRegistrationCheckout() {
           keyId,
           subscriptionId: result.subscriptionId,
           email: userEmail ?? undefined,
-          description: `${PLAN_LABELS[plan] ?? plan} plan — billed ${interval}`,
+          description: `${planConfig?.displayName ?? plan} plan — billed ${interval}`,
         });
 
         await verifyRazorpayCheckout(workspaceId, payload);
@@ -209,8 +234,8 @@ function PostRegistrationCheckout() {
     }
   };
 
-  const highlights = PLAN_HIGHLIGHTS[plan] ?? PLAN_HIGHLIGHTS["PRO"];
-  const planLabel = PLAN_LABELS[plan] ?? plan;
+  const highlights = planConfig?.highlights ?? [];
+  const planLabel = planConfig?.displayName ?? plan;
   const price = priceDisplay();
   const busy = paying || checkoutMutation.isPending;
 

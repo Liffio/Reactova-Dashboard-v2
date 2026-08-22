@@ -165,11 +165,64 @@ async function fetchWithRetry(url: string, init: RequestInit): Promise<Response>
   throw lastError instanceof Error ? lastError : new Error("Network request failed");
 }
 
+/**
+ * `analytics:post_metrics` → `Post metrics`.
+ *
+ * Derived from the key rather than looked up in a table. A capability the wall gates tomorrow gets a
+ * readable name today, with nothing to maintain — and the alternative, a hand-written label map,
+ * would be the fourth copy of server state this codebase has had to un-hardcode.
+ */
+function capabilityLabel(key: string): string {
+  const action = key.includes(":") ? key.slice(key.indexOf(":") + 1) : key;
+  const words = action.replace(/_/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * 🚩 The capability wall's 403, turned into something a customer can act on. (S5.4)
+ *
+ * `requireCapability` answers a blocked request with
+ * `{ error: "Forbidden", code: "CAPABILITY_NOT_INCLUDED", missingCapabilities: [...] }` — named,
+ * as its own comment says, *"so the client can show which sub-feature to upgrade for, rather than a
+ * bare 403 that gives the user nothing to act on."*
+ *
+ * **Nothing consumed it.** Every gate Phase 2 installs would have surfaced as the word "Forbidden".
+ *
+ * Handled HERE, in the one function every API error passes through, rather than by wrapping
+ * controls in `FeatureGate` one at a time. S5.4 recommends this half first and the reason holds:
+ * **it covers every gate at once, including the ones nobody remembers to wrap, and it degrades
+ * gracefully as Phase 2 enables more rules.** Wrapping individual controls is still worth doing — it
+ * shows the lock *before* the click — but it can never be complete, and this can.
+ */
+function formatCapabilityError(payload: { missingCapabilities?: unknown }): string | null {
+  const missing = Array.isArray(payload.missingCapabilities)
+    ? payload.missingCapabilities.filter((c): c is string => typeof c === "string")
+    : [];
+  if (missing.length === 0) {
+    // The code without the list: still better than "Forbidden", and it must not fall through to a
+    // Zod-shaped parse that would produce "Request failed".
+    return "Your plan does not include this feature. Upgrade to unlock it.";
+  }
+  const names = missing.map(capabilityLabel);
+  const list =
+    names.length === 1
+      ? names[0]
+      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `Your plan does not include ${list}. Upgrade to unlock it.`;
+}
+
 /** Human-readable message from `{ error: ... }` JSON (string, Zod flatten, etc.). */
 export function formatApiErrorBody(payload: unknown): string {
   if (!payload || typeof payload !== "object") {
     return "Request failed";
   }
+
+  // Checked before `error`, because the wall sends BOTH and `error` is the useless half.
+  if ((payload as { code?: unknown }).code === "CAPABILITY_NOT_INCLUDED") {
+    const message = formatCapabilityError(payload as { missingCapabilities?: unknown });
+    if (message) return message;
+  }
+
   const raw = (payload as { error?: unknown }).error;
   if (typeof raw === "string") {
     return raw;

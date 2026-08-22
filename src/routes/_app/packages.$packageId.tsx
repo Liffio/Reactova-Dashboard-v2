@@ -41,16 +41,13 @@ import {
   type PackageLimit,
 } from "@/lib/api/registry-api";
 import { AuditTimeline } from "@/components/admin/audit-timeline";
+import { ConfirmCodeDialog, useConfirmCode } from "@/components/admin/confirm-code";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  PACKAGE_STEP_UP_FIELD_LABELS,
+  buildPackagePatch,
+  packageStepUpFieldsIn,
+  type PackagePatchValues,
+} from "@/lib/admin/package-step-up";
 import { useTouched } from "@/hooks/use-touched";
 import { lengthError } from "@/lib/validation";
 
@@ -155,17 +152,39 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
     setLimits(pkg.limits);
   }, [pkg.limits]);
 
-  const pricingDirty =
-    usd !== (pkg.monthlyPriceUsdCents ? String(pkg.monthlyPriceUsdCents / 100) : "") ||
-    inr !== (pkg.monthlyPriceInrPaise != null ? String(pkg.monthlyPriceInrPaise / 100) : "");
+  /**
+   * The details half as the server sees it, saved vs edited. The diff between the two IS the PATCH
+   * body.
+   *
+   * It used to be a fixed object carrying name, description, both prices, badge, isPublic and
+   * isActive on every save. Against S0.11's key-presence check that made a rename demand an
+   * authenticator code, which is the reflex the guard exists to prevent. Sending only what changed
+   * is what keeps the prompt honest.
+   */
+  const savedDetails: PackagePatchValues = {
+    name: pkg.name,
+    description: pkg.description ?? null,
+    monthlyPriceUsdCents: pkg.monthlyPriceUsdCents,
+    monthlyPriceInrPaise: pkg.monthlyPriceInrPaise,
+    badge: pkg.badge ?? null,
+    isPublic: pkg.isPublic,
+    isActive: pkg.isActive,
+  };
+  const editedDetails: PackagePatchValues = {
+    name: name.trim(),
+    description: description.trim() || null,
+    // Entered in major units, stored in minor units, so nothing rounds badly.
+    monthlyPriceUsdCents: usd ? Math.round(Number(usd) * 100) : 0,
+    monthlyPriceInrPaise: inr ? Math.round(Number(inr) * 100) : null,
+    badge: badge.trim() || null,
+    isPublic,
+    isActive,
+  };
+  const patch = buildPackagePatch(savedDetails, editedDetails);
 
-  const detailsDirty =
-    name !== pkg.name ||
-    description !== (pkg.description ?? "") ||
-    pricingDirty ||
-    badge !== (pkg.badge ?? "") ||
-    isPublic !== pkg.isPublic ||
-    isActive !== pkg.isActive;
+  const pricingDirty = "monthlyPriceUsdCents" in patch || "monthlyPriceInrPaise" in patch;
+
+  const detailsDirty = Object.keys(patch).length > 0;
 
   const sortFeatures = (f: FeatureSelection[]) =>
     [...f]
@@ -184,42 +203,92 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
   const dirty = detailsDirty || featuresDirty || limitsDirty;
 
   /**
+   * What about this save the server will demand an authenticator code for.
+   *
+   * `PUT /features` and `PUT /limits` are guarded unconditionally; the PATCH only when the body
+   * touches a structural field. Listing the reasons rather than just counting them is deliberate —
+   * a dialog that says why teaches the rule; a dialog that just appears teaches the reflex.
+   */
+  const stepUpReasons: string[] = [
+    ...packageStepUpFieldsIn(patch).map((field) => PACKAGE_STEP_UP_FIELD_LABELS[field]),
+    ...(featuresDirty ? ["What is included"] : []),
+    ...(limitsDirty ? ["Usage limits"] : []),
+  ];
+  const needsStepUp = stepUpReasons.length > 0;
+
+  const stepUp = useConfirmCode();
+  const [stepUpOpen, setStepUpOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const closeStepUp = () => {
+    setStepUpOpen(false);
+    setSaveError(null);
+    stepUp.reset();
+  };
+
+  /**
    * Saves details and contents together, skipping whichever is unchanged.
    *
    * Details go first: if contents then fail, the package is left with correct pricing and stale
    * contents, which is the less confusing half to be wrong — and the error names which half it was.
+   *
+   * **One code covers all three calls.** The server verifies TOTP statelessly —
+   * `verifySync({ secret, token, epochTolerance: 1 })`, with nothing recording a code as spent — so
+   * the same six digits satisfy every guarded call inside the window, and re-running the whole save
+   * after a rejected code is safe: the PATCH is a diff, features and limits are whole-set replaces,
+   * and all three are idempotent. That is what makes a wrong code a plain retry rather than a
+   * partial state to unpick.
    */
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (confirmCode: string | undefined) => {
+      // Asserted, not assumed: the Save button only fires without a code when `needsStepUp` is
+      // false. A regression here would post no code and come back as "Confirmation code required" —
+      // the exact dead end this change exists to remove.
+      if (needsStepUp && !confirmCode) {
+        throw new Error("This save needs an authenticator code.");
+      }
+      const code = confirmCode ?? "";
+
       if (detailsDirty) {
-        await updatePackage(pkg.id, {
-          name: name.trim(),
-          description: description.trim() || null,
-          monthlyPriceUsdCents: usd ? Math.round(Number(usd) * 100) : 0,
-          monthlyPriceInrPaise: inr ? Math.round(Number(inr) * 100) : null,
-          badge: badge.trim() || null,
-          isPublic,
-          isActive,
-        });
+        await updatePackage(pkg.id, patch, confirmCode);
       }
       if (featuresDirty) {
-        await setPackageFeatures(pkg.id, selection);
+        await setPackageFeatures(pkg.id, selection, code);
       }
       if (limitsDirty) {
-        await setPackageLimits(pkg.id, limits);
+        await setPackageLimits(pkg.id, limits, code);
       }
     },
     onSuccess: () => {
+      closeStepUp();
       toast.success("Package saved");
       void queryClient.invalidateQueries({ queryKey: ["packages"] });
       void queryClient.invalidateQueries({ queryKey: ["package-detail", pkg.id] });
       // So the publish diff below reflects the prices just saved, not the ones it loaded with.
       void queryClient.invalidateQueries({ queryKey: ["package-publish-status", pkg.id] });
     },
-    onError: (e) => toast.error((e as Error).message),
+    onError: (err) => {
+      const rest = stepUp.applyError(err);
+      if (rest === null) {
+        // The server answered about the code itself, and `applyError` has already put the message
+        // under the field. Opening the dialog also covers the case where we did NOT think this save
+        // needed one — i.e. this file's field list has drifted from the server's — so the operator
+        // gets a way through instead of a toast they can do nothing about.
+        setSaveError(null);
+        setStepUpOpen(true);
+        return;
+      }
+      if (stepUpOpen) {
+        setSaveError(rest);
+      } else {
+        toast.error(rest);
+      }
+    },
   });
 
   const [confirmApplyLive, setConfirmApplyLive] = useState(false);
+  const applyLiveCode = useConfirmCode();
+  const [applyLiveError, setApplyLiveError] = useState<string | null>(null);
 
   /**
    * Forcing the saved contents live.
@@ -229,7 +298,7 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
    * avoid — and would make an ordinary description edit page a few thousand members.
    */
   const applyLive = useMutation({
-    mutationFn: () => applyPackageLive(pkg.id),
+    mutationFn: (confirmCode: string) => applyPackageLive(pkg.id, confirmCode),
     onSuccess: (r) => {
       if (r.workspacesUpdated === 0) {
         toast.info(`${r.packageName} has no workspaces assigned — nothing to apply.`);
@@ -243,10 +312,16 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
           "More workspaces are on this package than one run covers — the rest propagate in the background.",
         );
       }
-      setConfirmApplyLive(false);
+      closeApplyLive();
     },
-    onError: (e) => toast.error((e as Error).message),
+    onError: (err) => setApplyLiveError(applyLiveCode.applyError(err)),
   });
+
+  const closeApplyLive = () => {
+    setConfirmApplyLive(false);
+    setApplyLiveError(null);
+    applyLiveCode.reset();
+  };
 
   const counts = summarise(selection);
 
@@ -276,39 +351,31 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
         }
       />
 
-      <AlertDialog open={confirmApplyLive} onOpenChange={setConfirmApplyLive}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Apply {pkg.name} live now?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2 text-sm">
-                <p>
-                  Re-resolves entitlement for every workspace on this package and notifies their
-                  members immediately. Connected sessions refresh their permissions on the spot.
-                </p>
-                <p className="text-muted-foreground">
-                  Saving already propagates in the background and defers removals to each billing
-                  cycle&apos;s end. Use this when you need the saved contents to take hold now
-                  instead. It touches no payment provider — that is Publish.
-                </p>
-                <p className="font-medium">Unsaved edits on this page are not included.</p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                applyLive.mutate();
-              }}
-              disabled={applyLive.isPending}
-            >
-              {applyLive.isPending ? "Applying…" : "Apply live"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmCodeDialog
+        open={confirmApplyLive}
+        onOpenChange={(next) => !next && closeApplyLive()}
+        title={`Apply ${pkg.name} live now?`}
+        confirmLabel="Apply live"
+        pendingLabel="Applying…"
+        pending={applyLive.isPending}
+        state={applyLiveCode}
+        formError={applyLiveError}
+        onConfirm={() => applyLive.mutate(applyLiveCode.code)}
+        description={
+          <>
+            <p>
+              Re-resolves entitlement for every workspace on this package and notifies their members
+              immediately. Connected sessions refresh their permissions on the spot.
+            </p>
+            <p className="text-muted-foreground">
+              Saving already propagates in the background and defers removals to each billing
+              cycle&apos;s end. Use this when you need the saved contents to take hold now instead.
+              It touches no payment provider — that is Publish.
+            </p>
+            <p className="font-medium">Unsaved edits on this page are not included.</p>
+          </>
+        }
+      />
 
       <div className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6 md:p-10">
         <FormSection title="Details">
@@ -422,12 +489,47 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
             onCancel={() => void navigate({ to: "/packages" })}
             onSave={() => {
               touched.submit();
-              if (isValid) save.mutate();
+              if (!isValid) return;
+              if (needsStepUp) {
+                // The form stays mounted behind the dialog, so a rejected code costs nothing —
+                // which matters most for the features checklist, a whole-set replace that would
+                // otherwise have to be re-ticked from scratch.
+                stepUp.reset();
+                setSaveError(null);
+                setStepUpOpen(true);
+                return;
+              }
+              save.mutate(undefined);
             }}
             saving={save.isPending}
             disabled={!dirty}
           />
         </FormActions>
+
+        <ConfirmCodeDialog
+          open={stepUpOpen}
+          onOpenChange={(next) => !next && closeStepUp()}
+          title="Confirm this change"
+          confirmLabel="Save package"
+          pendingLabel="Saving…"
+          pending={save.isPending}
+          state={stepUp}
+          formError={saveError}
+          onConfirm={() => save.mutate(stepUp.code)}
+          description={
+            <>
+              <p>These change what customers can buy, so they need a second factor:</p>
+              <ul className="list-disc space-y-0.5 pl-5">
+                {stepUpReasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+              <p className="text-muted-foreground">
+                Your edits stay on the page — a wrong code can be retyped here without losing them.
+              </p>
+            </>
+          }
+        />
 
         <FormSection
           title="Change history"

@@ -13,6 +13,7 @@ import {
 import { AppSidebar } from "@/components/app-sidebar";
 import { InstagramAccountPill } from "@/components/shell/instagram-account-pill";
 import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trigger";
+import { GlobalSearchPalette } from "@/components/shell/global-search";
 import { BreadcrumbTitle, MobileWorkspaceCrumb } from "@/components/shell/breadcrumb-title";
 import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
 import { AccessChangedModal } from "@/components/access/access-changed-modal";
@@ -197,6 +198,9 @@ function AppLayout() {
           wherever they are, not only on permission-related pages. */}
       <AccessChangedModal />
       <RegistryUpdatedListener />
+      {/* Mounted once, here, for the same reason `useWorkspaceEvents` is: both topbar triggers and
+          the ⌘K shortcut dispatch one DOM event, and a second listener would open two dialogs. */}
+      <GlobalSearchPalette />
       <SidebarProvider>
         <div className="flex min-h-screen w-full bg-background">
           <AppSidebar />

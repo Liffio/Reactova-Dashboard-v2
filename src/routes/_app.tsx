@@ -14,6 +14,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { InstagramAccountPill } from "@/components/shell/instagram-account-pill";
 import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trigger";
 import { BreadcrumbTitle, MobileWorkspaceCrumb } from "@/components/shell/breadcrumb-title";
+import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
 import { AccessChangedModal } from "@/components/access/access-changed-modal";
 import { RegistryUpdatedListener } from "@/components/plugins/registry-updated-listener";
 import { NotificationsMenu } from "@/components/notifications/notifications-menu";
@@ -201,12 +202,15 @@ function AppLayout() {
           <AppSidebar />
           <div className="flex min-h-screen min-w-0 flex-1 flex-col">
             <TopBar />
-            <main className="flex-1 flex flex-col">
+            {/* 92px clears the tab bar plus its safe-area padding, so nothing at the end of a
+                page ends up trapped underneath it. */}
+            <main className="flex flex-1 flex-col pb-[92px] md:pb-0">
               <PageTransition keyProp={pathname}>
                 <Outlet />
               </PageTransition>
             </main>
           </div>
+          <MobileTabBar />
         </div>
       </SidebarProvider>
     </ProtectedRoute>

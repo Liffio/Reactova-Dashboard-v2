@@ -13,6 +13,8 @@ import {
 } from "@/components/dashboard/funnel-strip";
 import { VolumeChart } from "@/components/dashboard/volume-chart";
 import { LiveActivity } from "@/components/dashboard/live-activity";
+import { RangeChips } from "@/components/dashboard/range-chips";
+import { InstagramAccountPill } from "@/components/shell/instagram-account-pill";
 import { PlatformMetricsPanel } from "@/components/admin/dashboard/platform-metrics-panel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -130,12 +132,17 @@ function DashboardPage() {
         }
         actions={
           <>
-            <DateRangePicker
-              value={range}
-              onChange={setRange}
-              placeholderLabel="This month"
-              clearLabel="This month"
-            />
+            {/* Below sm the picker moves into the chip row under the header, where the presets
+                are one tap instead of two and do not cover the numbers they are about to
+                change. */}
+            <div className="hidden sm:block">
+              <DateRangePicker
+                value={range}
+                onChange={setRange}
+                placeholderLabel="This month"
+                clearLabel="This month"
+              />
+            </div>
             <Button
               size="sm"
               asChild
@@ -151,6 +158,29 @@ function DashboardPage() {
       />
 
       <div className="space-y-6 p-4 sm:p-6 md:p-10">
+        <div className="sm:hidden">
+          <RangeChips value={range} onChange={setRange}>
+            <DateRangePicker
+              value={range}
+              onChange={setRange}
+              placeholderLabel="Custom"
+              clearLabel="This month"
+              align="start"
+            />
+          </RangeChips>
+        </div>
+
+        {/*
+          The account, full width, on the screen where the topbar pill is reduced to an avatar.
+          Whether the workspace has a working Instagram connection is the most important fact
+          about it and the one that silently breaks everything else, so it is the wrong thing to
+          abbreviate to a coloured dot.
+        */}
+        <InstagramAccountPill
+          expanded
+          className="flex h-12 w-full max-w-none justify-start md:hidden"
+        />
+
         {/* Platform-wide metrics — renders only for platform admins holding metrics_read. */}
         <PlatformMetricsPanel />
 

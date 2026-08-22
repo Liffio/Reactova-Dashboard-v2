@@ -38,7 +38,18 @@ function daysUntil(iso: string): number {
  * why. `igTokenExpiresAt` travels with the workspace list precisely so this pill can warn while
  * reconnecting is still cheap.
  */
-export function InstagramAccountPill({ className }: { className?: string }) {
+export function InstagramAccountPill({
+  className,
+  /**
+   * Force the handle and status text to render. The topbar collapses to the avatar below `xl`
+   * because it has a breadcrumb and a search field competing for the same row; the mobile strip
+   * has the whole width and no reason to hide anything.
+   */
+  expanded = false,
+}: {
+  className?: string;
+  expanded?: boolean;
+}) {
   const { current, refreshAuth } = useApp();
   const queryClient = useQueryClient();
   const [isConnecting, setIsConnecting] = useState(false);
@@ -98,7 +109,7 @@ export function InstagramAccountPill({ className }: { className?: string }) {
         )}
       >
         <Instagram className={cn("h-4 w-4", isConnecting && "animate-pulse")} />
-        <span className="hidden sm:inline">
+        <span className={expanded ? "inline" : "hidden sm:inline"}>
           {isConnecting ? "Connecting…" : "Connect Instagram"}
         </span>
       </button>
@@ -142,7 +153,7 @@ export function InstagramAccountPill({ className }: { className?: string }) {
       </span>
       {/* Collapses to the avatar below xl, where the topbar has to fit a breadcrumb and a search
           field in the same row. The dot still carries the state. */}
-      <span className="hidden min-w-0 leading-tight xl:block">
+      <span className={cn("min-w-0 leading-tight", expanded ? "block" : "hidden xl:block")}>
         <span className="block truncate text-xs font-medium">
           @{current.igHandle ?? "instagram"}
         </span>

@@ -174,7 +174,9 @@ export function InstagramAccountPill({
 
   const expiring = state === "expiring";
   const avatar = current.profilePictureUrl;
-  const handle = current.igHandle ?? "instagram";
+  // Stored with or without the sigil depending on how the account was linked, and all three
+  // render sites prepend one — which is how it reached the topbar as "@@xsquare337".
+  const handle = (current.igHandle ?? "instagram").replace(/^@+/, "") || "instagram";
 
   return (
     <>

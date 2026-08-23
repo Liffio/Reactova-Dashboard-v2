@@ -1,10 +1,10 @@
 import { useSyncExternalStore, useCallback } from "react";
-import { applyTheme, getStoredTheme, resolveTheme, type Theme } from "@/lib/theme";
+import { applyTheme, DEFAULT_THEME, getStoredTheme, resolveTheme, type Theme } from "@/lib/theme";
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
 
-let currentTheme: Theme = "system";
+let currentTheme: Theme = DEFAULT_THEME;
 
 function subscribe(fn: Listener) {
   listeners.add(fn);
@@ -16,7 +16,7 @@ function getSnapshot(): Theme {
 }
 
 function getServerSnapshot(): Theme {
-  return "system";
+  return DEFAULT_THEME;
 }
 
 function notify() {

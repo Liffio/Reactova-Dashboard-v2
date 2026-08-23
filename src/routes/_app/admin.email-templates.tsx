@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Code2, Eye, Mail, Plus, RefreshCw, Send, Trash2 } from "lucide-react";
 import { toast } from "@/lib/toast";
+import { useDebounced } from "@/hooks/use-debounced";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PlatformAdminRoute } from "@/components/auth/guards";
@@ -55,15 +56,6 @@ function EmailTemplatesRoute() {
       <EmailTemplatesPage />
     </PlatformAdminRoute>
   );
-}
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const id = window.setTimeout(() => setDebounced(value), delayMs);
-    return () => window.clearTimeout(id);
-  }, [value, delayMs]);
-  return debounced;
 }
 
 const categoryStyles: Record<string, string> = {
@@ -385,7 +377,7 @@ function TemplateEditorDialog({
     if (codeHtmlQuery.data?.html) setHtml(codeHtmlQuery.data.html);
   }, [codeHtmlQuery.data]);
 
-  const debouncedHtml = useDebouncedValue(html, 400);
+  const debouncedHtml = useDebounced(html, 400);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -555,7 +547,7 @@ function CreateTemplateDialog({
   const [slug, setSlug] = useState("");
   const [variables, setVariables] = useState("");
   const [html, setHtml] = useState("");
-  const debouncedHtml = useDebouncedValue(html, 400);
+  const debouncedHtml = useDebounced(html, 400);
 
   const createMutation = useMutation({
     mutationFn: async () => {

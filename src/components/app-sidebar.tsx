@@ -46,8 +46,11 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Logo } from "@/components/logo";
+import { ThemeToggle } from "@/components/shell/theme-toggle";
+import { openCreatorAssistant } from "@/lib/creator-assistant-events";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { usePlatformAuthz } from "@/hooks/use-platform-authz";
@@ -233,6 +236,18 @@ export function AppSidebar() {
   const isPlatformSuperAdmin = useAuthState((s) => s.isPlatformSuperAdmin);
   const { authz: platformAuthz } = usePlatformAuthz();
   const { current } = useApp();
+  const { isMobile, setOpenMobile } = useSidebar();
+  /**
+   * Below md the sidebar is a Sheet, and navigating from inside it does not dismiss it — the
+   * destination renders behind an overlay that is still covering it, so the tap reads as
+   * having done nothing. Every link out of the sidebar has to close it on the way.
+   *
+   * Guarded on `isMobile` rather than called unconditionally: on desktop there is no sheet,
+   * and writing the flag anyway would leave it primed to open closed on the next resize.
+   */
+  const closeOnNavigate = () => {
+    if (isMobile) setOpenMobile(false);
+  };
   const matchesPath = (url: string) => pathname === url || pathname.startsWith(`${url}/`);
 
   const canSee = (item: NavItem) => {
@@ -350,7 +365,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-3 py-4">
-        <Link to="/dashboard" className="flex items-center gap-2.5">
+        <Link to="/dashboard" onClick={closeOnNavigate} className="flex items-center gap-2.5">
           <Logo size="sm" className="group-data-[collapsible=icon]:hidden" />
           <img
             src="/colored.png"
@@ -399,7 +414,11 @@ export function AppSidebar() {
                             : "hover:bg-sidebar-hover"
                         }
                       >
-                        <Link to={item.url} className="flex items-center gap-2.5">
+                        <Link
+                          to={item.url}
+                          onClick={closeOnNavigate}
+                          className="flex items-center gap-2.5"
+                        >
                           <item.icon className="h-4 w-4" />
                           <span className="flex-1 truncate">{item.title}</span>
                           {typeof item.count === "number" && item.count > 0 && (
@@ -422,6 +441,29 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-3">
+        {/*
+          Mobile-only, and deliberately duplicated rather than moved: on desktop these are the
+          "Ask AI" pill and the theme button in the topbar, which has room for them. The phone
+          topbar does not, so below md they live here — the sidebar this footer belongs to is
+          what "More" in the tab bar opens.
+
+          Closing the sheet first is not cosmetic: the drawer and the sidebar are both fixed
+          overlays, and leaving the sidebar open would stack one on top of the other.
+        */}
+        <div className="mb-2 space-y-0.5 border-b pb-2 md:hidden">
+          <button
+            type="button"
+            onClick={() => {
+              setOpenMobile(false);
+              openCreatorAssistant();
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <Sparkles className="h-4 w-4 shrink-0" />
+            <span>Ask AI</span>
+          </button>
+          <ThemeToggle variant="row" />
+        </div>
         <WorkspaceSwitcher />
       </SidebarFooter>
     </Sidebar>

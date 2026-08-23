@@ -13,7 +13,6 @@ import {
 import { AppSidebar } from "@/components/app-sidebar";
 import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trigger";
 import { GlobalSearchPalette } from "@/components/shell/global-search";
-import { BreadcrumbTitle, MobileWorkspaceCrumb } from "@/components/shell/breadcrumb-title";
 import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
 import { AccessChangedModal } from "@/components/access/access-changed-modal";
 import { RegistryUpdatedListener } from "@/components/plugins/registry-updated-listener";
@@ -67,8 +66,7 @@ function TopBar() {
           360px. */}
       <SidebarTrigger className="-ml-1 hidden md:inline-flex" />
       <div className="hidden h-5 w-px bg-border md:block" />
-      <BreadcrumbTitle />
-      <MobileWorkspaceCrumb />
+      <WorkspaceSwitcher variant="crumb" />
 
       {/* The search field is centred in the remaining space rather than pinned to either side, so
           it stays the visual centre of the bar as the breadcrumb and the action cluster change
@@ -80,9 +78,6 @@ function TopBar() {
 
       <div className="ml-auto flex min-w-0 items-center gap-2">
         <SearchIconTrigger className="md:hidden" />
-        {/* Which workspace you are in decides what every number on the page means, and the
-            only other way to switch was the sidebar footer — behind "More" on a phone. */}
-        <WorkspaceSwitcher variant="topbar" />
         <div className="hidden h-5 w-px bg-border sm:block" />
         {/* Both live in the mobile sidebar instead — see `AppSidebar`. The drawer and the
             theme store are unaffected; only these triggers are hidden. */}

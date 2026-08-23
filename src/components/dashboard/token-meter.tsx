@@ -18,7 +18,14 @@ function nudgeKey(workspaceId: string, periodEnd: string): string {
 
 /** Small Lyra AI token usage meter — same card language as StatCard, refetched
  *  periodically since this workspace has no live socket client yet. */
-export function TokenMeter({ workspaceId }: { workspaceId: string }) {
+export function TokenMeter({
+  workspaceId,
+  className,
+}: {
+  workspaceId: string;
+  /** Lets the caller stretch the card to a grid row it shares with another. */
+  className?: string;
+}) {
   const navigate = useNavigate();
   const query = useQuery({
     queryKey: ["ai-token-balance", workspaceId],
@@ -67,7 +74,7 @@ export function TokenMeter({ workspaceId }: { workspaceId: string }) {
   }, [balance, pctUsed, workspaceId, navigate]);
 
   if (query.isLoading) {
-    return <Skeleton className="h-32 rounded-2xl" />;
+    return <Skeleton className={cn("h-32 rounded-2xl", className)} />;
   }
   if (!balance) return null;
 
@@ -80,7 +87,10 @@ export function TokenMeter({ workspaceId }: { workspaceId: string }) {
       initial={{ opacity: 0, y: 14, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      className="group relative overflow-hidden rounded-2xl border bg-card p-5 shadow-soft transition-shadow hover:shadow-glow"
+      className={cn(
+        "group relative flex flex-col overflow-hidden rounded-2xl border bg-card p-5 shadow-soft transition-shadow hover:shadow-glow",
+        className,
+      )}
     >
       <div className="flex items-start justify-between">
         <div className="flex flex-col gap-1">

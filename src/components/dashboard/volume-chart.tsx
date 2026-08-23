@@ -76,7 +76,7 @@ export function VolumeChart({ series }: { series: VolumeSeries }) {
     <section className="rounded-2xl border bg-card p-4 shadow-soft sm:p-6">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-display text-lg font-semibold">Volume over time</h2>
+          <h2 className="text-[13px] font-semibold">Volume over time</h2>
           <p className="text-sm text-muted-foreground">
             {data.length > 0
               ? `Daily · ${shortDay(data[0]!.day)} – ${shortDay(data[data.length - 1]!.day)}`

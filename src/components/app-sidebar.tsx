@@ -438,32 +438,34 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-      </SidebarContent>
 
-      <SidebarFooter className="p-3">
         {/*
-          Mobile-only, and deliberately duplicated rather than moved: on desktop these are the
-          "Ask AI" pill and the theme button in the topbar, which has room for them. The phone
-          topbar does not, so below md they live here — the sidebar this footer belongs to is
-          what "More" in the tab bar opens.
+          Ask AI and the theme switch, at the end of the list rather than pinned above the
+          workspace switcher. They are not destinations, so they get icons on one row instead of
+          two full-width entries competing with the navigation above them.
 
-          Closing the sheet first is not cosmetic: the drawer and the sidebar are both fixed
-          overlays, and leaving the sidebar open would stack one on top of the other.
+          Mobile-only: on desktop both already live in the topbar, which has the room. Closing the
+          sheet before opening the drawer is not cosmetic — both are fixed overlays, and leaving
+          the sidebar open would stack one on top of the other.
         */}
-        <div className="mb-2 space-y-0.5 border-b pb-2 md:hidden">
+        <div className="mt-1 flex items-center gap-1 border-t px-3 pt-3 md:hidden">
           <button
             type="button"
+            aria-label="Ask AI"
+            title="Ask AI"
             onClick={() => {
               setOpenMobile(false);
               openCreatorAssistant();
             }}
-            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            className="grid h-9 w-9 place-items-center rounded-lg text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
-            <Sparkles className="h-4 w-4 shrink-0" />
-            <span>Ask AI</span>
+            <Sparkles className="h-4 w-4" />
           </button>
-          <ThemeToggle variant="row" />
+          <ThemeToggle className="h-9 w-9 border-0 bg-transparent text-sidebar-foreground/80 shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" />
         </div>
+      </SidebarContent>
+
+      <SidebarFooter className="p-3">
         <WorkspaceSwitcher />
       </SidebarFooter>
     </Sidebar>

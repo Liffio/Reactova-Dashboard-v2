@@ -90,7 +90,7 @@ export function LiveActivity({ seed = [] }: { seed?: SeedActivity[] }) {
   return (
     <section className="rounded-2xl border bg-card p-4 shadow-soft sm:p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
+        <h2 className="flex items-center gap-2 text-[13px] font-semibold">
           <span className="relative flex h-2 w-2">
             {/* `motion-safe` only: a ring pulsing forever is exactly what a reduced-motion
                 preference is asking not to see. */}

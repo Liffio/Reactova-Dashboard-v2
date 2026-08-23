@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronsUpDown, Check, Plus, Instagram } from "lucide-react";
+import { ChevronsUpDown, Check, ChevronRight, Plus, Instagram } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
   DropdownMenu,
@@ -20,6 +20,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { usePageTitle } from "@/hooks/use-page-title";
+import { WorkspaceIdChip } from "@/components/workspace-id-chip";
 import { createWorkspace } from "@/lib/api/workspaces-api";
 import { useApp, type PlanName, type Workspace, type WorkspaceStatus } from "@/state/app-context";
 import { bareHandle, formatHandle } from "@/lib/format";
@@ -126,14 +128,16 @@ function instagramLine(workspace: Workspace): string | null {
  * Workspace switcher.
  *
  * Two triggers, one menu. `variant="sidebar"` (default) is the full-width footer row;
- * `variant="topbar"` is a compact pill for the header, where the row's avatar-plus-two-lines
- * would not fit a 60px bar. The menu itself — the workspace list, the plan badges, the create
- * dialog — is identical, because a second copy is a second thing to keep correct.
+ * `variant="crumb"` is the header's top-left breadcrumb, which already names the workspace and
+ * so is the obvious thing to click to change it — a separate pill beside it was a second
+ * control saying the same word. The menu itself — the workspace list, the plan badges, the
+ * create dialog — is identical across variants, because a second copy is a second thing to
+ * keep correct.
  */
 export function WorkspaceSwitcher({
   variant = "sidebar",
 }: {
-  variant?: "sidebar" | "topbar";
+  variant?: "sidebar" | "topbar" | "crumb";
 } = {}) {
   const { current, workspaces, setCurrentId, refreshAuth } = useApp();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -156,11 +160,40 @@ export function WorkspaceSwitcher({
   });
 
   const topbar = variant === "topbar";
+  const crumb = variant === "crumb";
+  const page = usePageTitle();
 
   const menu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {topbar ? (
+        {crumb ? (
+          <button
+            type="button"
+            aria-label={`Workspace: ${current.name} — switch workspace`}
+            className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-left transition-colors hover:bg-accent"
+          >
+            {/* Above lg the crumb reads `workspace › page` inline, below it stacks — the same two
+                facts either way, which is why one trigger covers both. */}
+            <span className="hidden min-w-0 items-center gap-1.5 lg:flex">
+              <span className="max-w-[160px] truncate text-sm text-muted-foreground">
+                {current.name}
+              </span>
+              <ChevronRight aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+              <span className="max-w-[220px] truncate text-sm font-medium">{page}</span>
+            </span>
+            <span className="flex min-w-0 flex-col leading-tight lg:hidden">
+              <span className="truncate text-sm font-medium">{page}</span>
+              <span className="flex items-center gap-1.5">
+                <span className="truncate text-[10px] text-muted-foreground">{current.name}</span>
+                <WorkspaceIdChip
+                  humanId={current.humanId}
+                  className="hidden h-4 px-1 text-[9px] sm:inline-flex"
+                />
+              </span>
+            </span>
+            <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground/60" />
+          </button>
+        ) : topbar ? (
           <button
             type="button"
             aria-label={`Workspace: ${current.name}`}
@@ -197,7 +230,7 @@ export function WorkspaceSwitcher({
       <DropdownMenuContent
         className="min-w-56 rounded-lg"
         align={topbar ? "end" : "start"}
-        side={topbar || isMobile ? "bottom" : "right"}
+        side={topbar || crumb || isMobile ? "bottom" : "right"}
         sideOffset={4}
       >
         <DropdownMenuLabel className="text-xs text-muted-foreground">Workspaces</DropdownMenuLabel>
@@ -269,9 +302,9 @@ export function WorkspaceSwitcher({
     </DropdownMenu>
   );
 
-  // The topbar is not a sidebar: `SidebarMenu`/`SidebarMenuItem` carry list semantics and sidebar
-  // width rules that a header pill must not inherit.
-  if (topbar) return menu;
+  // Neither header variant is a sidebar: `SidebarMenu`/`SidebarMenuItem` carry list semantics
+  // and sidebar width rules that a header control must not inherit.
+  if (topbar || crumb) return menu;
 
   return (
     <SidebarMenu>

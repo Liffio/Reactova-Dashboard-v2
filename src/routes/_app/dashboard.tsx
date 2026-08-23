@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Plus, Zap } from "lucide-react";
+import { ArrowRight, ChevronRight, Plus } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -17,6 +17,7 @@ import { LyraInsightRail } from "@/components/dashboard/lyra-insight-rail";
 import { RangeChips } from "@/components/dashboard/range-chips";
 import { PlatformMetricsPanel } from "@/components/admin/dashboard/platform-metrics-panel";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDashboard } from "@/lib/api/analytics-api";
@@ -177,12 +178,12 @@ function DashboardPage() {
 
         <section>
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-            <h2 className="font-display text-lg font-semibold">Comment to customer</h2>
+            <h2 className="text-[13px] font-semibold">Comment to customer</h2>
             {/* The date picker used to move four numbers while the panels beside them stayed on
                 the calendar month, so adjacent figures silently described different periods. This
                 says which ones follow the picker; the panels that do not carry their own chip. */}
-            <span className="text-xs text-muted-foreground">
-              Every number in this strip follows the selected date range
+            <span className="text-[11.5px] text-muted-foreground">
+              Every number below follows the selected date range
             </span>
           </div>
 
@@ -203,39 +204,45 @@ function DashboardPage() {
           variants={staggerContainer}
           initial="hidden"
           animate="show"
-          className="grid items-start gap-6 lg:grid-cols-3"
+          className="grid gap-6 lg:grid-cols-3"
         >
-          {/* `items-start` on the grid plus this wrapper stop the main column stretching to
-              the rail's height — that stretch is what left a tall blank panel under a short
-              automation list. */}
-          <div className="min-w-0 space-y-6 lg:col-span-2">
-            <motion.div variants={staggerItem} className="rounded-2xl border bg-card shadow-soft">
-              <div className="flex items-center justify-between border-b px-6 py-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="font-display text-lg font-semibold">Recent automations</h2>
-                    {/* `analytics.ts` pins these per-automation counts to the calendar month, so
-                      they do not follow the picker either. */}
-                    <span className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                      This month
-                    </span>
-                  </div>
-                  {/* Counts what is rendered, not what was fetched. The list caps at 5, so the
-                      unclamped total read as a promise the card does not keep once a workspace
-                      has more than five automations. */}
-                  <p className="text-sm text-muted-foreground">
-                    Showing {Math.min(data?.recentActivities.length ?? 0, RECENT_LIMIT)} of{" "}
+          {/*
+            Both columns stretch, and the slack is absorbed rather than left at the bottom: the
+            column is a flex column, the automation card takes `flex-1`, and its list area grows
+            inside it. A workspace with one automation gets a card the same height as its
+            neighbour with the row spread through it, instead of a short card above a void.
+
+            No height is fixed anywhere in here. A `min-h` would be a guess that is wrong on one
+            breakpoint or the other, and it would clip the moment a list outgrew it.
+          */}
+          <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
+            <motion.div
+              variants={staggerItem}
+              className="flex flex-1 flex-col rounded-2xl border bg-card px-5 pb-2 pt-[18px] shadow-soft"
+            >
+              {/* `.sec-head` in the redesign: a 13px label, not an 18px card title. The section is
+                  labelled, not announced — the rows are the content. */}
+              <div className="mb-3 flex items-baseline justify-between gap-4">
+                <div className="flex min-w-0 items-baseline gap-2">
+                  <h2 className="shrink-0 text-[13px] font-semibold">Recent automations</h2>
+                  {/* `analytics.ts` pins these per-automation counts to the calendar month, so
+                      they do not follow the picker. Counts what is rendered, not what was
+                      fetched: the list caps at 5. */}
+                  <span className="truncate text-[11.5px] text-muted-foreground">
+                    This month · showing{" "}
+                    {Math.min(data?.recentActivities.length ?? 0, RECENT_LIMIT)} of{" "}
                     {data?.recentActivities.length ?? 0}
-                  </p>
+                  </span>
                 </div>
-                <Button asChild variant="ghost" size="sm" className="gap-1">
-                  <Link to={canViewAuditLogs ? "/audit-logs" : "/automations"}>
-                    View all <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </Button>
+                <Link
+                  to={canViewAuditLogs ? "/audit-logs" : "/automations"}
+                  className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                >
+                  View all <ArrowRight className="h-3 w-3" />
+                </Link>
               </div>
               {dashboardQuery.isLoading ? (
-                <div className="space-y-3 p-6">
+                <div className="flex-1 space-y-3 py-2">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <motion.div
                       key={i}
@@ -248,7 +255,7 @@ function DashboardPage() {
                   ))}
                 </div>
               ) : (data?.recentActivities.length ?? 0) === 0 ? (
-                <div className="px-6 py-10 text-center">
+                <div className="flex flex-1 flex-col items-center justify-center py-10 text-center">
                   <p className="text-sm text-muted-foreground">
                     No automations yet — create your first one to start sending DMs.
                   </p>
@@ -260,36 +267,49 @@ function DashboardPage() {
                   </Button>
                 </div>
               ) : (
-                <ul className="divide-y">
+                <ul className="flex-1">
                   {data!.recentActivities.slice(0, RECENT_LIMIT).map((a, i) => (
                     <motion.li
                       key={a.id}
                       initial={{ y: 14 }}
                       animate={{ y: 0 }}
                       transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1], delay: i * 0.07 }}
-                      className="flex items-center gap-4 px-6 py-4"
+                      className="border-b last:border-b-0"
                     >
-                      <div className="grid h-10 w-10 place-items-center rounded-lg bg-accent">
-                        <Zap className="h-4 w-4 text-accent-foreground" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-medium">{a.title}</p>
-                          <Badge variant="outline" className={statusStyles[a.status]}>
-                            {a.status.toLowerCase()}
-                          </Badge>
+                      {/* No leading icon tile. Every row carried the same glyph, so it identified
+                          nothing and cost the name 52px of the one column that truncates — the
+                          redesign and every comparable list drop it. */}
+                      <Link
+                        to="/automations"
+                        className="group -mx-2.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 rounded-[11px] px-2.5 py-3 transition-colors hover:bg-muted md:grid-cols-[minmax(0,1fr)_76px_20px]"
+                      >
+                        <div className="flex min-w-0 flex-col gap-[3px]">
+                          <span className="truncate text-[13.5px] font-semibold">{a.title}</span>
+                          <span className="flex min-w-0 items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                            <Badge
+                              variant="outline"
+                              className={cn("h-[19px] shrink-0 px-2", statusStyles[a.status])}
+                            >
+                              {a.status.toLowerCase()}
+                            </Badge>
+                            <span className="truncate">
+                              {a.keyword ? `Keyword "${a.keyword}"` : "Any comment"} ·{" "}
+                              {new Date(a.createdAt).toLocaleDateString()}
+                            </span>
+                          </span>
                         </div>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {a.keyword ? `Keyword "${a.keyword}"` : "Any comment"} · created{" "}
-                          {new Date(a.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="hidden text-right text-xs tabular-nums sm:block">
-                        <div className="font-display text-sm font-semibold">
-                          {formatNum(a.dmsSentThisMonth)}
+
+                        <div className="text-right tabular-nums">
+                          <div className="font-display text-[15px] font-semibold leading-none">
+                            {formatNum(a.dmsSentThisMonth)}
+                          </div>
+                          <div className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.05em] text-muted-foreground">
+                            DMs
+                          </div>
                         </div>
-                        <div className="text-muted-foreground">DMs this month</div>
-                      </div>
+
+                        <ChevronRight className="hidden h-[15px] w-[15px] text-muted-foreground transition-colors group-hover:text-foreground md:block" />
+                      </Link>
                     </motion.li>
                   ))}
                 </ul>
@@ -297,21 +317,21 @@ function DashboardPage() {
             </motion.div>
 
             {/* Tokens and Scheduler pair off under the automation list rather than stacking in
-                the rail. Both are short fixed-height cards, and side by side they occupy the
-                space a workspace with a handful of automations leaves blank. */}
-            <div className="grid min-w-0 gap-6 sm:grid-cols-2">
+                the rail. Grid rows stretch by default, so the two match each other without either
+                being told a height — `h-full` below just passes that down to the cards. */}
+            <div className="grid min-w-0 shrink-0 gap-6 sm:grid-cols-2">
               {/* Moved out of the KPI row. Four "how much happened" metrics plus one "how much
                 quota remains" gauge is a category error — the meter is not a fifth stat. */}
-              <motion.div variants={staggerItem}>
-                <TokenMeter workspaceId={workspaceId} />
+              <motion.div variants={staggerItem} className="flex">
+                <TokenMeter workspaceId={workspaceId} className="h-full w-full" />
               </motion.div>
 
               <motion.div
                 variants={staggerItem}
-                className="rounded-2xl border bg-card p-6 shadow-soft"
+                className="flex flex-col rounded-2xl border bg-card p-6 shadow-soft"
               >
                 <div className="mb-4 flex items-center justify-between gap-2">
-                  <h2 className="font-display text-lg font-semibold">Scheduler</h2>
+                  <h2 className="text-[13px] font-semibold">Scheduler</h2>
                   {/* These three counts are all-time and do not move with the date picker. Saying so
                     costs a chip; not saying so makes every other number on the page less
                     trustworthy. */}
@@ -345,7 +365,7 @@ function DashboardPage() {
                     </div>
                   </div>
                 </div>
-                <Button asChild variant="outline" size="sm" className="mt-4 w-full gap-1">
+                <Button asChild variant="outline" size="sm" className="mt-auto w-full gap-1">
                   <Link to="/scheduler">
                     Open scheduler <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
@@ -354,7 +374,7 @@ function DashboardPage() {
             </div>
           </div>
 
-          <div className="min-w-0 space-y-6">
+          <div className="flex min-w-0 flex-col gap-6">
             {/*
               Rail order is deliberate: what is happening now, then what it means, then what it
               costs, then what is queued.

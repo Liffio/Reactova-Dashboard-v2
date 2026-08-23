@@ -31,6 +31,12 @@ export type FunnelStageData = {
   delta?: number | null;
   /** Daily values for the sparkline. Empty renders a flat rule rather than nothing. */
   series: number[];
+  /**
+   * Shown in place of the sparkline when the stage is at zero. A flat line across an empty
+   * stage says "nothing happened" twice; the space is better spent saying what would make
+   * something happen.
+   */
+  emptyHint?: string;
   colorVar: string;
   to: string;
 };
@@ -79,6 +85,47 @@ function Sparkline({ series, colorVar }: { series: number[]; colorVar: string })
   );
 }
 
+/**
+ * The step-to-step rate as a pill.
+ *
+ * On mobile the gate moves *into* the header of the stage it feeds — "DMs sent · 100% delivered"
+ * reads as a property of that stage, and a free-floating connector between separate cards has
+ * nothing to connect. The desktop strip keeps the connector, which is why this is a component
+ * rather than markup inside `Gate`.
+ */
+function GateReadout({
+  rate,
+  caption,
+  className,
+}: {
+  rate: number | null;
+  caption: string;
+  className?: string;
+}) {
+  const weak = rate != null && rate < WEAK_GATE_THRESHOLD;
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 leading-none",
+        weak ? "border-warning-edge bg-warning-wash" : "border-border bg-card",
+        className,
+      )}
+    >
+      <span
+        className={cn(
+          "text-[11px] font-semibold tabular-nums",
+          weak ? "text-warning" : "text-foreground",
+        )}
+      >
+        {rate == null ? "—" : `${(rate * 100).toFixed(rate >= 1 ? 0 : 1)}%`}
+      </span>
+      <span className="text-[9.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {caption}
+      </span>
+    </span>
+  );
+}
+
 function Delta({ delta }: { delta: number }) {
   const positive = delta >= 0;
   return (
@@ -95,41 +142,16 @@ function Delta({ delta }: { delta: number }) {
 }
 
 function Gate({ rate, caption }: { rate: number | null; caption: string }) {
-  const weak = rate != null && rate < WEAK_GATE_THRESHOLD;
   return (
     <div
       className={cn(
-        // Mobile, per `plan/DASHBOARD/liffio-dashboard-redesign.html`: a 32px connector between
-        // two stacked stages, with the rule running *vertically* at 26px so it points along the
-        // flow. The previous attempt drew it as a horizontal divider, which reads as a separator
-        // between unrelated rows rather than a funnel step.
-        "relative flex h-8 items-center justify-start gap-2 pl-[26px]",
-        "before:absolute before:bottom-0 before:left-[26px] before:top-0 before:w-[1.5px] before:bg-border before:content-['']",
-        // Desktop: unchanged — a horizontal rule across the gap with the pill centred on it.
-        "md:h-auto md:justify-center md:gap-0 md:pl-0",
-        "md:before:bottom-auto md:before:left-0 md:before:top-1/2 md:before:h-px md:before:w-full",
+        // Desktop only. Below md the stages are separate cards and the rate lives in the header of
+        // the stage it feeds, so there is no gap left to bridge.
+        "relative hidden items-center justify-center md:flex",
+        "before:absolute before:left-0 before:top-1/2 before:h-px before:w-full before:bg-border before:content-['']",
       )}
     >
-      <span
-        className={cn(
-          // `-ml-1.5` pulls the value onto the rule and `bg-card` masks it, so the line reads as
-          // passing behind the number rather than stopping dead at it.
-          "relative z-[1] -ml-1.5 flex items-center gap-1.5 bg-card px-1 leading-none",
-          // Capsule chrome is desktop-only: on a vertical rail a bordered pill reads as a control.
-          "md:ml-0 md:flex-col md:gap-0 md:rounded-full md:border md:px-2 md:py-1",
-          weak ? "md:border-warning-edge md:bg-warning-wash" : "md:border-border md:bg-card",
-        )}
-      >
-        <span
-          className={cn(
-            "text-[11px] font-semibold tabular-nums",
-            weak ? "text-warning" : "text-foreground",
-          )}
-        >
-          {rate == null ? "—" : `${(rate * 100).toFixed(1)}%`}
-        </span>
-        <span className="text-[9px] uppercase tracking-wider text-muted-foreground">{caption}</span>
-      </span>
+      <GateReadout rate={rate} caption={caption} className="relative z-[1] flex-col gap-0 px-2" />
     </div>
   );
 }
@@ -154,60 +176,99 @@ export function FunnelStrip({ stages }: { stages: FunnelStageData[] }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border bg-card p-1.5 shadow-soft sm:p-5",
-        // Below md the seven cells read as a list: four compact rows divided by the three
-        // gates, which carry their own hairline — hence no row gap. Above md the same cells
-        // lay out as the horizontal strip, untouched.
-        "grid grid-cols-1 gap-y-0",
-        "md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] md:items-stretch md:gap-x-2 md:gap-y-0",
+        // Mobile: four separate cards. The single bordered panel was one tall column of hairlines
+        // that read as a table; as cards each stage is a thing you can look at on its own, which
+        // is how the funnel is actually read on a phone.
+        "grid grid-cols-1 gap-3",
+        // Desktop: one card holding the seven-cell strip, unchanged.
+        "md:gap-x-2 md:gap-y-0 md:rounded-2xl md:border md:bg-card md:p-3 md:shadow-soft",
+        "md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] md:items-stretch lg:md:p-5",
       )}
     >
-      {stages.map((stage, i) => (
-        <div key={stage.key} className="contents">
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1], delay: i * 0.06 }}
-          >
-            <Link
-              to={stage.to}
-              className={cn(
-                // Mobile, per the redesign's "FUNNEL rotates to vertical": a two-row cell — label
-                // and icon across the top, value bottom-left, delta bottom-right. Two rows rather
-                // than one line because the value is the point of the stage and 27px of it does
-                // not fit beside a label.
-                "grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 rounded-xl p-3 transition-colors hover:bg-accent/60",
-                "md:flex md:h-full md:flex-col md:items-stretch md:gap-2",
-              )}
+      {stages.map((stage, i) => {
+        // The rate *into* this stage — stage 0 has none, nothing precedes it.
+        const incoming = i > 0 ? { rate: gate(i - 1), caption: GATE_CAPTIONS[i - 1] ?? "" } : null;
+        return (
+          <div key={stage.key} className="contents">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1], delay: i * 0.06 }}
+              className="min-w-0"
             >
-              <div className="col-span-2 row-start-1 flex min-w-0 items-start justify-between gap-2 md:col-auto md:row-auto">
-                <span className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  {stage.label}
-                </span>
-                <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground md:h-7 md:w-7">
-                  <stage.icon className="h-3.5 w-3.5" />
-                </span>
-              </div>
+              <Link
+                to={stage.to}
+                className={cn(
+                  "flex h-full flex-col gap-3 rounded-xl border bg-card p-4 shadow-soft transition-colors hover:bg-accent/40",
+                  // Inside the desktop card the per-stage chrome would be a border on a border.
+                  "md:gap-2 md:border-0 md:bg-transparent md:p-3 md:shadow-none md:hover:bg-accent/60",
+                )}
+              >
+                <div className="flex min-w-0 items-center gap-2.5 md:items-start md:justify-between md:gap-2">
+                  {/* Tinted from the stage's own chart colour, so the chip and its sparkline
+                      identify the same stage instead of every chip being the same grey. */}
+                  <span
+                    aria-hidden
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-lg md:order-2"
+                    style={{
+                      backgroundColor: `color-mix(in oklch, ${stage.colorVar} 15%, transparent)`,
+                      color: stage.colorVar,
+                    }}
+                  >
+                    <stage.icon className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground md:order-1">
+                    {stage.label}
+                  </span>
+                  {incoming && (
+                    <GateReadout
+                      rate={incoming.rate}
+                      caption={incoming.caption}
+                      className="md:hidden"
+                    />
+                  )}
+                </div>
 
-              <span className="col-start-1 row-start-2 min-w-0 truncate font-display text-[27px] font-semibold leading-none tracking-tight tabular-nums md:col-auto md:row-auto md:text-2xl md:leading-normal">
-                {formatNum(stage.value)}
-              </span>
+                {/* Mobile lays value and trace side by side and drops the comparison beneath the
+                    value; desktop stacks all three and pins the comparison to the bottom so the
+                    four tiles align across the strip. `flex-1` is what keeps them aligned when one
+                    stage has an empty-state hint and its neighbour has a sparkline. */}
+                <div className="grid flex-1 grid-cols-[auto_minmax(0,1fr)] items-end gap-x-4 gap-y-1.5 md:flex md:flex-col md:items-stretch md:gap-2">
+                  <span className="col-start-1 row-start-1 font-display text-[30px] font-semibold leading-none tracking-tight tabular-nums md:order-1 md:text-2xl">
+                    {formatNum(stage.value)}
+                  </span>
 
-              {/* Illegible under ~340px, and the value beside it already carries the level. */}
-              <div className="hidden md:block">
-                <Sparkline series={stage.series} colorVar={stage.colorVar} />
-              </div>
+                  <div className="col-start-2 row-start-1 min-w-0 md:order-2">
+                    {stage.value === 0 && stage.emptyHint ? (
+                      <p className="text-right text-[11.5px] leading-snug text-muted-foreground md:text-left">
+                        {stage.emptyHint}
+                      </p>
+                    ) : (
+                      <Sparkline series={stage.series} colorVar={stage.colorVar} />
+                    )}
+                  </div>
 
-              <div className="col-start-2 row-start-2 flex items-center justify-end gap-2 md:col-auto md:row-auto md:mt-auto md:justify-start">
-                {typeof stage.delta === "number" && <Delta delta={stage.delta} />}
-              </div>
-            </Link>
-          </motion.div>
-          {i < stages.length - 1 && (
-            <Gate rate={gate(i)} caption={GATE_CAPTIONS[i] ?? "converted"} />
-          )}
-        </div>
-      ))}
+                  <div className="col-start-1 row-start-2 flex items-center md:order-3 md:mt-auto md:pt-1">
+                    {typeof stage.delta === "number" ? (
+                      <Delta delta={stage.delta} />
+                    ) : (
+                      // No prior-period figure reaches this component — only a trend percent that
+                      // may be absent. Saying which is missing beats an empty slot that reads as
+                      // a number that failed to load.
+                      <span className="text-[11px] text-muted-foreground">
+                        {stage.value > 0 ? "No comparison yet" : "No activity in this range"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            </motion.div>
+            {i < stages.length - 1 && (
+              <Gate rate={gate(i)} caption={GATE_CAPTIONS[i] ?? "converted"} />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -220,14 +281,23 @@ export const FUNNEL_STAGE_META = [
     icon: MessageCircle,
     colorVar: "var(--chart-1)",
     to: "/analytics",
+    emptyHint: "No comments matched yet — check your automation's keyword.",
   },
-  { key: "dmsSent", label: "DMs sent", icon: Send, colorVar: "var(--chart-1)", to: "/analytics" },
+  {
+    key: "dmsSent",
+    label: "DMs sent",
+    icon: Send,
+    colorVar: "var(--chart-1)",
+    to: "/analytics",
+    emptyHint: "No DMs sent yet — matched comments trigger these.",
+  },
   {
     key: "leadsCaptured",
     label: "Leads captured",
     icon: UserPlus,
     colorVar: "var(--chart-2)",
     to: "/leads-captured",
+    emptyHint: "No leads yet — ask for an email in your DM.",
   },
   {
     key: "linkClicks",
@@ -235,5 +305,6 @@ export const FUNNEL_STAGE_META = [
     icon: MousePointerClick,
     colorVar: "var(--chart-4)",
     to: "/short-links",
+    emptyHint: "No clicks yet — add a link to your DM to start tracking.",
   },
 ] as const;

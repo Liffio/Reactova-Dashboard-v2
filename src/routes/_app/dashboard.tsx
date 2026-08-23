@@ -30,6 +30,7 @@ import {
 } from "@/components/dashboard/date-range-picker";
 import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
+import { useCan } from "@/hooks/use-auth";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 
 export const Route = createFileRoute("/_app/dashboard")({
@@ -55,10 +56,16 @@ function greeting(): string {
   return "Good evening";
 }
 
+/** The automation list is a sample, not the log; Audit Logs behind "View all" is the full history. */
+const RECENT_LIMIT = 5;
+
 function DashboardPage() {
   const { current, user } = useApp();
   const workspaceId = current.id;
   const hasRealWorkspace = Boolean(workspaceId) && workspaceId !== "default";
+  // Gates only the "View all" destination, never the card itself. `audit_logs` is a gateable
+  // module, so a packaged workspace can hold the role grant and still resolve to no access.
+  const canViewAuditLogs = useCan("audit_logs", "read");
 
   // null = the dashboard's classic calendar-month view; presets/custom come from the picker.
   const [range, setRange] = useState<DashboardDateRange | null>(null);
@@ -208,93 +215,156 @@ function DashboardPage() {
           variants={staggerContainer}
           initial="hidden"
           animate="show"
-          className="grid gap-6 lg:grid-cols-3"
+          className="grid items-start gap-6 lg:grid-cols-3"
         >
-          <motion.div
-            variants={staggerItem}
-            className="rounded-2xl border bg-card shadow-soft lg:col-span-2"
-          >
-            <div className="flex items-center justify-between border-b px-6 py-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="font-display text-lg font-semibold">Recent automations</h2>
-                  {/* `analytics.ts` pins these per-automation counts to the calendar month, so
+          {/* `items-start` on the grid plus this wrapper stop the main column stretching to
+              the rail's height — that stretch is what left a tall blank panel under a short
+              automation list. */}
+          <div className="space-y-6 lg:col-span-2">
+            <motion.div variants={staggerItem} className="rounded-2xl border bg-card shadow-soft">
+              <div className="flex items-center justify-between border-b px-6 py-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-display text-lg font-semibold">Recent automations</h2>
+                    {/* `analytics.ts` pins these per-automation counts to the calendar month, so
                       they do not follow the picker either. */}
-                  <span className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                    This month
-                  </span>
+                    <span className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      This month
+                    </span>
+                  </div>
+                  {/* Counts what is rendered, not what was fetched. The list caps at 5, so the
+                      unclamped total read as a promise the card does not keep once a workspace
+                      has more than five automations. */}
+                  <p className="text-sm text-muted-foreground">
+                    Showing {Math.min(data?.recentActivities.length ?? 0, RECENT_LIMIT)} of{" "}
+                    {data?.recentActivities.length ?? 0}
+                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {data?.recentActivities.length ?? 0} most recent
-                </p>
-              </div>
-              <Button asChild variant="ghost" size="sm" className="gap-1">
-                <Link to="/automations">
-                  View all <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </Button>
-            </div>
-            {dashboardQuery.isLoading ? (
-              <div className="space-y-3 p-6">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ y: 14 }}
-                    animate={{ y: 0 }}
-                    transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1], delay: i * 0.07 }}
-                  >
-                    <Skeleton className="h-12 rounded-lg" />
-                  </motion.div>
-                ))}
-              </div>
-            ) : (data?.recentActivities.length ?? 0) === 0 ? (
-              <div className="px-6 py-10 text-center">
-                <p className="text-sm text-muted-foreground">
-                  No automations yet — create your first one to start sending DMs.
-                </p>
-                <Button asChild size="sm" className="mt-4 gap-1.5">
-                  <Link to="/automations/new">
-                    <Plus className="h-4 w-4" />
-                    New automation
+                <Button asChild variant="ghost" size="sm" className="gap-1">
+                  <Link to={canViewAuditLogs ? "/audit-logs" : "/automations"}>
+                    View all <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
                 </Button>
               </div>
-            ) : (
-              <ul className="divide-y">
-                {data!.recentActivities.slice(0, 5).map((a, i) => (
-                  <motion.li
-                    key={a.id}
-                    initial={{ y: 14 }}
-                    animate={{ y: 0 }}
-                    transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1], delay: i * 0.07 }}
-                    className="flex items-center gap-4 px-6 py-4"
-                  >
-                    <div className="grid h-10 w-10 place-items-center rounded-lg bg-accent">
-                      <Zap className="h-4 w-4 text-accent-foreground" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-medium">{a.title}</p>
-                        <Badge variant="outline" className={statusStyles[a.status]}>
-                          {a.status.toLowerCase()}
-                        </Badge>
+              {dashboardQuery.isLoading ? (
+                <div className="space-y-3 p-6">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ y: 14 }}
+                      animate={{ y: 0 }}
+                      transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1], delay: i * 0.07 }}
+                    >
+                      <Skeleton className="h-12 rounded-lg" />
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (data?.recentActivities.length ?? 0) === 0 ? (
+                <div className="px-6 py-10 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No automations yet — create your first one to start sending DMs.
+                  </p>
+                  <Button asChild size="sm" className="mt-4 gap-1.5">
+                    <Link to="/automations/new">
+                      <Plus className="h-4 w-4" />
+                      New automation
+                    </Link>
+                  </Button>
+                </div>
+              ) : (
+                <ul className="divide-y">
+                  {data!.recentActivities.slice(0, RECENT_LIMIT).map((a, i) => (
+                    <motion.li
+                      key={a.id}
+                      initial={{ y: 14 }}
+                      animate={{ y: 0 }}
+                      transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1], delay: i * 0.07 }}
+                      className="flex items-center gap-4 px-6 py-4"
+                    >
+                      <div className="grid h-10 w-10 place-items-center rounded-lg bg-accent">
+                        <Zap className="h-4 w-4 text-accent-foreground" />
                       </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {a.keyword ? `Keyword "${a.keyword}"` : "Any comment"} · created{" "}
-                        {new Date(a.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="hidden text-right text-xs tabular-nums sm:block">
-                      <div className="font-display text-sm font-semibold">
-                        {formatNum(a.dmsSentThisMonth)}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-medium">{a.title}</p>
+                          <Badge variant="outline" className={statusStyles[a.status]}>
+                            {a.status.toLowerCase()}
+                          </Badge>
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {a.keyword ? `Keyword "${a.keyword}"` : "Any comment"} · created{" "}
+                          {new Date(a.createdAt).toLocaleDateString()}
+                        </p>
                       </div>
-                      <div className="text-muted-foreground">DMs this month</div>
+                      <div className="hidden text-right text-xs tabular-nums sm:block">
+                        <div className="font-display text-sm font-semibold">
+                          {formatNum(a.dmsSentThisMonth)}
+                        </div>
+                        <div className="text-muted-foreground">DMs this month</div>
+                      </div>
+                    </motion.li>
+                  ))}
+                </ul>
+              )}
+            </motion.div>
+
+            {/* Tokens and Scheduler pair off under the automation list rather than stacking in
+                the rail. Both are short fixed-height cards, and side by side they occupy the
+                space a workspace with a handful of automations leaves blank. */}
+            <div className="grid gap-6 sm:grid-cols-2">
+              {/* Moved out of the KPI row. Four "how much happened" metrics plus one "how much
+                quota remains" gauge is a category error — the meter is not a fifth stat. */}
+              <motion.div variants={staggerItem}>
+                <TokenMeter workspaceId={workspaceId} />
+              </motion.div>
+
+              <motion.div
+                variants={staggerItem}
+                className="rounded-2xl border bg-card p-6 shadow-soft"
+              >
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <h2 className="font-display text-lg font-semibold">Scheduler</h2>
+                  {/* These three counts are all-time and do not move with the date picker. Saying so
+                    costs a chip; not saying so makes every other number on the page less
+                    trustworthy. */}
+                  <span className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    All time
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <div className="font-display text-2xl font-semibold tabular-nums">
+                      {totals?.schedulerScheduled ?? 0}
                     </div>
-                  </motion.li>
-                ))}
-              </ul>
-            )}
-          </motion.div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Scheduled
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-display text-2xl font-semibold tabular-nums">
+                      {totals?.schedulerDrafts ?? 0}
+                    </div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Drafts
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-display text-2xl font-semibold tabular-nums">
+                      {totals?.schedulerFailed ?? 0}
+                    </div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Failed
+                    </div>
+                  </div>
+                </div>
+                <Button asChild variant="outline" size="sm" className="mt-4 w-full gap-1">
+                  <Link to="/scheduler">
+                    Open scheduler <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </Button>
+              </motion.div>
+            </div>
+          </div>
 
           <div className="space-y-6">
             {/*
@@ -315,58 +385,6 @@ function DashboardPage() {
                 before the evidence and gave a three-bullet insight the widest column on the page. */}
             <motion.div variants={staggerItem}>
               <LyraInsightRail workspaceId={workspaceId} userId={user?.id} />
-            </motion.div>
-
-            {/* Moved out of the KPI row. Four "how much happened" metrics plus one "how much
-                quota remains" gauge is a category error — the meter is not a fifth stat. */}
-            <motion.div variants={staggerItem}>
-              <TokenMeter workspaceId={workspaceId} />
-            </motion.div>
-
-            <motion.div
-              variants={staggerItem}
-              className="rounded-2xl border bg-card p-6 shadow-soft"
-            >
-              <div className="mb-4 flex items-center justify-between gap-2">
-                <h2 className="font-display text-lg font-semibold">Scheduler</h2>
-                {/* These three counts are all-time and do not move with the date picker. Saying so
-                    costs a chip; not saying so makes every other number on the page less
-                    trustworthy. */}
-                <span className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                  All time
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div>
-                  <div className="font-display text-2xl font-semibold tabular-nums">
-                    {totals?.schedulerScheduled ?? 0}
-                  </div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Scheduled
-                  </div>
-                </div>
-                <div>
-                  <div className="font-display text-2xl font-semibold tabular-nums">
-                    {totals?.schedulerDrafts ?? 0}
-                  </div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Drafts
-                  </div>
-                </div>
-                <div>
-                  <div className="font-display text-2xl font-semibold tabular-nums">
-                    {totals?.schedulerFailed ?? 0}
-                  </div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Failed
-                  </div>
-                </div>
-              </div>
-              <Button asChild variant="outline" size="sm" className="mt-4 w-full gap-1">
-                <Link to="/scheduler">
-                  Open scheduler <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </Button>
             </motion.div>
           </div>
         </motion.section>

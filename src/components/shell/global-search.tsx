@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/command";
 import { globalSearch, type SearchHit } from "@/lib/api/search-api";
 import { OPEN_SEARCH_EVENT } from "@/lib/global-search-events";
+import { useDebounced } from "@/hooks/use-debounced";
 import { useApp } from "@/state/app-context";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +42,14 @@ const DEBOUNCE_MS = 200;
 export function GlobalSearchPalette() {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
-  const [debounced, setDebounced] = useState("");
+  const trimmed = term.trim();
+  const settled = useDebounced(trimmed, DEBOUNCE_MS);
+  /**
+   * Clearing is deliberately not debounced. `close()` and a workspace switch both blank the
+   * field, and a term that outlived either by one delay would reopen the palette on the
+   * previous search, or fire a query for the old tenant's term against the new workspace.
+   */
+  const debounced = trimmed === "" ? "" : settled;
   const { current } = useApp();
   const navigate = useNavigate();
 
@@ -55,7 +63,6 @@ export function GlobalSearchPalette() {
   const close = useCallback(() => {
     setOpen(false);
     setTerm("");
-    setDebounced("");
   }, []);
 
   // Both triggers dispatch the same DOM event, and the keyboard shortcut takes the same path, so
@@ -76,17 +83,11 @@ export function GlobalSearchPalette() {
     };
   }, []);
 
-  useEffect(() => {
-    const id = window.setTimeout(() => setDebounced(term.trim()), DEBOUNCE_MS);
-    return () => window.clearTimeout(id);
-  }, [term]);
-
   // Switching workspace mid-search would otherwise leave the previous tenant's hits on screen
   // until the next keystroke. The query is keyed by workspace too, so nothing is served from the
   // wrong cache entry either.
   useEffect(() => {
     setTerm("");
-    setDebounced("");
   }, [current.id]);
 
   const tooShort = minTermLength !== null && debounced.length < minTermLength;

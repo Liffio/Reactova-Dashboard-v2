@@ -1,4 +1,5 @@
 import type { WorkspaceEventPayload } from "@/lib/socket";
+import { formatHandle } from "@/lib/format";
 
 /**
  * A bounded, in-memory tail of workspace events, written by `useWorkspaceEvents` and read by the
@@ -82,7 +83,7 @@ function describe(payload: WorkspaceEventPayload): LiveActivityEntry | null {
         return {
           id: `dm-${payload.id}`,
           kind: "failure",
-          title: handle ? `Couldn't reach @${handle}` : "A DM could not be delivered",
+          title: handle ? `Couldn't reach ${formatHandle(handle)}` : "A DM could not be delivered",
           // Expired 24-hour reply windows are the common cause and have no surface anywhere else
           // in the product, so the reason is the point of the row, not a detail.
           subtitle: str(d.error) ?? "Delivery failed",
@@ -93,7 +94,7 @@ function describe(payload: WorkspaceEventPayload): LiveActivityEntry | null {
       return {
         id: `dm-${payload.id}`,
         kind: "dm",
-        title: handle ? `DM sent to @${handle}` : "DM sent",
+        title: handle ? `DM sent to ${formatHandle(handle)}` : "DM sent",
         subtitle: automation,
         at,
         live: true,
@@ -103,7 +104,7 @@ function describe(payload: WorkspaceEventPayload): LiveActivityEntry | null {
       return {
         id: `lead-${payload.id}`,
         kind: "lead",
-        title: handle ? `@${handle} left contact details` : "Lead captured",
+        title: handle ? `${formatHandle(handle)} left contact details` : "Lead captured",
         subtitle: str(d.keyword) ?? automation,
         at,
         live: true,

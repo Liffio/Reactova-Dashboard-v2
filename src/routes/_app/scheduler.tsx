@@ -136,6 +136,7 @@ import {
   RecommendationItem,
 } from "@/components/lyra/insight-content";
 import { useLyraInsights } from "@/hooks/use-lyra-insights";
+import { bareHandle, formatHandle } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/scheduler")({
   head: () => ({ meta: [{ title: "Scheduler — Liffio" }] }),
@@ -480,7 +481,7 @@ function InstagramPreviewAvatar({
   profilePictureUrl?: string | null;
   className?: string;
 }) {
-  const initial = username.replace(/^@/, "").trim().slice(0, 1).toUpperCase() || "I";
+  const initial = (bareHandle(username) ?? "").slice(0, 1).toUpperCase() || "I";
   return (
     <div
       className={cn(
@@ -641,7 +642,7 @@ function IgStylePostPreview({
   /** REEL only — when set, Instagram shows this instead of a frame of the video. */
   coverImageUrl?: string;
 }) {
-  const handle = username.replace(/^@/, "").trim() || "yourbrand";
+  const handle = bareHandle(username) ?? "yourbrand";
   const carouselMedia = useMemo(
     () => (mediaUrls ?? []).map((url) => url.trim()).filter(Boolean),
     [mediaUrls],
@@ -1072,7 +1073,7 @@ function SchedulerPostDetailFields({
           <div className="flex flex-wrap gap-1.5">
             {dp.collaborators.map((name) => (
               <span key={name} className="rounded-full bg-muted px-2.5 py-1 text-xs">
-                @{name}
+                {formatHandle(name)}
               </span>
             ))}
           </div>
@@ -1757,10 +1758,7 @@ function SchedulerPage() {
       accountsQuery.data?.accounts?.find((a) => a.platformKey.toLowerCase() === "instagram") ??
       accountsQuery.data?.accounts?.[0];
     return {
-      handle:
-        acc?.platformUsername?.trim().replace(/^@/, "") ||
-        current.igHandle?.replace(/^@/, "") ||
-        "yourbrand",
+      handle: bareHandle(acc?.platformUsername) || bareHandle(current.igHandle) || "yourbrand",
       profilePictureUrl: acc?.profilePictureUrl ?? null,
     };
   }, [accountsQuery.data?.accounts, current.igHandle]);
@@ -2092,7 +2090,7 @@ function SchedulerPage() {
   );
 
   const addCollaborator = () => {
-    const name = form.collaboratorDraft.trim().replace(/^@+/, "");
+    const name = bareHandle(form.collaboratorDraft) ?? "";
     if (!name) return;
     if (form.collaborators.length >= COLLABORATORS_MAX) {
       // The backend rejects an over-long list rather than trimming it, so stop it here.
@@ -3788,7 +3786,7 @@ function SchedulerPage() {
                                 collaborator.status === "unverified") && (
                                 <AlertTriangle className="h-3 w-3" />
                               )}
-                              @{collaborator.username}
+                              {formatHandle(collaborator.username)}
                               <button
                                 type="button"
                                 onClick={() => removeCollaborator(collaborator.username)}

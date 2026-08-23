@@ -36,6 +36,18 @@ export const pageVariants: Variants = {
   exit: { opacity: 0, y: -6, transition: { duration: 0.18, ease: "easeIn" } },
 };
 
+/**
+ * Phone variant of `pageVariants`: opacity only, and short enough that a crossfade reads as one
+ * continuous surface rather than two pages trading places. No `y` — translating the page while a
+ * sticky topbar and a fixed tab bar hold still is what makes the desktop transition feel loose on
+ * a small screen.
+ */
+export const mobilePageVariants: Variants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { duration: 0.18, ease: "easeOut" } },
+  exit: { opacity: 0, transition: { duration: 0.12, ease: "easeIn" } },
+};
+
 export const cardHover = {
   rest: { scale: 1, boxShadow: "var(--shadow-soft)" },
   hover: {

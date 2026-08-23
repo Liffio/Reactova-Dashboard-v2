@@ -29,6 +29,7 @@ import {
   WaitlistedFrame,
 } from "./frames";
 import type { FrameActions } from "./frames";
+import { formatHandle } from "@/lib/format";
 
 /** SubmittingModal holds the wait; past this the page hands off to PageSkeleton. */
 const SUBMIT_HANDOFF_MS = 3000;
@@ -120,7 +121,9 @@ export function CreatorProgramPage() {
         },
       );
       if (result.meta === "connected") {
-        toast.success(result.igHandle ? `Connected as @${result.igHandle}` : "Instagram connected");
+        toast.success(
+          result.igHandle ? `Connected as ${formatHandle(result.igHandle)}` : "Instagram connected",
+        );
         void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
         invalidate();
         void refreshAuth();

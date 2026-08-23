@@ -67,6 +67,7 @@ import {
 import { useServerList } from "@/hooks/use-server-list";
 import { LIMITS, emailError, lengthError, duplicateAliasError } from "@/lib/validation";
 import { useTouched } from "@/hooks/use-touched";
+import { formatHandle } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings — Liffio" }] }),
@@ -301,7 +302,9 @@ function InstagramSettings() {
         },
       );
       if (result.meta === "connected") {
-        toast.success(result.igHandle ? `Connected as @${result.igHandle}` : "Instagram connected");
+        toast.success(
+          result.igHandle ? `Connected as ${formatHandle(result.igHandle)}` : "Instagram connected",
+        );
         // Switch to whichever workspace actually received the connection
         if (result.workspaceId && result.workspaceId !== workspaceId) {
           setCurrentId(result.workspaceId);
@@ -345,7 +348,9 @@ function InstagramSettings() {
             <div className="h-2.5 w-2.5 rounded-full bg-success" />
             <span className="text-sm font-medium text-success">Connected</span>
             {current.igHandle && (
-              <span className="text-sm text-muted-foreground">· @{current.igHandle}</span>
+              <span className="text-sm text-muted-foreground">
+                · {formatHandle(current.igHandle)}
+              </span>
             )}
           </div>
           <p className="text-sm text-muted-foreground">

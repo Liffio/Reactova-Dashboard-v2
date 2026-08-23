@@ -47,6 +47,7 @@ import {
   type AuditLogEntry,
 } from "@/lib/api/admin-creator-eligibility-api";
 import { reasonLabel } from "@/lib/creator-eligibility-copy";
+import { formatHandle } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/admin/creators")({
   head: () => ({ meta: [{ title: "Creator Program — Admin" }] }),
@@ -432,9 +433,7 @@ function WaitlistTable() {
             {rows.map((r) => (
               <tr key={r.applicationId} className="border-b last:border-0">
                 <td className="py-2.5 pr-4 tabular-nums">#{r.position}</td>
-                <td className="py-2.5 pr-4">
-                  {r.instagramUsername ? `@${r.instagramUsername}` : "—"}
-                </td>
+                <td className="py-2.5 pr-4">{formatHandle(r.instagramUsername) ?? "—"}</td>
                 <td className="py-2.5 pr-4 tabular-nums">{r.followerCount.toLocaleString()}</td>
                 <td className="py-2.5 pr-4 tabular-nums">{r.score}</td>
                 <td className="py-2.5 text-xs text-muted-foreground">

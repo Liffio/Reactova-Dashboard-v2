@@ -19,7 +19,8 @@ import { usePersistedState } from "@/hooks/use-persisted-state";
 import { lyraStorageKey } from "@/lib/lyra-persist";
 import { useApp } from "@/state/app-context";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format";
+import { OPEN_ASSISTANT_EVENT } from "@/lib/creator-assistant-events";
+import { formatDateTime, formatHandle } from "@/lib/format";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   uploadSchedulerMedia,
@@ -84,8 +85,12 @@ function friendlyLyraError(error: LyraError | null): string {
 }
 
 /** "Ask AI" pill trigger in the TopBar + right-side drawer for Lyra AI.
- *  Mounted inside the TopBar's button row in _app.tsx. */
-export function CreatorAssistant() {
+ *  Mounted inside the TopBar's button row in _app.tsx.
+ *
+ *  `triggerClassName` exists so the phone topbar can hide the pill without unmounting the
+ *  drawer with it — on mobile the way in is the sidebar entry behind "More", which reaches
+ *  this same instance through `OPEN_ASSISTANT_EVENT`. */
+export function CreatorAssistant({ triggerClassName }: { triggerClassName?: string }) {
   const { user, current } = useApp();
   const workspaceId = current.id;
   const userId = user?.id;
@@ -93,6 +98,14 @@ export function CreatorAssistant() {
   const base = lyraStorageKey(userId, workspaceId, "creator-assistant");
 
   const [open, setOpen] = usePersistedState(`${base}:open`, false);
+
+  // The mobile sidebar entry opens this drawer, which is mounted in the topbar and so is not
+  // an ancestor of it. Same one-event-in shape as the search palette.
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(OPEN_ASSISTANT_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_ASSISTANT_EVENT, onOpen);
+  }, [setOpen]);
   const [tab, setTab] = useState<"chat" | "history">("chat");
   const [messages, setMessages] = usePersistedState<CopilotMessage[]>(`${base}:messages`, []);
   /** Server-side conversation this session appends to — created lazily on the
@@ -447,7 +460,10 @@ export function CreatorAssistant() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open Lyra AI"
-        className="flex h-9 rounded-full bg-brand-gradient p-px transition-opacity hover:opacity-90"
+        className={cn(
+          "flex h-9 shrink-0 rounded-full bg-brand-gradient p-px transition-opacity hover:opacity-90",
+          triggerClassName,
+        )}
       >
         <span className="flex flex-1 items-center gap-1.5 rounded-full bg-card pl-2.5 pr-3">
           <Sparkles className="h-3.5 w-3.5" />
@@ -653,7 +669,7 @@ export function CreatorAssistant() {
                     onClick={() => setSelectedAccountId(acc.id)}
                     className="rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-accent"
                   >
-                    @{acc.platformUsername}
+                    {formatHandle(acc.platformUsername)}
                   </button>
                 ))}
               </div>

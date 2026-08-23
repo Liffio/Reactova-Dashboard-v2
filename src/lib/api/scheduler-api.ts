@@ -1,5 +1,6 @@
 import { apiUri } from "./apiUri";
 import { ApiError, apiRequest, apiUploadRequest } from "./http";
+import { formatHandle } from "@/lib/format";
 
 /** Match server `SCHEDULER_POST_MEDIA_MAX_BYTES`. */
 export const SCHEDULER_POST_MEDIA_CLIENT_MAX_BYTES = 15 * 1024 * 1024;
@@ -444,7 +445,7 @@ export async function validateCollaborator(
         reason:
           typeof shaped.reason === "string" && shaped.reason.trim()
             ? shaped.reason
-            : `Could not check @${username} with Instagram right now.`,
+            : `Could not check ${formatHandle(username)} with Instagram right now.`,
         code: shaped.code as CollaboratorValidationCode,
         username,
       };
@@ -455,7 +456,7 @@ export async function validateCollaborator(
       reason:
         e instanceof Error && e.message
           ? e.message
-          : `Could not check @${username} with Instagram right now. Try again in a moment.`,
+          : `Could not check ${formatHandle(username)} with Instagram right now. Try again in a moment.`,
       code: "CHECK_FAILED",
       username,
     };

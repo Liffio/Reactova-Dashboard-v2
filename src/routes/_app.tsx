@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LogOut, Moon, Settings, Sun, UserRound } from "lucide-react";
+import { LogOut, Settings, UserRound } from "lucide-react";
 
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import {
@@ -21,8 +21,7 @@ import { RegistryUpdatedListener } from "@/components/plugins/registry-updated-l
 import { NotificationsMenu } from "@/components/notifications/notifications-menu";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { PageTransition } from "@/components/page-transition";
-import { useTheme } from "@/state/theme-store";
-import { motion, AnimatePresence } from "framer-motion";
+import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { useLogoutMutation } from "@/hooks/use-auth";
 import { useSessionWatcher } from "@/hooks/use-session-watcher";
 import { useWorkspaceEvents } from "@/hooks/use-workspace-events";
@@ -45,44 +44,6 @@ function initials(name: string | undefined): string {
     .toUpperCase();
 }
 
-function ThemeToggle() {
-  const { resolved, toggle } = useTheme();
-  const dark = resolved === "dark";
-  return (
-    <button
-      onClick={toggle}
-      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-      className="relative grid h-9 w-9 place-items-center rounded-lg border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-    >
-      <AnimatePresence mode="wait" initial={false}>
-        {dark ? (
-          <motion.span
-            key="sun"
-            initial={{ rotate: -90, opacity: 0, scale: 0.7 }}
-            animate={{ rotate: 0, opacity: 1, scale: 1 }}
-            exit={{ rotate: 90, opacity: 0, scale: 0.7 }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute"
-          >
-            <Sun className="h-4 w-4" />
-          </motion.span>
-        ) : (
-          <motion.span
-            key="moon"
-            initial={{ rotate: 90, opacity: 0, scale: 0.7 }}
-            animate={{ rotate: 0, opacity: 1, scale: 1 }}
-            exit={{ rotate: -90, opacity: 0, scale: 0.7 }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute"
-          >
-            <Moon className="h-4 w-4" />
-          </motion.span>
-        )}
-      </AnimatePresence>
-    </button>
-  );
-}
-
 function TopBar() {
   const { user, current } = useApp();
   const navigate = useNavigate();
@@ -101,7 +62,10 @@ function TopBar() {
       // under the bar, which turns the brand gradient into grey mush the moment it passes behind.
       className="sticky z-20 flex h-[60px] items-center gap-3 border-b bg-topbar px-4 backdrop-blur-md backdrop-saturate-150 md:px-6"
     >
-      <SidebarTrigger className="-ml-1" />
+      {/* Phones reach this same sidebar through "More" in the tab bar, so the trigger is a
+          second door onto one room — and the width it costs is width the breadcrumb needs at
+          360px. */}
+      <SidebarTrigger className="-ml-1 hidden md:inline-flex" />
       <div className="hidden h-5 w-px bg-border md:block" />
       <BreadcrumbTitle />
       <MobileWorkspaceCrumb />
@@ -118,13 +82,17 @@ function TopBar() {
         <SearchIconTrigger className="md:hidden" />
         <InstagramAccountPill />
         <div className="hidden h-5 w-px bg-border sm:block" />
-        <CreatorAssistant />
-        <ThemeToggle />
+        {/* Both live in the mobile sidebar instead — see `AppSidebar`. The drawer and the
+            theme store are unaffected; only these triggers are hidden. */}
+        <CreatorAssistant triggerClassName="hidden md:flex" />
+        <ThemeToggle className="hidden md:grid" />
         <NotificationsMenu />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2.5 rounded-full border bg-card py-1 pl-1 pr-3 shadow-soft">
-              <div className="grid h-7 w-7 place-items-center rounded-full bg-brand-gradient text-xs font-semibold text-primary-foreground">
+              {/* `shrink-0`: without it flexbox squeezes this 28px square against the name
+                  block beside it and the "circle" renders as an oval. */}
+              <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-gradient text-xs font-semibold text-primary-foreground">
                 {initials(user?.name)}
               </div>
               <div className="hidden text-left leading-tight sm:block">

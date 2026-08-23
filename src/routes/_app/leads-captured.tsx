@@ -16,6 +16,7 @@ import { apiUri } from "@/lib/api/apiUri";
 import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
 import { LIMITS } from "@/lib/validation";
+import { bareHandle, formatHandle } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/leads-captured")({
   head: () => ({ meta: [{ title: "Leads Captured — Liffio" }] }),
@@ -150,7 +151,7 @@ function LeadsPage() {
                 <tbody>
                   {leads.map((lead) => {
                     const display = lead.igUsername ?? lead.displayName ?? lead.igUserId;
-                    const initials = display.replace(/^@/, "").slice(0, 2).toUpperCase();
+                    const initials = (bareHandle(display) ?? display).slice(0, 2).toUpperCase();
                     return (
                       <tr key={lead.id} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-6 py-3.5">
@@ -163,7 +164,7 @@ function LeadsPage() {
                             </Avatar>
                             <div className="min-w-0">
                               <p className="truncate font-medium">
-                                {lead.igUsername ? `${lead.igUsername}` : (lead.displayName ?? "—")}
+                                {formatHandle(lead.igUsername) ?? lead.displayName ?? "—"}
                               </p>
                               {lead.email && (
                                 <p className="truncate text-xs text-muted-foreground">

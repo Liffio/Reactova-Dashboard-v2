@@ -11,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AppSidebar } from "@/components/app-sidebar";
-import { InstagramAccountPill } from "@/components/shell/instagram-account-pill";
 import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trigger";
 import { GlobalSearchPalette } from "@/components/shell/global-search";
 import { BreadcrumbTitle, MobileWorkspaceCrumb } from "@/components/shell/breadcrumb-title";
@@ -22,6 +21,7 @@ import { NotificationsMenu } from "@/components/notifications/notifications-menu
 import { ProtectedRoute } from "@/components/auth/guards";
 import { PageTransition } from "@/components/page-transition";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { useLogoutMutation } from "@/hooks/use-auth";
 import { useSessionWatcher } from "@/hooks/use-session-watcher";
 import { useWorkspaceEvents } from "@/hooks/use-workspace-events";
@@ -78,9 +78,11 @@ function TopBar() {
       </div>
       <div className="min-w-0 flex-1 md:hidden" />
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex min-w-0 items-center gap-2">
         <SearchIconTrigger className="md:hidden" />
-        <InstagramAccountPill />
+        {/* Which workspace you are in decides what every number on the page means, and the
+            only other way to switch was the sidebar footer — behind "More" on a phone. */}
+        <WorkspaceSwitcher variant="topbar" />
         <div className="hidden h-5 w-px bg-border sm:block" />
         {/* Both live in the mobile sidebar instead — see `AppSidebar`. The drawer and the
             theme store are unaffected; only these triggers are hidden. */}

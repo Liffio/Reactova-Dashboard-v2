@@ -15,7 +15,6 @@ import { VolumeChart } from "@/components/dashboard/volume-chart";
 import { LiveActivity } from "@/components/dashboard/live-activity";
 import { LyraInsightRail } from "@/components/dashboard/lyra-insight-rail";
 import { RangeChips } from "@/components/dashboard/range-chips";
-import { InstagramAccountPill } from "@/components/shell/instagram-account-pill";
 import { PlatformMetricsPanel } from "@/components/admin/dashboard/platform-metrics-panel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -162,17 +161,6 @@ function DashboardPage() {
           </RangeChips>
         </div>
 
-        {/*
-          The account, full width, on the screen where the topbar pill is reduced to an avatar.
-          Whether the workspace has a working Instagram connection is the most important fact
-          about it and the one that silently breaks everything else, so it is the wrong thing to
-          abbreviate to a coloured dot.
-        */}
-        <InstagramAccountPill
-          expanded
-          className="flex h-12 w-full max-w-none justify-start md:hidden"
-        />
-
         {/* Platform-wide metrics — renders only for platform admins holding metrics_read. */}
         <PlatformMetricsPanel />
 
@@ -220,7 +208,7 @@ function DashboardPage() {
           {/* `items-start` on the grid plus this wrapper stop the main column stretching to
               the rail's height — that stretch is what left a tall blank panel under a short
               automation list. */}
-          <div className="space-y-6 lg:col-span-2">
+          <div className="min-w-0 space-y-6 lg:col-span-2">
             <motion.div variants={staggerItem} className="rounded-2xl border bg-card shadow-soft">
               <div className="flex items-center justify-between border-b px-6 py-4">
                 <div>
@@ -311,7 +299,7 @@ function DashboardPage() {
             {/* Tokens and Scheduler pair off under the automation list rather than stacking in
                 the rail. Both are short fixed-height cards, and side by side they occupy the
                 space a workspace with a handful of automations leaves blank. */}
-            <div className="grid gap-6 sm:grid-cols-2">
+            <div className="grid min-w-0 gap-6 sm:grid-cols-2">
               {/* Moved out of the KPI row. Four "how much happened" metrics plus one "how much
                 quota remains" gauge is a category error — the meter is not a fifth stat. */}
               <motion.div variants={staggerItem}>
@@ -366,7 +354,7 @@ function DashboardPage() {
             </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
             {/*
               Rail order is deliberate: what is happening now, then what it means, then what it
               costs, then what is queued.

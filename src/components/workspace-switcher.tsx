@@ -48,16 +48,24 @@ function workspaceInitials(name: string) {
 function WorkspaceAvatar({
   name,
   profilePictureUrl,
+  className,
 }: {
   name: string;
   profilePictureUrl: string | null;
+  /** The topbar pill needs a 24px avatar where the sidebar row wants 32px. */
+  className?: string;
 }) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const src = profilePictureUrl?.trim() || null;
 
   if (!src || failedSrc === src) {
     return (
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-gradient text-xs font-semibold text-primary-foreground">
+      <span
+        className={cn(
+          "grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-gradient text-xs font-semibold text-primary-foreground",
+          className,
+        )}
+      >
         {workspaceInitials(name)}
       </span>
     );
@@ -66,7 +74,7 @@ function WorkspaceAvatar({
     <img
       src={src}
       alt=""
-      className="h-8 w-8 shrink-0 rounded-lg object-cover"
+      className={cn("h-8 w-8 shrink-0 rounded-lg object-cover", className)}
       onError={() => setFailedSrc(src)}
     />
   );
@@ -114,7 +122,19 @@ function instagramLine(workspace: Workspace): string | null {
 }
 
 /** Workspace switcher — lives in the sidebar footer. */
-export function WorkspaceSwitcher() {
+/**
+ * Workspace switcher.
+ *
+ * Two triggers, one menu. `variant="sidebar"` (default) is the full-width footer row;
+ * `variant="topbar"` is a compact pill for the header, where the row's avatar-plus-two-lines
+ * would not fit a 60px bar. The menu itself — the workspace list, the plan badges, the create
+ * dialog — is identical, because a second copy is a second thing to keep correct.
+ */
+export function WorkspaceSwitcher({
+  variant = "sidebar",
+}: {
+  variant?: "sidebar" | "topbar";
+} = {}) {
   const { current, workspaces, setCurrentId, refreshAuth } = useApp();
   const { isMobile, setOpenMobile } = useSidebar();
   const queryClient = useQueryClient();
@@ -135,103 +155,127 @@ export function WorkspaceSwitcher() {
     onError: (error) => toast.error((error as Error).message),
   });
 
+  const topbar = variant === "topbar";
+
+  const menu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {topbar ? (
+          <button
+            type="button"
+            aria-label={`Workspace: ${current.name}`}
+            className="flex h-9 min-w-0 max-w-[190px] shrink-0 items-center gap-2 rounded-lg border bg-card px-2 shadow-soft transition-colors hover:bg-accent"
+          >
+            <WorkspaceAvatar
+              name={current.name}
+              profilePictureUrl={current.profilePictureUrl}
+              className="size-6"
+            />
+            <span className="hidden min-w-0 flex-1 truncate text-left text-xs font-medium sm:block">
+              {current.name}
+            </span>
+            <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground/60" />
+          </button>
+        ) : (
+          <SidebarMenuButton size="lg" tooltip={current.name}>
+            <WorkspaceAvatar name={current.name} profilePictureUrl={current.profilePictureUrl} />
+            <span className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate text-sm font-semibold text-sidebar-foreground">
+                  {current.name}
+                </span>
+                <PlanBadge plan={current.plan} className="shrink-0" />
+              </span>
+              <span className="truncate text-[11px] text-muted-foreground">
+                {formatHandle(current.igHandle) ?? current.handle}
+              </span>
+            </span>
+            <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground/60 group-data-[collapsible=icon]:hidden" />
+          </SidebarMenuButton>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        className="min-w-56 rounded-lg"
+        align={topbar ? "end" : "start"}
+        side={topbar || isMobile ? "bottom" : "right"}
+        sideOffset={4}
+      >
+        <DropdownMenuLabel className="text-xs text-muted-foreground">Workspaces</DropdownMenuLabel>
+        {workspaces.map((workspace) => (
+          <DropdownMenuItem
+            key={workspace.id}
+            className="cursor-pointer gap-2 p-2"
+            onClick={() => {
+              setCurrentId(workspace.id);
+              if (isMobile) setOpenMobile(false);
+            }}
+          >
+            <StatusDot status={workspace.status} />
+            <span className="grid min-w-0 flex-1 leading-tight">
+              <span className="truncate">{workspace.name}</span>
+              {instagramLine(workspace) ? (
+                <span className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
+                  <Instagram className="size-3 shrink-0" />
+                  <span className="truncate">{instagramLine(workspace)}</span>
+                </span>
+              ) : workspace.igHandle ? null : (
+                <span className="truncate text-[11px] text-muted-foreground/70">
+                  No Instagram connected
+                </span>
+              )}
+            </span>
+            <PlanBadge plan={workspace.plan} />
+            {workspace.id === current.id ? (
+              <Check className="size-4 shrink-0 text-primary" />
+            ) : null}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="cursor-pointer gap-2 p-2 text-primary"
+          onSelect={(event) => {
+            event.preventDefault();
+            setCreateOpen((prev) => !prev);
+          }}
+        >
+          <Plus className="size-4" />
+          Add workspace
+        </DropdownMenuItem>
+        {createOpen ? (
+          <div className="space-y-2 border-t p-3">
+            <Input
+              value={workspaceName}
+              onChange={(event) => setWorkspaceName(event.target.value)}
+              placeholder="Workspace name (optional)"
+              className="h-8"
+              maxLength={80}
+            />
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Instagram is linked per workspace in Settings after creation.
+            </p>
+            <Button
+              type="button"
+              className="h-8 w-full"
+              disabled={createWorkspaceMutation.isPending}
+              onClick={() =>
+                createWorkspaceMutation.mutate({ name: workspaceName.trim() || undefined })
+              }
+            >
+              {createWorkspaceMutation.isPending ? "Creating…" : "Create workspace"}
+            </Button>
+          </div>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  // The topbar is not a sidebar: `SidebarMenu`/`SidebarMenuItem` carry list semantics and sidebar
+  // width rules that a header pill must not inherit.
+  if (topbar) return menu;
+
   return (
     <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton size="lg" tooltip={current.name}>
-              <WorkspaceAvatar name={current.name} profilePictureUrl={current.profilePictureUrl} />
-              <span className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-sm font-semibold text-sidebar-foreground">
-                    {current.name}
-                  </span>
-                  <PlanBadge plan={current.plan} className="shrink-0" />
-                </span>
-                <span className="truncate text-[11px] text-muted-foreground">
-                  {formatHandle(current.igHandle) ?? current.handle}
-                </span>
-              </span>
-              <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground/60 group-data-[collapsible=icon]:hidden" />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-            align="start"
-            side={isMobile ? "bottom" : "right"}
-            sideOffset={4}
-          >
-            <DropdownMenuLabel className="text-xs text-muted-foreground">
-              Workspaces
-            </DropdownMenuLabel>
-            {workspaces.map((workspace) => (
-              <DropdownMenuItem
-                key={workspace.id}
-                className="cursor-pointer gap-2 p-2"
-                onClick={() => {
-                  setCurrentId(workspace.id);
-                  if (isMobile) setOpenMobile(false);
-                }}
-              >
-                <StatusDot status={workspace.status} />
-                <span className="grid min-w-0 flex-1 leading-tight">
-                  <span className="truncate">{workspace.name}</span>
-                  {instagramLine(workspace) ? (
-                    <span className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
-                      <Instagram className="size-3 shrink-0" />
-                      <span className="truncate">{instagramLine(workspace)}</span>
-                    </span>
-                  ) : workspace.igHandle ? null : (
-                    <span className="truncate text-[11px] text-muted-foreground/70">
-                      No Instagram connected
-                    </span>
-                  )}
-                </span>
-                <PlanBadge plan={workspace.plan} />
-                {workspace.id === current.id ? (
-                  <Check className="size-4 shrink-0 text-primary" />
-                ) : null}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="cursor-pointer gap-2 p-2 text-primary"
-              onSelect={(event) => {
-                event.preventDefault();
-                setCreateOpen((prev) => !prev);
-              }}
-            >
-              <Plus className="size-4" />
-              Add workspace
-            </DropdownMenuItem>
-            {createOpen ? (
-              <div className="space-y-2 border-t p-3">
-                <Input
-                  value={workspaceName}
-                  onChange={(event) => setWorkspaceName(event.target.value)}
-                  placeholder="Workspace name (optional)"
-                  className="h-8"
-                  maxLength={80}
-                />
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Instagram is linked per workspace in Settings after creation.
-                </p>
-                <Button
-                  type="button"
-                  className="h-8 w-full"
-                  disabled={createWorkspaceMutation.isPending}
-                  onClick={() =>
-                    createWorkspaceMutation.mutate({ name: workspaceName.trim() || undefined })
-                  }
-                >
-                  {createWorkspaceMutation.isPending ? "Creating…" : "Create workspace"}
-                </Button>
-              </div>
-            ) : null}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
+      <SidebarMenuItem>{menu}</SidebarMenuItem>
     </SidebarMenu>
   );
 }

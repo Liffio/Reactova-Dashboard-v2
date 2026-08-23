@@ -27,7 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatNum } from "@/lib/format";
+import { formatNum, bareHandle, formatHandle } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 import { useCan } from "@/hooks/use-auth";
 import { toast } from "@/lib/toast";
@@ -132,7 +132,9 @@ export function InstagramAccountPill({
         },
       );
       if (result.meta === "connected") {
-        toast.success(result.igHandle ? `Connected as @${result.igHandle}` : "Instagram connected");
+        toast.success(
+          result.igHandle ? `Connected as ${formatHandle(result.igHandle)}` : "Instagram connected",
+        );
         void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
         void queryClient.invalidateQueries({ queryKey: ["dashboard", current.id] });
         void refreshAuth();
@@ -176,7 +178,7 @@ export function InstagramAccountPill({
   const avatar = current.profilePictureUrl;
   // Stored with or without the sigil depending on how the account was linked, and all three
   // render sites prepend one — which is how it reached the topbar as "@@xsquare337".
-  const handle = (current.igHandle ?? "instagram").replace(/^@+/, "") || "instagram";
+  const handle = bareHandle(current.igHandle) ?? "instagram";
 
   return (
     <>
@@ -187,7 +189,7 @@ export function InstagramAccountPill({
             title={
               expiring && current.igTokenExpiresAt
                 ? `Instagram access expires in ${daysUntil(current.igTokenExpiresAt)} day(s) — reconnect to keep automations running`
-                : `Connected as @${handle}`
+                : `Connected as ${formatHandle(handle)}`
             }
             className={cn(
               "inline-flex h-9 max-w-[220px] items-center gap-2 rounded-full border bg-card pl-1 pr-3 text-left shadow-soft transition-colors",

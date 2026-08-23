@@ -12,6 +12,7 @@ import { BENEFITS } from "./copy";
 import { CREATOR_PROGRAM_LINKS } from "./links";
 import { formatCount } from "./format";
 import type { CreatorAccount, CreatorThresholdsResponse } from "./contract";
+import { formatHandle } from "@/lib/format";
 
 const CONSENTS = [
   { id: "terms", label: "I agree to the Creator Program Terms" },
@@ -103,7 +104,7 @@ export function ConfirmJoinModal({
               <Avatar url={account.profilePictureUrl} handle={account.handle} size={34} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13.5px] font-semibold">
-                  {account.handle ? `@${account.handle}` : "Instagram account"}
+                  {formatHandle(account.handle) ?? "Instagram account"}
                 </div>
                 <Meta>
                   {account.accountType} account · {formatCount(account.followerCount)} followers

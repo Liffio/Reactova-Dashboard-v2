@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { createWorkspace } from "@/lib/api/workspaces-api";
 import { useApp, type PlanName, type Workspace, type WorkspaceStatus } from "@/state/app-context";
+import { bareHandle, formatHandle } from "@/lib/format";
 
 function workspaceInitials(name: string) {
   return name
@@ -107,9 +108,9 @@ function StatusDot({ status }: { status: WorkspaceStatus }) {
  * *is* the handle (see `app-context`'s label fallback), so a second line would just repeat it.
  */
 function instagramLine(workspace: Workspace): string | null {
-  const handle = workspace.igHandle?.replace(/^@/, "").trim();
+  const handle = bareHandle(workspace.igHandle);
   if (!handle) return null;
-  return workspace.name.trim().toLowerCase() === handle.toLowerCase() ? null : `@${handle}`;
+  return workspace.name.trim().toLowerCase() === handle.toLowerCase() ? null : formatHandle(handle);
 }
 
 /** Workspace switcher — lives in the sidebar footer. */
@@ -149,7 +150,7 @@ export function WorkspaceSwitcher() {
                   <PlanBadge plan={current.plan} className="shrink-0" />
                 </span>
                 <span className="truncate text-[11px] text-muted-foreground">
-                  {current.igHandle ? `@${current.igHandle.replace(/^@/, "")}` : current.handle}
+                  {formatHandle(current.igHandle) ?? current.handle}
                 </span>
               </span>
               <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground/60 group-data-[collapsible=icon]:hidden" />

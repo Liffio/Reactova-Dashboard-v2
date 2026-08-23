@@ -20,7 +20,7 @@ import { lyraStorageKey } from "@/lib/lyra-persist";
 import { useApp } from "@/state/app-context";
 import { cn } from "@/lib/utils";
 import { OPEN_ASSISTANT_EVENT } from "@/lib/creator-assistant-events";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatHandle } from "@/lib/format";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   uploadSchedulerMedia,
@@ -669,7 +669,7 @@ export function CreatorAssistant({ triggerClassName }: { triggerClassName?: stri
                     onClick={() => setSelectedAccountId(acc.id)}
                     className="rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-accent"
                   >
-                    @{acc.platformUsername}
+                    {formatHandle(acc.platformUsername)}
                   </button>
                 ))}
               </div>

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { agencySwitchWorkspace, getAgencyMasterDashboard } from "@/lib/api/agency-api";
-import { formatNum } from "@/lib/format";
+import { formatNum, bareHandle, formatHandle } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 
 export const Route = createFileRoute("/_app/agency")({
@@ -163,9 +163,11 @@ function AgencyPage() {
                       <td className="px-6 py-3.5">
                         <div className="flex items-center gap-3">
                           <div className="grid h-8 w-8 place-items-center rounded-full bg-brand-gradient text-xs font-semibold text-primary-foreground">
-                            {client.handle.replace(/^@/, "").slice(0, 2).toUpperCase()}
+                            {(bareHandle(client.handle) ?? "").slice(0, 2).toUpperCase()}
                           </div>
-                          <span className="font-medium">{client.handle}</span>
+                          <span className="font-medium">
+                            {formatHandle(client.handle) ?? client.handle}
+                          </span>
                         </div>
                       </td>
                       <td className="px-4 py-3.5 capitalize text-muted-foreground text-xs">

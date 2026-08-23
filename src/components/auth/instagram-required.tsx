@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { openMetaOAuthPopup } from "@/lib/meta-oauth-popup";
 import { getMetaOAuthStartUrl, isWorkspaceInstagramConnected } from "@/lib/api/integrations-api";
 import { useApp } from "@/state/app-context";
+import { formatHandle } from "@/lib/format";
 
 type Props = {
   children: ReactNode;
@@ -56,7 +57,9 @@ function InstagramGate({
         },
       );
       if (result.meta === "connected") {
-        toast.success(result.igHandle ? `Connected as @${result.igHandle}` : "Instagram connected");
+        toast.success(
+          result.igHandle ? `Connected as ${formatHandle(result.igHandle)}` : "Instagram connected",
+        );
         void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
         void refreshAuth();
       } else if (result.reason && result.reason !== "user_canceled") {

@@ -63,7 +63,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatHandle } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { ApiError } from "@/lib/api/http";
 import { usePlatformCan } from "@/hooks/use-platform-authz";
@@ -2486,7 +2486,7 @@ function InstagramAccountsCard({ wsId }: { wsId: string }) {
                 return (
                   <TableRow key={acct.id}>
                     <TableCell>
-                      <p className="text-sm font-medium">@{acct.platformUsername}</p>
+                      <p className="text-sm font-medium">{formatHandle(acct.platformUsername)}</p>
                       <p className="text-xs text-muted-foreground">
                         {acct.isActive ? "Active" : "Inactive"}
                         {acct.followerCount != null

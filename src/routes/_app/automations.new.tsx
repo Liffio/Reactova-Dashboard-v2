@@ -70,6 +70,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { LyraAutomationCopilotOutput, LyraAutomationDraftFields } from "@/lib/api/lyra-api";
+import { bareHandle } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/automations/new")({
   head: () => ({ meta: [{ title: "New automation — Liffio" }] }),
@@ -1232,7 +1233,7 @@ function DmPreview({
   followBeforeDm: boolean;
   followUps: FollowUpDraft[];
 }) {
-  const handle = username.replace(/^@/, "");
+  const handle = bareHandle(username) ?? "";
   const delayLabel = (minutes: number) =>
     DELAY_OPTIONS.find((d) => d.minutes === minutes)?.label ?? `${minutes} min`;
 

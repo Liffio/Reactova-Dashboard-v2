@@ -4,6 +4,7 @@ import { Avatar, Card, Figure, Meta, Pending, StatusPill, Tick } from "./primiti
 import { BENEFITS, TIMELINE_LABEL, checkLabel, checkValue } from "./copy";
 import { formatCount, formatDayMonth, formatEngagement, formatSyncedAgo } from "./format";
 import type { CreatorAccount, EligibilityCheck, TimelineEvent } from "./contract";
+import { formatHandle } from "@/lib/format";
 
 /**
  * The three stats under the account header. Engagement is here even when it's
@@ -52,7 +53,7 @@ function AccountHeader({ account, size = 42 }: { account: CreatorAccount; size?:
       <Avatar url={account.profilePictureUrl} handle={account.handle} size={size} />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[14px] font-semibold">
-          {account.handle ? `@${account.handle}` : "Instagram account"}
+          {formatHandle(account.handle) ?? "Instagram account"}
         </div>
         <Meta className="mt-px">{account.accountType} account</Meta>
       </div>
@@ -83,7 +84,7 @@ export function ConnectionCard({
         <Avatar url={account.profilePictureUrl} handle={account.handle} size={42} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[14px] font-semibold">
-            {account.handle ? `@${account.handle}` : "Instagram account"}
+            {formatHandle(account.handle) ?? "Instagram account"}
           </div>
           <Meta className="mt-px">{account.accountType} account</Meta>
         </div>

@@ -11,6 +11,7 @@ import {
 } from "@/lib/meta-oauth-popup";
 import { isWorkspaceInstagramConnected } from "@/lib/api/integrations-api";
 import { useApp } from "@/state/app-context";
+import { formatHandle } from "@/lib/format";
 
 const log = (...args: unknown[]) => console.log("[meta-oauth:complete]", ...args);
 const warn = (...args: unknown[]) => console.warn("[meta-oauth:complete]", ...args);
@@ -140,7 +141,9 @@ function MetaOAuthComplete() {
         if (cancelled) return;
 
         toast.success(
-          igHandle ? `Instagram connected as ${igHandle}` : "Instagram connected successfully",
+          igHandle
+            ? `Instagram connected as ${formatHandle(igHandle)}`
+            : "Instagram connected successfully",
         );
         log("navigating to:", returnTo);
         if (returnTo === "settings") {

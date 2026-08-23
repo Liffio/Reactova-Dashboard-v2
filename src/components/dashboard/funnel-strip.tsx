@@ -2,7 +2,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   ArrowDownRight,
   ArrowUpRight,
-  ChevronRight,
   MessageCircle,
   MousePointerClick,
   Send,
@@ -100,23 +99,24 @@ function Gate({ rate, caption }: { rate: number | null; caption: string }) {
   return (
     <div
       className={cn(
-        // Mobile: the gate *is* the divider between two rows. A pill floating on a vertical rule
-        // needs vertical room the stacked layout does not have — the rule was `h-full` on a box
-        // whose only content was the pill, so the connector rendered as a stub. As a divider it
-        // costs one hairline and a line of text, and still sits between the two steps it relates.
-        // 52px = the row's px-2 (8) + icon (32) + gap-3 (12), so the rate starts on the same
-        // vertical as the labels above and below it rather than 8px adrift.
-        "relative flex items-center gap-1.5 border-t py-1.5 pl-[52px]",
-        // Desktop: unchanged — a rule across the gap with the pill centred on it.
-        "md:justify-center md:gap-0 md:border-t-0 md:py-0 md:pl-0",
-        "md:before:absolute md:before:left-0 md:before:top-1/2 md:before:h-px md:before:w-full md:before:bg-border md:before:content-['']",
+        // Mobile, per `plan/DASHBOARD/liffio-dashboard-redesign.html`: a 32px connector between
+        // two stacked stages, with the rule running *vertically* at 26px so it points along the
+        // flow. The previous attempt drew it as a horizontal divider, which reads as a separator
+        // between unrelated rows rather than a funnel step.
+        "relative flex h-8 items-center justify-start gap-2 pl-[26px]",
+        "before:absolute before:bottom-0 before:left-[26px] before:top-0 before:w-[1.5px] before:bg-border before:content-['']",
+        // Desktop: unchanged — a horizontal rule across the gap with the pill centred on it.
+        "md:h-auto md:justify-center md:gap-0 md:pl-0",
+        "md:before:bottom-auto md:before:left-0 md:before:top-1/2 md:before:h-px md:before:w-full",
       )}
     >
       <span
         className={cn(
-          "relative z-[1] flex items-center gap-1.5 leading-none",
-          // The pill chrome is desktop-only: on a divider, a bordered capsule reads as a control.
-          "md:flex-col md:gap-0 md:rounded-full md:border md:px-2 md:py-1",
+          // `-ml-1.5` pulls the value onto the rule and `bg-card` masks it, so the line reads as
+          // passing behind the number rather than stopping dead at it.
+          "relative z-[1] -ml-1.5 flex items-center gap-1.5 bg-card px-1 leading-none",
+          // Capsule chrome is desktop-only: on a vertical rail a bordered pill reads as a control.
+          "md:ml-0 md:flex-col md:gap-0 md:rounded-full md:border md:px-2 md:py-1",
           weak ? "md:border-warning-edge md:bg-warning-wash" : "md:border-border md:bg-card",
         )}
       >
@@ -154,7 +154,7 @@ export function FunnelStrip({ stages }: { stages: FunnelStageData[] }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border bg-card p-3 shadow-soft sm:p-5",
+        "rounded-2xl border bg-card p-1.5 shadow-soft sm:p-5",
         // Below md the seven cells read as a list: four compact rows divided by the three
         // gates, which carry their own hairline — hence no row gap. Above md the same cells
         // lay out as the horizontal strip, untouched.
@@ -172,46 +172,35 @@ export function FunnelStrip({ stages }: { stages: FunnelStageData[] }) {
             <Link
               to={stage.to}
               className={cn(
-                // Mobile: icon · label · number · delta · chevron on one 44px-tall line. Four of
-                // these plus three gate dividers is roughly a third of the height the stacked
-                // cards cost, which is the difference between the funnel fitting above the fold
-                // and burying everything under it.
-                "flex items-center gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-accent/60",
-                // Desktop: the original stacked tile, unchanged.
-                "md:h-full md:flex-col md:items-stretch md:gap-2 md:p-3",
+                // Mobile, per the redesign's "FUNNEL rotates to vertical": a two-row cell — label
+                // and icon across the top, value bottom-left, delta bottom-right. Two rows rather
+                // than one line because the value is the point of the stage and 27px of it does
+                // not fit beside a label.
+                "grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 rounded-xl p-3 transition-colors hover:bg-accent/60",
+                "md:flex md:h-full md:flex-col md:items-stretch md:gap-2",
               )}
             >
-              {/* Leading icon on the row; at md+ the icon moves into the header beside the label. */}
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground md:hidden">
-                <stage.icon className="h-4 w-4" />
-              </span>
-
-              {/* `flex-none` at md+: in a column this would otherwise grow to fill the tile. */}
-              <div className="flex min-w-0 flex-1 items-start justify-between gap-2 md:flex-none">
+              <div className="col-span-2 row-start-1 flex min-w-0 items-start justify-between gap-2 md:col-auto md:row-auto">
                 <span className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   {stage.label}
                 </span>
-                <span className="hidden h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground md:grid">
+                <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground md:h-7 md:w-7">
                   <stage.icon className="h-3.5 w-3.5" />
                 </span>
               </div>
 
-              <span className="shrink-0 font-display text-lg font-semibold tabular-nums md:text-2xl md:tracking-tight">
+              <span className="col-start-1 row-start-2 min-w-0 truncate font-display text-[27px] font-semibold leading-none tracking-tight tabular-nums md:col-auto md:row-auto md:text-2xl md:leading-normal">
                 {formatNum(stage.value)}
               </span>
 
-              {/* Illegible under ~340px, and the number beside it already carries the level. */}
+              {/* Illegible under ~340px, and the value beside it already carries the level. */}
               <div className="hidden md:block">
                 <Sparkline series={stage.series} colorVar={stage.colorVar} />
               </div>
 
-              <div className="flex shrink-0 items-center gap-2 md:mt-auto">
+              <div className="col-start-2 row-start-2 flex items-center justify-end gap-2 md:col-auto md:row-auto md:mt-auto md:justify-start">
                 {typeof stage.delta === "number" && <Delta delta={stage.delta} />}
               </div>
-
-              {/* The row is a link; on a tile the whole card reads as one, but a list row needs
-                  the affordance spelled out. */}
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground md:hidden" />
             </Link>
           </motion.div>
           {i < stages.length - 1 && (

@@ -13,6 +13,7 @@ import {
 } from "@/components/dashboard/funnel-strip";
 import { VolumeChart } from "@/components/dashboard/volume-chart";
 import { LiveActivity } from "@/components/dashboard/live-activity";
+import { LyraInsightRail } from "@/components/dashboard/lyra-insight-rail";
 import { RangeChips } from "@/components/dashboard/range-chips";
 import { InstagramAccountPill } from "@/components/shell/instagram-account-pill";
 import { PlatformMetricsPanel } from "@/components/admin/dashboard/platform-metrics-panel";
@@ -30,14 +31,6 @@ import {
 import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 import { staggerContainer, staggerItem } from "@/lib/motion";
-import { InsightsCard } from "@/components/lyra/insights-card";
-import {
-  InsightSummary,
-  InsightPointList,
-  AnalyticsHighlight,
-  RecommendationItem,
-} from "@/components/lyra/insight-content";
-import { useLyraInsights } from "@/hooks/use-lyra-insights";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({
@@ -75,14 +68,6 @@ function DashboardPage() {
     queryKey: ["dashboard", workspaceId, rangeKey(range)],
     queryFn: () => getDashboard(workspaceId, rangeQueryParams(range)),
     enabled: hasRealWorkspace,
-  });
-
-  const insights = useLyraInsights({
-    task: "insight",
-    workspaceId,
-    userId: user?.id,
-    input: { focus: "business_insights" },
-    queryKeyExtra: ["dashboard"],
   });
 
   const data = dashboardQuery.data;
@@ -219,56 +204,6 @@ function DashboardPage() {
           data?.series && <VolumeChart series={data.series} />
         )}
 
-        <motion.div variants={staggerItem} initial="hidden" animate="show">
-          <InsightsCard
-            title="AI Insights"
-            data={insights.data}
-            isLoading={insights.isLoading}
-            isRefreshing={insights.isRefreshing}
-            isResyncing={insights.isResyncing}
-            refreshError={insights.refreshError}
-            resyncError={insights.resyncError}
-            refreshCooldownUntil={insights.refreshCooldownUntil}
-            resyncCooldownUntil={insights.resyncCooldownUntil}
-            lastUpdatedAt={insights.lastUpdatedAt}
-            loadingStartedAt={insights.loadingStartedAt}
-            resyncStartedAt={insights.resyncStartedAt}
-            onRefresh={() => void insights.refresh()}
-            onResync={() => void insights.resync()}
-            onCancelRefresh={insights.cancelRefresh}
-            onCancelResync={insights.cancelResync}
-            className="shadow-soft"
-            renderBody={(data) => (
-              <>
-                <InsightSummary text={data.summary} />
-                <InsightPointList
-                  tone="insight"
-                  items={data.insights}
-                  renderItem={(item) => (
-                    <AnalyticsHighlight
-                      finding={item.finding}
-                      metric={item.metric}
-                      severity={item.severity}
-                    />
-                  )}
-                />
-                <InsightPointList
-                  tone="recommendation"
-                  items={data.recommendations}
-                  renderItem={(item) => (
-                    <RecommendationItem
-                      action={item.action}
-                      rationale={item.rationale}
-                      priority={item.priority}
-                      expectedImpact={item.expectedImpact}
-                    />
-                  )}
-                />
-              </>
-            )}
-          />
-        </motion.div>
-
         <motion.section
           variants={staggerContainer}
           initial="hidden"
@@ -373,6 +308,13 @@ function DashboardPage() {
             */}
             <motion.div variants={staggerItem}>
               <LiveActivity seed={data?.activityFeed ?? []} />
+            </motion.div>
+
+            {/* A-4.6 puts this directly under the activity feed: what is happening, then what it
+                means. It sat full-width above this grid until now, which put the interpretation
+                before the evidence and gave a three-bullet insight the widest column on the page. */}
+            <motion.div variants={staggerItem}>
+              <LyraInsightRail workspaceId={workspaceId} userId={user?.id} />
             </motion.div>
 
             {/* Moved out of the KPI row. Four "how much happened" metrics plus one "how much

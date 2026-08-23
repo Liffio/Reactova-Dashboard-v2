@@ -11,6 +11,39 @@ export type DashboardResponse = {
     status: "ACTIVE" | "PAUSED" | "PAYMENT_FAILED" | "INSTAGRAM_DISCONNECTED";
     billingCycleEnd: string | null;
   };
+  /**
+   * The connected Instagram account. Separate from `workspace.handle` because the topbar pill
+   * needs the expiry too — a token that lapses stops every automation in the workspace silently.
+   */
+  instagram: {
+    connected: boolean;
+    handle: string | null;
+    avatarUrl: string | null;
+    followerCount: number | null;
+    tokenExpiresAt: string | null;
+  };
+  /**
+   * The four stages as one funnel. `commentsMatched` counts DM jobs at every status, so the first
+   * gate is delivery rate and the two after it are conversion.
+   */
+  funnel: {
+    commentsMatched: number;
+    dmsSent: number;
+    leadsCaptured: number;
+    linkClicks: number;
+  };
+  /** Daily, gap-filled, over the selected window. */
+  series: {
+    dms: Array<{ day: string; value: number }>;
+    leads: Array<{ day: string; value: number }>;
+    clicks: Array<{ day: string; value: number }>;
+  };
+  period: {
+    start: string;
+    end: string;
+    /** Panels that do NOT re-window with the date picker, named by the server. */
+    ignoredBy: string[];
+  };
   totals: {
     dmsSentThisMonth: number;
     dmsSentLastMonth: number;
@@ -23,6 +56,8 @@ export type DashboardResponse = {
     linkClicksThisMonth: number;
     linkClicksLastMonth: number;
     clickTrendPercent: number | null;
+    leadsCapturedLastMonth: number;
+    leadsTrendPercent: number | null;
     schedulerScheduled?: number;
     schedulerDrafts?: number;
     schedulerFailed?: number;
@@ -35,6 +70,14 @@ export type DashboardResponse = {
     status: "ACTIVE" | "PAUSED" | "DRAFT";
     dmsSentThisMonth: number;
     createdAt: string;
+  }>;
+  /** Newest first. Seeds the live feed so it is populated before the first socket event. */
+  activityFeed: Array<{
+    id: string;
+    type: "dm" | "lead" | "click";
+    title: string;
+    subtitle: string | null;
+    at: string;
   }>;
   workspaceSummaries: Array<{
     id: string;

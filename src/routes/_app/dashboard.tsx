@@ -1,21 +1,20 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  Instagram,
-  MessageCircle,
-  MousePointerClick,
-  Plus,
-  Sparkles,
-  UserPlus,
-  Zap,
-} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowRight, Plus, Zap } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { StatCard } from "@/components/dashboard/stat-card";
 import { TokenMeter } from "@/components/dashboard/token-meter";
+import {
+  FunnelStrip,
+  FUNNEL_STAGE_META,
+  type FunnelStageData,
+} from "@/components/dashboard/funnel-strip";
+import { VolumeChart } from "@/components/dashboard/volume-chart";
+import { LiveActivity } from "@/components/dashboard/live-activity";
+import { RangeChips } from "@/components/dashboard/range-chips";
+import { InstagramAccountPill } from "@/components/shell/instagram-account-pill";
 import { PlatformMetricsPanel } from "@/components/admin/dashboard/platform-metrics-panel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,12 +27,9 @@ import {
   rangeQueryParams,
   type DashboardDateRange,
 } from "@/components/dashboard/date-range-picker";
-import { getMetaOAuthStartUrl, isWorkspaceInstagramConnected } from "@/lib/api/integrations-api";
-import { openMetaOAuthPopup } from "@/lib/meta-oauth-popup";
 import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 import { staggerContainer, staggerItem } from "@/lib/motion";
-import { toast } from "@/lib/toast";
 import { InsightsCard } from "@/components/lyra/insights-card";
 import {
   InsightSummary,
@@ -67,48 +63,9 @@ function greeting(): string {
 }
 
 function DashboardPage() {
-  const { current, user, workspaces, refreshAuth } = useApp();
+  const { current, user } = useApp();
   const workspaceId = current.id;
   const hasRealWorkspace = Boolean(workspaceId) && workspaceId !== "default";
-  const queryClient = useQueryClient();
-  const [isConnecting, setIsConnecting] = useState(false);
-
-  const handleConnect = async () => {
-    if (isConnecting) return;
-    setIsConnecting(true);
-    try {
-      const result = await openMetaOAuthPopup(
-        async () => {
-          const { url } = await getMetaOAuthStartUrl(workspaceId, "settings");
-          return url;
-        },
-        {
-          oauthWorkspaceId: workspaceId,
-          checkConnected: current.instagramConnected
-            ? undefined
-            : () => isWorkspaceInstagramConnected(workspaceId),
-          verifyConnected: () => isWorkspaceInstagramConnected(workspaceId),
-        },
-      );
-      if (result.meta === "connected") {
-        toast.success(result.igHandle ? `Connected as @${result.igHandle}` : "Instagram connected");
-        void queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-        void queryClient.invalidateQueries({ queryKey: ["dashboard", workspaceId] });
-        void refreshAuth();
-      } else if (result.reason && result.reason !== "user_canceled") {
-        toast.error("Instagram connect failed. Please try again.");
-      }
-    } catch (e) {
-      const msg = (e as Error).message ?? "";
-      if (msg.includes("Popup blocked")) {
-        toast.error("Popup blocked — allow popups for this site and try again.");
-      } else {
-        toast.error(msg || "Instagram connect failed.");
-      }
-    } finally {
-      setIsConnecting(false);
-    }
-  };
 
   // null = the dashboard's classic calendar-month view; presets/custom come from the picker.
   const [range, setRange] = useState<DashboardDateRange | null>(null);
@@ -132,6 +89,37 @@ function DashboardPage() {
   const totals = data?.totals;
   const firstName = user?.name?.split(" ")[0] ?? "there";
 
+  /**
+   * The four stages, in flow order, joined to the daily series that draws each sparkline.
+   *
+   * `delta` stays a fraction because that is `StatCard`'s existing contract and the funnel's delta
+   * badge reads the same way — changing one of the two would leave a `12` and a `0.12` meaning the
+   * same thing on one screen.
+   */
+  const funnelStages = useMemo<FunnelStageData[]>(() => {
+    const values = data?.funnel;
+    const series = data?.series;
+    const seriesFor: Record<string, number[]> = {
+      // No comments series exists (nothing counts comments), so the matched stage borrows the DM
+      // curve, which is the same events one step later.
+      commentsMatched: series?.dms.map((p) => p.value) ?? [],
+      dmsSent: series?.dms.map((p) => p.value) ?? [],
+      leadsCaptured: series?.leads.map((p) => p.value) ?? [],
+      linkClicks: series?.clicks.map((p) => p.value) ?? [],
+    };
+    const deltaFor: Record<string, number | null | undefined> = {
+      dmsSent: totals?.dmsTrendPercent != null ? totals.dmsTrendPercent / 100 : undefined,
+      leadsCaptured: totals?.leadsTrendPercent != null ? totals.leadsTrendPercent / 100 : undefined,
+      linkClicks: totals?.clickTrendPercent != null ? totals.clickTrendPercent / 100 : undefined,
+    };
+    return FUNNEL_STAGE_META.map((meta) => ({
+      ...meta,
+      value: values?.[meta.key as keyof typeof values] ?? 0,
+      series: seriesFor[meta.key] ?? [],
+      delta: deltaFor[meta.key],
+    }));
+  }, [data?.funnel, data?.series, totals]);
+
   return (
     <div>
       <PageHeader
@@ -144,24 +132,17 @@ function DashboardPage() {
         }
         actions={
           <>
-            <DateRangePicker
-              value={range}
-              onChange={setRange}
-              placeholderLabel="This month"
-              clearLabel="This month"
-            />
-            {!current.instagramConnected && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                disabled={isConnecting}
-                onClick={() => void handleConnect()}
-              >
-                <Instagram className={`h-4 w-4 ${isConnecting ? "animate-pulse" : ""}`} />
-                {isConnecting ? "Connecting…" : "Connect account"}
-              </Button>
-            )}
+            {/* Below sm the picker moves into the chip row under the header, where the presets
+                are one tap instead of two and do not cover the numbers they are about to
+                change. */}
+            <div className="hidden sm:block">
+              <DateRangePicker
+                value={range}
+                onChange={setRange}
+                placeholderLabel="This month"
+                clearLabel="This month"
+              />
+            </div>
             <Button
               size="sm"
               asChild
@@ -177,6 +158,29 @@ function DashboardPage() {
       />
 
       <div className="space-y-6 p-4 sm:p-6 md:p-10">
+        <div className="sm:hidden">
+          <RangeChips value={range} onChange={setRange}>
+            <DateRangePicker
+              value={range}
+              onChange={setRange}
+              placeholderLabel="Custom"
+              clearLabel="This month"
+              align="start"
+            />
+          </RangeChips>
+        </div>
+
+        {/*
+          The account, full width, on the screen where the topbar pill is reduced to an avatar.
+          Whether the workspace has a working Instagram connection is the most important fact
+          about it and the one that silently breaks everything else, so it is the wrong thing to
+          abbreviate to a coloured dot.
+        */}
+        <InstagramAccountPill
+          expanded
+          className="flex h-12 w-full max-w-none justify-start md:hidden"
+        />
+
         {/* Platform-wide metrics — renders only for platform admins holding metrics_read. */}
         <PlatformMetricsPanel />
 
@@ -191,66 +195,29 @@ function DashboardPage() {
           </motion.div>
         )}
 
-        <motion.section
-          variants={staggerContainer}
-          initial="hidden"
-          animate="show"
-          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
-        >
+        <section>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <h2 className="font-display text-lg font-semibold">Comment to customer</h2>
+            {/* The date picker used to move four numbers while the panels beside them stayed on
+                the calendar month, so adjacent figures silently described different periods. This
+                says which ones follow the picker; the panels that do not carry their own chip. */}
+            <span className="text-xs text-muted-foreground">
+              Every number in this strip follows the selected date range
+            </span>
+          </div>
+
           {dashboardQuery.isLoading ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <motion.div key={i} variants={staggerItem}>
-                <Skeleton className="h-32 rounded-2xl" />
-              </motion.div>
-            ))
+            <Skeleton className="h-44 rounded-2xl" />
           ) : (
-            <>
-              <motion.div variants={staggerItem}>
-                <StatCard
-                  label="DMs sent"
-                  value={formatNum(totals?.dmsSentThisMonth ?? 0)}
-                  delta={totals?.dmsTrendPercent != null ? totals.dmsTrendPercent / 100 : undefined}
-                  icon={MessageCircle}
-                  hint={
-                    range ? `${periodLabel} · vs. previous period` : "this month · vs. last month"
-                  }
-                />
-              </motion.div>
-              <motion.div variants={staggerItem}>
-                <StatCard
-                  label="Active automations"
-                  value={String(totals?.activeAutomations ?? 0)}
-                  icon={Zap}
-                  hint={`${totals?.pausedAutomations ?? 0} paused · ${totals?.draftAutomations ?? 0} drafts`}
-                />
-              </motion.div>
-              <motion.div variants={staggerItem}>
-                <StatCard
-                  label="Leads captured"
-                  value={formatNum(totals?.leadsCapturedThisMonth ?? 0)}
-                  icon={UserPlus}
-                  hint={periodLabel}
-                />
-              </motion.div>
-              <motion.div variants={staggerItem}>
-                <StatCard
-                  label="Link clicks"
-                  value={formatNum(totals?.linkClicksThisMonth ?? 0)}
-                  delta={
-                    totals?.clickTrendPercent != null ? totals.clickTrendPercent / 100 : undefined
-                  }
-                  icon={MousePointerClick}
-                  hint={
-                    range ? `${periodLabel} · vs. previous period` : "this month · vs. last month"
-                  }
-                />
-              </motion.div>
-              <motion.div variants={staggerItem}>
-                <TokenMeter workspaceId={workspaceId} />
-              </motion.div>
-            </>
+            <FunnelStrip stages={funnelStages} />
           )}
-        </motion.section>
+        </section>
+
+        {dashboardQuery.isLoading ? (
+          <Skeleton className="h-[268px] rounded-2xl" />
+        ) : (
+          data?.series && <VolumeChart series={data.series} />
+        )}
 
         <motion.div variants={staggerItem} initial="hidden" animate="show">
           <InsightsCard
@@ -314,7 +281,14 @@ function DashboardPage() {
           >
             <div className="flex items-center justify-between border-b px-6 py-4">
               <div>
-                <h2 className="font-display text-lg font-semibold">Recent automations</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-display text-lg font-semibold">Recent automations</h2>
+                  {/* `analytics.ts` pins these per-automation counts to the calendar month, so
+                      they do not follow the picker either. */}
+                  <span className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    This month
+                  </span>
+                </div>
                 <p className="text-sm text-muted-foreground">
                   {data?.recentActivities.length ?? 0} most recent
                 </p>
@@ -388,55 +362,38 @@ function DashboardPage() {
           </motion.div>
 
           <div className="space-y-6">
-            <motion.div
-              variants={staggerItem}
-              className="rounded-2xl border bg-card p-6 shadow-soft"
-            >
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="font-display text-lg font-semibold">Workspaces</h2>
-                <Sparkles className="h-4 w-4 text-primary" />
-              </div>
-              <ul className="space-y-3">
-                {(data?.workspaceSummaries.length
-                  ? data.workspaceSummaries
-                  : workspaces.map((w) => ({
-                      id: w.id,
-                      handle: w.igHandle ?? w.name,
-                      plan: w.plan.toUpperCase(),
-                      instagramConnected: w.instagramConnected,
-                      dmsThisMonth: w.dmsThisMonth,
-                      leadsThisMonth: w.leadsThisMonth,
-                    }))
-                )
-                  .slice(0, 5)
-                  .map((w) => (
-                    <li key={w.id} className="flex items-center gap-3">
-                      <div className="grid h-9 w-9 place-items-center rounded-full bg-brand-gradient text-xs font-semibold text-primary-foreground">
-                        {(w.handle ?? "WS").replace(/^@/, "").slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{w.handle ?? "Workspace"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatNum(w.dmsThisMonth)} DMs · {formatNum(w.leadsThisMonth)} leads
-                        </p>
-                      </div>
-                      <span
-                        className={
-                          w.instagramConnected
-                            ? "h-2 w-2 rounded-full bg-success"
-                            : "h-2 w-2 rounded-full bg-warning"
-                        }
-                      />
-                    </li>
-                  ))}
-              </ul>
+            {/*
+              Rail order is deliberate: what is happening now, then what it means, then what it
+              costs, then what is queued.
+
+              The workspace roster that used to sit at the top is gone. It duplicated the switcher
+              in the sidebar footer, and it occupied the best position on the page every session
+              opens on to answer a question ("which workspaces do I have?") nobody arrives at the
+              dashboard asking.
+            */}
+            <motion.div variants={staggerItem}>
+              <LiveActivity seed={data?.activityFeed ?? []} />
+            </motion.div>
+
+            {/* Moved out of the KPI row. Four "how much happened" metrics plus one "how much
+                quota remains" gauge is a category error — the meter is not a fifth stat. */}
+            <motion.div variants={staggerItem}>
+              <TokenMeter workspaceId={workspaceId} />
             </motion.div>
 
             <motion.div
               variants={staggerItem}
               className="rounded-2xl border bg-card p-6 shadow-soft"
             >
-              <h2 className="mb-4 font-display text-lg font-semibold">Scheduler</h2>
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <h2 className="font-display text-lg font-semibold">Scheduler</h2>
+                {/* These three counts are all-time and do not move with the date picker. Saying so
+                    costs a chip; not saying so makes every other number on the page less
+                    trustworthy. */}
+                <span className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  All time
+                </span>
+              </div>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
                   <div className="font-display text-2xl font-semibold tabular-nums">

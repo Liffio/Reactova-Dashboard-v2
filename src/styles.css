@@ -54,6 +54,26 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  /* Status washes / edges.
+     The palette used to express these inline as `bg-success/10`. A 10% overlay that reads on the
+     light `oklch(.982 .005 80)` ground is close to invisible on the dark `oklch(.108 .006 252)`
+     one, so the dark values below run 12-14%. Naming them once stops every new surface
+     re-deciding, and keeps the two themes tuned independently. */
+  --color-success-wash: var(--success-wash);
+  --color-success-edge: var(--success-edge);
+  --color-warning-wash: var(--warning-wash);
+  --color-warning-edge: var(--warning-edge);
+  --color-destructive-wash: var(--destructive-wash);
+  --color-destructive-edge: var(--destructive-edge);
+  --color-primary-wash: var(--primary-wash);
+  --color-primary-edge: var(--primary-edge);
+
+  /* Shell chrome */
+  --color-topbar: var(--topbar);
+  --color-grid-line: var(--grid-line);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-active: var(--sidebar-active);
+
   /* Brand gradient stays the same in both modes */
   --gradient-brand: linear-gradient(
     135deg,
@@ -114,6 +134,23 @@
   --sidebar-accent-foreground: oklch(0.2 0.022 30);
   --sidebar-border: oklch(0.89 0.012 70);
   --sidebar-ring: oklch(0.62 0.24 18);
+
+  /* Status washes / edges — see the @theme inline block for why these are named. */
+  --success-wash: oklch(0.62 0.17 150 / 0.12);
+  --success-edge: oklch(0.62 0.17 150 / 0.3);
+  --warning-wash: oklch(0.76 0.16 78 / 0.1);
+  --warning-edge: oklch(0.76 0.16 78 / 0.34);
+  --destructive-wash: oklch(0.58 0.22 22 / 0.12);
+  --destructive-edge: oklch(0.58 0.22 22 / 0.3);
+  --primary-wash: oklch(0.62 0.24 18 / 0.1);
+  --primary-edge: oklch(0.62 0.24 18 / 0.3);
+
+  /* Shell chrome. `--topbar` is translucent on purpose: the bar is backdrop-blurred, so an
+     opaque value would flatten whatever scrolls beneath it. */
+  --topbar: oklch(0.982 0.005 80 / 0.78);
+  --grid-line: oklch(0.9 0.01 70);
+  --sidebar-hover: oklch(0.93 0.012 74);
+  --sidebar-active: oklch(1 0 0);
 
   /* Dynamic shadows & gradient — light values */
   --gradient-soft: linear-gradient(145deg, oklch(0.975 0.008 72) 0%, oklch(0.96 0.018 30) 100%);
@@ -193,6 +230,24 @@
   --sidebar-accent-foreground: oklch(0.9 0.006 85);
   --sidebar-border: oklch(0.215 0.007 252);
   --sidebar-ring: oklch(0.735 0.22 22);
+
+  /* Status washes / edges — deliberately 2-4 points heavier than light: the same overlay
+     that reads on a near-white ground disappears on a near-black one. */
+  --success-wash: oklch(0.7 0.18 150 / 0.14);
+  --success-edge: oklch(0.7 0.18 150 / 0.32);
+  --warning-wash: oklch(0.82 0.18 82 / 0.12);
+  --warning-edge: oklch(0.82 0.18 82 / 0.32);
+  --destructive-wash: oklch(0.64 0.22 20 / 0.14);
+  --destructive-edge: oklch(0.64 0.22 20 / 0.32);
+  --primary-wash: oklch(0.735 0.22 22 / 0.12);
+  --primary-edge: oklch(0.735 0.22 22 / 0.32);
+
+  /* Shell chrome. `--sidebar-active` is a raised surface rather than a shadow: drop shadows are
+     invisible against `oklch(.13 .006 252)`, so elevation has to be carried by value. */
+  --topbar: oklch(0.108 0.006 252 / 0.76);
+  --grid-line: oklch(0.268 0.008 252);
+  --sidebar-hover: oklch(0.185 0.007 252);
+  --sidebar-active: oklch(0.222 0.008 252);
 
   /* Dynamic shadows & gradient — dark values */
   --gradient-soft: linear-gradient(145deg, oklch(0.165 0.01 252) 0%, oklch(0.175 0.018 25) 100%);

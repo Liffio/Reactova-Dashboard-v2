@@ -34,6 +34,12 @@ export interface Workspace {
   id: string;
   handle: string;
   igHandle: string | null;
+  igFollowerCount: number | null;
+  /**
+   * When this workspace's Instagram token expires, ISO, or null if unknown / not connected.
+   * Read by the topbar account pill so it can warn before automations stop rather than after.
+   */
+  igTokenExpiresAt: string | null;
   /** Instagram CDN avatar, or null when there's no connected account — the common case. */
   profilePictureUrl: string | null;
   humanId: string | null;
@@ -66,6 +72,8 @@ const defaultWorkspace: Workspace = {
   handle: "@workspace",
   igHandle: null,
   profilePictureUrl: null,
+  igFollowerCount: null,
+  igTokenExpiresAt: null,
   humanId: null,
   name: "Workspace",
   plan: "Free",
@@ -133,6 +141,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Gated on `instagramConnected` for the same reason `igHandle` is: showing a workspace's
         // Instagram avatar while deliberately hiding its handle would be incoherent.
         profilePictureUrl: instagramConnected ? workspace.profilePictureUrl?.trim() || null : null,
+        igFollowerCount: instagramConnected ? workspace.igFollowerCount ?? null : null,
+        igTokenExpiresAt: instagramConnected ? workspace.igTokenExpiresAt ?? null : null,
         humanId: workspace.humanId ?? null,
         name: label,
         plan: mapPlan(workspace.plan),

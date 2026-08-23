@@ -11,16 +11,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AppSidebar } from "@/components/app-sidebar";
+import { InstagramAccountPill } from "@/components/shell/instagram-account-pill";
+import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trigger";
+import { GlobalSearchPalette } from "@/components/shell/global-search";
+import { BreadcrumbTitle, MobileWorkspaceCrumb } from "@/components/shell/breadcrumb-title";
+import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
 import { AccessChangedModal } from "@/components/access/access-changed-modal";
 import { RegistryUpdatedListener } from "@/components/plugins/registry-updated-listener";
 import { NotificationsMenu } from "@/components/notifications/notifications-menu";
-import { WorkspaceIdChip } from "@/components/workspace-id-chip";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { PageTransition } from "@/components/page-transition";
 import { useTheme } from "@/state/theme-store";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLogoutMutation } from "@/hooks/use-auth";
 import { useSessionWatcher } from "@/hooks/use-session-watcher";
+import { useWorkspaceEvents } from "@/hooks/use-workspace-events";
 import { loginPathWithRedirect } from "@/lib/auth/auth-navigation";
 import { useApp } from "@/state/app-context";
 import { CreatorAssistant } from "@/components/creator-assistant/creator-assistant";
@@ -92,15 +97,27 @@ function TopBar() {
       // what spec §5.7 says not to do. `paddingTop` on `<body>` (`__root.tsx`) covers the
       // unscrolled case; this covers the scrolled one.
       style={{ top: "var(--liffio-imp-banner-h, 0px)" }}
-      className="sticky z-20 flex h-14 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur md:px-6"
+      // `saturate(1.4)` alongside the blur: a plain backdrop-blur desaturates whatever scrolls
+      // under the bar, which turns the brand gradient into grey mush the moment it passes behind.
+      className="sticky z-20 flex h-[60px] items-center gap-3 border-b bg-topbar px-4 backdrop-blur-md backdrop-saturate-150 md:px-6"
     >
       <SidebarTrigger className="-ml-1" />
       <div className="hidden h-5 w-px bg-border md:block" />
-      {/* Hidden on the narrowest screens: the topbar there is already tight, and the id is
-          always available on the Settings page. */}
-      <WorkspaceIdChip humanId={current.humanId} className="hidden sm:inline-flex" />
-      <div className="min-w-0 flex-1" />
+      <BreadcrumbTitle />
+      <MobileWorkspaceCrumb />
+
+      {/* The search field is centred in the remaining space rather than pinned to either side, so
+          it stays the visual centre of the bar as the breadcrumb and the action cluster change
+          width. Below md it collapses to the icon in the action group. */}
+      <div className="hidden min-w-0 flex-1 justify-center px-2 md:flex">
+        <SearchTrigger />
+      </div>
+      <div className="min-w-0 flex-1 md:hidden" />
+
       <div className="ml-auto flex items-center gap-2">
+        <SearchIconTrigger className="md:hidden" />
+        <InstagramAccountPill />
+        <div className="hidden h-5 w-px bg-border sm:block" />
         <CreatorAssistant />
         <ThemeToggle />
         <NotificationsMenu />
@@ -161,7 +178,19 @@ function TopBar() {
 
 function AppLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { current } = useApp();
   useSessionWatcher();
+  /**
+   * Mounted here and **exactly once**.
+   *
+   * Everything behind this shipped and was doing nothing: `realtimePublisher`, the socket rooms,
+   * the per-access-level projection registry and the Redis fan-out all existed, and this hook had
+   * zero call sites — events were arriving at the shared socket and being dropped on the floor.
+   *
+   * A second mount would register a second `workspace:event` handler and process every event
+   * twice, which is why this belongs to the layout rather than to any page that wants live data.
+   */
+  useWorkspaceEvents(current.id);
 
   return (
     <ProtectedRoute>
@@ -169,17 +198,23 @@ function AppLayout() {
           wherever they are, not only on permission-related pages. */}
       <AccessChangedModal />
       <RegistryUpdatedListener />
+      {/* Mounted once, here, for the same reason `useWorkspaceEvents` is: both topbar triggers and
+          the ⌘K shortcut dispatch one DOM event, and a second listener would open two dialogs. */}
+      <GlobalSearchPalette />
       <SidebarProvider>
         <div className="flex min-h-screen w-full bg-background">
           <AppSidebar />
           <div className="flex min-h-screen min-w-0 flex-1 flex-col">
             <TopBar />
-            <main className="flex-1 flex flex-col">
+            {/* 92px clears the tab bar plus its safe-area padding, so nothing at the end of a
+                page ends up trapped underneath it. */}
+            <main className="flex flex-1 flex-col pb-[92px] md:pb-0">
               <PageTransition keyProp={pathname}>
                 <Outlet />
               </PageTransition>
             </main>
           </div>
+          <MobileTabBar />
         </div>
       </SidebarProvider>
     </ProtectedRoute>

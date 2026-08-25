@@ -6,6 +6,7 @@ import { ChevronRight, Copy, Instagram, KeyRound, Plus, Shield, Trash2, Users } 
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { SendRateCard } from "@/components/settings/send-rate-card";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -374,6 +375,12 @@ function InstagramSettings() {
               Disconnect
             </Button>
           </div>
+
+          <Separator />
+
+          {/* Send rate lives with the connection rather than under automations: it is a property
+              of the Instagram account, and every automation on it shares the same budget. */}
+          <SendRateCard />
         </div>
       ) : (
         <div className="space-y-4">

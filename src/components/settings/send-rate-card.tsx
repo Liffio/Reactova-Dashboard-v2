@@ -48,6 +48,13 @@ const LIMIT_NOTE: Record<string, string | null> = {
 
 const FALLBACK_OPTIONS = [100, 200, 300, 400, 500, 600];
 
+/**
+ * Thumb width in px. The step dots are positioned against the thumb's travel rather than the raw
+ * track width, so this has to stay in step with `thumbClassName` below or the dots drift away
+ * from the thumb they are supposed to mark.
+ */
+const THUMB_PX = 14;
+
 type SendRateCardProps = {
   /**
    * `card` — the full control, for a surface with room for it (settings).
@@ -83,7 +90,7 @@ export function SendRateCard({ variant = "card" }: SendRateCardProps = {}) {
 
   if (query.isLoading) {
     return inline ? (
-      <Skeleton className="h-[86px] rounded-2xl" />
+      <Skeleton className="h-[68px] rounded-2xl" />
     ) : (
       <div className="space-y-3">
         <Skeleton className="h-4 w-32" />
@@ -116,25 +123,63 @@ export function SendRateCard({ variant = "card" }: SendRateCardProps = {}) {
   const throttled = settings.limitedBy === "safety_cap";
   const belowChosen = settings.effectivePerHour !== undefined && settings.effectivePerHour < value;
 
+  /**
+   * The rail, with its steps marked on the rail itself. The previous layout spelled every option
+   * out in a row underneath, which cost a line of height on a page whose subject is the list below
+   * it — and the only numbers that carry weight are the one you picked (in the pill, right) and
+   * the two ends of the range.
+   */
   const slider = (
-    <Slider
-      value={[value]}
-      min={min}
-      max={max}
-      step={step}
-      onValueChange={([next]) => setDraft(next)}
-      aria-label="DMs per hour"
-    />
+    <div className="relative">
+      <Slider
+        value={[value]}
+        min={min}
+        max={max}
+        step={step}
+        onValueChange={([next]) => setDraft(next)}
+        aria-label="DMs per hour"
+        aria-valuetext={`${value} DMs per hour`}
+        trackClassName="h-1"
+        thumbClassName="h-3.5 w-3.5 shadow-sm"
+      />
+
+      {/* Interior steps only. A dot at either extreme sits under the thumb's own resting position
+          and just reads as a smudge. */}
+      <div className="pointer-events-none absolute inset-0 flex items-center" aria-hidden>
+        {options.slice(1, -1).map((option) => {
+          const fraction = (option - min) / (max - min);
+          return (
+            <span
+              key={option}
+              // A raw percentage would drift from the thumb by up to half its width, because the
+              // thumb's centre travels across `track − THUMB_PX`, not the full track. This offset
+              // puts each dot exactly where the thumb lands on that step.
+              style={{ left: `calc(${fraction * 100}% + ${(0.5 - fraction) * THUMB_PX}px)` }}
+              className={cn(
+                "absolute h-1 w-1 -translate-x-1/2 rounded-full transition-colors",
+                option <= value ? "bg-primary-foreground/60" : "bg-primary/45",
+              )}
+            />
+          );
+        })}
+      </div>
+    </div>
   );
 
-  const ticks = (
-    <div className="flex justify-between text-[10px] tabular-nums text-muted-foreground">
-      {options.map((option) => (
-        <span key={option} className={cn(option === value && "font-medium text-foreground")}>
-          {option}
-        </span>
-      ))}
+  /** The two ends of the scale. Everything between them is a dot on the rail. */
+  const bounds = (
+    <div className="mt-1.5 flex justify-between text-[10px] leading-none tabular-nums text-muted-foreground/70">
+      <span>{min}</span>
+      <span>{max}</span>
     </div>
+  );
+
+  /** The chosen number, parked to the right of the rail where the eye lands after a drag. */
+  const valuePill = (
+    <span className="inline-flex shrink-0 items-baseline gap-0.5 self-start rounded-full border bg-background px-2.5 py-1 text-xs font-semibold tabular-nums shadow-sm sm:self-auto">
+      {value}
+      <span className="text-[10px] font-normal text-muted-foreground">/hr</span>
+    </span>
   );
 
   const actions = (
@@ -152,24 +197,24 @@ export function SendRateCard({ variant = "card" }: SendRateCardProps = {}) {
     const NoteIcon = throttled ? AlertTriangle : Info;
 
     return (
-      <div className="rounded-2xl border bg-card p-4 shadow-soft">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
-          <div className="flex items-center gap-3 sm:w-52 sm:shrink-0">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border bg-muted/40">
-              <Gauge className="h-4 w-4 text-muted-foreground" />
+      <div className="rounded-2xl border bg-card px-4 py-3 shadow-soft">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="flex items-center gap-2.5 sm:w-40 sm:shrink-0">
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border bg-muted/40">
+              <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 leading-tight">
               <p className="text-sm font-semibold">Send rate</p>
-              <p className="text-xs text-muted-foreground">
-                <span className="tabular-nums">{value}</span> DMs per hour
-              </p>
+              <p className="text-[11px] text-muted-foreground">DMs per hour</p>
             </div>
           </div>
 
-          <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="min-w-0 flex-1">
             {slider}
-            {ticks}
+            {bounds}
           </div>
+
+          {valuePill}
 
           {/* The slot keeps its width while clean, so starting a drag does not resize the slider
               out from under the thumb. */}
@@ -187,11 +232,11 @@ export function SendRateCard({ variant = "card" }: SendRateCardProps = {}) {
             — when it is — the permitted platform caveat. Never why in terms of who else. */}
         <p
           className={cn(
-            "mt-3 flex items-start gap-2 text-xs",
+            "mt-2 flex items-start gap-1.5 text-[11px] leading-snug",
             throttled ? "text-warning" : "text-muted-foreground",
           )}
         >
-          <NoteIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <NoteIcon className="mt-px h-3 w-3 shrink-0" />
           <span>
             {belowChosen && (
               <span className="tabular-nums">
@@ -225,8 +270,10 @@ export function SendRateCard({ variant = "card" }: SendRateCardProps = {}) {
           <span className="text-xs text-muted-foreground">DMs per hour</span>
         </div>
 
-        {slider}
-        {ticks}
+        <div>
+          {slider}
+          {bounds}
+        </div>
       </div>
 
       {belowChosen && (

@@ -344,15 +344,21 @@ export function syncWorkspaceSubscriptionAdmin(workspaceId: string) {
 /** `GET /admin/workspaces/:wsId/instagram` — `health` is `null` when no `ig_account_health` row
  *  exists for this account's `ig_user_id` yet (never fabricated). Never carries an access token. */
 export type AdminIgAccountHealth = {
-  trustLevel: number;
   consecutiveFailures: number;
   totalDmsSent: number;
   totalDmsFailed: number;
   rateLimitEvents: number;
   tokenRefreshFailures: number;
-  lastDowngradeAt: string | null;
-  lastPromotionAt: string | null;
-  trustEvaluatedAt: string | null;
+  /** 613/2018338 — Meta warning the account is heading for a restriction. */
+  abuseWarnings: number;
+  /** 551 — deliberately excluded from account health; a copy problem, not an account problem. */
+  recipientBlocks: number;
+  /** 10/1893063 — Instagram has stopped this account from sending until this passes. */
+  restrictedUntil: string | null;
+  /** Temporary automatic reduction; null when the account is running at its normal rate. */
+  safetyCapPerHour: number | null;
+  safetyCapExpiresAt: string | null;
+  globalCapPerHour: number;
 };
 
 export type AdminIgAccount = {
@@ -386,7 +392,22 @@ export function refreshWorkspaceInstagramToken(workspaceId: string, accountId: s
   );
 }
 
-export type AdminDmJobStatus = "QUEUED" | "SENT" | "FAILED" | "RETRYING";
+/**
+ * `SKIPPED_PRIVATE_REPLY_USED` is a terminal non-failure. Instagram allows exactly one private
+ * reply per comment, ever, and a comment on a shared Instagram account fans out to every
+ * workspace attached to it — every workspace but the first stands down here rather than burning
+ * an API call and booking a failure against an account nobody misused.
+ *
+ * This is the admin surface, which per spec §15 is the audited internal exception. In a
+ * workspace's own UI the same status must read as an ordinary skip and must never hint that
+ * another workspace exists.
+ */
+export type AdminDmJobStatus =
+  | "QUEUED"
+  | "SENT"
+  | "FAILED"
+  | "RETRYING"
+  | "SKIPPED_PRIVATE_REPLY_USED";
 
 export type AdminDmJob = {
   id: string;

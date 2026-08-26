@@ -80,6 +80,7 @@ import {
   resendWorkspaceInviteAdmin,
   revokeWorkspaceInviteAdmin,
   type AdminDmJobStatus,
+  type AdminIgAccountHealth,
   type AdminWorkspaceInvite,
 } from "@/lib/api/admin-workspaces-api";
 import {
@@ -2411,19 +2412,44 @@ function SupportOpsTableSkeleton() {
   );
 }
 
-/** No documented trust-level scale beyond the raw 0-100-ish number (task-22-report.md carries no
- *  bucketing convention) — a plain three-tier read is a reasonable, clearly-labeled judgment
- *  call; the raw number is always shown alongside the color, never hidden behind the tier alone. */
-function TrustBadge({ trustLevel }: { trustLevel: number }) {
-  const toneClassName =
-    trustLevel >= 70
-      ? "border-success/30 bg-success/10 text-success"
-      : trustLevel >= 40
-        ? "border-warning/30 bg-warning/10 text-warning"
-        : "border-destructive/30 bg-destructive/10 text-destructive";
+/**
+ * Replaces the old TrustBadge, which bucketed `trustLevel` at 70 and 40 while the backend only
+ * ever sent 1, 2 or 3 — so every account on the platform rendered as the worst tier. The trust
+ * ladder is gone in DM engine v2 (spec §12); what an operator gets instead is the account's
+ * actual state with Instagram, in escalation order.
+ */
+function AccountRiskBadge({ health }: { health: AdminIgAccountHealth }) {
+  const restricted =
+    health.restrictedUntil !== null && new Date(health.restrictedUntil).getTime() > Date.now();
+  const reduced =
+    health.safetyCapPerHour !== null &&
+    health.safetyCapExpiresAt !== null &&
+    new Date(health.safetyCapExpiresAt).getTime() > Date.now();
+
+  if (restricted) {
+    return (
+      <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-[10px] text-destructive">
+        Restricted
+      </Badge>
+    );
+  }
+  if (health.abuseWarnings > 0) {
+    return (
+      <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-[10px] text-destructive">
+        {health.abuseWarnings} abuse warning{health.abuseWarnings === 1 ? "" : "s"}
+      </Badge>
+    );
+  }
+  if (reduced) {
+    return (
+      <Badge variant="outline" className="border-warning/30 bg-warning/10 text-[10px] tabular-nums text-warning">
+        Reduced to {health.safetyCapPerHour}/hr
+      </Badge>
+    );
+  }
   return (
-    <Badge variant="outline" className={cn("text-[10px] tabular-nums", toneClassName)}>
-      Trust {trustLevel}
+    <Badge variant="outline" className="border-success/30 bg-success/10 text-[10px] tabular-nums text-success">
+      Normal · {health.globalCapPerHour}/hr cap
     </Badge>
   );
 }
@@ -2496,7 +2522,7 @@ function InstagramAccountsCard({ wsId }: { wsId: string }) {
                     </TableCell>
                     <TableCell>
                       {acct.health ? (
-                        <TrustBadge trustLevel={acct.health.trustLevel} />
+                        <AccountRiskBadge health={acct.health} />
                       ) : (
                         <span className="text-xs text-muted-foreground">No health data</span>
                       )}
@@ -2543,13 +2569,31 @@ function InstagramAccountsCard({ wsId }: { wsId: string }) {
   );
 }
 
-const DM_JOB_STATUS_VALUES: readonly AdminDmJobStatus[] = ["QUEUED", "SENT", "FAILED", "RETRYING"];
+const DM_JOB_STATUS_VALUES: readonly AdminDmJobStatus[] = [
+  "QUEUED",
+  "SENT",
+  "FAILED",
+  "RETRYING",
+  "SKIPPED_PRIVATE_REPLY_USED",
+];
 
 const DM_JOB_STATUS_CLASS: Record<AdminDmJobStatus, string> = {
   QUEUED: "border-muted-foreground/30 text-muted-foreground",
   SENT: "border-success/30 bg-success/10 text-success",
   FAILED: "border-destructive/30 bg-destructive/10 text-destructive",
   RETRYING: "border-warning/30 bg-warning/10 text-warning",
+  // Muted, not destructive: this is a clean stand-down, not a failure, and colouring it red
+  // would send operators chasing an account problem that does not exist.
+  SKIPPED_PRIVATE_REPLY_USED: "border-muted-foreground/30 text-muted-foreground",
+};
+
+/** The raw enum value is unreadable in a 32-char badge. */
+const DM_JOB_STATUS_LABEL: Record<AdminDmJobStatus, string> = {
+  QUEUED: "Queued",
+  SENT: "Sent",
+  FAILED: "Failed",
+  RETRYING: "Retrying",
+  SKIPPED_PRIVATE_REPLY_USED: "Skipped · reply used",
 };
 
 /** Defaults to `FAILED` — the brief's own framing for this surface ("failed DM jobs"); the status
@@ -2577,7 +2621,7 @@ function DmJobsCard({ wsId }: { wsId: string }) {
             <SelectItem value="ALL">All statuses</SelectItem>
             {DM_JOB_STATUS_VALUES.map((s) => (
               <SelectItem key={s} value={s}>
-                {humanizeKey(s)}
+                {DM_JOB_STATUS_LABEL[s]}
               </SelectItem>
             ))}
           </SelectContent>
@@ -2611,12 +2655,19 @@ function DmJobsCard({ wsId }: { wsId: string }) {
                       variant="outline"
                       className={cn("text-[10px]", DM_JOB_STATUS_CLASS[job.status])}
                     >
-                      {humanizeKey(job.status)}
+                      {DM_JOB_STATUS_LABEL[job.status]}
                     </Badge>
                   </TableCell>
                   <TableCell className="font-mono text-xs">{job.recipientIgId}</TableCell>
                   <TableCell
-                    className="max-w-[220px] truncate text-xs text-destructive"
+                    className={cn(
+                      "max-w-[220px] truncate text-xs",
+                      // A skip carries an explanatory note, not an error. Rendering it red sends
+                      // operators chasing a problem that is not there.
+                      job.status === "SKIPPED_PRIVATE_REPLY_USED"
+                        ? "text-muted-foreground"
+                        : "text-destructive",
+                    )}
                     title={job.error ?? undefined}
                   >
                     {job.error ?? "—"}

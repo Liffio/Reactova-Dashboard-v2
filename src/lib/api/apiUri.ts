@@ -113,6 +113,15 @@ export const apiUri = {
       `${V1}/assistant/conversations/${conversationId}/messages`,
   },
 
+  /**
+   * DM send rate (spec §12). A workspace's chosen rate for its connected Instagram account, and
+   * whatever is currently capping it below that.
+   */
+  sendRate: {
+    get: `${V1}/send-rate`,
+    set: `${V1}/send-rate`,
+  },
+
   automations: {
     /** Paginated list. POST because the query travels as a body — it reads, despite the verb. */
     search: `${V1}/automations/search`,

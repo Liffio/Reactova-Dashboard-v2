@@ -5,6 +5,7 @@ import { ArrowRight, ChevronRight, Plus } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { SendRateBanner } from "@/components/dashboard/send-rate-banner";
 import { TokenMeter } from "@/components/dashboard/token-meter";
 import {
   FunnelStrip,
@@ -150,6 +151,11 @@ function DashboardPage() {
       />
 
       <div className="space-y-6 p-4 sm:p-6 md:p-10">
+        {/* Persistent while an automatic send-rate reduction is active (§13). Renders nothing
+            otherwise. A one-time toast is not enough: someone who misses it and later notices
+            slow sends is exactly the support ticket this is meant to prevent. */}
+        <SendRateBanner />
+
         <div className="sm:hidden">
           <RangeChips value={range} onChange={setRange}>
             <DateRangePicker

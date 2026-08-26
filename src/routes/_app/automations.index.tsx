@@ -16,6 +16,7 @@ import {
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { SendRateBanner } from "@/components/dashboard/send-rate-banner";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { InstagramRequired } from "@/components/auth/instagram-required";
 import { Button } from "@/components/ui/button";
@@ -181,6 +182,10 @@ function AutomationsPage() {
       />
 
       <div className="space-y-5 p-4 sm:p-6 md:p-10">
+        {/* Also here, not only on the dashboard: this is where someone comes when they suspect
+            their automations are sending slowly (§13). */}
+        <SendRateBanner />
+
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative max-w-sm flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Gauge, Info } from "lucide-react";
+import { AlertTriangle, Gauge, Info } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -29,6 +29,9 @@ import { cn } from "@/lib/utils";
  * than about other tenants. Throughput is already a side channel — a workspace whose sends slow
  * with no error can infer another consumer — and while that cannot be eliminated, this component
  * must not amplify it.
+ *
+ * Both variants live here rather than in two components on purpose: the rules above are the whole
+ * privacy contract, and a second copy of them is a second thing to keep in step.
  */
 
 const QUERY_KEY = ["send-rate"] as const;
@@ -43,10 +46,22 @@ const LIMIT_NOTE: Record<string, string | null> = {
   ramp: "New connections ramp up over the first few hours rather than starting at full speed. This is normal and needs no action.",
 };
 
-export function SendRateCard() {
+const FALLBACK_OPTIONS = [100, 200, 300, 400, 500, 600];
+
+type SendRateCardProps = {
+  /**
+   * `card` — the full control, for a surface with room for it (settings).
+   * `inline` — one row, for a working page where the list is the subject and the rate is a
+   * passenger (spec §12's slider on /automations).
+   */
+  variant?: "card" | "inline";
+};
+
+export function SendRateCard({ variant = "card" }: SendRateCardProps = {}) {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: QUERY_KEY, queryFn: () => getSendRate() });
   const settings: SendRateSettings | undefined = query.data;
+  const inline = variant === "inline";
 
   const [draft, setDraft] = useState<number | null>(null);
 
@@ -67,7 +82,9 @@ export function SendRateCard() {
   });
 
   if (query.isLoading) {
-    return (
+    return inline ? (
+      <Skeleton className="h-[86px] rounded-2xl" />
+    ) : (
       <div className="space-y-3">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-8 w-full" />
@@ -75,13 +92,19 @@ export function SendRateCard() {
     );
   }
 
+  // Inline stays silent on failure. The subject of that page is the automation list, and a failed
+  // read of a control sitting above it should not put an error message on top of it.
   if (query.isError || !settings) {
-    return (
+    return inline ? null : (
       <p className="text-sm text-muted-foreground">Send rate settings are unavailable right now.</p>
     );
   }
 
-  const options = settings.options.length > 0 ? settings.options : [100, 200, 300, 400, 500, 600];
+  // No connected account, no rate to set. Settings already renders this inside its connected
+  // branch; this guard is what makes the component safe to drop onto any page.
+  if (!settings.connected) return null;
+
+  const options = settings.options.length > 0 ? settings.options : FALLBACK_OPTIONS;
   const min = options[0];
   const max = options[options.length - 1];
   const step = options.length > 1 ? options[1] - options[0] : 100;
@@ -91,6 +114,96 @@ export function SendRateCard() {
 
   const limitNote = settings.limitedBy ? LIMIT_NOTE[settings.limitedBy] : null;
   const throttled = settings.limitedBy === "safety_cap";
+  const belowChosen = settings.effectivePerHour !== undefined && settings.effectivePerHour < value;
+
+  const slider = (
+    <Slider
+      value={[value]}
+      min={min}
+      max={max}
+      step={step}
+      onValueChange={([next]) => setDraft(next)}
+      aria-label="DMs per hour"
+    />
+  );
+
+  const ticks = (
+    <div className="flex justify-between text-[10px] tabular-nums text-muted-foreground">
+      {options.map((option) => (
+        <span key={option} className={cn(option === value && "font-medium text-foreground")}>
+          {option}
+        </span>
+      ))}
+    </div>
+  );
+
+  const actions = (
+    <>
+      <Button size="sm" disabled={mutation.isPending} onClick={() => mutation.mutate(value)}>
+        {mutation.isPending ? "Saving…" : "Save"}
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
+        Cancel
+      </Button>
+    </>
+  );
+
+  if (inline) {
+    const NoteIcon = throttled ? AlertTriangle : Info;
+
+    return (
+      <div className="rounded-2xl border bg-card p-4 shadow-soft">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
+          <div className="flex items-center gap-3 sm:w-52 sm:shrink-0">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border bg-muted/40">
+              <Gauge className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Send rate</p>
+              <p className="text-xs text-muted-foreground">
+                <span className="tabular-nums">{value}</span> DMs per hour
+              </p>
+            </div>
+          </div>
+
+          <div className="min-w-0 flex-1 space-y-1.5">
+            {slider}
+            {ticks}
+          </div>
+
+          {/* The slot keeps its width while clean, so starting a drag does not resize the slider
+              out from under the thumb. */}
+          <div
+            className={cn(
+              "flex gap-2 sm:w-[124px] sm:shrink-0 sm:justify-end",
+              !dirty && "hidden sm:flex",
+            )}
+          >
+            {dirty && actions}
+          </div>
+        </div>
+
+        {/* One line, carrying whichever is more useful: why the chosen rate is not being met, or
+            — when it is — the permitted platform caveat. Never why in terms of who else. */}
+        <p
+          className={cn(
+            "mt-3 flex items-start gap-2 text-xs",
+            throttled ? "text-warning" : "text-muted-foreground",
+          )}
+        >
+          <NoteIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            {belowChosen && (
+              <span className="tabular-nums">
+                Currently sending at {settings.effectivePerHour}/hr.{" "}
+              </span>
+            )}
+            {limitNote ?? settings.caveat}
+          </span>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -112,25 +225,11 @@ export function SendRateCard() {
           <span className="text-xs text-muted-foreground">DMs per hour</span>
         </div>
 
-        <Slider
-          value={[value]}
-          min={min}
-          max={max}
-          step={step}
-          onValueChange={([next]) => setDraft(next)}
-          aria-label="DMs per hour"
-        />
-
-        <div className="flex justify-between text-[11px] tabular-nums text-muted-foreground">
-          {options.map((option) => (
-            <span key={option} className={cn(option === value && "font-medium text-foreground")}>
-              {option}
-            </span>
-          ))}
-        </div>
+        {slider}
+        {ticks}
       </div>
 
-      {settings.effectivePerHour !== undefined && settings.effectivePerHour < value && (
+      {belowChosen && (
         <p
           className={cn(
             "text-xs tabular-nums",
@@ -147,16 +246,7 @@ export function SendRateCard() {
         </p>
       )}
 
-      {dirty && (
-        <div className="flex gap-2">
-          <Button size="sm" disabled={mutation.isPending} onClick={() => mutation.mutate(value)}>
-            {mutation.isPending ? "Saving…" : "Save"}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
-            Cancel
-          </Button>
-        </div>
-      )}
+      {dirty && <div className="flex gap-2">{actions}</div>}
 
       <Separator />
 

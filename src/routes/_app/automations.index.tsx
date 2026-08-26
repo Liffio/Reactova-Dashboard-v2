@@ -16,7 +16,7 @@ import {
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { SendRateBanner } from "@/components/dashboard/send-rate-banner";
+import { SendRateCard } from "@/components/settings/send-rate-card";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { InstagramRequired } from "@/components/auth/instagram-required";
 import { Button } from "@/components/ui/button";
@@ -182,9 +182,11 @@ function AutomationsPage() {
       />
 
       <div className="space-y-5 p-4 sm:p-6 md:p-10">
-        {/* Also here, not only on the dashboard: this is where someone comes when they suspect
-            their automations are sending slowly (§13). */}
-        <SendRateBanner />
+        {/* The rate control sits with the automations it governs, not only in settings: this is
+            where someone comes when they suspect their automations are sending slowly. It carries
+            the §13 reduction notice inline, which is why the standalone banner is not also here —
+            two copies of the same sentence, one above the other, reads as a bug. */}
+        <SendRateCard variant="inline" />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative max-w-sm flex-1">

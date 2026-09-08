@@ -1,34 +1,77 @@
 import { apiUri } from "./apiUri";
 import { apiRequest } from "./http";
 
+/** Mirrors `GET /admin/affiliate/overview` exactly. */
 export type AdminAffiliateOverview = {
   totalAffiliates: number;
-  totalReferrals: number;
-  totalCommissionsPaid: number;
+  /** Sum of every commission ever accrued, paid or not. */
+  totalCommissions: number;
+  /** Sum of payouts in status PAID. */
+  totalPaidOut: number;
+  /** Payouts awaiting review (status REQUESTED). */
   pendingPayouts: number;
-  [key: string]: unknown;
+  flaggedReferrals: number;
 };
 
+export type AdminAffiliateUserRef = {
+  id: string;
+  email: string | null;
+  name: string | null;
+};
+
+/**
+ * Mirrors an `affiliate_profiles` row as returned by `GET /admin/affiliate/list`
+ * (relation `user` is eager-loaded server-side). Decimal columns arrive as
+ * strings over the wire — always coerce with `Number()` before formatting.
+ */
 export type AdminAffiliateRow = {
   id: string;
-  email?: string;
-  name?: string;
-  randomCode?: string;
-  customCode?: string | null;
-  totalReferrals?: number;
-  totalEarned?: number;
-  availableBalance?: number;
-  isSuspended?: boolean;
-  [key: string]: unknown;
+  userId: string;
+  user: AdminAffiliateUserRef | null;
+  randomCode: string;
+  customCode: string | null;
+  totalReferrals: number;
+  activeReferrals: number;
+  totalEarned: string | number;
+  availableBalance: string | number;
+  isSuspended: boolean;
 };
 
+/**
+ * Mirrors an `affiliate_payouts` row as returned by `GET /admin/affiliate/payouts`.
+ * `amount` is a Postgres decimal and therefore a string over the wire.
+ */
 export type AdminAffiliatePayoutRow = {
   id: string;
-  amount: number;
+  amount: string | number;
+  currency: string;
   status: string;
-  method: string;
+  payoutMethod: string;
   requestedAt: string;
-  [key: string]: unknown;
+  affiliateProfile: (Omit<AdminAffiliateRow, "user"> & { user: AdminAffiliateUserRef | null }) | null;
+};
+
+/**
+ * Mirrors an `affiliate_referrals` row as returned by `GET /admin/affiliate/fraud/flagged`.
+ * This is a REFERRAL, not an affiliate profile — the affiliate is nested under
+ * `affiliateProfile.user`.
+ */
+export type AdminFlaggedReferralRow = {
+  id: string;
+  referralCode: string;
+  isActive: boolean;
+  fraudFlagged: boolean;
+  attributedAt: string;
+  referredUser: AdminAffiliateUserRef | null;
+  affiliateProfile: (Omit<AdminAffiliateRow, "user"> & { user: AdminAffiliateUserRef | null }) | null;
+};
+
+/** Paginated envelope used by `GET /admin/affiliate/list`. */
+export type AdminAffiliateListResponse = {
+  items: AdminAffiliateRow[];
+  page: number;
+  limit: number;
+  total: number;
 };
 
 export function getAdminAffiliateOverview() {
@@ -40,17 +83,19 @@ export function listAdminAffiliates(params: { q?: string; page?: number } = {}) 
   if (params.q) qs.set("q", params.q);
   if (params.page) qs.set("page", String(params.page));
   const suffix = qs.toString();
-  return apiRequest<{ affiliates: AdminAffiliateRow[]; total?: number }>(
+  return apiRequest<AdminAffiliateListResponse>(
     `${apiUri.admin.affiliate.list}${suffix ? `?${suffix}` : ""}`,
   );
 }
 
+/** The endpoint returns a bare array, not an envelope. */
 export function listAdminAffiliatePayouts() {
-  return apiRequest<{ payouts: AdminAffiliatePayoutRow[] }>(apiUri.admin.affiliate.payouts);
+  return apiRequest<AdminAffiliatePayoutRow[]>(apiUri.admin.affiliate.payouts);
 }
 
-export function listAdminFlaggedAffiliates() {
-  return apiRequest<{ flagged: AdminAffiliateRow[] }>(apiUri.admin.affiliate.fraudFlagged);
+/** The endpoint returns a bare array of flagged REFERRALS, not an envelope of affiliates. */
+export function listAdminFlaggedReferrals() {
+  return apiRequest<AdminFlaggedReferralRow[]>(apiUri.admin.affiliate.fraudFlagged);
 }
 
 export function getAdminAffiliateMonthlyStats() {

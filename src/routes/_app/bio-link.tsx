@@ -73,6 +73,7 @@ import { useApp } from "@/state/app-context";
 import { LIMITS, lengthError, urlError } from "@/lib/validation";
 import { getCreatorStatus } from "@/lib/api/creator-eligibility-api";
 import { BioTextAssist } from "@/components/lyra/bio-text-assist";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 export const Route = createFileRoute("/_app/bio-link")({
   head: () => ({ meta: [{ title: "Bio Link — Liffio" }] }),
@@ -633,13 +634,13 @@ function BioLinkPage() {
   const bioQuery = useQuery({
     queryKey: ["biolink", workspaceId],
     queryFn: () => getBioLink(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const analyticsQuery = useQuery({
     queryKey: ["biolink-analytics", workspaceId],
     queryFn: () => getBioLinkAnalytics(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const creatorProgramStatusQuery = useQuery({
@@ -771,13 +772,32 @@ function BioLinkPage() {
               label="Total clicks"
               value={String(analytics?.totalClicks ?? profile.totalClicks ?? 0)}
               icon={MousePointerClick}
+              hint="all time"
             />
-            <StatCard label="Links" value={String(links.length)} icon={Link2} />
+            {/* Was "Links = links.length" — a count of the list rendered directly beneath it.
+                A 30-day click figure beside the all-time total actually says something. */}
+            <StatCard
+              label="Clicks (30d)"
+              value={
+                analytics?.clicksLast30Days === undefined
+                  ? "—"
+                  : String(analytics.clicksLast30Days)
+              }
+              icon={MousePointerClick}
+              hint="last 30 days"
+            />
+            {/* `topLink` is ranked by clicks server-side. This used to read `links[0]`, which is
+                the topmost link by display order — the label said "Top link" and the value was
+                "first link". */}
             <StatCard
               label="Top link"
-              value={analytics?.links[0]?.title ?? "—"}
-              icon={MousePointerClick}
-              hint={analytics?.links[0] ? `${analytics.links[0].clicks} clicks` : undefined}
+              value={analytics?.topLink?.title ?? "—"}
+              icon={Link2}
+              hint={
+                analytics?.topLink
+                  ? `${analytics.topLink.clicks} clicks · all time`
+                  : "no clicks yet"
+              }
             />
           </motion.div>
 

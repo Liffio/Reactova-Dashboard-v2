@@ -17,6 +17,10 @@ import { usePersistedState } from "@/hooks/use-persisted-state";
 import { urlsToDataUrls } from "@/lib/image-data-url";
 import { lyraStorageKey } from "@/lib/lyra-persist";
 import { useApp } from "@/state/app-context";
+import {
+  useLyraWorkspace,
+  LYRA_NO_WORKSPACE_HINT,
+} from "@/hooks/use-lyra-workspace";
 
 type CaptionMode = "generate" | "rewrite" | "expand" | "shorten";
 
@@ -37,6 +41,9 @@ export function CaptionAssist({
   onApply: (caption: string) => void;
 }) {
   const { current, user } = useApp();
+  // A metered Lyra task has to name a workspace to bill; without one the server
+  // refuses the request, so the trigger must be unavailable rather than fail on click.
+  const { workspaceId, ready: lyraReady } = useLyraWorkspace();
   const base = lyraStorageKey(user?.id, current.id, "caption-assist");
   const [open, setOpen] = usePersistedState(`${base}:open`, false);
   const [mode, setMode] = usePersistedState<CaptionMode>(
@@ -53,7 +60,7 @@ export function CaptionAssist({
     const images = mediaUrls.length > 0 ? await urlsToDataUrls(mediaUrls) : [];
     const result = await lyra.run({
       task: "caption",
-      workspaceId: current.id,
+      workspaceId,
       input: {
         mode,
         topic: topic.trim() || undefined,
@@ -128,7 +135,8 @@ export function CaptionAssist({
             size="sm"
             className="w-full gap-1.5"
             onClick={() => void run()}
-            disabled={lyra.isActive}
+            disabled={lyra.isActive || !lyraReady}
+            title={lyraReady ? undefined : LYRA_NO_WORKSPACE_HINT}
           >
             <Sparkles className="h-3.5 w-3.5" />
             {caption.trim() ? "Rewrite with Lyra" : "Generate with Lyra"}

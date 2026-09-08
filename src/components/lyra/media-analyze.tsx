@@ -8,6 +8,10 @@ import { usePersistedState } from "@/hooks/use-persisted-state";
 import { urlsToDataUrls } from "@/lib/image-data-url";
 import { lyraStorageKey } from "@/lib/lyra-persist";
 import { useApp } from "@/state/app-context";
+import {
+  useLyraWorkspace,
+  LYRA_NO_WORKSPACE_HINT,
+} from "@/hooks/use-lyra-workspace";
 
 type AnalyzeMode = "image_summary" | "ocr" | "vision_analysis";
 
@@ -26,6 +30,9 @@ export function MediaAnalyze({
   onInsertIntoCaption: (text: string) => void;
 }) {
   const { current, user } = useApp();
+  // A metered Lyra task has to name a workspace to bill; without one the server
+  // refuses the request, so the trigger must be unavailable rather than fail on click.
+  const { workspaceId, ready: lyraReady } = useLyraWorkspace();
   const base = lyraStorageKey(user?.id, current.id, "media-analyze");
   const [open, setOpen] = usePersistedState(`${base}:open`, false);
   const [mode, setMode] = usePersistedState<AnalyzeMode>(`${base}:mode`, "image_summary");
@@ -42,11 +49,11 @@ export function MediaAnalyze({
       return;
     }
     if (nextMode === "image_summary") {
-      await summaryLyra.run({ task: "image_summary", workspaceId: current.id, input: { images } });
+      await summaryLyra.run({ task: "image_summary", workspaceId, input: { images } });
     } else if (nextMode === "ocr") {
-      await ocrLyra.run({ task: "ocr", workspaceId: current.id, input: { images } });
+      await ocrLyra.run({ task: "ocr", workspaceId, input: { images } });
     } else {
-      await visionLyra.run({ task: "vision_analysis", workspaceId: current.id, input: { images } });
+      await visionLyra.run({ task: "vision_analysis", workspaceId, input: { images } });
     }
   };
 
@@ -75,7 +82,8 @@ export function MediaAnalyze({
               variant={mode === m ? "default" : "outline"}
               className="flex-1 text-xs"
               onClick={() => void run(m)}
-              disabled={active.isActive}
+              disabled={active.isActive || !lyraReady}
+              title={lyraReady ? undefined : LYRA_NO_WORKSPACE_HINT}
             >
               {MODE_LABELS[m]}
             </Button>

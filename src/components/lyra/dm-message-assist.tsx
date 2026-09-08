@@ -8,6 +8,10 @@ import { useLyra } from "@/hooks/use-lyra";
 import { usePersistedState } from "@/hooks/use-persisted-state";
 import { lyraStorageKey } from "@/lib/lyra-persist";
 import { useApp } from "@/state/app-context";
+import {
+  useLyraWorkspace,
+  LYRA_NO_WORKSPACE_HINT,
+} from "@/hooks/use-lyra-workspace";
 
 const SYSTEM_PROMPT =
   "You write short, warm Instagram automation messages for a creator's DM/reply automation. " +
@@ -31,6 +35,9 @@ export function DmMessageAssist({
   persistId?: string;
 }) {
   const { current, user } = useApp();
+  // A metered Lyra task has to name a workspace to bill; without one the server
+  // refuses the request, so the trigger must be unavailable rather than fail on click.
+  const { workspaceId, ready: lyraReady } = useLyraWorkspace();
   const base = lyraStorageKey(
     user?.id,
     current.id,
@@ -50,7 +57,7 @@ export function DmMessageAssist({
       .join("\n");
     await lyra.run({
       task: "custom_prompt",
-      workspaceId: current.id,
+      workspaceId,
       input: {
         prompt: context || `Write a ${label.toLowerCase()} for an Instagram DM automation.`,
         systemPrompt: SYSTEM_PROMPT,
@@ -89,7 +96,14 @@ export function DmMessageAssist({
         </div>
 
         {lyra.status === "idle" && (
-          <Button type="button" size="sm" className="w-full gap-1.5" onClick={() => void run()}>
+          <Button
+            type="button"
+            size="sm"
+            className="w-full gap-1.5"
+            onClick={() => void run()}
+            disabled={!lyraReady}
+            title={lyraReady ? undefined : LYRA_NO_WORKSPACE_HINT}
+          >
             <Sparkles className="h-3.5 w-3.5" />
             Draft {label.toLowerCase()}
           </Button>
@@ -110,7 +124,14 @@ export function DmMessageAssist({
             <Button type="button" size="sm" className="flex-1" onClick={apply}>
               Use this
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => void run()}>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => void run()}
+              disabled={!lyraReady}
+              title={lyraReady ? undefined : LYRA_NO_WORKSPACE_HINT}
+            >
               Regenerate
             </Button>
           </div>

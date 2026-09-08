@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { AuditTimeline } from "@/components/admin/audit-timeline";
 import { getAuditLogs, getAuditLogsArchive } from "@/lib/api/audit-logs-api";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useApp } from "@/state/app-context";
 
 /**
@@ -45,7 +46,7 @@ function AuditLogsPage() {
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const entries = query.data?.pages.flatMap((p) => p.items) ?? [];

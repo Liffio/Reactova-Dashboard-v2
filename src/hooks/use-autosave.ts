@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { deleteDraft, getDraft, saveDraft, type DraftDto } from "@/lib/api/drafts-api";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { registerAutosaveFlush } from "@/lib/autosave-registry";
 
 export type AutosaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
@@ -37,7 +38,7 @@ export function useAutosave<TPayload extends Record<string, unknown>>(options: U
 
   // Load any existing draft once the workspace is known.
   useEffect(() => {
-    if (!workspaceId || workspaceId === "default" || !enabled) {
+    if (!isWorkspaceReady(workspaceId) || !enabled) {
       return;
     }
     let cancelled = false;
@@ -55,7 +56,7 @@ export function useAutosave<TPayload extends Record<string, unknown>>(options: U
 
   const flush = useCallback(async () => {
     const payload = latestRef.current;
-    if (!payload || !workspaceId || workspaceId === "default" || clearedRef.current) {
+    if (!payload || !isWorkspaceReady(workspaceId) || clearedRef.current) {
       return;
     }
     setStatus("saving");
@@ -71,7 +72,7 @@ export function useAutosave<TPayload extends Record<string, unknown>>(options: U
   /** Debounced save — call with the latest form snapshot on every change. */
   const schedule = useCallback(
     (payload: TPayload) => {
-      if (!enabled || !workspaceId || workspaceId === "default") {
+      if (!enabled || !isWorkspaceReady(workspaceId)) {
         return;
       }
       clearedRef.current = false;
@@ -98,7 +99,7 @@ export function useAutosave<TPayload extends Record<string, unknown>>(options: U
     }
     setDraft(null);
     setStatus("idle");
-    if (workspaceId && workspaceId !== "default") {
+    if (isWorkspaceReady(workspaceId)) {
       try {
         await deleteDraft(workspaceId, module, draftKey);
       } catch {

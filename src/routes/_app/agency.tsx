@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { agencySwitchWorkspace, getAgencyMasterDashboard } from "@/lib/api/agency-api";
 import { formatNum, bareHandle, formatHandle } from "@/lib/format";
 import { useApp } from "@/state/app-context";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 export const Route = createFileRoute("/_app/agency")({
   head: () => ({ meta: [{ title: "Agency Panel — Liffio" }] }),
@@ -41,7 +42,7 @@ function AgencyPage() {
   const dashboardQuery = useQuery({
     queryKey: ["agency-dashboard", workspaceId],
     queryFn: () => getAgencyMasterDashboard(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const switchMutation = useMutation({
@@ -80,28 +81,47 @@ function AgencyPage() {
             ))
           ) : (
             <>
+              {/* Resolved server-side from the effective `workspacesIncluded` limit. It was the
+                  literal 30 and is actually 20 on Agency, so the page under-counted overage. */}
               <StatCard
                 label="Included workspaces"
-                value={String(billing?.includedWorkspaces ?? 0)}
+                value={
+                  billing?.unlimitedWorkspaces
+                    ? "Unlimited"
+                    : String(billing?.includedWorkspaces ?? 0)
+                }
                 icon={Building2}
                 hint="in your agency plan"
               />
+              {/* Was "Active clients". The value is `usedWorkspaces`, i.e. every client workspace
+                  attached to this agency regardless of status — the table below shows several
+                  that are paused or disconnected. */}
+              {/* Was "Active clients". The value is `usedWorkspaces`, i.e. every client workspace
+                  attached to this agency regardless of status — the table below shows several
+                  that are paused or disconnected. */}
               <StatCard
-                label="Active clients"
+                label="Client workspaces"
                 value={String(billing?.usedWorkspaces ?? 0)}
                 icon={Users}
-                hint={`${billing?.extraWorkspaces ?? 0} extra billed`}
+                hint={
+                  billing?.unlimitedWorkspaces
+                    ? "all statuses · no workspace cap"
+                    : `${billing?.extraWorkspaces ?? 0} extra billed · all statuses`
+                }
               />
               <StatCard
                 label="Total DMs (month)"
                 value={formatNum(clients.reduce((s, c) => s + c.dmsSentThisMonth, 0))}
                 icon={CheckCircle}
               />
+              {/* A genuine active count now that the server reports one. The card used to be
+                  labelled "Active automations" over a sum of EVERY non-deleted automation,
+                  paused and draft included; the total is now the hint rather than the headline. */}
               <StatCard
                 label="Active automations"
-                value={String(clients.reduce((s, c) => s + c.activeWorkflows, 0))}
+                value={String(clients.reduce((s, c) => s + (c.activeAutomationCount ?? 0), 0))}
                 icon={XCircle}
-                hint="across all clients"
+                hint={`${clients.reduce((s, c) => s + (c.automationCount ?? c.activeWorkflows), 0)} total across all clients`}
               />
             </>
           )}
@@ -149,7 +169,7 @@ function AgencyPage() {
                     <th className="px-4 py-3 font-medium">Plan</th>
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 text-right font-medium hidden sm:table-cell">
-                      Automations
+                      Active automations
                     </th>
                     <th className="px-4 py-3 text-right font-medium hidden md:table-cell">
                       DMs (month)
@@ -179,7 +199,7 @@ function AgencyPage() {
                         </Badge>
                       </td>
                       <td className="px-4 py-3.5 text-right tabular-nums hidden sm:table-cell">
-                        {client.activeWorkflows}
+                        {client.activeAutomationCount ?? client.automationCount ?? client.activeWorkflows}
                       </td>
                       <td className="px-4 py-3.5 text-right tabular-nums hidden md:table-cell">
                         {formatNum(client.dmsSentThisMonth)}

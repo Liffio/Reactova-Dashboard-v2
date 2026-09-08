@@ -20,9 +20,31 @@ let activeWorkspaceId: string | null = null;
  */
 const PLACEHOLDER = "default";
 
+/**
+ * Whether an id names a real, usable workspace.
+ *
+ * The single home for this predicate, and now the only place the `"default"` sentinel is compared.
+ *
+ * That duplication was not cosmetic — it was the mechanism behind a live bug: `lyra-api.ts` built
+ * its own header object, skipped the comparison, and sent `x-workspace-id: "default"`, which the
+ * server answered with `404 Workspace not found` while every other path correctly omitted the
+ * header. One call site out of twenty forgetting the check is exactly the failure a shared
+ * predicate prevents.
+ *
+ * All call sites are migrated: the `!== "default"` form (query `enabled` guards) and the negated
+ * `=== "default"` form (early returns in `use-autosave`, `use-workspace-events`, the scheduler and
+ * automation Lyra hand-offs) both route through here. **Do not reintroduce the literal** — compare
+ * through this function so a new call site cannot silently skip it.
+ *
+ * Narrows to `string`, so a guarded branch can pass the id on without a non-null assertion.
+ */
+export function isWorkspaceReady(id: string | null | undefined): id is string {
+  return typeof id === "string" && id.length > 0 && id !== PLACEHOLDER;
+}
+
 export function setActiveWorkspaceId(id: string | null | undefined): void {
   const next = id?.trim();
-  activeWorkspaceId = next && next !== PLACEHOLDER ? next : null;
+  activeWorkspaceId = isWorkspaceReady(next) ? next : null;
 }
 
 export function getActiveWorkspaceId(): string | null {

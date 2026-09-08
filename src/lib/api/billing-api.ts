@@ -45,7 +45,12 @@ export type BillingConfigResponse = {
   isSandbox: boolean;
   currency: string;
   razorpayCurrency: string;
-  usdToInrRate: number;
+  /*
+   * `usdToInrRate` was declared here and is NOT returned by `GET /billing/config` — the payload
+   * has no FX field at all. Reading it yielded `undefined`, which is how `usd * (config.usdToInrRate ?? 84)`
+   * came to inflate every INR price by a hardcoded 84. INR prices are authored per tier on the
+   * package catalogue and are read, never converted, so the field is removed rather than filled in.
+   */
   providers: {
     stripe: { configured: boolean; publishableKey: string | null; webhookConfigured: boolean };
     razorpay: { configured: boolean; keyId: string | null; webhookConfigured: boolean };

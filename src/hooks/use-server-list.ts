@@ -115,7 +115,13 @@ export type UseServerListOptions = {
   enabled?: boolean;
 };
 
-export function useServerList<T>({
+/**
+ * `TExtra` carries any endpoint-specific fields returned ALONGSIDE the paged envelope — e.g.
+ * `leads/search` returns `emailRedacted` so the UI can say "your plan does not include this"
+ * instead of rendering a silently blank column. Defaults to `unknown`, so every existing caller
+ * is unaffected and no cast is needed anywhere.
+ */
+export function useServerList<T, TExtra = unknown>({
   path,
   queryKey,
   workspaceId,
@@ -178,7 +184,7 @@ export function useServerList<T>({
 
   const query = useQuery({
     queryKey: [queryKey, workspaceId, body],
-    queryFn: () => apiRequest<Paged<T>>(path, { method: "POST", body, workspaceId }),
+    queryFn: () => apiRequest<Paged<T> & TExtra>(path, { method: "POST", body, workspaceId }),
     // Keeps the current page on screen while the next loads, rather than collapsing to a skeleton
     // on every keystroke.
     placeholderData: keepPreviousData,
@@ -248,5 +254,11 @@ export function useServerList<T>({
 
     /** True when the user has narrowed the list, for "no results" vs "nothing here yet" copy. */
     isNarrowed: Boolean(debouncedSearch) || filters.length > 0,
+
+    /**
+     * The whole response, for endpoint-specific fields outside the paged envelope. `undefined`
+     * until the first page arrives.
+     */
+    extra: data,
   };
 }

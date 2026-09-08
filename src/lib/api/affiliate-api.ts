@@ -16,6 +16,19 @@ export type KycStatusResponse = {
   } | null;
 };
 
+/**
+ * Affiliate program terms as configured server-side. Optional because an older
+ * API build does not return it — when absent the UI must omit the number
+ * entirely rather than fall back to a literal.
+ */
+export type AffiliateProgramTerms = {
+  commissionRate?: number;
+  commissionRatePercent?: number;
+  minPayoutUsd?: number;
+  holdDays?: number;
+  currency?: string;
+};
+
 export type AffiliateProfile = {
   id: string;
   randomCode: string;
@@ -24,12 +37,28 @@ export type AffiliateProfile = {
   activeReferrals: number;
   totalEarned: number;
   pendingBalance: number;
+  /**
+   * The GROSS available figure. It is NOT what can be withdrawn when a reversal is outstanding —
+   * gate every payout affordance on `spendableBalance` instead.
+   */
   availableBalance: number;
+  /**
+   * Outstanding debt from commissions reversed after they were paid out. `0` for an affiliate with
+   * no reversals; absent on an older server.
+   */
+  clawbackDebt?: number;
+  /**
+   * `max(0, availableBalance - clawbackDebt)` — the same quantity the server enforces on a payout
+   * request, so the UI and the server cannot disagree. Absent on an older server, in which case
+   * fall back to `availableBalance`, which is today's behaviour.
+   */
+  spendableBalance?: number;
   lifetimePaid: number;
   isSuspended: boolean;
   programConsentAt: string | null;
   programConsentVersion: string | null;
   hasProgramConsent: boolean;
+  programTerms?: AffiliateProgramTerms;
 };
 
 export type AffiliateDashboard = {
@@ -44,7 +73,6 @@ export type AffiliateDashboard = {
     amount: number;
     status: string;
     workspace: string;
-    plan: string;
     createdAt: string;
   }>;
   recentPayouts: Array<{
@@ -66,9 +94,15 @@ export type AffiliateLinks = {
 export type AffiliateReferral = {
   id: string;
   email: string;
+  referralCode: string;
   isActive: boolean;
+  discountUsed: boolean;
   attributedAt: string;
-  workspaces: Array<{ plan: string; isEligible: boolean }>;
+  /**
+   * `handle` is the workspace name; the API does not expose the referred
+   * workspace's plan, so the UI must not claim to show one.
+   */
+  workspaces: Array<{ workspaceId: string; handle: string | null; isEligible: boolean }>;
 };
 
 export type AffiliatePayout = {

@@ -37,7 +37,7 @@ import {
   getAdminAffiliateOverview,
   listAdminAffiliatePayouts,
   listAdminAffiliates,
-  listAdminFlaggedAffiliates,
+  listAdminFlaggedReferrals,
   listAdminKycQueue,
   markAdminPayoutPaid,
   rejectAdminKyc,
@@ -92,7 +92,7 @@ function AdminAffiliatesPage() {
   });
   const flaggedQuery = useQuery({
     queryKey: ["admin-affiliate-flagged"],
-    queryFn: listAdminFlaggedAffiliates,
+    queryFn: listAdminFlaggedReferrals,
   });
   const kycQueueQuery = useQuery({
     queryKey: ["admin-affiliate-kyc-queue"],
@@ -340,12 +340,12 @@ function AdminAffiliatesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(payoutsQuery.data?.payouts ?? []).map((p) => (
+                    {(payoutsQuery.data ?? []).map((p) => (
                       <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-6 py-3.5 font-medium tabular-nums">
-                          ${p.amount.toFixed(2)}
+                          ${Number(p.amount).toFixed(2)}
                         </td>
-                        <td className="px-4 py-3.5 text-xs text-muted-foreground">{p.method}</td>
+                        <td className="px-4 py-3.5 text-xs text-muted-foreground">{p.payoutMethod}</td>
                         <td className="px-4 py-3.5">
                           <Badge variant="outline">{p.status}</Badge>
                         </td>
@@ -386,7 +386,7 @@ function AdminAffiliatesPage() {
                         </td>
                       </tr>
                     ))}
-                    {(payoutsQuery.data?.payouts ?? []).length === 0 && !payoutsQuery.isLoading && (
+                    {(payoutsQuery.data ?? []).length === 0 && !payoutsQuery.isLoading && (
                       <tr>
                         <td
                           colSpan={5}
@@ -416,12 +416,12 @@ function AdminAffiliatesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(listQuery.data?.affiliates ?? []).map((a) => (
+                    {(listQuery.data?.items ?? []).map((a) => (
                       <tr key={a.id} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="px-6 py-3.5 font-medium">{a.email ?? a.id}</td>
-                        <td className="px-4 py-3.5">{a.totalReferrals ?? 0}</td>
+                        <td className="px-6 py-3.5 font-medium">{a.user?.email ?? a.id}</td>
+                        <td className="px-4 py-3.5">{a.totalReferrals}</td>
                         <td className="px-4 py-3.5 tabular-nums">
-                          ${Number(a.totalEarned ?? 0).toFixed(2)}
+                          ${Number(a.totalEarned).toFixed(2)}
                         </td>
                         <td className="px-4 py-3.5">
                           <Badge
@@ -459,7 +459,7 @@ function AdminAffiliatesPage() {
                         </td>
                       </tr>
                     ))}
-                    {(listQuery.data?.affiliates ?? []).length === 0 && !listQuery.isLoading && (
+                    {(listQuery.data?.items ?? []).length === 0 && !listQuery.isLoading && (
                       <tr>
                         <td
                           colSpan={5}
@@ -487,13 +487,13 @@ function AdminAffiliatesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(flaggedQuery.data?.flagged ?? []).map((f) => (
+                    {(flaggedQuery.data ?? []).map((f) => (
                       <tr key={f.id} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="px-6 py-3.5 font-medium">{f.email ?? f.id}</td>
+                        <td className="px-6 py-3.5 font-medium">
+                          {f.affiliateProfile?.user?.email ?? f.affiliateProfile?.id ?? "—"}
+                        </td>
                         <td className="px-4 py-3.5 text-xs text-muted-foreground">
-                          {String(
-                            (f as { referredUser?: { email?: string } }).referredUser?.email ?? "—",
-                          )}
+                          {f.referredUser?.email ?? "—"}
                         </td>
                         <td className="px-6 py-3.5">
                           <div className="flex justify-end">
@@ -508,7 +508,7 @@ function AdminAffiliatesPage() {
                         </td>
                       </tr>
                     ))}
-                    {(flaggedQuery.data?.flagged ?? []).length === 0 && !flaggedQuery.isLoading && (
+                    {(flaggedQuery.data ?? []).length === 0 && !flaggedQuery.isLoading && (
                       <tr>
                         <td
                           colSpan={3}

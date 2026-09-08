@@ -157,6 +157,19 @@ export type SchedulerOverview = {
   totalLikes: number;
   totalComments: number;
   avgEngagementRate: number | null;
+  /**
+   * The reach floor applied to `avgEngagementRate`, `topPerformingPost` and `bestTimeToPost`.
+   *
+   * Posts below it are excluded from those three, because a post that reached 3 accounts and
+   * collected 9 interactions scores 333% and would otherwise dominate every average. The raw
+   * totals (reach, likes, views, saves, shares) include every post, so the ratio cards and the
+   * totals describe DIFFERENT sets of posts — which is why the UI must say so.
+   */
+  ratioStatsMinReach?: number;
+  /** Posts included in the reach-floored ratio statistics. */
+  ratioStatsPostsIncluded?: number;
+  /** Posts with insight data excluded by the reach floor. */
+  ratioStatsPostsExcluded?: number;
   /** True once at least one post in range has fetched insights. */
   insightsAvailable: boolean;
   /** ISO timestamp of the last successful insights fetch for this range, or null if never. */

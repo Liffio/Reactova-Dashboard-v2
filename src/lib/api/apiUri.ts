@@ -207,8 +207,17 @@ export const apiUri = {
     ) => `${V1}/audit-logs/archive${listQs(params)}`,
   },
 
+  entitlement: {
+    /**
+     * The workspace's EFFECTIVE limits, with provenance. Workspace-scoped: the `x-workspace-id`
+     * header decides which workspace. Read this instead of any plan config when rendering a cap.
+     */
+    limits: `${V1}/entitlement/limits`,
+  },
+
   analytics: {
-    overview: `${V1}/analytics/overview`,
+    // `overview` was removed: it duplicated `channels.dms` on `/analytics/page` over a different
+    // window, had zero callers, and the endpoint no longer exists server-side.
     page: `${V1}/analytics/page`,
     dashboard: `${V1}/analytics/dashboard`,
   },

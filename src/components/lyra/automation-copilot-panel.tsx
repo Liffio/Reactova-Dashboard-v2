@@ -9,6 +9,8 @@ import { usePersistedState } from "@/hooks/use-persisted-state";
 import { lyraStorageKey } from "@/lib/lyra-persist";
 import { cn } from "@/lib/utils";
 import type { LyraAutomationCopilotOutput, LyraAutomationDraftFields } from "@/lib/api/lyra-api";
+import { isLyraWorkspaceReady } from "@/lib/api/lyra-api";
+import { LYRA_NO_WORKSPACE_HINT } from "@/hooks/use-lyra-workspace";
 
 type CopilotMessage = { role: "user" | "assistant"; content: string };
 
@@ -35,6 +37,9 @@ export function AutomationCopilotPanel({
   onApplyPatch: (patch: LyraAutomationCopilotOutput) => void;
 }) {
   const base = lyraStorageKey(userId, workspaceId, "automation-copilot");
+  // A metered Lyra task has to name a workspace to bill; without one the server refuses the
+  // request, so the triggers below must be unavailable rather than fail on click.
+  const lyraReady = isLyraWorkspaceReady(workspaceId);
   const [open, setOpen] = usePersistedState(`${base}:open`, false);
   const [messages, setMessages] = usePersistedState<CopilotMessage[]>(`${base}:messages`, [
     GREETING,
@@ -146,14 +151,16 @@ export function AutomationCopilotPanel({
                   placeholder="Describe the automation…"
                   className="min-h-9 flex-1 resize-none text-xs"
                   rows={1}
-                  disabled={lyra.isActive}
+                  disabled={lyra.isActive || !lyraReady}
+                  title={lyraReady ? undefined : LYRA_NO_WORKSPACE_HINT}
                 />
                 <Button
                   type="button"
                   size="icon"
                   className="h-9 w-9 shrink-0"
                   onClick={() => void send()}
-                  disabled={lyra.isActive || !draftText.trim()}
+                  disabled={lyra.isActive || !draftText.trim() || !lyraReady}
+                  title={lyraReady ? undefined : LYRA_NO_WORKSPACE_HINT}
                 >
                   <Send className="h-3.5 w-3.5" />
                 </Button>

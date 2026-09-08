@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   Area,
@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { MessageCircle, MousePointerClick, TrendingUp, UserPlus } from "lucide-react";
+import { Info, MessageCircle, MousePointerClick, TrendingUp, UserPlus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -26,7 +26,7 @@ import {
   rangeQueryParams,
   type DashboardDateRange,
 } from "@/components/dashboard/date-range-picker";
-import { formatNum } from "@/lib/format";
+import { formatDate, formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 import { InsightsCard } from "@/components/lyra/insights-card";
 import {
@@ -35,6 +35,7 @@ import {
   AnalyticsHighlight,
 } from "@/components/lyra/insight-content";
 import { useLyraInsights } from "@/hooks/use-lyra-insights";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 export const Route = createFileRoute("/_app/analytics")({
   head: () => ({ meta: [{ title: "Analytics — Liffio" }] }),
@@ -64,7 +65,7 @@ function AnalyticsPage() {
   const analyticsQuery = useQuery({
     queryKey: ["analytics-page", workspaceId, rangeKey(range)],
     queryFn: () => getAnalyticsPage(workspaceId, rangeQueryParams(range)),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const insights = useLyraInsights({
@@ -99,6 +100,26 @@ function AnalyticsPage() {
         {analyticsQuery.isError && (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
             {(analyticsQuery.error as Error).message}
+          </div>
+        )}
+
+        {/* The server narrowed the requested window to the history depth this plan includes.
+            Every figure below therefore covers a shorter period than the picker shows, which is
+            only honest if the page says so. */}
+        {data?.historyWindow?.clamped && (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning"
+          >
+            <Info className="h-4 w-4 shrink-0" />
+            <span>
+              Showing the last {data.historyWindow.historyDays ?? "—"} days — the analytics history
+              included in your plan. Figures below cover {formatDate(data.historyWindow.from)} to{" "}
+              {formatDate(data.historyWindow.to)}, not the full range selected.
+            </span>
+            <Link to="/billings" className="font-semibold underline underline-offset-2">
+              See plans
+            </Link>
           </div>
         )}
 
@@ -154,19 +175,26 @@ function AnalyticsPage() {
                 label="Link clicks"
                 value={formatNum(data?.summary.totalLinkClicks ?? 0)}
                 icon={MousePointerClick}
-                hint={`${(data?.rates.clickRate ?? 0).toFixed(1)}% click rate`}
+                /* Clicks in the numerator. The old hint read "click rate" over
+                   leads-that-clicked / DMs sent, which counted leads, not clicks. */
+                hint={`${(data?.rates.linkClicksPerDmRate ?? 0).toFixed(1)} clicks per 100 DMs sent`}
               />
               <StatCard
                 label="Leads captured"
                 value={formatNum(data?.summary.leadsCaptured ?? 0)}
                 icon={UserPlus}
-                hint={`${(data?.rates.leadRate ?? 0).toFixed(1)}% lead rate`}
+                hint={`${(data?.rates.leadRate ?? 0).toFixed(1)}% of DMs sent`}
               />
               <StatCard
-                label="Conversion rate"
+                label="Lead → click rate"
                 value={`${(data?.summary.conversionRate ?? 0).toFixed(1)}%`}
                 icon={TrendingUp}
-                hint="DM → click"
+                /* The formula has always been leads-that-clicked / leads-captured. The card used
+                   to be titled "Conversion rate" and hinted "DM → click", which named a
+                   denominator it never used and overstated conversion by the DM-to-lead ratio.
+                   It is also NOT the same "conversion" as the per-automation column below, which
+                   is why neither is called that any more. */
+                hint="of leads captured, share that clicked"
               />
             </>
           )}
@@ -268,17 +296,16 @@ function AnalyticsPage() {
           <div className="rounded-2xl border bg-card p-6 shadow-soft">
             <div className="mb-5">
               <h2 className="font-display text-lg font-semibold">Conversion funnel</h2>
-              <p className="text-sm text-muted-foreground">Comment → sale · {periodLabel}</p>
+              <p className="text-sm text-muted-foreground">DM → click · {periodLabel}</p>
             </div>
             <div className="space-y-3">
               {data &&
                 (
                   [
-                    ["Comments received", data.funnel.commentsReceived],
-                    ["Keyword matched", data.funnel.keywordMatched],
-                    ["DMs sent", data.funnel.dmsSent],
-                    ["Link clicked", data.funnel.linkClicked],
-                    ["Sale attributed", data.funnel.saleAttributed],
+                    ["DMs queued", data.funnel.dmsAttempted],
+                    ["DMs delivered", data.funnel.dmsDelivered],
+                    ["Leads captured", data.funnel.leadsCaptured],
+                    ["Leads that clicked", data.funnel.linkClicked],
                   ] as Array<[string, number]>
                 ).map(([stage, value], i, all) => {
                   const max = all[0][1] || 1;
@@ -342,8 +369,12 @@ function AnalyticsPage() {
                   <th className="px-4 py-3 text-right font-medium">DMs</th>
                   <th className="px-4 py-3 text-right font-medium">Clicks</th>
                   <th className="px-4 py-3 text-right font-medium">Leads</th>
-                  <th className="px-4 py-3 text-right font-medium">Conv.</th>
-                  <th className="px-6 py-3 text-right font-medium">ROI</th>
+                  {/* Named by its formula. The page-level rate above is lead → click; this one is
+                      clicks / DMs. Calling both "conversion" is what made them look comparable. */}
+                  <th className="px-4 py-3 text-right font-medium">Clicks / DM</th>
+                  {/* Not "ROI": no cost or revenue exists anywhere in this product, so nothing
+                      here can be a return. It bands the Clicks / DM column beside it. */}
+                  <th className="px-6 py-3 text-right font-medium">Band</th>
                 </tr>
               </thead>
               <tbody>

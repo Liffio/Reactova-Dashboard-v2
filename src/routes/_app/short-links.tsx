@@ -30,6 +30,7 @@ import {
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { createShortLink, deleteShortLink, type ShortLinkItem } from "@/lib/api/shortlinks-api";
 import { apiUri } from "@/lib/api/apiUri";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useServerList } from "@/hooks/use-server-list";
 import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
@@ -65,7 +66,7 @@ function ShortLinksPage() {
     workspaceId,
     defaultSort: { key: "createdAt", dir: "desc" },
     defaultLimit: 25,
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const createMutation = useMutation({

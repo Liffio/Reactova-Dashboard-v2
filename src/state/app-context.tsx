@@ -48,10 +48,17 @@ export interface Workspace {
   status: WorkspaceStatus;
   instagramConnected: boolean;
   nextBilling: string;
-  dmsThisMonth: number;
-  leadsThisMonth: number;
-  clicksThisMonth: number;
-  activeAutomations: number;
+  /**
+   * Monthly counters, or `null` when the source endpoint does not compute them.
+   *
+   * `GET /workspaces` (which backs this context) returns no aggregates, so these are
+   * normally `null`. Never coerce to `0` — an unknown count and a genuine zero must not
+   * render the same way.
+   */
+  dmsThisMonth: number | null;
+  leadsThisMonth: number | null;
+  clicksThisMonth: number | null;
+  activeAutomations: number | null;
 }
 
 interface AppCtx {
@@ -80,10 +87,10 @@ const defaultWorkspace: Workspace = {
   status: "active",
   instagramConnected: false,
   nextBilling: "—",
-  dmsThisMonth: 0,
-  leadsThisMonth: 0,
-  clicksThisMonth: 0,
-  activeAutomations: 0,
+  dmsThisMonth: null,
+  leadsThisMonth: null,
+  clicksThisMonth: null,
+  activeAutomations: null,
 };
 
 const mapPlan = (planKey?: string): PlanName => {
@@ -158,10 +165,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         nextBilling: workspace.billingCycleEnd
           ? new Date(workspace.billingCycleEnd).toLocaleDateString()
           : "—",
-        dmsThisMonth: workspace.dmsThisMonth ?? 0,
-        leadsThisMonth: workspace.leadsThisMonth ?? 0,
-        clicksThisMonth: workspace.clicksThisMonth ?? 0,
-        activeAutomations: workspace.activeAutomations ?? 0,
+        dmsThisMonth: workspace.dmsThisMonth ?? null,
+        leadsThisMonth: workspace.leadsThisMonth ?? null,
+        clicksThisMonth: workspace.clicksThisMonth ?? null,
+        activeAutomations: workspace.activeAutomations ?? null,
       };
     });
   }, [workspacesQuery.data]);

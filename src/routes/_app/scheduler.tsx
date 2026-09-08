@@ -137,6 +137,7 @@ import {
 } from "@/components/lyra/insight-content";
 import { useLyraInsights } from "@/hooks/use-lyra-insights";
 import { bareHandle, formatHandle } from "@/lib/format";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 export const Route = createFileRoute("/_app/scheduler")({
   head: () => ({ meta: [{ title: "Scheduler — Liffio" }] }),
@@ -195,6 +196,27 @@ function GatedPostTypeItem({
 // ─── constants ───────────────────────────────────────────────────────────────
 
 const WEEK_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+/**
+ * Stand-in for the like count in the composer's Instagram mockup.
+ *
+ * The post does not exist yet, so there is no number to show. An em dash cannot be mistaken for
+ * a measurement the way the previous literal "0 likes" could.
+ */
+const PREVIEW_LIKES_PLACEHOLDER = "— likes";
+
+/**
+ * Chip text for the composer mockup, keyed by post type. Every value says "preview" so the
+ * mockup cannot be read as a published post.
+ */
+const PREVIEW_TYPE_LABELS: Record<string, string | undefined> = {
+  REEL: "Reel preview",
+  STORY: "Story preview",
+  CAROUSEL: "Carousel preview",
+};
+
+/** Anything not listed above — currently the plain feed post. */
+const PREVIEW_TYPE_LABEL_FALLBACK = "Feed preview";
+
 /** 3-hour bands for the engagement heatmap — 8 rows instead of 24, so each cell
  *  aggregates enough posts to be non-empty even with a small sample. */
 const HOUR_BANDS = [
@@ -678,14 +700,9 @@ function IgStylePostPreview({
   const carouselCount = carouselSlides.length;
   const hasCaption = caption.trim().length > 0;
   const captionText = caption.trim();
-  const previewLabel =
-    type === "REEL"
-      ? "Reel"
-      : type === "STORY"
-        ? "Story"
-        : type === "CAROUSEL"
-          ? "Carousel"
-          : "Feed post";
+  // The chip says "preview" so the mockup cannot be read as a published post. Was a chain of
+  // nested ternaries; a lookup reads better and satisfies the no-nested-ternary rule.
+  const previewLabel = PREVIEW_TYPE_LABELS[type] ?? PREVIEW_TYPE_LABEL_FALLBACK;
 
   const goToSlide = (nextIndex: number) => {
     if (carouselSlides.length === 0) {
@@ -873,7 +890,12 @@ function IgStylePostPreview({
       </div>
 
       <div className="px-3 space-y-1.5 pb-1">
-        <p className="text-sm font-semibold leading-tight">0 likes</p>
+        {/* A layout placeholder inside the composer's Instagram mockup, not a metric. The
+            literal used to read "0 likes", which is a number the reader could mistake for a
+            measurement of a post that has not been published yet. */}
+        <p className="text-sm font-semibold leading-tight text-muted-foreground">
+          {PREVIEW_LIKES_PLACEHOLDER}
+        </p>
       </div>
 
       <div className="px-3 pb-3 text-sm leading-relaxed">
@@ -1445,13 +1467,13 @@ function SchedulerPage() {
   const accountsQuery = useQuery({
     queryKey: ["scheduler-accounts", workspaceId],
     queryFn: () => listPlatformAccounts(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const calendarQuery = useQuery({
     queryKey: ["scheduler-calendar", workspaceId, fromIso, toIso],
     queryFn: () => getSchedulerCalendar(workspaceId, fromIso, toIso),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   /**
@@ -1467,20 +1489,38 @@ function SchedulerPage() {
     workspaceId,
     defaultSort: { key: "scheduledAt", dir: "asc" },
     defaultLimit: 25,
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const overviewQuery = useQuery({
     queryKey: ["scheduler-overview", workspaceId],
     queryFn: () => getSchedulerAnalyticsOverview(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const analyticsPostsQuery = useQuery({
     queryKey: ["scheduler-analytics-posts", workspaceId, sortBy],
     queryFn: () => getSchedulerAnalyticsPosts(workspaceId, sortBy),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
+
+  /**
+   * Disclosure for the reach-floored statistics.
+   *
+   * `avgEngagementRate`, the engagement heatmap and `topPerformingPost` are computed only over
+   * posts that clear a minimum reach, while the raw totals beside them count every post. The two
+   * therefore describe different sets of posts, and until this note existed nothing in the UI
+   * said so. `null` when the server did not report the floor, or when nothing was excluded — in
+   * which case there is no discrepancy to disclose.
+   */
+  const reachFloorNote = useMemo(() => {
+    const data = overviewQuery.data;
+    if (!data?.ratioStatsMinReach) return null;
+    const excluded = data.ratioStatsPostsExcluded ?? 0;
+    if (excluded === 0) return null;
+    const noun = excluded === 1 ? "post" : "posts";
+    return `Excludes ${excluded} ${noun} under ${data.ratioStatsMinReach} reach — a ratio over a handful of accounts is noise. Totals above include every post.`;
+  }, [overviewQuery.data]);
 
   const insights = useLyraInsights({
     task: "insight",
@@ -1500,7 +1540,7 @@ function SchedulerPage() {
   const bestTimesQuery = useQuery({
     queryKey: ["scheduler-best-times", workspaceId],
     queryFn: () => getSchedulerBestTimes(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default" && composeOpen && showBestTimes,
+    enabled: isWorkspaceReady(workspaceId) && composeOpen && showBestTimes,
   });
 
   /**
@@ -1570,7 +1610,7 @@ function SchedulerPage() {
   const handoffConsumedRef = useRef(false);
 
   useEffect(() => {
-    if (!lyraDraft || !workspaceId || workspaceId === "default" || handoffConsumedRef.current) {
+    if (!lyraDraft || !isWorkspaceReady(workspaceId) || handoffConsumedRef.current) {
       return;
     }
     handoffConsumedRef.current = true;
@@ -2792,13 +2832,18 @@ function SchedulerPage() {
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {[
-                      { label: "Posts", value: analyticsPostsQuery.data?.total ?? 0 },
+                      {
+                        label: "Posts",
+                        value: analyticsPostsQuery.data?.total ?? 0,
+                        note: null,
+                      },
                       {
                         label: "Reach",
                         value:
                           overviewQuery.data?.totalReach != null
                             ? overviewQuery.data.totalReach
                             : "—",
+                        note: null,
                       },
                       {
                         label: "Views",
@@ -2806,6 +2851,7 @@ function SchedulerPage() {
                           overviewQuery.data?.totalViews != null
                             ? overviewQuery.data.totalViews
                             : "—",
+                        note: null,
                       },
                       {
                         label: "Saves",
@@ -2813,6 +2859,7 @@ function SchedulerPage() {
                           overviewQuery.data?.totalSaves != null
                             ? overviewQuery.data.totalSaves
                             : "—",
+                        note: null,
                       },
                       {
                         label: "Shares",
@@ -2820,16 +2867,25 @@ function SchedulerPage() {
                           overviewQuery.data?.totalShares != null
                             ? overviewQuery.data.totalShares
                             : "—",
+                        note: null,
                       },
-                      { label: "Likes", value: overviewQuery.data?.totalLikes ?? 0 },
+                      {
+                        label: "Likes",
+                        value: overviewQuery.data?.totalLikes ?? 0,
+                        note: null,
+                      },
                       {
                         label: "Avg engagement %",
                         value:
                           overviewQuery.data?.avgEngagementRate != null
                             ? overviewQuery.data.avgEngagementRate.toFixed(1)
                             : "—",
+                        // Every other tile in this row sums ALL posts; this one averages only
+                        // the posts that clear the reach floor. Saying so is the difference
+                        // between a documented statistic and a quietly different denominator.
+                        note: reachFloorNote,
                       },
-                    ].map((s) => (
+                    ].map((s: { label: string; value: string | number; note: string | null }) => (
                       <Card key={s.label} className="shadow-soft">
                         <CardHeader className="p-4 pb-2">
                           <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -2838,6 +2894,11 @@ function SchedulerPage() {
                         </CardHeader>
                         <CardContent className="p-4 pt-0">
                           <div className="font-display text-2xl font-bold">{s.value}</div>
+                          {s.note ? (
+                            <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
+                              {s.note}
+                            </p>
+                          ) : null}
                         </CardContent>
                       </Card>
                     ))}
@@ -2907,6 +2968,11 @@ function SchedulerPage() {
                     <CardTitle className="text-sm font-semibold">
                       Engagement by time of day (UTC)
                     </CardTitle>
+                    {/* The heatmap takes the same reach floor as the average above it, so the
+                        cells describe a subset of the posts counted in the totals. */}
+                    {reachFloorNote ? (
+                      <p className="mt-1 text-[11px] text-muted-foreground">{reachFloorNote}</p>
+                    ) : null}
                   </CardHeader>
                   <CardContent className="p-4 sm:p-6 pt-0">
                     {/* md+: full 24-hour precision. The heatmap only has 7 rows now

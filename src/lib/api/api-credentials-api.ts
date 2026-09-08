@@ -24,7 +24,14 @@ export type ApiCredentialsResponse = {
     schedulerPostsPerDay: number;
     automationsPerDay: number;
   } | null;
-  minimumPlanForApi: string;
+  /**
+   * The cheapest plan whose catalogue entry actually enables the external API, or `null` when NO
+   * plan does. It used to be the literal "STARTER" while every tier had `apiEnabled: false`, so a
+   * Business customer was told they qualified and the create call refused them.
+   * `null` means "not available on any plan yet" — never render a plan name for it.
+   */
+  minimumPlanForApi: string | null;
+  /** False on every plan while no plan enables the API. Gate the create action on this. */
   planMeetsMinimum: boolean;
 };
 

@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { InviteAccessMatrix } from "@/components/team/invite-access-matrix";
 import { getGrantableAccess, createTeamInvite } from "@/lib/api/team-api";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useApp } from "@/state/app-context";
 import { LIMITS, emailError } from "@/lib/validation";
 
@@ -36,7 +37,7 @@ function InvitePage() {
   const grantableQuery = useQuery({
     queryKey: ["team-grantable", workspaceId],
     queryFn: () => getGrantableAccess(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const [email, setEmail] = useState("");

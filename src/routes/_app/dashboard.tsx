@@ -33,6 +33,7 @@ import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 import { useCan } from "@/hooks/use-auth";
 import { staggerContainer, staggerItem } from "@/lib/motion";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({
@@ -60,10 +61,38 @@ function greeting(): string {
 /** The automation list is a sample, not the log; Audit Logs behind "View all" is the full history. */
 const RECENT_LIMIT = 5;
 
+/** The three all-time scheduler tallies, in the order they read. */
+const SCHEDULER_TILES = [
+  { key: "schedulerScheduled", label: "Scheduled" },
+  { key: "schedulerDrafts", label: "Drafts" },
+  { key: "schedulerFailed", label: "Failed" },
+] as const;
+
+/**
+ * Renders a count that may be absent. `null`/`undefined` means the value is unknown, and an
+ * unknown value must never render as a confident `0`.
+ */
+function formatCount(value: number | null | undefined): string {
+  return value == null ? "—" : formatNum(value);
+}
+
+/**
+ * What to show where a trend pill would go when no percentage change exists.
+ *
+ * Returns `undefined` when the strip's own default wording is right (no prior figure reached us
+ * at all). Otherwise it names the reason, so growth from a zero base is never left looking like
+ * an unchanged number.
+ */
+function comparisonNote(previous: number | undefined, current: number): string | undefined {
+  if (previous === undefined) return undefined;
+  if (previous !== 0) return undefined;
+  return current > 0 ? "New this period" : "None last period either";
+}
+
 function DashboardPage() {
   const { current, user } = useApp();
   const workspaceId = current.id;
-  const hasRealWorkspace = Boolean(workspaceId) && workspaceId !== "default";
+  const hasRealWorkspace = isWorkspaceReady(workspaceId);
   // Gates only the "View all" destination, never the card itself. `audit_logs` is a gateable
   // module, so a packaged workspace can hold the role grant and still resolve to no access.
   const canViewAuditLogs = useCan("audit_logs", "read");
@@ -80,6 +109,9 @@ function DashboardPage() {
 
   const data = dashboardQuery.data;
   const totals = data?.totals;
+  // Only an explicit `false` means the server told us the read failed; `undefined` is an older
+  // API build that always succeeded or always returned zeros.
+  const schedulerUnavailable = totals?.schedulerStatsAvailable === false;
   const firstName = user?.name?.split(" ")[0] ?? "there";
 
   /**
@@ -105,12 +137,26 @@ function DashboardPage() {
       leadsCaptured: totals?.leadsTrendPercent != null ? totals.leadsTrendPercent / 100 : undefined,
       linkClicks: totals?.clickTrendPercent != null ? totals.clickTrendPercent / 100 : undefined,
     };
-    return FUNNEL_STAGE_META.map((meta) => ({
-      ...meta,
-      value: values?.[meta.key as keyof typeof values] ?? 0,
-      series: seriesFor[meta.key] ?? [],
-      delta: deltaFor[meta.key],
-    }));
+    /**
+     * The prior-period absolutes, which is what lets a missing percentage be explained.
+     * A trend percent is `null` whenever last period was zero; without these the strip could
+     * only say "no comparison", so a first period of real growth read as no change.
+     */
+    const previousFor: Record<string, number | undefined> = {
+      dmsSent: totals?.dmsSentLastMonth,
+      leadsCaptured: totals?.leadsCapturedLastMonth,
+      linkClicks: totals?.linkClicksLastMonth,
+    };
+    return FUNNEL_STAGE_META.map((meta) => {
+      const value = values?.[meta.key as keyof typeof values] ?? 0;
+      return {
+        ...meta,
+        value,
+        series: seriesFor[meta.key] ?? [],
+        delta: deltaFor[meta.key],
+        comparisonNote: comparisonNote(previousFor[meta.key], value),
+      };
+    });
   }, [data?.funnel, data?.series, totals]);
 
   return (
@@ -345,32 +391,29 @@ function DashboardPage() {
                     All time
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-3 text-center">
-                  <div>
-                    <div className="font-display text-2xl font-semibold tabular-nums">
-                      {totals?.schedulerScheduled ?? 0}
-                    </div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Scheduled
-                    </div>
+                {schedulerUnavailable ? (
+                  /* The server could not read the scheduler tables. Rendering three zeros here
+                     would present a failed query as a measurement, so say what happened. */
+                  <p
+                    role="status"
+                    className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-4 text-center text-[11.5px] text-warning"
+                  >
+                    Scheduler counts are unavailable right now.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    {SCHEDULER_TILES.map((tile) => (
+                      <div key={tile.label}>
+                        <div className="font-display text-2xl font-semibold tabular-nums">
+                          {formatCount(totals?.[tile.key])}
+                        </div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          {tile.label}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <div className="font-display text-2xl font-semibold tabular-nums">
-                      {totals?.schedulerDrafts ?? 0}
-                    </div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Drafts
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-display text-2xl font-semibold tabular-nums">
-                      {totals?.schedulerFailed ?? 0}
-                    </div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Failed
-                    </div>
-                  </div>
-                </div>
+                )}
                 <Button asChild variant="outline" size="sm" className="mt-auto w-full gap-1">
                   <Link to="/scheduler">
                     Open scheduler <ArrowRight className="h-3.5 w-3.5" />

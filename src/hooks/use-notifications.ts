@@ -41,6 +41,7 @@ import {
   type NotificationPage,
 } from "@/lib/api/notifications-api";
 import { getSocket } from "@/lib/socket";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { toast } from "@/lib/toast";
 
@@ -76,7 +77,7 @@ const facetsKey = (workspaceId: string, filters: NotificationFilters): QueryKey 
 
 const unreadKey = (workspaceId: string): QueryKey => ["notifications", "unread-count", workspaceId];
 
-const workspaceEnabled = (workspaceId: string) => Boolean(workspaceId) && workspaceId !== "default";
+const workspaceEnabled = (workspaceId: string) => isWorkspaceReady(workspaceId);
 
 /* ────────────────────────────── date bucketing ────────────────────────────── */
 

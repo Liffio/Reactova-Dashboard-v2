@@ -32,7 +32,15 @@ export type Automation = {
   followUps?: AutomationFollowUp[];
   createdAt: string;
   updatedAt: string;
-  _count?: { dmJobs: number };
+  _count?: {
+    /**
+     * DM jobs at ANY status (QUEUED / SENT / FAILED / RETRYING), all time. An attempt count,
+     * not a delivery count — do not render it as "DMs sent".
+     */
+    dmJobs: number;
+    /** Of those, the ones actually delivered. All time. */
+    dmJobsSent?: number;
+  };
 };
 
 export type CreateAutomationInput = {

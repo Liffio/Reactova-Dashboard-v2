@@ -5,7 +5,7 @@ import { AlertCircle, ArrowUpCircle, Check, RotateCcw, Sparkles, X } from "lucid
 import { cn } from "@/lib/utils";
 import { fadeIn, scaleIn } from "@/lib/motion";
 import type { LyraStatus } from "@/hooks/use-lyra";
-import type { LyraError } from "@/lib/api/lyra-api";
+import { LYRA_WORKSPACE_REQUIRED, type LyraError } from "@/lib/api/lyra-api";
 
 const DEFAULT_STATUS_LINES = [
   "Lyra is thinking…",
@@ -122,6 +122,9 @@ export function LyraThinking({
     statusMessages ?? DEFAULT_STATUS_LINES,
   );
   const countdown = useCountdown(status === "error" ? error?.retryAfterSeconds : undefined);
+  /** Errors with no dedicated branch above fall through to the generic, retryable one. */
+  const isGenericError =
+    error?.code !== "AI_TOKEN_LIMIT_REACHED" && error?.code !== LYRA_WORKSPACE_REQUIRED;
   const text = size === "sm" ? "text-xs" : "text-sm";
 
   const showCancel =
@@ -232,7 +235,32 @@ export function LyraThinking({
         </motion.div>
       )}
 
-      {status === "error" && error?.code !== "AI_TOKEN_LIMIT_REACHED" && (
+      {/*
+        No workspace to bill. A metered generation is refused server-side when the request names
+        no workspace, and retrying cannot help — the user has to pick one — so this branch carries
+        no Retry control, unlike the generic error below.
+      */}
+      {status === "error" && error?.code === LYRA_WORKSPACE_REQUIRED && (
+        <motion.div
+          key="workspace-required"
+          initial="hidden"
+          animate="show"
+          exit="hidden"
+          variants={scaleIn}
+          className={cn(
+            "flex flex-wrap items-center gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-warning",
+            text,
+            className,
+          )}
+        >
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span className="flex-1 min-w-[10rem]">
+            No workspace selected. Choose a workspace to use Lyra.
+          </span>
+        </motion.div>
+      )}
+
+      {status === "error" && isGenericError && (
         <motion.div
           key="error"
           initial="hidden"

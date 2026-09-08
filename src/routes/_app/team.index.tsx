@@ -37,6 +37,7 @@ import {
   type TeamMember,
 } from "@/lib/api/team-api";
 import { apiUri } from "@/lib/api/apiUri";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
 import { useAuthState } from "@/lib/auth/auth-store";
@@ -79,13 +80,13 @@ function TeamPage() {
     workspaceId,
     defaultSort: { key: "createdAt", dir: "asc" },
     defaultLimit: 25,
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const invitesQuery = useQuery({
     queryKey: ["team-invites", workspaceId],
     queryFn: () => listTeamInvites(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const revokeMutation = useMutation({

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { getSocket, type WorkspaceEventPayload } from "@/lib/socket";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { recordLiveActivity, resetLiveActivity } from "@/lib/live-activity-log";
 
@@ -53,7 +54,7 @@ export function useWorkspaceEvents(workspaceId: string | null | undefined): void
   const accessToken = useAuthState((s) => s.accessToken);
 
   useEffect(() => {
-    if (!workspaceId || workspaceId === "default") return;
+    if (!isWorkspaceReady(workspaceId)) return;
 
     // Events already in the log belong to whatever workspace was open before this one.
     resetLiveActivity(workspaceId);

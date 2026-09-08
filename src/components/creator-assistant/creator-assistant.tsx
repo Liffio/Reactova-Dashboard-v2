@@ -18,6 +18,8 @@ import { useLyra } from "@/hooks/use-lyra";
 import { usePersistedState } from "@/hooks/use-persisted-state";
 import { lyraStorageKey } from "@/lib/lyra-persist";
 import { useApp } from "@/state/app-context";
+import { isLyraWorkspaceReady } from "@/lib/api/lyra-api";
+import { LYRA_NO_WORKSPACE_HINT } from "@/hooks/use-lyra-workspace";
 import { cn } from "@/lib/utils";
 import { OPEN_ASSISTANT_EVENT } from "@/lib/creator-assistant-events";
 import { formatDateTime, formatHandle } from "@/lib/format";
@@ -93,6 +95,12 @@ function friendlyLyraError(error: LyraError | null): string {
 export function CreatorAssistant({ triggerClassName }: { triggerClassName?: string }) {
   const { user, current } = useApp();
   const workspaceId = current.id;
+  /**
+   * The assistant runs a METERED Lyra task, so it needs a workspace to bill. `workspaceId` is the
+   * literal `"default"` until one is resolved, which the server answers with a 404 rather than a
+   * generation — so the send control is disabled until then instead of failing on click.
+   */
+  const lyraReady = isLyraWorkspaceReady(workspaceId);
   const userId = user?.id;
   const firstName = user?.name?.split(" ")[0] || "there";
   const base = lyraStorageKey(userId, workspaceId, "creator-assistant");
@@ -260,7 +268,7 @@ export function CreatorAssistant({ triggerClassName }: { triggerClassName?: stri
 
   const send = async () => {
     const text = draftText.trim();
-    if (!text || lyra.isActive || !workspaceId) return;
+    if (!text || lyra.isActive || !lyraReady) return;
 
     // A freshly-attached image belongs to this message — show it in the bubble
     // and stop showing the composer's duplicate thumbnail.
@@ -771,7 +779,8 @@ export function CreatorAssistant({ triggerClassName }: { triggerClassName?: stri
                     size="icon"
                     className="h-8 w-8 shrink-0 rounded-full"
                     onClick={() => void send()}
-                    disabled={!draftText.trim()}
+                    disabled={!draftText.trim() || !lyraReady}
+                    title={lyraReady ? undefined : LYRA_NO_WORKSPACE_HINT}
                     aria-label="Send"
                   >
                     <Send className="h-3.5 w-3.5" />

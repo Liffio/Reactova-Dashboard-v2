@@ -61,6 +61,8 @@ import {
 } from "@/lib/billing/pricing";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { useApp } from "@/state/app-context";
+import { PlanLimitsPanel } from "@/components/billing/plan-limits-panel";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 type Gateway = "stripe" | "razorpay";
 
@@ -157,13 +159,13 @@ function BillingPage() {
   const subQuery = useQuery({
     queryKey: ["billing-subscription", workspaceId],
     queryFn: () => getBillingSubscription(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const invoicesQuery = useQuery({
     queryKey: ["billing-invoices", workspaceId],
     queryFn: () => listBillingInvoices(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const syncMutation = useMutation({
@@ -489,6 +491,16 @@ function BillingPage() {
             )}
           </div>
         </div>
+
+        {/*
+          The EFFECTIVE limits, read from the server's own resolver.
+
+          The plan cards below advertise what a tier is sold with. Enforcement folds
+          `package_limits` and any workspace-level override on top, so the two can disagree — and
+          when they did, the customer was shown one number and refused at another. This panel is
+          the authoritative one; the cards stay list capabilities.
+        */}
+        <PlanLimitsPanel workspaceId={workspaceId} />
 
         {/* Plan selector */}
         <div>

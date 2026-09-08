@@ -49,11 +49,30 @@ function AffiliateRoute() {
 
 const commissionStatusStyles: Record<string, string> = {
   PENDING: "border-warning/30 bg-warning/10 text-warning",
+  WITHHELD: "border-warning/30 bg-warning/10 text-warning",
+  DISPUTED: "border-warning/30 bg-warning/10 text-warning",
   AVAILABLE: "border-success/30 bg-success/10 text-success",
   PAID: "border-border bg-muted text-muted-foreground",
   REJECTED: "border-destructive/30 bg-destructive/10 text-destructive",
   CLAWED_BACK: "border-destructive/30 bg-destructive/10 text-destructive",
 };
+
+/** Renders a status the API may add without a matching style as neutral, never blank. */
+const commissionStatusStyle = (status: string) =>
+  commissionStatusStyles[status] ?? "border-border bg-muted text-muted-foreground";
+
+/** Turns SCREAMING_SNAKE into readable text without a nested ternary. */
+const humanizeStatus = (status: string) => status.toLowerCase().replace(/_/g, " ");
+
+/**
+ * The commission rate is configured server-side (`AFFILIATE_COMMISSION_RATE`) and
+ * surfaced on the affiliate profile. If the API did not report it we omit the
+ * number rather than printing a stale literal.
+ */
+const commissionHeadline = (ratePercent: number | undefined) =>
+  ratePercent === undefined
+    ? "Earn a recurring commission for every customer you refer."
+    : `Earn ${ratePercent}% recurring commission for every customer you refer.`;
 
 function AffiliatePage() {
   const queryClient = useQueryClient();
@@ -92,6 +111,17 @@ function AffiliatePage() {
 
   const profile = profileQuery.data;
   const dash = dashboardQuery.data;
+  /**
+   * What can actually be withdrawn.
+   *
+   * `availableBalance` is the gross figure and stays that. When a paid-out commission is later
+   * reversed the server records a `clawbackDebt` and validates payout requests against
+   * `available - debt`, so showing the gross number beside an enabled payout button would assert
+   * an amount the server will refuse. Falls back to the gross figure on an older server, which is
+   * exactly today's behaviour.
+   */
+  const clawbackDebt = profile?.clawbackDebt ?? 0;
+  const spendableBalance = profile?.spendableBalance ?? profile?.availableBalance ?? 0;
   const links = linksQuery.data;
   const hasConsent = profile?.hasProgramConsent;
 
@@ -110,7 +140,7 @@ function AffiliatePage() {
         <PageHeader
           eyebrow="Account"
           title="Affiliate Program"
-          description="Earn 50% recurring commission for every customer you refer."
+          description={commissionHeadline(profile?.programTerms?.commissionRatePercent)}
         />
         <div className="p-4 sm:p-6 md:p-10">
           <AffiliateOnboarding onGetStarted={() => setConsentOpen(true)} />
@@ -134,7 +164,7 @@ function AffiliatePage() {
           <Button
             size="sm"
             className="gap-1.5 bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
-            disabled={(dash?.availableBalance ?? 0) === 0}
+            disabled={spendableBalance === 0}
             onClick={() => setPayoutOpen(true)}
           >
             <Wallet className="h-4 w-4" />
@@ -157,11 +187,18 @@ function AffiliatePage() {
                 value={`$${(dash?.totalEarned ?? 0).toFixed(2)}`}
                 icon={DollarSign}
               />
+              {/* Headline is the SPENDABLE figure. When a reversal is outstanding the gross
+                  available balance is not withdrawable, and showing it next to a payout button
+                  would assert an amount the server will refuse. */}
               <StatCard
                 label="Available balance"
-                value={`$${(dash?.availableBalance ?? 0).toFixed(2)}`}
+                value={`$${spendableBalance.toFixed(2)}`}
                 icon={Wallet}
-                hint={`$${(dash?.pendingBalance ?? 0).toFixed(2)} pending`}
+                hint={
+                  clawbackDebt > 0
+                    ? `$${clawbackDebt.toFixed(2)} held against a reversal · $${(dash?.availableBalance ?? 0).toFixed(2)} gross`
+                    : `$${(dash?.pendingBalance ?? 0).toFixed(2)} pending`
+                }
               />
               <StatCard
                 label="Total referrals"
@@ -239,7 +276,7 @@ function AffiliatePage() {
                     <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
                       <th className="px-6 py-3 font-medium">Email</th>
                       <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 font-medium hidden md:table-cell">Plan</th>
+                      <th className="px-4 py-3 font-medium hidden md:table-cell">Workspaces</th>
                       <th className="px-6 py-3 font-medium">Referred</th>
                     </tr>
                   </thead>
@@ -260,7 +297,7 @@ function AffiliatePage() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3.5 hidden md:table-cell text-xs text-muted-foreground">
-                          {r.workspaces.map((w) => w.plan).join(", ") || "—"}
+                          {r.workspaces.map((w) => w.handle ?? w.workspaceId).join(", ") || "—"}
                         </td>
                         <td className="px-6 py-3.5 text-xs text-muted-foreground">
                           {new Date(r.attributedAt).toLocaleDateString()}
@@ -290,7 +327,6 @@ function AffiliatePage() {
                   <thead>
                     <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
                       <th className="px-6 py-3 font-medium">Workspace</th>
-                      <th className="px-4 py-3 font-medium">Plan</th>
                       <th className="px-4 py-3 font-medium">Amount</th>
                       <th className="px-4 py-3 font-medium">Status</th>
                       <th className="px-6 py-3 font-medium">Date</th>
@@ -300,16 +336,15 @@ function AffiliatePage() {
                     {(dash?.recentCommissions ?? []).map((c) => (
                       <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-6 py-3.5 text-muted-foreground">{c.workspace}</td>
-                        <td className="px-4 py-3.5 capitalize text-xs">{c.plan.toLowerCase()}</td>
                         <td className="px-4 py-3.5 tabular-nums font-medium">
                           ${c.amount.toFixed(2)}
                         </td>
                         <td className="px-4 py-3.5">
                           <Badge
                             variant="outline"
-                            className={commissionStatusStyles[c.status] ?? ""}
+                            className={commissionStatusStyle(c.status)}
                           >
-                            {c.status.toLowerCase()}
+                            {humanizeStatus(c.status)}
                           </Badge>
                         </td>
                         <td className="px-6 py-3.5 text-xs text-muted-foreground">
@@ -320,7 +355,7 @@ function AffiliatePage() {
                     {(dash?.recentCommissions ?? []).length === 0 && (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={4}
                           className="px-6 py-8 text-center text-sm text-muted-foreground"
                         >
                           No commissions yet.
@@ -357,7 +392,7 @@ function AffiliatePage() {
                         <td className="px-4 py-3.5">
                           <Badge
                             variant="outline"
-                            className={commissionStatusStyles[p.status] ?? ""}
+                            className={commissionStatusStyle(p.status)}
                           >
                             {p.status.toLowerCase()}
                           </Badge>
@@ -392,7 +427,8 @@ function AffiliatePage() {
       <PayoutDialog
         open={payoutOpen}
         onOpenChange={setPayoutOpen}
-        availableBalance={dash?.availableBalance ?? 0}
+        availableBalance={spendableBalance}
+        minPayoutUsd={profile?.programTerms?.minPayoutUsd}
         onSuccess={() => {
           void queryClient.invalidateQueries({ queryKey: ["affiliate-dashboard"] });
           void queryClient.invalidateQueries({ queryKey: ["affiliate-payouts"] });
@@ -416,11 +452,15 @@ function PayoutDialog({
   open,
   onOpenChange,
   availableBalance,
+  minPayoutUsd,
   onSuccess,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  /** The SPENDABLE balance — gross available less any outstanding clawback debt. */
   availableBalance: number;
+  /** Server-configured minimum. `undefined` when the API did not report it. */
+  minPayoutUsd?: number;
   onSuccess: () => void;
 }) {
   const [amount, setAmount] = useState(String(Math.floor(availableBalance)));
@@ -453,14 +493,17 @@ function PayoutDialog({
             <Label>Amount (USD)</Label>
             <Input
               type="number"
-              min="50"
+              min={minPayoutUsd}
               max={availableBalance}
               step="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Available: ${availableBalance.toFixed(2)} · Minimum payout: $50
+              Available: ${availableBalance.toFixed(2)}
+              {minPayoutUsd === undefined
+                ? null
+                : ` · Minimum payout: $${minPayoutUsd.toFixed(2)}`}
             </p>
           </div>
           <div className="space-y-2">

@@ -8,6 +8,10 @@ import { useLyra } from "@/hooks/use-lyra";
 import { usePersistedState } from "@/hooks/use-persisted-state";
 import { lyraStorageKey } from "@/lib/lyra-persist";
 import { useApp } from "@/state/app-context";
+import {
+  useLyraWorkspace,
+  LYRA_NO_WORKSPACE_HINT,
+} from "@/hooks/use-lyra-workspace";
 
 const SYSTEM_PROMPT =
   "You write short, punchy link-in-bio profile bios for creators/brands on Instagram. " +
@@ -25,6 +29,9 @@ export function BioTextAssist({
   maxLength: number;
 }) {
   const { current, user } = useApp();
+  // A metered Lyra task has to name a workspace to bill; without one the server
+  // refuses the request, so the trigger must be unavailable rather than fail on click.
+  const { workspaceId, ready: lyraReady } = useLyraWorkspace();
   const base = lyraStorageKey(user?.id, current.id, "bio-text-assist");
   const [open, setOpen] = usePersistedState(`${base}:open`, false);
   const [topic, setTopic] = usePersistedState(`${base}:topic`, "");
@@ -45,7 +52,7 @@ export function BioTextAssist({
 
     const result = await lyra.run({
       task: "custom_prompt",
-      workspaceId: current.id,
+      workspaceId,
       input: { prompt, systemPrompt: SYSTEM_PROMPT },
     });
     if (result.status !== "complete") return;
@@ -97,7 +104,8 @@ export function BioTextAssist({
             size="sm"
             className="w-full gap-1.5"
             onClick={() => void run()}
-            disabled={lyra.isActive}
+            disabled={lyra.isActive || !lyraReady}
+            title={lyraReady ? undefined : LYRA_NO_WORKSPACE_HINT}
           >
             <Sparkles className="h-3.5 w-3.5" />
             {bio.trim() ? "Rewrite with Lyra" : "Generate with Lyra"}

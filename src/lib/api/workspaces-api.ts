@@ -28,10 +28,19 @@ export type WorkspaceApi = {
   meta?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
   createdAt: string;
-  dmsThisMonth: number;
-  leadsThisMonth: number;
-  clicksThisMonth: number;
-  activeAutomations: number;
+  /**
+   * Monthly activity counters.
+   *
+   * `GET /workspaces` does NOT compute these — it is the workspace-switcher list and
+   * deliberately runs no per-workspace aggregate queries. They are optional here because
+   * they are genuinely absent, and `undefined` must be rendered as "unknown", never as `0`:
+   * a zero here is indistinguishable from a workspace that really sent nothing.
+   * `GET /analytics/dashboard` → `workspaceSummaries[]` is the endpoint that does compute them.
+   */
+  dmsThisMonth?: number;
+  leadsThisMonth?: number;
+  clicksThisMonth?: number;
+  activeAutomations?: number;
 };
 
 export function listWorkspaces() {

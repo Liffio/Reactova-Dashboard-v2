@@ -1,8 +1,21 @@
 export const AFFILIATE_CONSENT_VERSION = "1.0";
 
+/**
+ * Program terms as published in version `AFFILIATE_CONSENT_VERSION` of the
+ * affiliate agreement.
+ *
+ * These are NOT the live operating values — the server is authoritative
+ * (`AFFILIATE_COMMISSION_RATE` / `AFFILIATE_MIN_PAYOUT` / `AFFILIATE_HOLD_DAYS`
+ * env vars, surfaced as `programTerms` on `GET /affiliate/profile`). Live
+ * surfaces (dashboard header, payout dialog) must read the API values. These
+ * constants exist only so the versioned marketing and legal copy below has a
+ * single source, because a published agreement must not silently change under a
+ * user who already accepted it — bump `AFFILIATE_CONSENT_VERSION` when they do.
+ */
 export const AFFILIATE_COMMISSION_RATE = 0.5;
 export const AFFILIATE_COMMISSION_RATE_PERCENT = 50;
 export const AFFILIATE_REFERRAL_DISCOUNT = 0.1;
+export const AFFILIATE_REFERRAL_DISCOUNT_PERCENT = 10;
 export const AFFILIATE_HOLD_DAYS = 20;
 export const AFFILIATE_MIN_PAYOUT_USD = 50;
 
@@ -15,12 +28,12 @@ export const AFFILIATE_HOW_IT_WORKS = [
   {
     step: "2",
     title: "They sign up & subscribe",
-    body: "New users who register through your link get 10% off their first payment when they subscribe to a paid plan.",
+    body: `New users who register through your link get ${AFFILIATE_REFERRAL_DISCOUNT_PERCENT}% off their first payment when they subscribe to a paid plan.`,
   },
   {
     step: "3",
-    title: "You earn 50% recurring",
-    body: "You receive 50% of every subscription payment while they remain an active paying customer.",
+    title: `You earn ${AFFILIATE_COMMISSION_RATE_PERCENT}% recurring`,
+    body: `You receive ${AFFILIATE_COMMISSION_RATE_PERCENT}% of every subscription payment while they remain an active paying customer.`,
   },
   {
     step: "4",
@@ -30,8 +43,8 @@ export const AFFILIATE_HOW_IT_WORKS = [
 ] as const;
 
 export const AFFILIATE_BENEFITS = [
-  "50% lifetime recurring commission on referred subscriptions",
-  "10% discount for your referrals on their first payment",
+  `${AFFILIATE_COMMISSION_RATE_PERCENT}% lifetime recurring commission on referred subscriptions`,
+  `${AFFILIATE_REFERRAL_DISCOUNT_PERCENT}% discount for your referrals on their first payment`,
   "Custom referral code (one per account)",
   "Dashboard with referrals, commissions, and payout history",
   "No cap on the number of referrals you can bring",

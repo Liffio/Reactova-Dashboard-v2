@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { formatNum, formatMoneyCents, formatDateTime } from "@/lib/format";
 import {
   deltaFraction,
+  trendNote,
   getAdminDashboardOverview,
   getAdminDashboardTiles,
   type AdminDashboardTiles,
@@ -61,7 +62,17 @@ const CHART_TOOLTIP_STYLE = {
 
 function DeltaPill({ pair }: { pair: WindowPair | undefined }) {
   const delta = deltaFraction(pair);
-  if (typeof delta !== "number") return null;
+  if (typeof delta !== "number") {
+    // No percentage is computable. Saying which case this is beats an empty slot, which reads
+    // as an unchanged value — a period of pure growth off a zero base is not "no change".
+    const note = trendNote(pair);
+    if (!note) return null;
+    return (
+      <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+        {note}
+      </span>
+    );
+  }
   const positive = delta >= 0;
   return (
     <span
@@ -339,6 +350,7 @@ export function PlatformMetricsPanel() {
               label="Total users"
               value={formatNum(data.users.total)}
               delta={deltaFraction(data.users.newInPeriod)}
+              deltaNote={trendNote(data.users.newInPeriod)}
               icon={Users}
               hint={`+${formatNum(data.users.newInPeriod.current)} this period`}
             />
@@ -353,6 +365,7 @@ export function PlatformMetricsPanel() {
               label="IG accounts"
               value={formatNum(data.workspaces.igAccounts.total)}
               delta={deltaFraction(data.workspaces.igAccounts.newInPeriod)}
+              deltaNote={trendNote(data.workspaces.igAccounts.newInPeriod)}
               icon={Instagram}
               hint={`+${formatNum(data.workspaces.igAccounts.newInPeriod.current)} connected this period`}
             />

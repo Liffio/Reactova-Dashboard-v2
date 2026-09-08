@@ -69,6 +69,7 @@ import { useServerList } from "@/hooks/use-server-list";
 import { LIMITS, emailError, lengthError, duplicateAliasError } from "@/lib/validation";
 import { useTouched } from "@/hooks/use-touched";
 import { formatHandle } from "@/lib/format";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings — Liffio" }] }),
@@ -453,7 +454,7 @@ function ApiCredentialsSettings() {
   const credsQuery = useQuery({
     queryKey: ["api-credentials", workspaceId],
     queryFn: () => listApiCredentials(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const createMutation = useMutation({
@@ -479,6 +480,22 @@ function ApiCredentialsSettings() {
 
   const creds = credsQuery.data?.credentials ?? [];
 
+  /**
+   * Whether this workspace can actually create a key.
+   *
+   * The server refuses when the plan catalogue does not enable the external API, and it currently
+   * does not enable it on ANY tier. Rendering an enabled "New key" button regardless produced the
+   * broken state the hard rules forbid: click, then an error toast. Gate on the server's own
+   * answer rather than on a plan name.
+   *
+   * `undefined` while loading is treated as allowed, so the button does not flicker disabled.
+   */
+  const apiAvailable = credsQuery.data ? credsQuery.data.planMeetsMinimum : true;
+  const minimumPlanForApi = credsQuery.data?.minimumPlanForApi ?? null;
+  const apiUnavailableReason = minimumPlanForApi
+    ? `The API is available from the ${minimumPlanForApi} plan.`
+    : "The API is not available on any plan yet — we will announce it when it is.";
+
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border bg-card p-6 shadow-soft">
@@ -489,11 +506,19 @@ function ApiCredentialsSettings() {
               Use API keys to integrate with external tools via our REST API.
             </p>
           </div>
-          <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" />
-            New key
-          </Button>
+          {apiAvailable && (
+            <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" />
+              New key
+            </Button>
+          )}
         </div>
+
+        {!apiAvailable && (
+          <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-xs text-warning">
+            {apiUnavailableReason}
+          </div>
+        )}
 
         {credsQuery.isLoading ? (
           <div className="space-y-2">
@@ -605,7 +630,7 @@ function NotificationsSettings() {
   const notifQuery = useQuery({
     queryKey: ["notification-preferences", workspaceId],
     queryFn: () => getNotificationPreferences(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const updateMutation = useMutation({
@@ -684,7 +709,7 @@ function TeamSettings() {
     defaultSort: { key: "createdAt", dir: "asc" },
     defaultLimit: 100,
     syncUrl: false,
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
   const membersQuery = {
     data: memberList.items,
@@ -694,12 +719,12 @@ function TeamSettings() {
   const invitesQuery = useQuery({
     queryKey: ["team-invites", workspaceId],
     queryFn: () => listTeamInvites(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
   const optionsQuery = useQuery({
     queryKey: ["team-options", workspaceId],
     queryFn: () => getTeamOptions(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const [email, setEmail] = useState("");

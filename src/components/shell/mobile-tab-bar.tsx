@@ -34,6 +34,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { getNavigation } from "@/lib/api/navigation-api";
 import { useApp } from "@/state/app-context";
 import { cn } from "@/lib/utils";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 /** Four destinations plus More. Five is the most a thumb reaches comfortably at 360px. */
 const TAB_SLOTS = 4;
@@ -87,7 +88,7 @@ export function MobileTabBar() {
   const navQuery = useQuery({
     queryKey: ["navigation", current.id],
     queryFn: getNavigation,
-    enabled: Boolean(current.id && current.id !== "default"),
+    enabled: isWorkspaceReady(current.id),
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
@@ -114,7 +115,9 @@ export function MobileTabBar() {
       {items.map((item) => {
         const Icon = TAB_ICONS[item.icon ?? ""] ?? Boxes;
         const active = item.route === activeUrl;
-        const count = item.route === "/leads-captured" ? current.leadsThisMonth : 0;
+        // `null` means the count is unknown for this workspace, which renders as no badge —
+        // the same as zero visually, but it is never presented as a measured "0".
+        const count = item.route === "/leads-captured" ? current.leadsThisMonth ?? 0 : 0;
         return (
           <Link
             key={item.key}

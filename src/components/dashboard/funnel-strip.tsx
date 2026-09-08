@@ -29,6 +29,14 @@ export type FunnelStageData = {
   icon: LucideIcon;
   /** Fraction, not percent — matches `StatCard`'s existing contract. */
   delta?: number | null;
+  /**
+   * Shown in place of the trend pill when `delta` is absent.
+   *
+   * A percentage change is undefined when the prior period was zero, and leaving the slot blank
+   * made a first period of growth read as "no change". The caller knows the prior-period
+   * absolutes, so it decides between "New this period" and "No comparison yet".
+   */
+  comparisonNote?: string;
   /** Daily values for the sparkline. Empty renders a flat rule rather than nothing. */
   series: number[];
   /**
@@ -256,7 +264,8 @@ export function FunnelStrip({ stages }: { stages: FunnelStageData[] }) {
                       // may be absent. Saying which is missing beats an empty slot that reads as
                       // a number that failed to load.
                       <span className="text-[11px] text-muted-foreground">
-                        {stage.value > 0 ? "No comparison yet" : "No activity in this range"}
+                        {stage.comparisonNote ??
+                          (stage.value > 0 ? "No comparison yet" : "No activity in this range")}
                       </span>
                     )}
                   </div>

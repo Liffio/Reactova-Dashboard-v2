@@ -8,6 +8,7 @@
 import { authStore } from "@/lib/auth/auth-store";
 import { apiUri } from "./apiUri";
 import { API_BASE } from "./http";
+import { isWorkspaceReady } from "./active-workspace";
 
 export type LyraTask =
   | "chat"
@@ -221,10 +222,71 @@ function lyraHeaders(workspaceId?: string): HeadersInit {
   };
 }
 
+/**
+ * The server's code for a metered generation that named no workspace to bill.
+ *
+ * A metered Lyra task is charged against a workspace's token balance, so a request without one
+ * has nobody to bill. The server refuses it (`400`) rather than serving it for free. The client's
+ * job is to make that refusal unreachable — see `isLyraWorkspaceReady`.
+ */
+export const LYRA_WORKSPACE_REQUIRED = "WORKSPACE_REQUIRED";
+
+/**
+ * Whether a workspace id can actually be billed.
+ *
+ * Two values must be rejected, not one. `undefined` is the obvious case — immediately after
+ * signup, mid workspace-switch, or in a tab that has not resolved one yet. But `app-context`
+ * also uses the literal `"default"` as its placeholder workspace, and sending THAT is worse than
+ * sending nothing: the header is present, so the server tries to resolve membership for a
+ * workspace that does not exist and answers `404 Workspace not found` — a confusing error for
+ * what is really "you have not picked a workspace".
+ */
+export function isLyraWorkspaceReady(workspaceId: string | null | undefined): workspaceId is string {
+  return isWorkspaceReady(workspaceId);
+}
+
+function workspaceRequiredError(): LyraError {
+  return {
+    code: LYRA_WORKSPACE_REQUIRED,
+    message: "No workspace selected. Choose a workspace before running this.",
+  };
+}
+
+/**
+ * Normalises every error shape this route can produce into a `LyraError`.
+ *
+ * Most failures arrive as `{ success: false, error: { code, message } }`. The workspace refusal
+ * does NOT — it is `{ error: "<sentence>", code: "WORKSPACE_REQUIRED" }`, so reading `payload.error`
+ * blindly yields a bare string with no `code`, and every caller that switches on `error.code` sees
+ * `undefined` and falls through to a raw toast.
+ */
+function toLyraError(payload: unknown): LyraError {
+  const body = payload as { error?: unknown; code?: unknown } | null | undefined;
+  const nested = body?.error;
+  if (nested && typeof nested === "object") {
+    return nested as LyraError;
+  }
+  const code = typeof body?.code === "string" ? body.code : "REQUEST_FAILED";
+  if (code === LYRA_WORKSPACE_REQUIRED) {
+    return workspaceRequiredError();
+  }
+  if (typeof nested === "string" && nested.length > 0) {
+    return { code, message: nested };
+  }
+  return { code: "NETWORK_ERROR", message: "Request failed" };
+}
+
 /** Non-streaming Lyra call. Resolves with typed `content`, or rejects with a `LyraError`. */
 export async function callLyra<K extends keyof LyraTaskMap>(
   config: LyraCallConfig<K> & { signal?: AbortSignal },
 ): Promise<{ content: LyraTaskMap[K]["output"]; execution: LyraExecution; requestId: string }> {
+  // Refuse before the network, not after. A metered task with no workspace is guaranteed to be
+  // rejected server-side, so firing it would spend a round trip to produce an error the caller
+  // could have been told about synchronously. Never substitute a workspace id to get past this.
+  if (!isLyraWorkspaceReady(config.workspaceId)) {
+    throw workspaceRequiredError();
+  }
+
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${apiUri.liffio.lyra}`, {
@@ -248,8 +310,7 @@ export async function callLyra<K extends keyof LyraTaskMap>(
 
   const payload = await res.json().catch(() => null);
   if (!res.ok || !payload?.success) {
-    const err: LyraError = payload?.error ?? { code: "NETWORK_ERROR", message: "Request failed" };
-    throw err;
+    throw toLyraError(payload);
   }
   return { content: payload.content, execution: payload.execution, requestId: payload.requestId };
 }
@@ -270,6 +331,13 @@ export async function streamLyra<K extends keyof LyraTaskMap>(
   config: LyraCallConfig<K> & { signal?: AbortSignal },
   handlers: LyraStreamHandlers,
 ): Promise<void> {
+  // Same precondition as `callLyra`. Reported through `onError` rather than thrown, because the
+  // streaming contract surfaces every failure that way and `runShared` does not wrap this call.
+  if (!isLyraWorkspaceReady(config.workspaceId)) {
+    handlers.onError?.(workspaceRequiredError());
+    return;
+  }
+
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${apiUri.liffio.lyra}`, {
@@ -293,7 +361,7 @@ export async function streamLyra<K extends keyof LyraTaskMap>(
 
   if (!res.ok || !res.body) {
     const errJson = await res.json().catch(() => null);
-    handlers.onError?.(errJson?.error ?? { code: "NETWORK_ERROR", message: "Request failed" });
+    handlers.onError?.(toLyraError(errJson));
     return;
   }
 

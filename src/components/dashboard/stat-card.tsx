@@ -9,9 +9,15 @@ interface StatCardProps {
   delta?: number;
   icon?: LucideIcon;
   hint?: string;
+  /**
+   * Rendered in the pill's place when `delta` is absent — e.g. "New this period" when the prior
+   * window was zero, so a first period of growth cannot be mistaken for no change. Omit it on
+   * cards that never had a comparison to begin with; then the slot simply stays empty.
+   */
+  deltaNote?: string;
 }
 
-export function StatCard({ label, value, delta, icon: Icon, hint }: StatCardProps) {
+export function StatCard({ label, value, delta, icon: Icon, hint, deltaNote }: StatCardProps) {
   const positive = (delta ?? 0) >= 0;
   return (
     <motion.div
@@ -48,6 +54,11 @@ export function StatCard({ label, value, delta, icon: Icon, hint }: StatCardProp
               <ArrowDownRight className="h-3 w-3" />
             )}
             {(positive ? "+" : "") + (delta * 100).toFixed(1)}%
+          </span>
+        )}
+        {typeof delta !== "number" && deltaNote && (
+          <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
+            {deltaNote}
           </span>
         )}
         {hint && <span className="text-muted-foreground">{hint}</span>}

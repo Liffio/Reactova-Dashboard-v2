@@ -7,6 +7,10 @@ import { useLyra } from "@/hooks/use-lyra";
 import { usePersistedState } from "@/hooks/use-persisted-state";
 import { lyraStorageKey } from "@/lib/lyra-persist";
 import { useApp } from "@/state/app-context";
+import {
+  useLyraWorkspace,
+  LYRA_NO_WORKSPACE_HINT,
+} from "@/hooks/use-lyra-workspace";
 
 /**
  * The `keyword` task returns a list, but an automation trigger wants exactly
@@ -25,6 +29,9 @@ export function KeywordSuggest({
   persistId?: string;
 }) {
   const { current, user } = useApp();
+  // A metered Lyra task has to name a workspace to bill; without one the server
+  // refuses the request, so the trigger must be unavailable rather than fail on click.
+  const { workspaceId, ready: lyraReady } = useLyraWorkspace();
   const base = lyraStorageKey(user?.id, current.id, `keyword-suggest:${persistId ?? "default"}`);
   const [open, setOpen] = usePersistedState(`${base}:open`, false);
   const [topic, setTopic] = usePersistedState(`${base}:topic`, "");
@@ -33,7 +40,7 @@ export function KeywordSuggest({
   const run = async () => {
     await lyra.run({
       task: "keyword",
-      workspaceId: current.id,
+      workspaceId,
       input: {
         mode: "extraction",
         topic: topic.trim() || undefined,
@@ -73,7 +80,8 @@ export function KeywordSuggest({
           size="sm"
           className="w-full gap-1.5"
           onClick={() => void run()}
-          disabled={lyra.isActive}
+          disabled={lyra.isActive || !lyraReady}
+          title={lyraReady ? undefined : LYRA_NO_WORKSPACE_HINT}
         >
           <Sparkles className="h-3.5 w-3.5" />
           Suggest keywords

@@ -17,6 +17,7 @@ import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
 import { LIMITS } from "@/lib/validation";
 import { bareHandle, formatHandle } from "@/lib/format";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 export const Route = createFileRoute("/_app/leads-captured")({
   head: () => ({ meta: [{ title: "Leads Captured — Liffio" }] }),
@@ -45,17 +46,24 @@ function LeadsPage() {
    * every keystroke — typing "welcome" cost seven round trips, each running an unescaped `ILIKE`.
    * The hook debounces, and the server escapes.
    */
-  const list = useServerList<Lead>({
+  const list = useServerList<Lead, { emailRedacted?: boolean }>({
     path: apiUri.leads.search,
     queryKey: "leads",
     workspaceId,
     defaultSort: { key: "lastInteractionAt", dir: "desc" },
     defaultLimit: PAGE_SIZE,
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
   });
 
   const leads = list.items;
   const total = list.total;
+  /**
+   * The server withheld email addresses because this workspace's package does not include the
+   * capability. `email` arrives as `null` in that case — the SAME value a lead who never gave an
+   * email produces — so without this flag a blank column would mean two different things and
+   * neither would be stated.
+   */
+  const emailRedacted = list.extra?.emailRedacted === true;
   // The hook is 1-based, matching PaginationBar and every other list.
   const rangeStart = total === 0 ? 0 : (list.page - 1) * list.limit + 1;
   const rangeEnd = Math.min(list.page * list.limit, total);
@@ -169,6 +177,11 @@ function LeadsPage() {
                               {lead.email && (
                                 <p className="truncate text-xs text-muted-foreground">
                                   {lead.email}
+                                </p>
+                              )}
+                              {!lead.email && emailRedacted && (
+                                <p className="truncate text-xs italic text-muted-foreground">
+                                  Email hidden on your plan
                                 </p>
                               )}
                             </div>

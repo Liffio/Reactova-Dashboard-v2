@@ -58,10 +58,16 @@ export type DashboardResponse = {
     clickTrendPercent: number | null;
     leadsCapturedLastMonth: number;
     leadsTrendPercent: number | null;
-    schedulerScheduled?: number;
-    schedulerDrafts?: number;
-    schedulerFailed?: number;
-    postInsightsTracked?: number;
+    /**
+     * All-time scheduler tallies. `null` means the server could not read them — render
+     * "unavailable", never `0`. `undefined` only on an older API build.
+     */
+    schedulerScheduled?: number | null;
+    schedulerDrafts?: number | null;
+    schedulerFailed?: number | null;
+    postInsightsTracked?: number | null;
+    /** False when the scheduler aggregate query failed server-side. */
+    schedulerStatsAvailable?: boolean;
   };
   recentActivities: Array<{
     id: string;
@@ -96,22 +102,49 @@ export type DashboardResponse = {
 export type AnalyticsPageResponse = {
   range: AnalyticsApiRange | "custom";
   period?: { start: string; end: string };
+  /**
+   * The window actually queried, after the plan's analytics-history depth was applied.
+   *
+   * `clamped: true` means the server narrowed the request — the chart covers less time than the
+   * picker says, and the UI MUST disclose that rather than presenting a truncated series as
+   * complete. `historyDays` is `null` when the plan grants unlimited history.
+   * Absent on an older API build.
+   */
+  historyWindow?: {
+    from: string;
+    to: string;
+    requestedFrom: string;
+    clamped: boolean;
+    historyDays: number | null;
+  };
   summary: {
     totalDmsSent: number;
     dmDeliveryRate: number;
     totalLinkClicks: number;
+    /**
+     * Lead -> click: of the leads captured in the window, the share that clicked.
+     * NOT DM -> click. Same value as `rates.leadClickRate`.
+     */
     conversionRate: number;
     leadsCaptured: number;
     bioLinkClicks: number;
     dmsQueued: number;
     dmsFailed: number;
   };
+  /**
+   * Four measured stages in strictly non-increasing order.
+   *
+   * The previous shape had `commentsReceived` and `keywordMatched` both set to the lead count and
+   * `saleAttributed` pinned to `0`; all three are gone rather than renamed.
+   */
   funnel: {
-    commentsReceived: number;
-    keywordMatched: number;
-    dmsSent: number;
+    /** DM jobs created in the window, at any status. The top of the funnel. */
+    dmsAttempted: number;
+    /** Of those, status = SENT. */
+    dmsDelivered: number;
+    leadsCaptured: number;
+    /** Of the captured leads, the ones that clicked. */
     linkClicked: number;
-    saleAttributed: number;
   };
   lineSeries: Array<{ day: string; value: number }>;
   clickLineSeries: Array<{ day: string; value: number }>;
@@ -126,12 +159,25 @@ export type AnalyticsPageResponse = {
     dmsSent: number;
     linkClicks: number;
     leadsCaptured: number;
+    /** Attributed link clicks per DM sent, as a percentage. Legacy name. */
     conversionRate: number;
+    /** Same number as `conversionRate`, named for what it measures. */
+    clickThroughRate?: number;
+    /** Band of the click-through rate. Named `roiBand` for compatibility; it is not an ROI. */
     roiBand: "high" | "medium" | "low";
   }>;
   rates: {
+    /**
+     * Leads that clicked, per DM sent. The numerator counts LEADS, not clicks, despite the
+     * name. Superseded by `linkClicksPerDmRate`; kept only for compatibility.
+     */
     clickRate: number;
+    /** Leads captured per DM sent. */
     leadRate: number;
+    /** Short-link clicks per DM sent — clicks in the numerator, as the name implies. */
+    linkClicksPerDmRate?: number;
+    /** Of the leads captured, the share that clicked. */
+    leadClickRate?: number;
   };
   channels: {
     shortLinks: {
@@ -153,20 +199,28 @@ export type AnalyticsPageResponse = {
       linkClicked: number;
     };
     scheduler: {
-      scheduled: number;
-      draft: number;
-      failed: number;
-      published: number;
+      /** False when the server could not read the scheduler tables; counts are then null. */
+      available?: boolean;
+      scheduled: number | null;
+      draft: number | null;
+      failed: number | null;
+      published: number | null;
     };
     posts: {
-      tracked: number;
-      impressions: number;
-      reach: number;
-      likes: number;
-      comments: number;
-      saves: number;
-      dmsFromPosts: number;
-      clicksFromPosts: number;
+      /** False when the server could not read `post_analytics`; every field is then null. */
+      available?: boolean;
+      tracked: number | null;
+      /**
+       * `null` means Meta never returned the metric for any post in scope — which is a
+       * different fact from a total of zero. Never render null as `0`.
+       */
+      impressions: number | null;
+      reach: number | null;
+      likes: number | null;
+      comments: number | null;
+      saves: number | null;
+      dmsFromPosts: number | null;
+      clicksFromPosts: number | null;
     };
   };
 };

@@ -15,8 +15,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
+  AFFILIATE_COMMISSION_RATE_PERCENT,
   AFFILIATE_CONSENT_VERSION,
+  AFFILIATE_MIN_PAYOUT_USD,
   AFFILIATE_PROGRAM_TERMS_SECTIONS,
+  AFFILIATE_REFERRAL_DISCOUNT_PERCENT,
 } from "@/lib/affiliate-program-content";
 import { acceptAffiliateProgramConsent } from "@/lib/api/affiliate-api";
 
@@ -100,15 +103,13 @@ export function AffiliateConsentDialog({
       id: "affiliate-commission",
       checked: acceptedCommission,
       onChange: setAcceptedCommission,
-      label:
-        "I understand the commission structure (50% recurring, 10% referral discount, hold period, and reversal on refunds/chargebacks).",
+      label: `I understand the commission structure (${AFFILIATE_COMMISSION_RATE_PERCENT}% recurring, ${AFFILIATE_REFERRAL_DISCOUNT_PERCENT}% referral discount, hold period, and reversal on refunds/chargebacks).`,
     },
     {
       id: "affiliate-payout",
       checked: acceptedPayout,
       onChange: setAcceptedPayout,
-      label:
-        "I understand payout rules ($50 minimum, manual review, KYC if required, and anti-fraud enforcement).",
+      label: `I understand payout rules ($${AFFILIATE_MIN_PAYOUT_USD} minimum, manual review, KYC if required, and anti-fraud enforcement).`,
     },
   ] as const;
 

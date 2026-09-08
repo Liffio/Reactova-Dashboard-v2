@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { callLyra, type LyraError, type LyraTaskMap } from "@/lib/api/lyra-api";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { lyraStorageKey, readLyraPersisted, writeLyraPersisted } from "@/lib/lyra-persist";
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
@@ -51,7 +52,7 @@ export function useLyraInsights<K extends InsightsTask>({
       const result = await callLyra({ task, input, workspaceId, signal });
       return result.content;
     },
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
     staleTime: Infinity,
     // Default gcTime (5 min) was evicting this query's cache entry whenever the
     // card unmounted for more than 5 min (route navigation away and back) —

@@ -7,13 +7,37 @@ import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getTokenBalance } from "@/lib/api/ai-tokens-api";
+import { getTokenBalance, type TokenBalance } from "@/lib/api/ai-tokens-api";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 /** Sticks in sessionStorage per workspace+period so the toast fires once per threshold
  *  crossing, not on every 60s poll — and naturally resets once the period rolls over
  *  (the key includes periodEnd). */
 function nudgeKey(workspaceId: string, periodEnd: string): string {
   return `ai-token-nudge:${workspaceId}:${periodEnd}`;
+}
+
+/**
+ * Share of the allowance consumed, or `null` when there is no allowance to be a share of.
+ *
+ * This used to return a flat `100` when `allocated + bonus === 0`, which put "100% used" and a
+ * full red bar in front of a workspace that was never granted a single token — visually identical
+ * to a plan that had a generous quota and burned it. They are different facts and the UI has to
+ * say which one it is, so a plan with no allowance returns `null` and renders its own state.
+ */
+function usedPercent(balance: TokenBalance): number | null {
+  if (balance.unlimited) return 0;
+  const allowance = balance.allocated + balance.bonus;
+  if (allowance <= 0) return null;
+  return Math.min(100, Math.round((balance.consumed / allowance) * 100));
+}
+
+/** The big number. "No allowance" rather than "0 / 0", which reads as a broken meter. */
+function headlineFor(balance: TokenBalance): string {
+  if (balance.unlimited) return "Unlimited";
+  const allowance = balance.allocated + balance.bonus;
+  if (allowance <= 0) return "No allowance";
+  return `${balance.consumed.toLocaleString()} / ${allowance.toLocaleString()}`;
 }
 
 /** Small Lyra AI token usage meter — same card language as StatCard, refetched
@@ -30,19 +54,16 @@ export function TokenMeter({
   const query = useQuery({
     queryKey: ["ai-token-balance", workspaceId],
     queryFn: () => getTokenBalance(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
     refetchInterval: 60_000,
   });
 
   const balance = query.data?.balance;
 
-  const pctUsed = balance
-    ? balance.unlimited
-      ? 0
-      : balance.allocated + balance.bonus > 0
-        ? Math.min(100, Math.round((balance.consumed / (balance.allocated + balance.bonus)) * 100))
-        : 100
-    : 0;
+  /** `null` when the plan grants no tokens at all — see `usedPercent`. */
+  const pctUsed = balance ? usedPercent(balance) : null;
+  /** True when the plan includes no Lyra allowance. Generation is blocked, but nothing was spent. */
+  const noAllowance = Boolean(balance) && !balance?.unlimited && pctUsed === null;
 
   // Dismissing the 80% notice only hides it for this mount — a reload or the next
   // poll tick that still finds usage >= 80% brings it back, so it "recurs" rather
@@ -51,6 +72,9 @@ export function TokenMeter({
 
   useEffect(() => {
     if (!balance || balance.unlimited) return;
+    // No allowance means nothing was consumed, so neither usage nudge is true. The card's own
+    // "no allowance" notice covers this case instead.
+    if (pctUsed === null) return;
     const threshold = pctUsed >= 100 ? 100 : pctUsed >= 80 ? 80 : null;
     if (!threshold) return;
 
@@ -78,8 +102,8 @@ export function TokenMeter({
   }
   if (!balance) return null;
 
-  const nearLimit = !balance.unlimited && pctUsed >= 80;
-  const atLimit = !balance.unlimited && pctUsed >= 100;
+  const nearLimit = !balance.unlimited && pctUsed !== null && pctUsed >= 80;
+  const atLimit = !balance.unlimited && pctUsed !== null && pctUsed >= 100;
   const showNotice80 = nearLimit && !atLimit && !notice80Dismissed;
 
   return (
@@ -98,9 +122,7 @@ export function TokenMeter({
             Lyra AI Tokens
           </span>
           <span className="font-display text-2xl font-semibold tracking-tight">
-            {balance.unlimited
-              ? "Unlimited"
-              : `${balance.consumed.toLocaleString()} / ${(balance.allocated + balance.bonus).toLocaleString()}`}
+            {headlineFor(balance)}
           </span>
         </div>
         <div className="grid h-9 w-9 place-items-center rounded-lg bg-accent text-accent-foreground">
@@ -108,7 +130,7 @@ export function TokenMeter({
         </div>
       </div>
 
-      {!balance.unlimited && (
+      {!balance.unlimited && pctUsed !== null && (
         <div className="mt-3 space-y-1.5">
           <Progress
             value={pctUsed}
@@ -118,6 +140,21 @@ export function TokenMeter({
             <span>{pctUsed}% used this period</span>
             <span>Resets {new Date(balance.periodEnd).toLocaleDateString()}</span>
           </div>
+        </div>
+      )}
+
+      {/* A plan with no allowance. Distinct from an exhausted quota: there is no percentage to
+          show and no bar to fill, because nothing was ever granted. */}
+      {noAllowance && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span className="flex-1">Your plan includes no Lyra AI tokens.</span>
+          <Link
+            to="/billings"
+            className="shrink-0 rounded-full border px-2 py-0.5 font-medium transition-colors hover:bg-accent"
+          >
+            Upgrade
+          </Link>
         </div>
       )}
 

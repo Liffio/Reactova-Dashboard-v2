@@ -49,15 +49,26 @@ export type BioLinkProfile = {
   totalClicks: number;
 };
 
+export type BioLinkAnalyticsLink = {
+  id: string;
+  title: string;
+  url: string;
+  order: number;
+  clicks: number;
+};
+
 export type BioLinkAnalytics = {
+  /** All time, items + socials. */
   totalClicks: number;
-  links: Array<{
-    id: string;
-    title: string;
-    url: string;
-    order: number;
-    clicks: number;
-  }>;
+  /** Rolling 30 days, items + socials. */
+  clicksLast30Days?: number;
+  /**
+   * The link with the most clicks, or `null` when nothing has been clicked yet.
+   * NOT `links[0]` — that is the topmost link by display order, which is a different thing.
+   */
+  topLink?: BioLinkAnalyticsLink | null;
+  /** In display order, not click order. */
+  links: BioLinkAnalyticsLink[];
 };
 
 export type UpdateBioLinkInput = Partial<

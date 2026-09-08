@@ -62,6 +62,7 @@ import {
   type LyraAutomationHandoff,
 } from "@/lib/lyra-handoff";
 import { getDraft } from "@/lib/api/drafts-api";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import {
   Dialog,
   DialogContent,
@@ -199,7 +200,7 @@ function AutomationBuilder() {
   const wizardData = useQuery({
     queryKey: ["automation-wizard-data", workspaceId],
     queryFn: () => getAutomationWizardData(workspaceId),
-    enabled: Boolean(workspaceId) && workspaceId !== "default",
+    enabled: isWorkspaceReady(workspaceId),
     retry: false,
   });
 
@@ -320,7 +321,7 @@ function AutomationBuilder() {
   };
 
   useEffect(() => {
-    if (!handoffMode || !workspaceId || workspaceId === "default" || handoffConsumedRef.current) {
+    if (!handoffMode || !isWorkspaceReady(workspaceId) || handoffConsumedRef.current) {
       return;
     }
     handoffConsumedRef.current = true;

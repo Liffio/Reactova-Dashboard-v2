@@ -56,6 +56,7 @@ import { useAuthState } from "@/lib/auth/auth-store";
 import { usePlatformAuthz } from "@/hooks/use-platform-authz";
 import { useApp } from "@/state/app-context";
 import { getNavigation } from "@/lib/api/navigation-api";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 type NavItem = {
   title: string;
@@ -284,7 +285,7 @@ export function AppSidebar() {
   const navQuery = useQuery({
     queryKey: ["navigation", current.id],
     queryFn: getNavigation,
-    enabled: Boolean(current.id && current.id !== "default"),
+    enabled: isWorkspaceReady(current.id),
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
@@ -336,6 +337,8 @@ export function AppSidebar() {
    * beside "Leads" would otherwise read as "waiting for you".
    */
   const COUNT_FOR: Record<string, number | undefined> = {
+    // `null` (count unknown for this workspace) and `0` (nothing captured) both render as no
+    // badge — neither is presented to the user as a measured zero.
     "/leads-captured": current.leadsThisMonth || undefined,
   };
 

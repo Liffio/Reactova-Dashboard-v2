@@ -133,7 +133,31 @@ export function getAdminDashboardTiles() {
  * StatCard's `delta` is a fraction (it renders ×100). Undefined when there is no previous-period
  * baseline — a delta against zero reads as +∞ and the pill is better omitted.
  */
+/**
+ * Percentage change between the two windows, or `undefined` when there is no meaningful
+ * percentage to state.
+ *
+ * `undefined` is returned in two very different situations, which is why callers must pair this
+ * with `trendNote()`: the pair may be missing entirely, or the previous window may be `0`, in
+ * which case the change is mathematically undefined (a division by zero) even though something
+ * clearly happened. Rendering nothing in the second case is what made first-period growth read
+ * as "no change".
+ */
 export function deltaFraction(pair: WindowPair | undefined): number | undefined {
   if (!pair || pair.previous === 0) return undefined;
   return (pair.current - pair.previous) / pair.previous;
+}
+
+/**
+ * What to say when `deltaFraction()` cannot produce a percentage.
+ *
+ * Returns `undefined` when a percentage IS available (the pill renders instead), "New this
+ * period" when the previous window was empty and this one is not, "None this period" when both
+ * are empty, and "No comparison" when the pair never arrived. An absent pill must never be left
+ * to read as an unchanged value.
+ */
+export function trendNote(pair: WindowPair | undefined): string | undefined {
+  if (!pair) return "No comparison";
+  if (pair.previous !== 0) return undefined;
+  return pair.current > 0 ? "New this period" : "None this period";
 }

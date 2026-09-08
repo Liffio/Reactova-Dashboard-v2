@@ -5,6 +5,10 @@ import { LyraThinking } from "@/components/lyra-thinking";
 import { useLyra } from "@/hooks/use-lyra";
 import { lyraStorageKey } from "@/lib/lyra-persist";
 import { useApp } from "@/state/app-context";
+import {
+  useLyraWorkspace,
+  LYRA_NO_WORKSPACE_HINT,
+} from "@/hooks/use-lyra-workspace";
 
 /** Hashtags already written anywhere in the caption — suggestions dedupe against these. */
 function hashtagsInText(text: string): Set<string> {
@@ -28,6 +32,9 @@ export function HashtagAssist({
   onApply: (nextCaption: string) => void;
 }) {
   const { current, user } = useApp();
+  // A metered Lyra task has to name a workspace to bill; without one the server
+  // refuses the request, so the trigger must be unavailable rather than fail on click.
+  const { workspaceId, ready: lyraReady } = useLyraWorkspace();
   const lyra = useLyra<"hashtag">({
     persistKey: lyraStorageKey(user?.id, current.id, "hashtag-assist"),
   });
@@ -35,7 +42,7 @@ export function HashtagAssist({
   const run = async () => {
     const result = await lyra.run({
       task: "hashtag",
-      workspaceId: current.id,
+      workspaceId,
       input: { caption: caption.trim() || undefined, count: 10 },
     });
     if (result.status !== "complete" || !result.content) return;
@@ -93,7 +100,8 @@ export function HashtagAssist({
         size="sm"
         className="h-6 gap-1 px-2 text-xs text-primary hover:text-primary"
         onClick={() => void run()}
-        disabled={lyra.isActive}
+        disabled={lyra.isActive || !lyraReady}
+        title={lyraReady ? undefined : LYRA_NO_WORKSPACE_HINT}
       >
         <Sparkles className="h-3 w-3" />
         Suggest with Lyra

@@ -53,6 +53,7 @@ import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/lib/motion";
+import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 export const Route = createFileRoute("/_app/automations/")({
   head: () => ({ meta: [{ title: "Automations — Liffio" }] }),
@@ -89,7 +90,7 @@ function AutomationsPage() {
   const queryClient = useQueryClient();
   const [deleting, setDeleting] = useState<Automation | null>(null);
 
-  const workspaceReady = Boolean(workspaceId) && workspaceId !== "default";
+  const workspaceReady = isWorkspaceReady(workspaceId);
 
   /**
    * Search, status filter, sort and paging all resolve in SQL. This holds one page — there is no
@@ -313,9 +314,16 @@ function AutomationsPage() {
                 )}
                 <p className="mt-3 line-clamp-2 text-xs text-muted-foreground">{a.dmMessage}</p>
                 <div className="mt-auto flex items-center justify-between border-t pt-4 text-xs">
-                  <span className="inline-flex items-center gap-1.5 font-medium tabular-nums">
+                  {/* Delivered only, and the window is named. This used to read "N DMs" over a
+                      count of every DM job at every status for all time, so an automation with
+                      500 consecutive failures read as the best performer on the page. */}
+                  <span
+                    className="inline-flex items-center gap-1.5 font-medium tabular-nums"
+                    title="Delivered DMs, all time"
+                  >
                     <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                    {formatNum(a._count?.dmJobs ?? 0)} DMs
+                    {formatNum(a._count?.dmJobsSent ?? 0)} sent
+                    <span className="font-normal text-muted-foreground">· all time</span>
                   </span>
                   <span className="inline-flex items-center gap-1 text-muted-foreground">
                     <Clock className="h-3 w-3" />

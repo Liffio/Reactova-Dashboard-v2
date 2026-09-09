@@ -83,6 +83,15 @@ export function getAutomationStatusCounts(workspaceId: string) {
   });
 }
 
+/**
+ * One automation, with its follow-ups — what the edit page prefills from.
+ *
+ * `POST /search` cannot serve this: the list spec exposes no `id` filter by design.
+ */
+export function getAutomation(workspaceId: string, automationId: string) {
+  return apiRequest<Automation>(apiUri.automations.byId(automationId), { workspaceId });
+}
+
 export function getAutomationWizardData(workspaceId: string) {
   return apiRequest<AutomationWizardData>(apiUri.automations.wizardData, { workspaceId });
 }

@@ -6,6 +6,7 @@ import {
   MessageCircle,
   MoreHorizontal,
   Pause,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
@@ -51,6 +52,7 @@ import { apiUri } from "@/lib/api/apiUri";
 import { useServerList } from "@/hooks/use-server-list";
 import { formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
+import { useCan } from "@/hooks/use-auth";
 import { motion } from "framer-motion";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
@@ -124,6 +126,10 @@ function AutomationsPage() {
     void queryClient.invalidateQueries({ queryKey: ["automation-status-counts", workspaceId] });
     void queryClient.invalidateQueries({ queryKey: ["dashboard", workspaceId] });
   };
+
+  // Backend-resolved: the item is hidden rather than shown-and-rejected for a viewer who cannot
+  // update automations. Never a role check — the permission is whatever the server granted.
+  const canEdit = useCan("automation", "update");
 
   const toggleStatusMutation = useMutation({
     mutationFn: (input: { id: string; status: AutomationStatus }) =>
@@ -336,6 +342,16 @@ function AutomationsPage() {
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      {canEdit && (
+                        <DropdownMenuItem asChild className="cursor-pointer">
+                          <Link
+                            to="/automations/$automationId/edit"
+                            params={{ automationId: a.id }}
+                          >
+                            <Pencil className="mr-2 h-4 w-4" /> Edit
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
                       {a.status === "ACTIVE" ? (
                         <DropdownMenuItem
                           className="cursor-pointer"

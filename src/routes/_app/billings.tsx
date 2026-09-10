@@ -39,7 +39,6 @@ import {
   createPackageCheckout,
   getSellablePackages,
   type PackageCheckoutInput,
-  createBillingPortalSession,
   getBillingConfig,
   getBillingSubscription,
   listBillingInvoices,
@@ -64,7 +63,8 @@ import { useApp } from "@/state/app-context";
 import { PlanLimitsPanel } from "@/components/billing/plan-limits-panel";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
-type Gateway = "stripe" | "razorpay";
+/** Razorpay only — Stripe was removed from the product in full. */
+type Gateway = "razorpay";
 
 type BillingSearch = { status?: string };
 
@@ -179,12 +179,9 @@ function BillingPage() {
     /*
      * A neutral message, not the raw server string. (S3P.2a)
      *
-     * syncWorkspaceSubscription picks its provider by reading the local workspace_subscriptions
-     * row. A workspace that has paid through Razorpay but whose row was never written -- both
-     * settlement observers missed, which is G56 -- falls through to the Stripe path and throws
-     * "No Stripe subscription found for this workspace". Surfacing that verbatim tells a paying
-     * Razorpay customer about a provider they did not use, which is the same defect as the Manage
-     * button above wearing different words.
+     * syncWorkspaceSubscription reports provider-level failures verbatim, and those strings are
+     * written for an operator rather than a customer -- "no subscription found for this workspace"
+     * reads as data loss to the person who just paid. The neutral message is what they can act on.
      *
      * The raw error still reaches the console for support. What the customer gets is what they can
      * act on: try again, then ask a human. Recovering that case is S3P.2b.
@@ -237,9 +234,9 @@ function BillingPage() {
   });
 
   /**
-   * Both gateway types, always. A gateway the backend has not enabled (or that has no
-   * price for the chosen interval) renders as a disabled row with the reason, rather
-   * than vanishing — the payment-type step must always show what payment methods exist.
+   * Every gateway, always. One the backend has not enabled (or that has no price for the chosen
+   * interval) renders as a disabled row with the reason, rather than vanishing — the payment-type
+   * step must always show what payment methods exist.
    */
   const gatewayOptions = (
     planKey: string,
@@ -255,7 +252,6 @@ function BillingPage() {
     const providers = configQuery.data?.providers;
     return packageGatewayAvailability({
       pkg: packageForPlan(planKey),
-      stripeConfigured: Boolean(providers?.stripe.configured),
       razorpayConfigured: Boolean(providers?.razorpay.configured && providers.razorpay.keyId),
     });
   };
@@ -326,11 +322,10 @@ function BillingPage() {
       return;
     }
 
-    if (gateway === "razorpay") {
-      void startRazorpayCheckout(planKey);
-    } else {
-      checkoutMutation.mutate({ plan: planKey, interval, provider: "stripe" });
-    }
+    // Razorpay is the only gateway, so there is no branch left to take. `gateway` is kept in the
+    // signature because the payment-type step still passes the user's confirmed choice through,
+    // and a second gateway would reinstate the branch rather than the parameter.
+    void startRazorpayCheckout(planKey);
   };
 
   // Always open the payment-type step, even with a single usable gateway — the user
@@ -373,12 +368,6 @@ function BillingPage() {
     setGatewayChoice(planKey);
   };
 
-  const portalMutation = useMutation({
-    mutationFn: () => createBillingPortalSession(workspaceId),
-    onSuccess: ({ url }) => window.open(url, "_blank"),
-    onError: (e) => toast.error((e as Error).message),
-  });
-
   const cancelMutation = useMutation({
     mutationFn: () => cancelBillingSubscription(workspaceId),
     onSuccess: () => {
@@ -420,34 +409,6 @@ function BillingPage() {
               <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
               Sync
             </Button>
-            {/*
-             * Gated on stripeCustomerId, not on hasActiveSubscription. (S3P.2a)
-             *
-             * This rendered for ANY active subscription, provider-blind, and called
-             * createPortalSession -> stripe.billingPortal.sessions.create, which throws when the
-             * user has no Stripe customer. Under D19 that is EVERY Razorpay customer, so a paying
-             * customer clicked "Manage" and got a toast reading "Stripe customer portal is not
-             * available for this account" -- a broken control naming a provider they did not use.
-             *
-             * stripeCustomerId is the exact predicate the backend checks, so the button now
-             * renders when and only when the call can succeed. NOT deleted outright: Stripe is
-             * dormant, not removed, and the existing Stripe subscriptions still have a real portal
-             * -- it is the only way those accounts can change a card.
-             *
-             * Razorpay has no hosted portal. The self-serve replacement is S3P.2d/e, deferred.
-             */}
-            {sub?.billing?.stripeCustomerId && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                disabled={portalMutation.isPending}
-                onClick={() => portalMutation.mutate()}
-              >
-                <ExternalLink className="h-4 w-4" />
-                Manage
-              </Button>
-            )}
           </div>
         }
       />
@@ -732,17 +693,19 @@ function BillingPage() {
                 Gateway,
                 { icon: typeof CreditCard; title: string; sub: string; price: string | null }
               > = {
-                stripe: {
-                  icon: CreditCard,
-                  title: "Credit / Debit card",
-                  sub: "Visa, Mastercard, Amex — via Stripe",
-                  price: usdText,
-                },
                 razorpay: {
                   icon: IndianRupee,
                   title: "UPI / NetBanking / Cards",
                   sub: "India — via Razorpay",
-                  price: inrText,
+                  /**
+                   * Falls back to USD when the tier carries no authored INR figure.
+                   *
+                   * With Stripe gone this is the only row, so a null price would leave the payment
+                   * step showing no price at all. Falling back rather than converting is the same
+                   * rule `cardPriceText` follows: showing the real price in the wrong currency is
+                   * recoverable, showing an invented number in the right one is not.
+                   */
+                  price: inrText ?? usdText,
                 },
               };
 

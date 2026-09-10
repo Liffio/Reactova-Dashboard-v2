@@ -276,24 +276,21 @@ function BillingTabContent({ workspaces }: { workspaces: AdminUserWorkspaceMembe
 }
 
 /* -------------------------------------------------------------------------
- * Subscription card — plan/status/period + Comp / Cancel-at-period-end / Sync / Stripe link-out.
+ * Subscription card — plan/status/period + Comp / Cancel-at-period-end / Sync / provider link-out.
  * ---------------------------------------------------------------------- */
 
-/** External link-out to the Stripe dashboard for actual money movement — spec-mandated (task-21-
- *  brief.md item 3): this console never talks to Stripe directly for refunds/manual charges, it
- *  only reads/comps/cancels/syncs the local mirror. */
-function stripeDashboardUrl(billing: {
-  stripeCustomerId: string | null;
-  stripeSubscriptionId: string | null;
-}): string | null {
-  if (billing.stripeCustomerId) {
-    return `https://dashboard.stripe.com/customers/${encodeURIComponent(billing.stripeCustomerId)}`;
-  }
-  if (billing.stripeSubscriptionId) {
-    return `https://dashboard.stripe.com/subscriptions/${encodeURIComponent(billing.stripeSubscriptionId)}`;
-  }
-  return null;
-}
+/**
+ * External link-out to the provider dashboard for actual money movement — spec-mandated (task-21-
+ * brief.md item 3): this console never talks to the gateway directly for refunds or manual charges,
+ * it only reads/comps/cancels/syncs the local mirror.
+ *
+ * ⚠️ **Deliberately the subscriptions LIST, not a deep link to the subscription.** Razorpay's
+ * dashboard deep-link format is not documented anywhere this codebase can verify, and an invented
+ * URL that 404s is worse than one extra search — the operator following this link is usually
+ * mid-refund. The provider subscription id is rendered beside the button to paste into the
+ * dashboard's own search. Replace this with a deep link once the format is confirmed.
+ */
+const RAZORPAY_SUBSCRIPTIONS_URL = "https://dashboard.razorpay.com/app/subscriptions";
 
 function CompPlanDialog({
   workspaceId,
@@ -360,7 +357,7 @@ function CompPlanDialog({
           <DialogTitle>Comp a plan</DialogTitle>
           <DialogDescription>
             Grants this plan directly, bypassing checkout — a local-only override, not a real
-            Stripe/Razorpay subscription.
+            Razorpay subscription.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -422,8 +419,8 @@ function CancelAtPeriodEndToggle({ workspaceId, value }: { workspaceId: string; 
       toast.success(
         res.cancelAtPeriodEnd ? "Will cancel at period end." : "Cancellation cleared — will renew.",
         {
-          description: res.viaStripe
-            ? "Applied via Stripe."
+          description: res.viaProvider
+            ? "Applied at the payment provider."
             : "Applied locally (no live provider subscription attached).",
         },
       );
@@ -513,7 +510,19 @@ function SubscriptionCard({
     },
   });
 
-  const stripeUrl = subscription ? stripeDashboardUrl(subscription.billing) : null;
+  /**
+   * The provider's own subscription id, for pasting into the Razorpay dashboard.
+   *
+   * `subscription.subscription` is the raw `WorkspaceSubscription` row the endpoint serialises, and
+   * the client types it as `Record<string, unknown>` — so this is narrowed rather than asserted. A
+   * `manual_`-prefixed id (a comped plan) is a local placeholder with nothing behind it at the
+   * provider, so it is deliberately not offered as something to look up.
+   */
+  const rawProviderId = subscription?.subscription?.providerSubscriptionId;
+  const providerSubscriptionId =
+    typeof rawProviderId === "string" && !rawProviderId.startsWith("manual_")
+      ? rawProviderId
+      : null;
   const hasSubscriptionRow = subscription?.subscription != null;
 
   return (
@@ -522,12 +531,20 @@ function SubscriptionCard({
       description="Per-workspace plan, status, and billing period."
       actions={
         <>
-          {stripeUrl && (
-            <Button variant="outline" size="sm" className="gap-1.5" asChild>
-              <a href={stripeUrl} target="_blank" rel="noreferrer">
-                <ExternalLink className="h-3.5 w-3.5" /> Open in Stripe
-              </a>
-            </Button>
+          {providerSubscriptionId && (
+            <>
+              <code
+                className="rounded bg-muted px-1.5 py-1 font-mono text-[11px] text-muted-foreground"
+                title="Paste into the Razorpay dashboard search"
+              >
+                {providerSubscriptionId}
+              </code>
+              <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                <a href={RAZORPAY_SUBSCRIPTIONS_URL} target="_blank" rel="noreferrer">
+                  <ExternalLink className="h-3.5 w-3.5" /> Open Razorpay
+                </a>
+              </Button>
+            </>
           )}
           <Button
             variant="outline"

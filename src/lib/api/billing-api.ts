@@ -35,7 +35,6 @@ export type BillingPlanConfig = {
   features: Record<string, boolean>;
   gates: Record<string, string>;
   checkout?: {
-    stripe: Record<"monthly" | "quarterly" | "yearly", boolean>;
     razorpay: Record<"monthly" | "quarterly" | "yearly", boolean>;
   };
 };
@@ -52,7 +51,6 @@ export type BillingConfigResponse = {
    * package catalogue and are read, never converted, so the field is removed rather than filled in.
    */
   providers: {
-    stripe: { configured: boolean; publishableKey: string | null; webhookConfigured: boolean };
     razorpay: { configured: boolean; keyId: string | null; webhookConfigured: boolean };
   };
   plans: BillingPlanConfig[];
@@ -69,18 +67,6 @@ export type BillingSubscription = {
   limits: Record<string, number>;
   features: Record<string, boolean>;
   hasActiveSubscription: boolean;
-  /**
-   * Already sent by `getWorkspaceSubscription`; declared here in S3P.2a because the billing page
-   * needs it to decide whether the Stripe customer portal can work at all.
-   *
-   * `stripeCustomerId` is non-null only for a workspace that was billed through Stripe. Under D19
-   * Stripe is dormant, so this is null for every new customer and non-null for the existing rows
-   * that still legitimately have a portal.
-   */
-  billing?: {
-    stripeCustomerId: string | null;
-    stripeSubscriptionId: string | null;
-  };
 };
 
 export type BillingInvoiceRow = {
@@ -104,7 +90,7 @@ export type BillingInvoiceRow = {
 export type CheckoutInput = {
   plan: string;
   interval: "monthly" | "quarterly" | "yearly";
-  provider?: "stripe" | "razorpay";
+  provider?: "razorpay";
 };
 
 export function getBillingConfig() {
@@ -126,7 +112,7 @@ export function listAllBillingInvoices(workspaceId: string) {
 }
 
 export type CheckoutResponse = {
-  provider: "stripe" | "razorpay";
+  provider: "razorpay";
   checkoutUrl: string | null;
   /** Razorpay only — the subscription id the checkout.js modal is opened with. */
   subscriptionId?: string;
@@ -217,10 +203,6 @@ export function verifyRazorpayCheckout(workspaceId: string, body: RazorpayVerify
     workspaceId,
     body,
   });
-}
-
-export function createBillingPortalSession(workspaceId: string) {
-  return apiRequest<{ url: string }>(apiUri.billing.portal, { method: "POST", workspaceId });
 }
 
 export function syncBilling(workspaceId: string, body: { sessionId?: string } = {}) {

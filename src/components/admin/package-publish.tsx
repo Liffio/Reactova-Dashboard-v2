@@ -23,17 +23,16 @@ import {
 } from "@/lib/api/registry-api";
 
 /**
- * Publishing a package's prices to Stripe and Razorpay.
+ * Publishing a package's prices to Razorpay.
  *
  * Deliberately its own action, never fired on save (decision B4): editing a description must not be
- * able to create a Stripe object. It also cannot pretend a price was *changed* — the providers only
+ * able to create a provider object. It also cannot pretend a price was *changed* — the provider only
  * ever create-new + archive-old, so a reprice leaves existing subscribers exactly where they are.
  * This surface names how many that is before anyone confirms (B1), and never offers to move them in
  * the same click (B3.3).
  */
 
 const PROVIDER_LABEL: Record<BillingProvider, string> = {
-  STRIPE: "Stripe",
   RAZORPAY: "Razorpay",
 };
 
@@ -125,7 +124,7 @@ export function PackagePublish({
   return (
     <FormSection
       title="Payment providers"
-      description="Publish this package's prices to Stripe and Razorpay. Saving never touches a provider — this is the deliberate step."
+      description="Publish this package's prices to Razorpay. Saving never touches the provider — this is the deliberate step."
     >
       <div className="space-y-3">
         {status.providers.map((provider) => (

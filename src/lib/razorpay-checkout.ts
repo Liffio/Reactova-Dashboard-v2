@@ -4,7 +4,7 @@ import type { RazorpayVerifyInput } from "@/lib/api/billing-api";
  * Razorpay Checkout modal for subscriptions.
  *
  * Loading checkout.js from Razorpay is the sanctioned equivalent of redirecting to
- * Stripe-hosted checkout — the payment page itself must come from the gateway. Every
+ * gateway-hosted checkout — the payment page itself must come from the gateway. Every
  * Razorpay REST call (create subscription, verify signature) stays server-side; the
  * browser only ever sees the public key id.
  */

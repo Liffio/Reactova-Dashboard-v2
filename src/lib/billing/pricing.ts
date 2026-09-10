@@ -1,6 +1,14 @@
 import type { SellablePackage } from "@/lib/api/billing-api";
 
-export type GatewayKey = "stripe" | "razorpay";
+/**
+ * The gateways a package can be bought through.
+ *
+ * Razorpay only. Stripe was removed from the product in full — code, config and schema — so a union
+ * is kept rather than collapsed to a bare string because the *shape* is what every caller consumes
+ * (`gatewayOptions` renders one row per member and `.some()` over availability), and because a
+ * second gateway is a plausible future rather than an impossible one.
+ */
+export type GatewayKey = "razorpay";
 /** The intervals a PACKAGE can be bought on. Quarterly is a plan-path concept and is not one. */
 export type PaidInterval = "monthly" | "yearly";
 
@@ -20,8 +28,7 @@ export type GatewayAvailability = {
  * payloads were already being fetched by the page.
  *
  * 🔴 **1 · Purchasability.** `gatewayOptions` derived availability from `planCfg.checkout[gateway]`,
- * which is built server-side from `resolveProviderPriceIds` → the `RAZORPAY_PLAN_*` / `STRIPE_PRICE_*`
- * env SKUs. `GROWTH` is hardcoded to empty strings in `billing.config.ts` and has **no env vars
+ * which is built server-side from `resolveProviderPriceIds` → the `RAZORPAY_PLAN_*` env SKUs. `GROWTH` is hardcoded to empty strings in `billing.config.ts` and has **no env vars
  * declared at all** — so every flag was `false`, `handleUpgradeClick` returned early with *"not
  * available for online checkout yet"*, and the gateway chooser never opened.
  *
@@ -54,10 +61,9 @@ export type GatewayAvailability = {
  */
 export function packageGatewayAvailability(input: {
   pkg: SellablePackage | undefined;
-  stripeConfigured: boolean;
   razorpayConfigured: boolean;
 }): GatewayAvailability[] {
-  const { pkg, stripeConfigured, razorpayConfigured } = input;
+  const { pkg, razorpayConfigured } = input;
 
   const forGateway = (value: GatewayKey, configured: boolean): GatewayAvailability => {
     if (!pkg) return { value, available: false, reason: "Not available for online checkout yet" };
@@ -65,7 +71,9 @@ export function packageGatewayAvailability(input: {
     return { value, available: true };
   };
 
-  return [forGateway("stripe", stripeConfigured), forGateway("razorpay", razorpayConfigured)];
+  // Still an array with one member: the payment-type step must always show what payment methods
+  // exist, including an unavailable one WITH its reason, rather than rendering nothing at all.
+  return [forGateway("razorpay", razorpayConfigured)];
 }
 
 /**

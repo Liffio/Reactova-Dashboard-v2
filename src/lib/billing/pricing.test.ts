@@ -51,7 +51,6 @@ describe("packageGatewayAvailability — a package existing IS the purchasabilit
     // "not available for online checkout yet" and the gateway chooser never opened.
     const options = packageGatewayAvailability({
       pkg: pkg({ key: "growth" }),
-      stripeConfigured: true,
       razorpayConfigured: true,
     });
 
@@ -64,7 +63,6 @@ describe("packageGatewayAvailability — a package existing IS the purchasabilit
     // the assertion above and be exactly as wrong in the other direction.
     const options = packageGatewayAvailability({
       pkg: undefined,
-      stripeConfigured: true,
       razorpayConfigured: true,
     });
 
@@ -75,27 +73,18 @@ describe("packageGatewayAvailability — a package existing IS the purchasabilit
   it("an unconfigured provider is unavailable, and says so differently", () => {
     // "We do not sell this tier" and "this gateway is down" are different facts and a customer
     // should not be shown the first when the second is true.
-    const options = packageGatewayAvailability({
-      pkg: pkg(),
-      stripeConfigured: false,
-      razorpayConfigured: true,
-    });
-
-    const stripe = options.find((o) => o.value === "stripe")!;
+    const options = packageGatewayAvailability({ pkg: pkg(), razorpayConfigured: false });
     const razorpay = options.find((o) => o.value === "razorpay")!;
 
-    expect(stripe.available).toBe(false);
-    expect(stripe.reason).toBe("Temporarily unavailable");
-    expect(razorpay.available).toBe(true);
+    expect(razorpay.available).toBe(false);
+    expect(razorpay.reason).toBe("Temporarily unavailable");
   });
 
-  it("returns stripe and razorpay, in that order, always", () => {
-    const options = packageGatewayAvailability({
-      pkg: undefined,
-      stripeConfigured: false,
-      razorpayConfigured: false,
-    });
-    expect(options.map((o) => o.value)).toEqual(["stripe", "razorpay"]);
+  it("always returns razorpay, even when it is unconfigured", () => {
+    // Shape matters as much as content: the payment-type step renders one row per member, so an
+    // unavailable gateway must still appear WITH its reason rather than leaving the step empty.
+    const options = packageGatewayAvailability({ pkg: undefined, razorpayConfigured: false });
+    expect(options.map((o) => o.value)).toEqual(["razorpay"]);
   });
 });
 

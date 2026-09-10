@@ -232,7 +232,6 @@ export const apiUri = {
     packages: `${V1}/billing/packages`,
     /** The PACKAGE path (S5.2). Sells a `packageId`, not a `Plan` — which is how Growth is sold. */
     packageCheckout: `${V1}/billing/package-checkout`,
-    portal: `${V1}/billing/portal`,
     sync: `${V1}/billing/sync`,
     cancel: `${V1}/billing/cancel`,
     razorpayVerify: `${V1}/billing/razorpay/verify`,
@@ -575,7 +574,7 @@ export const apiUri = {
       /**
        * Force the saved contents live for every workspace on this package, now.
        *
-       * Distinct from `publish`, which pushes prices to Stripe/Razorpay. This one touches no
+       * Distinct from `publish`, which pushes prices to Razorpay. This one touches no
        * provider — it reconciles entitlement and tells connected members.
        */
       applyLive: (id: string) => `${V1}/admin/packages/${id}/apply-live`,

@@ -455,7 +455,8 @@ export const setPackageLimits = (
 
 // ── Publishing to payment providers ─────────────────────────────────────────────────────────────
 
-export type BillingProvider = "STRIPE" | "RAZORPAY";
+/** Razorpay only — Stripe was removed from the product in full. */
+export type BillingProvider = "RAZORPAY";
 export type BillingInterval = "MONTHLY" | "QUARTERLY" | "YEARLY";
 
 /** Where one provider stands relative to what the package currently declares. */

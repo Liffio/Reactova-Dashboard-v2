@@ -795,7 +795,7 @@ export function PlatformMetricsPanel() {
               hint="Consecutive send failures > 0"
             />
             <ControlPlaneTile
-              label="Stripe webhook failures"
+              label="Billing webhook failures"
               value={formatNum(tiles.unprocessedBillingEventErrors)}
               icon={Webhook}
               hint="Unprocessed billing events with an error"

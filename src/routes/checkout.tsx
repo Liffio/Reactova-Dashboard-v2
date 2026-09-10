@@ -23,7 +23,8 @@ import { formatInrPaise, inrPaiseForInterval } from "@/lib/billing/pricing";
 import { useAuthState } from "@/lib/auth/auth-store";
 
 type Interval = "monthly" | "quarterly" | "yearly";
-type Gateway = "stripe" | "razorpay";
+/** Razorpay only — Stripe was removed from the product in full. */
+type Gateway = "razorpay";
 
 type CheckoutSearch = {
   plan?: string;
@@ -67,7 +68,7 @@ function PostRegistrationCheckout() {
   const userEmail = useAuthState((s) => s.user?.email);
 
   const [interval, setInterval] = useState<Interval>("monthly");
-  const [gateway, setGateway] = useState<Gateway>("stripe");
+  const [gateway, setGateway] = useState<Gateway>("razorpay");
   const [paying, setPaying] = useState(false);
 
   const configQuery = useQuery({ queryKey: ["billing-config"], queryFn: getBillingConfig });
@@ -112,12 +113,6 @@ function PostRegistrationCheckout() {
 
   const gateways: { value: Gateway; label: string; detail: string; icon: typeof CreditCard }[] = [
     {
-      value: "stripe",
-      label: "Card",
-      detail: "Visa, Mastercard, Amex · USD",
-      icon: CreditCard,
-    },
-    {
       value: "razorpay",
       label: "UPI / NetBanking",
       detail: "UPI, cards, netbanking · INR",
@@ -125,9 +120,10 @@ function PostRegistrationCheckout() {
     },
   ];
 
-  // Both gateway types render always; each is enabled only when the backend reports the
-  // provider configured AND the plan has at least one purchasable interval on it. An
-  // unavailable gateway shows as a disabled option instead of disappearing.
+  // Every gateway renders always; each is enabled only when the backend reports the provider
+  // configured AND the plan has at least one purchasable interval on it. An unavailable gateway
+  // shows as a disabled option WITH its reason instead of disappearing, so the payment step is
+  // never blank.
   const gatewayRows = gateways.map((g) => {
     const provider = config?.providers?.[g.value];
     const matrix = planConfig?.checkout?.[g.value];
@@ -136,7 +132,7 @@ function PostRegistrationCheckout() {
   });
   const enabledGateways = gatewayRows.filter((g) => g.enabled);
 
-  // If the preferred gateway is unavailable (e.g. Stripe unconfigured), fall to the first enabled.
+  // If the preferred gateway is unavailable (provider unconfigured), fall to the first enabled.
   useEffect(() => {
     if (enabledGateways.length && !enabledGateways.some((g) => g.value === gateway)) {
       setGateway(enabledGateways[0].value);
@@ -170,24 +166,24 @@ function PostRegistrationCheckout() {
     return p.yearlyUsd;
   };
 
+  /**
+   * 🔴 Read, never converted. This was `usd * (config.usdToInrRate ?? 84)`, and `usdToInrRate` does
+   * not exist on `/billing/config` — so the fallback always fired and the figure shown was inflated
+   * 1.5–2×. **There is no FX derivation anywhere (D4).**
+   *
+   * ⚠️ **Quarterly has no authored INR** — the package catalogue carries monthly and yearly only.
+   *
+   * Falls back to the authored USD rather than an em dash now that Razorpay is the only gateway:
+   * with Stripe present, quarterly still had a USD row to show, and blanking the only remaining row
+   * would leave the step priceless. Falling back is not converting — it is the same rule
+   * `cardPriceText` follows, that showing the real price in the wrong currency is recoverable while
+   * showing an invented number in the right one is not.
+   */
   const priceDisplay = () => {
-    if (gateway === "razorpay") {
-      /**
-       * 🔴 Read, never converted. This was `usd * (config.usdToInrRate ?? 84)`, and
-       * `usdToInrRate` does not exist on `/billing/config` — so the fallback always fired and the
-       * figure shown was inflated 1.5–2×. **There is no FX derivation anywhere (D4).**
-       *
-       * ⚠️ **Quarterly has no authored INR** — the package catalogue carries monthly and yearly
-       * only. It shows an em dash rather than a converted number: no price is better than a wrong
-       * one, and inventing one here is the defect this replaced.
-       */
-      if (interval === "quarterly") return "—";
-      const paise = inrPaiseForInterval(pkg, interval);
-      return paise == null ? "—" : `${formatInrPaise(paise)}/mo`;
-    }
+    const paise = interval === "quarterly" ? null : inrPaiseForInterval(pkg, interval);
+    if (paise != null) return `${formatInrPaise(paise)}/mo`;
     const usd = usdForInterval();
-    if (usd == null) return "—";
-    return `$${usd}/mo`;
+    return usd == null ? "—" : `$${usd}/mo`;
   };
 
   const handleCheckout = async () => {

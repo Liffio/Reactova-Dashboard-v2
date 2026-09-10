@@ -267,7 +267,6 @@ export type AdminWorkspaceSubscriptionDetail = {
   limits: Record<string, unknown>;
   features: Record<string, unknown>;
   subscription: AdminWorkspaceSubscriptionRow | null;
-  billing: { stripeCustomerId: string | null; stripeSubscriptionId: string | null };
   hasActiveSubscription: boolean;
 };
 
@@ -311,18 +310,19 @@ export function compWorkspacePlan(
 }
 
 /** `PATCH /admin/workspaces/:wsId/subscription/cancel-at-period-end` — 404s `SUBSCRIPTION_NOT_FOUND`
- *  when the workspace has no subscription row yet; calls Stripe when a real (non-`manual_`)
- *  subscription is attached, otherwise flips the local flag only (`viaStripe` says which). */
+ *  when the workspace has no subscription row yet; calls the payment provider when a real
+ *  (non-`manual_`) subscription is attached, otherwise flips the local flag only (`viaProvider`
+ *  says which). */
 export function setWorkspaceCancelAtPeriodEnd(workspaceId: string, value: boolean) {
-  return apiRequest<{ ok: true; cancelAtPeriodEnd: boolean; viaStripe: boolean }>(
+  return apiRequest<{ ok: true; cancelAtPeriodEnd: boolean; viaProvider: boolean }>(
     apiUri.admin.workspaces.subscriptionCancelAtPeriodEnd(workspaceId),
     { method: "PATCH", body: { value } },
   );
 }
 
 /** `POST /admin/workspaces/:wsId/subscription/sync` — delegates to the reused
- *  `billingService.syncWorkspaceSubscription`; a real Stripe/Razorpay re-pull, NOT a 501 stub
- *  (task-20-report.md §2's billing-sync decision). Can 400 `BILLING_SYNC_FAILED` (Stripe not
+ *  `billingService.syncWorkspaceSubscription`; a real Razorpay re-pull, NOT a 501 stub
+ *  (task-20-report.md §2's billing-sync decision). Can 400 `BILLING_SYNC_FAILED` (Razorpay not
  *  configured / no customer / no subscription found) — callers should surface that message, not
  *  treat it as an unexpected error. */
 export function syncWorkspaceSubscriptionAdmin(workspaceId: string) {

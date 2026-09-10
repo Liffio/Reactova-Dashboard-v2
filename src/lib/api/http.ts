@@ -366,6 +366,13 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
         /**
          * The operator's notification-channel choice, on every request.
          *
+         * 🔴 **Any header added here MUST also be added to `allowedHeaders` in the server's
+         * `cors()` call (`server/src/index.ts`).** That option is an allowlist: an unlisted custom
+         * header fails the browser's preflight, so the request never reaches Express — the server
+         * logs nothing, and the browser reports a generic CORS error that looks nothing like a
+         * header problem. These two headers shipped without that and broke every preflighted call
+         * in production.
+         *
          * Attached here rather than per call site because that is what makes the option work on
          * every superadmin page — including ones written later — without wiring it through each
          * API function. The server only consults it when a request actually raises an

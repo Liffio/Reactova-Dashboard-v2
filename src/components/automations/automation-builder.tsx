@@ -532,26 +532,28 @@ export function AutomationBuilder({
   /**
    * Publish / Save-as-draft — defined once, rendered in exactly one place at any given width.
    *
-   * ## Why this moved out of the header
+   * ## Why these left the header
    *
    * The builder's left column is a long wizard. Both actions lived only in `PageHeader`, so
    * finishing an automation meant scrolling back to the top of the page to save it — the form's
    * last field and its submit button were as far apart as the page is tall.
    *
-   * On `lg` and up they now sit under the live DM preview, inside an `<aside>` that is already
-   * `lg:sticky lg:top-20`. That is the whole trick: the preview follows the scroll, so anything
+   * **`lg` and up:** under the live DM preview, inside an `<aside>` that is already
+   * `lg:sticky lg:top-20`. That is the whole trick — the preview follows the scroll, so anything
    * below it does too, and Publish is reachable from any step of the wizard.
    *
-   * ⚠️ **Below `lg` the aside is not sticky** — the grid collapses to one column and the preview
-   * stacks *after* the form. Putting the only Publish button there would bury it at the bottom of a
-   * very long page, which is a different version of the same bug. So the header keeps them at
-   * narrow widths and the sidebar takes them at wide ones, gated by `lg:hidden` / `hidden lg:flex`.
-   * The two are mutually exclusive: there is never a width that shows both, and never one that
-   * shows neither.
+   * **Below `lg`:** at the end of the form column, static. The aside is not sticky there (the grid
+   * collapses to one column), and a *floating* bar on a phone is actively worse than the bug — it
+   * covers the field you are typing into and fights the on-screen keyboard. Ending the form with
+   * its own submit is both the conventional shape and the shortest path: you arrive at the buttons
+   * by finishing the wizard rather than by hunting for them.
    *
-   * `block` stacks them full-width for the 360px sidebar; the header wants them inline.
+   * The two placements are gated `lg:hidden` / `hidden lg:flex`, so they are mutually exclusive:
+   * no width shows both, none shows neither. Nothing remains in the header but Back.
+   *
+   * Always full-width — both homes are a narrow column (the 360px sidebar, or a phone).
    */
-  const actionButtons = ({ block = false }: { block?: boolean } = {}) => (
+  const actionButtons = () => (
     <>
       {!isEdit && (
         <Button
@@ -559,7 +561,7 @@ export function AutomationBuilder({
           variant="outline"
           onClick={() => submit("DRAFT")}
           disabled={publishMutation.isPending}
-          className={cn(block && "w-full")}
+          className="w-full"
         >
           <Check className="h-4 w-4" /> Save as draft
         </Button>
@@ -568,10 +570,7 @@ export function AutomationBuilder({
         size="sm"
         onClick={() => submit("ACTIVE")}
         disabled={publishMutation.isPending}
-        className={cn(
-          "bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95",
-          block && "w-full",
-        )}
+        className="w-full bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
       >
         {publishMutation.isPending ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -665,8 +664,6 @@ export function AutomationBuilder({
                 <ArrowLeft className="h-4 w-4" /> Back
               </Link>
             </Button>
-            {/* Narrow widths only — at `lg` these move under the sticky preview. */}
-            <div className="flex flex-wrap items-center gap-2 lg:hidden">{actionButtons()}</div>
           </>
         }
       />
@@ -1040,6 +1037,14 @@ export function AutomationBuilder({
               )}
             </div>
           </section>
+
+          {/*
+            Below `lg`, where the aside is not sticky and the header no longer carries these.
+            Static on purpose — a floating bar on a phone covers the field you are typing into and
+            fights the on-screen keyboard, so this simply ends the form the way a form should end.
+            The wizard is finished by the time you reach it, which is the point.
+          */}
+          <div className="flex flex-col gap-2 border-t pt-4 lg:hidden">{actionButtons()}</div>
         </div>
 
         {/* Live DM preview */}
@@ -1058,9 +1063,7 @@ export function AutomationBuilder({
           />
 
           {/* Rides the aside's existing `lg:sticky`, so Publish stays on screen at every step. */}
-          <div className="hidden flex-col gap-2 border-t pt-3 lg:flex">
-            {actionButtons({ block: true })}
-          </div>
+          <div className="hidden flex-col gap-2 border-t pt-3 lg:flex">{actionButtons()}</div>
         </aside>
       </div>
     </div>

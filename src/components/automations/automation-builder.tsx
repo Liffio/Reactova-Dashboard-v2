@@ -326,29 +326,57 @@ export function AutomationBuilder({
     return {
       name: form.name.trim() || "Untitled automation",
       keywords: form.anyComment ? [] : normalizedBlocks.map((b) => b.keyword).filter(Boolean),
-      excludedKeywords: [],
+      // Omitted rather than sent empty — see the note on `triggerBlocks` below.
+      excludedKeywords: undefined,
       anyComment: form.anyComment,
       postScope: form.postScope,
       postId: form.postScope === "specific" ? form.postId : null,
       dmMessage: primary.dmMessage.trim(),
       autoReply: primary.autoReply,
       replyMessages:
-        primary.autoReply && primary.replyMessage.trim() ? [primary.replyMessage.trim()] : [],
+        primary.autoReply && primary.replyMessage.trim()
+          ? [primary.replyMessage.trim()]
+          : undefined,
       dmButtonLabel: primary.hasButton ? primary.dmButtonLabel.trim() || undefined : undefined,
       dmButtonUrl: primary.hasButton ? primary.dmButtonUrl.trim() || undefined : undefined,
-      followBeforeDm: form.followBeforeDm,
+      followBeforeDm: form.followBeforeDm || undefined,
       followUps: form.followUps
         .filter((f) => f.message.trim())
         .map((f, i) => ({ delayMinutes: f.delayMinutes, message: f.message.trim(), order: i })),
-      triggerBlocks: normalizedBlocks.map((block) => ({
-        id: block.id,
-        keyword: block.keyword,
-        autoReply: block.autoReply,
-        replyMessage: block.replyMessage.trim(),
-        dmMessage: block.dmMessage.trim(),
-        dmButtonLabel: block.hasButton ? block.dmButtonLabel.trim() || undefined : undefined,
-        dmButtonUrl: block.hasButton ? block.dmButtonUrl.trim() || undefined : undefined,
-      })),
+      /**
+       * 🔴 Only sent when the user is ACTUALLY using multiple trigger blocks.
+       *
+       * `POST /automations` is guarded by `capability_routes`, whose `exists` predicate means "the
+       * key is present in the body" — not "the feature is in use". So sending `triggerBlocks` for a
+       * single plain keyword tripped `automation:trigger_blocks` ("Multiple trigger blocks"),
+       * `excludedKeywords: []` tripped `automation:excluded_keywords`, `replyMessages: []` tripped
+       * `automation:reply_variants`, and `followBeforeDm: false` tripped
+       * `automation:follow_before_dm`. A Free workspace holds none of those four, so the simplest
+       * possible automation — one keyword, one DM, no button — was refused with a 403.
+       *
+       * The fix is to say nothing about a feature we are not using, which is exactly what
+       * `dmButtonLabel` above already does. The server defaults every one of these
+       * (`createSchema`), and omitting `triggerBlocks` makes `normalizeAutomationTriggerBlocks`
+       * fall back to the flat `keywords` / `dmMessage` / `autoReply` / `replyMessages` fields this
+       * payload already carries — so a single-block automation round-trips unchanged.
+       *
+       * ⚠️ **Not a complete fix, and deliberately so.** `exists` still cannot tell one reply
+       * variant from several, so a Free workspace using its own `automation:public_auto_reply`
+       * with a single reply message still trips `automation:reply_variants`. Closing that needs a
+       * predicate that counts rather than checks presence — a server change, tracked separately.
+       */
+      triggerBlocks:
+        normalizedBlocks.length > 1
+          ? normalizedBlocks.map((block) => ({
+              id: block.id,
+              keyword: block.keyword,
+              autoReply: block.autoReply,
+              replyMessage: block.replyMessage.trim(),
+              dmMessage: block.dmMessage.trim(),
+              dmButtonLabel: block.hasButton ? block.dmButtonLabel.trim() || undefined : undefined,
+              dmButtonUrl: block.hasButton ? block.dmButtonUrl.trim() || undefined : undefined,
+            }))
+          : undefined,
       status,
     };
   };

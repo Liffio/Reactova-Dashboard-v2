@@ -1,9 +1,18 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Layers, Lock, RefreshCw, Route as RouteIcon, Shield } from "lucide-react";
+import {
+  AlertTriangle,
+  GitBranch,
+  Layers,
+  Lock,
+  RefreshCw,
+  Route as RouteIcon,
+  Shield,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { CapabilityTree } from "@/components/admin/capability-tree";
 import { PlatformPermissionRoute } from "@/components/auth/guards";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -101,6 +110,7 @@ function GatingMapInner() {
             <Totals map={query.data} />
             <ResolutionFlow map={query.data} />
             <LadderDiagram map={query.data} />
+            <CapabilityTreeSection map={query.data} />
             <ModuleGateMatrix map={query.data} />
             <DeadEnds map={query.data} />
             <p className="text-center text-[11px] text-muted-foreground">
@@ -418,7 +428,7 @@ function ModuleGateMatrix({ map }: { map: GatingMap }) {
   return (
     <Section
       icon={Lock}
-      title="3 · Every capability, and what gates it"
+      title="4 · Every capability, and what gates it"
       summary={
         <>
           <p>
@@ -572,7 +582,7 @@ function DeadEnds({ map }: { map: GatingMap }) {
   return (
     <Section
       icon={AlertTriangle}
-      title="4 · Dead ends"
+      title="5 · Dead ends"
       summary={
         <p>
           Capabilities that exist but cannot be reached, grouped by which plane breaks the chain.
@@ -627,6 +637,39 @@ function DeadEnds({ map }: { map: GatingMap }) {
           <span>Every capability is mapped to a parent module.</span>
         )}
       </div>
+    </Section>
+  );
+}
+
+/* -- 3. Capability tree ---------------------------------------------------------------------- */
+
+/**
+ * Wraps the tree in this page's Section shell so it carries a summary like every other diagram.
+ * The tree itself lives in its own component because it owns interaction state, and mixing that
+ * into a file of otherwise-static diagrams makes both harder to follow.
+ */
+function CapabilityTreeSection({ map }: { map: GatingMap }) {
+  return (
+    <Section
+      icon={GitBranch}
+      title="3 &middot; The registry as a tree"
+      summary={
+        <>
+          <p>
+            Workspace &rarr; module &rarr; capability, as the registry actually stores it. Click a
+            module to draw its capabilities; click a capability to open every plane that decides
+            whether anyone can reach it, including the exact routes it guards.
+          </p>
+          <p>
+            A module drawn <span className="text-muted-foreground">faded</span> is not gateable by a
+            package &mdash; its CRUD survives any ceiling, so putting it in a tier changes nothing.
+            That is a property of the registry (its surface, plus whether anything is mapped under
+            it), not a pricing decision, and it is invisible on every other screen.
+          </p>
+        </>
+      }
+    >
+      <CapabilityTree map={map} />
     </Section>
   );
 }

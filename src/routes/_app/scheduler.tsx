@@ -1459,8 +1459,18 @@ function SchedulerPage() {
     return `${now.year}-${pad(now.month)}-${pad(now.day)}T${pad(Math.floor(now.minutesOfDay / 60))}:${pad(now.minutesOfDay % 60)}`;
   }, [form.timezone]);
 
-  const monthStart = startOfMonth(cursorMonth);
-  const monthEnd = endOfMonth(cursorMonth);
+  /**
+   * Memoised on `cursorMonth` because these Dates are DEPENDENCIES, not just values.
+   *
+   * Built bare, `startOfMonth(cursorMonth)` returns a fresh object every render, so every
+   * downstream `useMemo` listing them (`calendarDays`) had a dependency that never compared equal
+   * and recomputed unconditionally — an inert memo that looked like a live one. The derived ISO
+   * strings were always stable, so the query key was never affected; this is the render cost only.
+   */
+  const { monthStart, monthEnd } = useMemo(
+    () => ({ monthStart: startOfMonth(cursorMonth), monthEnd: endOfMonth(cursorMonth) }),
+    [cursorMonth],
+  );
   const fromIso = monthStart.toISOString();
   const toIso = monthEnd.toISOString();
 
@@ -1474,6 +1484,14 @@ function SchedulerPage() {
     queryKey: ["scheduler-calendar", workspaceId, fromIso, toIso],
     queryFn: () => getSchedulerCalendar(workspaceId, fromIso, toIso),
     enabled: isWorkspaceReady(workspaceId),
+    /**
+     * Unlike the list, this key only changes when the month cursor moves — so with the global
+     * `staleTime: 30_000` a return to this route would render whatever was cached, including a
+     * post's status from before the worker published it. Post state changes out of band in the
+     * BullMQ worker with nothing pushed to the client, so arriving at the screen is the only
+     * moment we can be sure to be honest about.
+     */
+    refetchOnMount: "always",
   });
 
   /**
@@ -1557,6 +1575,43 @@ function SchedulerPage() {
       .slice(0, 6);
   }, [bestTimesQuery.data?.slots, form.timezone]);
 
+  /**
+   * Refresh every view that shows a post, in one call.
+   *
+   * ## Why this is a helper and not four `invalidateQueries` lines per mutation
+   *
+   * It was four lines per mutation, and the file drifted: of five mutations, only `create` and
+   * `cancel` refreshed the calendar. `retryPostPublish` refreshed the LIST and not the calendar —
+   * which is the "calendar doesn't update like the list does" report — `publishNow` refreshed
+   * neither, only the detail drawer, and `sync` refreshed only the analytics tabs even though a
+   * sync can change a post's published state. Each omission is invisible at its own call site and
+   * only shows up as a stale screen.
+   *
+   * ⚠️ **The list hides this class of bug and the calendar exposes it.** `useServerList` keys on
+   * `["scheduler-list", workspaceId, body]` where `body` carries search, sort and page — so typing
+   * or paging mints a NEW query key and fetches immediately, and the list looks live whether or not
+   * anything invalidated it. The calendar's key is `["scheduler-calendar", workspaceId, from, to]`
+   * and only changes when the month cursor moves, so between month changes it serves 30s-stale
+   * cache (`router.tsx` `staleTime: 30_000`) and, on a mutation that forgets it, never refetches at
+   * all. Any future post-mutating action must call this rather than pick a subset.
+   *
+   * `analytics` is opt-in: only a sync or a publish changes insight data, and those queries are the
+   * expensive ones.
+   */
+  const invalidateSchedulerViews = useCallback(
+    ({ analytics = false }: { analytics?: boolean } = {}) => {
+      void queryClient.invalidateQueries({ queryKey: ["scheduler-calendar", workspaceId] });
+      void queryClient.invalidateQueries({ queryKey: ["scheduler-list", workspaceId] });
+      if (analytics) {
+        void queryClient.invalidateQueries({ queryKey: ["scheduler-overview", workspaceId] });
+        void queryClient.invalidateQueries({
+          queryKey: ["scheduler-analytics-posts", workspaceId],
+        });
+      }
+    },
+    [queryClient, workspaceId],
+  );
+
   const syncMutation = useMutation({
     mutationFn: () => syncSchedulerAnalytics(workspaceId),
     onSuccess: (r) => {
@@ -1588,8 +1643,9 @@ function SchedulerPage() {
           toast.success(`Synced ${r.upserted} posts`);
         }
       }
-      void queryClient.invalidateQueries({ queryKey: ["scheduler-overview", workspaceId] });
-      void queryClient.invalidateQueries({ queryKey: ["scheduler-analytics-posts", workspaceId] });
+      // A sync upserts posts from Instagram, so it can change what the calendar and list show —
+      // not just the analytics tabs it used to refresh alone.
+      invalidateSchedulerViews({ analytics: true });
     },
     onError: (e) => {
       const err = e as ApiError;
@@ -1729,8 +1785,7 @@ function SchedulerPage() {
         void clearPostHandoff(workspaceId);
         void navigate({ to: "/scheduler", search: {}, replace: true });
       }
-      void queryClient.invalidateQueries({ queryKey: ["scheduler-calendar", workspaceId] });
-      void queryClient.invalidateQueries({ queryKey: ["scheduler-list", workspaceId] });
+      invalidateSchedulerViews();
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -1741,8 +1796,7 @@ function SchedulerPage() {
       toast.success("Post cancelled");
       setDetailOpen(false);
       setDetailPostId(null);
-      void queryClient.invalidateQueries({ queryKey: ["scheduler-calendar", workspaceId] });
-      void queryClient.invalidateQueries({ queryKey: ["scheduler-list", workspaceId] });
+      invalidateSchedulerViews();
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -1752,6 +1806,8 @@ function SchedulerPage() {
     onSuccess: () => {
       toast.success("Publish queued");
       void detailQuery.refetch();
+      // Publishing moves the post's status, which both the calendar chip and the list row render.
+      invalidateSchedulerViews({ analytics: true });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -1764,7 +1820,7 @@ function SchedulerPage() {
         description: "Reopen this post in a moment to see the result.",
       });
       void detailQuery.refetch();
-      void queryClient.invalidateQueries({ queryKey: ["scheduler-list", workspaceId] });
+      invalidateSchedulerViews({ analytics: true });
     },
     onError: (e) => {
       const err = e as ApiError;

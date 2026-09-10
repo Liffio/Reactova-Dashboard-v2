@@ -10,6 +10,7 @@ import { ShieldOff } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { NotifyDeliveryBar } from "@/components/admin/notify-delivery-controls";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { usePlatformAuthz } from "@/hooks/use-platform-authz";
 import {
@@ -181,9 +182,23 @@ export function AuthOnlyRoute({ children }: { children: ReactNode }) {
 export function PlatformPermissionRoute({
   permission,
   children,
+  /**
+   * Show the notification-channel bar. **On by default**, deliberately.
+   *
+   * The complaint this answers was that there was no way to choose whether a superadmin change
+   * notifies anyone. Making it opt-in per page would reproduce that on every page nobody
+   * remembered to opt in — including pages written later. So it is on unless a page says otherwise,
+   * and a page says otherwise only when it cannot change anyone's access (docs and reference
+   * screens), where the bar would be a promise about something that never happens.
+   */
+  notifyDelivery = true,
+  /** Start with the popup on — for screens where the interruption is usually warranted. */
+  notifyPopupDefault = false,
 }: {
   permission: string;
   children: ReactNode;
+  notifyDelivery?: boolean;
+  notifyPopupDefault?: boolean;
 }) {
   const mounted = useMounted();
   const token = useAuthState((s) => s.accessToken);
@@ -201,7 +216,12 @@ export function PlatformPermissionRoute({
   if (!authz.permissions.includes(permission)) {
     return <AccessDenied label={permission} />;
   }
-  return <>{children}</>;
+  return (
+    <>
+      {notifyDelivery && <NotifyDeliveryBar popupDefault={notifyPopupDefault} />}
+      {children}
+    </>
+  );
 }
 
 export function PlatformAdminRoute({ children }: { children: ReactNode }) {

@@ -13,8 +13,9 @@ export const Route = createFileRoute("/_app/module-registry/docs")({
 });
 
 function DocsRoute() {
+  // Reference only — see the note in admin.plugins_.docs.tsx.
   return (
-    <PlatformPermissionRoute permission={MODULE_MANAGE}>
+    <PlatformPermissionRoute permission={MODULE_MANAGE} notifyDelivery={false}>
       <ModuleRegistryDocs />
     </PlatformPermissionRoute>
   );

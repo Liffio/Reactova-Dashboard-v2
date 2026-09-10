@@ -6,6 +6,7 @@
 import { authStore } from "@/lib/auth/auth-store";
 import { IMPERSONATION_ENDED_EVENT, SESSION_EXPIRED_EVENT } from "@/lib/session-events";
 import { getActiveWorkspaceId } from "./active-workspace";
+import { notifyDeliveryHeaders } from "@/lib/notify-delivery-store";
 import { clearImpersonationToken, getImpersonationToken } from "./impersonation";
 
 export const API_BASE: string =
@@ -362,6 +363,17 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
         ...(usesJsonBody ? { "Content-Type": "application/json" } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...resolveWorkspaceHeader(config, isAnonymousPublicRead),
+        /**
+         * The operator's notification-channel choice, on every request.
+         *
+         * Attached here rather than per call site because that is what makes the option work on
+         * every superadmin page — including ones written later — without wiring it through each
+         * API function. The server only consults it when a request actually raises an
+         * access-change notification; on every other request it is inert.
+         *
+         * Skipped for anonymous public reads, which have no operator and no notifications.
+         */
+        ...(isAnonymousPublicRead ? {} : notifyDeliveryHeaders()),
       },
       signal: config.signal,
       ...(jsonBody !== undefined ? { body: JSON.stringify(jsonBody) } : {}),
@@ -464,6 +476,7 @@ export async function apiUploadRequest<T>(
       credentials: "include",
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...notifyDeliveryHeaders(),
         ...resolveWorkspaceHeader(config, false),
       },
       body: formData,

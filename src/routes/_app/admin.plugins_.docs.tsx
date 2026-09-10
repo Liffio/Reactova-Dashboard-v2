@@ -13,8 +13,10 @@ export const Route = createFileRoute("/_app/admin/plugins_/docs")({
 });
 
 function DocsRoute() {
+  // Reference only — nothing here changes anyone's access, so the notification bar would be a
+  // promise about something that never happens.
   return (
-    <PlatformPermissionRoute permission={PLUGIN_MANAGE}>
+    <PlatformPermissionRoute permission={PLUGIN_MANAGE} notifyDelivery={false}>
       <PluginDocs />
     </PlatformPermissionRoute>
   );

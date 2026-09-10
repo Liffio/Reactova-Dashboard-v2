@@ -5,8 +5,7 @@ import { AlertTriangle, ArrowLeft, Check, Minus, Plus, Search, Users } from "luc
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { NotifyDeliveryControls } from "@/components/admin/notify-delivery-controls";
-import { useNotifyDelivery } from "@/hooks/use-notify-delivery";
+import { useNotifyDeliveryValue } from "@/hooks/use-notify-delivery";
 import { PlatformPermissionRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,8 +49,10 @@ export const Route = createFileRoute("/_app/packages/assign")({
 });
 
 function AssignRoute() {
+  // Popup ON by default here: moving a workspace onto a different plan really does move that
+  // tenant's ceiling, and it affects one workspace rather than everyone on a tier.
   return (
-    <PlatformPermissionRoute permission={PACKAGE_MANAGE}>
+    <PlatformPermissionRoute permission={PACKAGE_MANAGE} notifyPopupDefault>
       <AssignPage />
     </PlatformPermissionRoute>
   );
@@ -131,20 +132,19 @@ function AssignPage() {
   };
 
   /**
-   * Popup defaults ON here, unlike the package editor.
-   *
-   * Moving one workspace onto a different plan is rarely a correction — that workspace's ceiling
-   * genuinely moved, and the blast radius is one tenant rather than everyone on a tier. Both
-   * reasons for defaulting the interruption off in the editor are absent here.
+   * Read-only — the page's notification bar owns the choice. This screen starts it with the popup
+   * ON (see `notifyPopupDefault` on the route guard below): moving one workspace onto a different
+   * plan is rarely a correction, the ceiling genuinely moved, and the blast radius is one tenant
+   * rather than everyone on a tier.
    */
-  const delivery = useNotifyDelivery({ popupDefault: true });
+  const delivery = useNotifyDeliveryValue();
 
   const assignMutation = useMutation({
     mutationFn: () =>
       assignWorkspacePackage(target!.id, {
         packageId: nextPackageId,
         note: note.trim() || null,
-        delivery: delivery.value,
+        delivery: delivery,
       }),
     onSuccess: () => {
       toast.success(`Package assigned to ${target!.name}`);
@@ -158,7 +158,7 @@ function AssignPage() {
   });
 
   const clearMutation = useMutation({
-    mutationFn: () => clearWorkspacePackage(target!.id, delivery.value),
+    mutationFn: () => clearWorkspacePackage(target!.id, delivery),
     onSuccess: () => {
       toast.success(`${target!.name} is now unrestricted`);
       setTarget(null);
@@ -405,17 +405,6 @@ function AssignPage() {
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-
-          {/* Inside the confirmation, not on the page behind it: this is part of the decision being
-              confirmed, and a toggle the operator set minutes ago on another row is one they have
-              forgotten by the time they land here. */}
-          <NotifyDeliveryControls
-            notify={delivery.notify}
-            setNotify={delivery.setNotify}
-            popup={delivery.popup}
-            setPopup={delivery.setPopup}
-            audience={`this workspace's ${target?.memberCount ?? 0} member${target?.memberCount === 1 ? "" : "s"}`}
-          />
 
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

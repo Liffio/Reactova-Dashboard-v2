@@ -1,63 +1,69 @@
 import { Bell, BellOff, Zap } from "lucide-react";
 
 import { Switch } from "@/components/ui/switch";
+import { useNotifyDelivery } from "@/hooks/use-notify-delivery";
 
 /**
- * The two switches. State lives in `useNotifyDelivery` (`@/hooks/use-notify-delivery`) — see there
- * for why the choice exists and why `popupDefault` belongs to the calling screen.
+ * The notification-channel bar shown on every superadmin page.
+ *
+ * ## Why it lives at page level and not beside each save button
+ *
+ * Roughly twenty server call sites raise an access-change notification — role edits, user
+ * overrides, the bulk access matrix, workspace admin changes, platform-admin grants, workspace
+ * limits, plugin grants, package edits. Attaching a control to each of their buttons would be
+ * twenty pieces of wiring and a guarantee that the twenty-first gets forgotten.
+ *
+ * Instead the choice rides the request: this bar writes to `lib/notify-delivery-store`, `apiRequest`
+ * turns it into `x-notify-feed` / `x-notify-popup` on **every** request, and the server reads it
+ * into the request context where `notifyAccessChanged` consults it. So the control is page-level
+ * because its *effect* is page-level — anything you save on this screen honours what it says,
+ * including surfaces added later.
+ *
+ * ⚠️ **It resets on every page mount.** A global toggle you can leave on is a mode you forget:
+ * silence popups to fix one typo and every later change that day goes out quiet. The choice lives
+ * exactly as long as the screen you made it on.
+ *
+ * Rendered by `PlatformPermissionRoute`, so it appears on all twenty admin pages without each one
+ * opting in — the same reason the server side is ambient rather than a parameter.
  */
-export function NotifyDeliveryControls({
-  notify,
-  setNotify,
-  popup,
-  setPopup,
-  /** What the affected users are, in this screen's terms — "everyone on this plan", "this workspace". */
-  audience,
-}: {
-  notify: boolean;
-  setNotify: (v: boolean) => void;
-  popup: boolean;
-  setPopup: (v: boolean) => void;
-  audience: string;
-}) {
+export function NotifyDeliveryBar({ popupDefault = false }: { popupDefault?: boolean }) {
+  const { notify, setNotify, popup, setPopup } = useNotifyDelivery({ popupDefault });
+
   return (
-    <div className="space-y-3 rounded-xl border bg-muted/20 p-3">
-      <div className="flex items-start gap-2">
-        {notify ? (
-          <Bell className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <BellOff className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">Notify {audience}</p>
-          <p className="text-xs text-muted-foreground">
-            Adds an entry to their notifications page describing exactly what changed.
-          </p>
-        </div>
-        <Switch checked={notify} onCheckedChange={setNotify} aria-label={`Notify ${audience}`} />
-      </div>
+    <div className="border-b bg-muted/30 px-4 py-2 sm:px-6 md:px-10">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          {notify ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
+          When a change here affects users:
+        </span>
 
-      <div className="flex items-start gap-2 border-t pt-3">
-        <Zap
-          className={`mt-0.5 h-4 w-4 shrink-0 ${popup ? "text-warning" : "text-muted-foreground"}`}
-        />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">Also interrupt with a popup</p>
-          <p className="text-xs text-muted-foreground">
-            {popup
-              ? "Every affected user sees a modal the moment this saves, or the next time they connect. Worth it when they lose something; noise when they don't."
-              : "Off — the change lands quietly in their notifications instead."}
-          </p>
-        </div>
-        <Switch checked={popup} onCheckedChange={setPopup} aria-label="Show a popup" />
-      </div>
+        <label className="flex cursor-pointer items-center gap-2">
+          <Switch checked={notify} onCheckedChange={setNotify} aria-label="Notify affected users" />
+          <span className={notify ? "font-medium" : "text-muted-foreground"}>Notify them</span>
+        </label>
 
-      {!notify && !popup && (
-        <p className="border-t pt-3 text-xs text-muted-foreground">
-          Nothing will be sent. The change is still recorded in this package&rsquo;s audit trail,
-          and affected users still get the new access immediately — they simply are not told.
-        </p>
-      )}
+        <label className="flex cursor-pointer items-center gap-2">
+          <Switch checked={popup} onCheckedChange={setPopup} aria-label="Show a popup" />
+          <span
+            className={
+              popup
+                ? "flex items-center gap-1 font-medium"
+                : "flex items-center gap-1 text-muted-foreground"
+            }
+          >
+            <Zap className={popup ? "h-3 w-3 text-warning" : "h-3 w-3"} />
+            Interrupt with a popup
+          </span>
+        </label>
+
+        <span className="text-muted-foreground">
+          {!notify && !popup
+            ? "Nothing will be sent — users still get the new access, they just aren't told."
+            : popup
+              ? "They see a modal immediately, or next time they connect."
+              : "It lands quietly on their notifications page."}
+        </span>
+      </div>
     </div>
   );
 }

@@ -24,6 +24,8 @@ import {
 } from "@/components/admin/form-page";
 import { PackageFeaturePicker } from "@/components/admin/package-feature-picker";
 import { LadderContextCard, LadderViolationDialog } from "@/components/admin/package-ladder";
+import { NotifyDeliveryControls } from "@/components/admin/notify-delivery-controls";
+import { useNotifyDelivery } from "@/hooks/use-notify-delivery";
 import { PackageLimitsEditor } from "@/components/admin/package-limits-editor";
 import { PackagePublish } from "@/components/admin/package-publish";
 import {
@@ -255,6 +257,13 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
     pendingCode: string;
   } | null>(null);
 
+  /**
+   * Popup defaults OFF here. Editing a package's contents or limits is as often a correction as a
+   * real change in what is sold, and interrupting every tenant on the tier for a correction is how
+   * a modal gets trained into "dismiss unread". The operator turns it on for the edit that earns it.
+   */
+  const delivery = useNotifyDelivery({ popupDefault: false });
+
   const save = useMutation({
     mutationFn: async (confirmCode: string | undefined) => {
       // Asserted, not assumed: the Save button only fires without a code when `needsStepUp` is
@@ -271,10 +280,10 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
       if (featuresDirty) {
         // `acknowledgeLadderViolation` is only ever true on the retry the operator confirmed, and
         // it is cleared the moment that retry settles — a later save starts blocked again.
-        await setPackageFeatures(pkg.id, selection, code, Boolean(ladderBlock));
+        await setPackageFeatures(pkg.id, selection, code, Boolean(ladderBlock), delivery.value);
       }
       if (limitsDirty) {
-        await setPackageLimits(pkg.id, limits, code);
+        await setPackageLimits(pkg.id, limits, code, delivery.value);
       }
     },
     onSuccess: () => {
@@ -347,7 +356,7 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
    * avoid — and would make an ordinary description edit page a few thousand members.
    */
   const applyLive = useMutation({
-    mutationFn: (confirmCode: string) => applyPackageLive(pkg.id, confirmCode),
+    mutationFn: (confirmCode: string) => applyPackageLive(pkg.id, confirmCode, delivery.value),
     onSuccess: (r) => {
       if (r.workspacesUpdated === 0) {
         toast.info(`${r.packageName} has no workspaces assigned — nothing to apply.`);
@@ -529,6 +538,16 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
         >
           <PackageLimitsEditor value={limits} onChange={setLimits} />
         </FormSection>
+
+        {/* Placed with the save controls rather than inside a section: the choice applies to the
+            whole save, which can touch contents and limits together. */}
+        <NotifyDeliveryControls
+          notify={delivery.notify}
+          setNotify={delivery.setNotify}
+          popup={delivery.popup}
+          setPopup={delivery.setPopup}
+          audience="everyone on this package"
+        />
 
         <FormActions
           hint={

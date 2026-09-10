@@ -231,10 +231,10 @@ export type ApplyLiveResult = {
 };
 
 /** Guarded by `requireTotpConfirm` (S0.11) — `confirmCode` is not optional. */
-export const applyPackageLive = (id: string, confirmCode: string) =>
+export const applyPackageLive = (id: string, confirmCode: string, delivery?: NotifyDelivery) =>
   apiRequest<ApplyLiveResult>(apiUri.admin.packages.applyLive(id), {
     method: "POST",
-    body: { confirmCode },
+    body: { confirmCode, delivery },
   });
 
 /**
@@ -262,17 +262,28 @@ export const getWorkspacePackageAssignment = (workspaceId: string) =>
 
 export const assignWorkspacePackage = (
   workspaceId: string,
-  body: { packageId: string; note?: string | null },
+  body: { packageId: string; note?: string | null; delivery?: NotifyDelivery },
 ) =>
-  apiRequest<{ assigned: true; packageId: string }>(
-    apiUri.admin.packages.assignment(workspaceId),
-    { method: "PUT", body },
-  );
-
-export const clearWorkspacePackage = (workspaceId: string) =>
-  apiRequest<{ cleared: boolean }>(apiUri.admin.packages.assignment(workspaceId), {
-    method: "DELETE",
+  apiRequest<{ assigned: true; packageId: string }>(apiUri.admin.packages.assignment(workspaceId), {
+    method: "PUT",
+    body,
   });
+
+/**
+ * Channels travel in the QUERY STRING, not a body — a DELETE with a body is inconsistently handled
+ * by proxies and fetch implementations, and the server reads them the same way. Only the literal
+ * `"false"` turns a channel off, so anything malformed falls through to the previous behaviour
+ * rather than silencing a notification by accident.
+ */
+export const clearWorkspacePackage = (workspaceId: string, delivery?: NotifyDelivery) =>
+  apiRequest<{ cleared: boolean }>(
+    apiUri.admin.packages.assignment(workspaceId) +
+      `?notify=${delivery?.notify === false ? "false" : "true"}` +
+      `&popup=${delivery?.popup === false ? "false" : "true"}`,
+    {
+      method: "DELETE",
+    },
+  );
 
 /**
  * Whole-set replace, guarded by `requireTotpConfirm` (S0.11) — `confirmCode` is not optional.
@@ -292,14 +303,26 @@ export const setPackageFeatures = (
    * that someone looked.
    */
   acknowledgeLadderViolation = false,
+  delivery?: NotifyDelivery,
 ) =>
   apiRequest<PackageDetail & { ladderViolations: LadderViolation[] }>(
     apiUri.admin.packages.features(id),
     {
       method: "PUT",
-      body: { features, confirmCode, acknowledgeLadderViolation },
+      body: { features, confirmCode, acknowledgeLadderViolation, delivery },
     },
   );
+
+// ── Change notifications ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Which channels the affected tenants hear about an entitlement change on.
+ *
+ * Both fired unconditionally before this existed. `notify` is the durable row in the user's
+ * notification page; `popup` is the interrupting modal. Omit the field entirely and the server
+ * keeps its old behaviour (both), which is what leaves the CLI and older clients untouched.
+ */
+export type NotifyDelivery = { notify?: boolean; popup?: boolean };
 
 // ── Tier ladder ───────────────────────────────────────────────────────────────────────────────
 
@@ -362,10 +385,15 @@ export const PACKAGE_LIMIT_KEYS = [
 ] as const;
 
 /** Guarded by `requireTotpConfirm` (S0.11) — `confirmCode` is not optional. */
-export const setPackageLimits = (id: string, limits: PackageLimit[], confirmCode: string) =>
+export const setPackageLimits = (
+  id: string,
+  limits: PackageLimit[],
+  confirmCode: string,
+  delivery?: NotifyDelivery,
+) =>
   apiRequest<PackageLimit[]>(apiUri.admin.packages.limits(id), {
     method: "PUT",
-    body: { limits, confirmCode },
+    body: { limits, confirmCode, delivery },
   });
 
 // ── Publishing to payment providers ─────────────────────────────────────────────────────────────

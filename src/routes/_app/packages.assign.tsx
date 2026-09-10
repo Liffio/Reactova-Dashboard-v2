@@ -5,6 +5,8 @@ import { AlertTriangle, ArrowLeft, Check, Minus, Plus, Search, Users } from "luc
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { NotifyDeliveryControls } from "@/components/admin/notify-delivery-controls";
+import { useNotifyDelivery } from "@/hooks/use-notify-delivery";
 import { PlatformPermissionRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -128,11 +130,21 @@ function AssignPage() {
     void queryClient.invalidateQueries({ queryKey: ["package-detail"] });
   };
 
+  /**
+   * Popup defaults ON here, unlike the package editor.
+   *
+   * Moving one workspace onto a different plan is rarely a correction — that workspace's ceiling
+   * genuinely moved, and the blast radius is one tenant rather than everyone on a tier. Both
+   * reasons for defaulting the interruption off in the editor are absent here.
+   */
+  const delivery = useNotifyDelivery({ popupDefault: true });
+
   const assignMutation = useMutation({
     mutationFn: () =>
       assignWorkspacePackage(target!.id, {
         packageId: nextPackageId,
         note: note.trim() || null,
+        delivery: delivery.value,
       }),
     onSuccess: () => {
       toast.success(`Package assigned to ${target!.name}`);
@@ -146,7 +158,7 @@ function AssignPage() {
   });
 
   const clearMutation = useMutation({
-    mutationFn: () => clearWorkspacePackage(target!.id),
+    mutationFn: () => clearWorkspacePackage(target!.id, delivery.value),
     onSuccess: () => {
       toast.success(`${target!.name} is now unrestricted`);
       setTarget(null);
@@ -381,8 +393,8 @@ function AssignPage() {
               <div className="space-y-2 text-sm">
                 <p>
                   This applies immediately to all {target?.memberCount} member
-                  {target?.memberCount === 1 ? "" : "s"}. Everyone connected is notified and their
-                  session refreshes its permissions.
+                  {target?.memberCount === 1 ? "" : "s"}, and every connected session refreshes its
+                  permissions. Whether they are <em>told</em> is up to you, below.
                 </p>
                 {diff && diff.removed.length > 0 && (
                   <p className="font-medium text-destructive">
@@ -393,6 +405,18 @@ function AssignPage() {
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {/* Inside the confirmation, not on the page behind it: this is part of the decision being
+              confirmed, and a toggle the operator set minutes ago on another row is one they have
+              forgotten by the time they land here. */}
+          <NotifyDeliveryControls
+            notify={delivery.notify}
+            setNotify={delivery.setNotify}
+            popup={delivery.popup}
+            setPopup={delivery.setPopup}
+            audience={`this workspace's ${target?.memberCount ?? 0} member${target?.memberCount === 1 ? "" : "s"}`}
+          />
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction

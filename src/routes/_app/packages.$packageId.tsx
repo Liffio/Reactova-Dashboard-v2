@@ -23,6 +23,7 @@ import {
   ToggleRow,
 } from "@/components/admin/form-page";
 import { PackageFeaturePicker } from "@/components/admin/package-feature-picker";
+import { LadderContextCard, LadderViolationDialog } from "@/components/admin/package-ladder";
 import { PackageLimitsEditor } from "@/components/admin/package-limits-editor";
 import { PackagePublish } from "@/components/admin/package-publish";
 import {
@@ -35,6 +36,8 @@ import {
   getPackage,
   getPackageAudit,
   setPackageFeatures,
+  ladderViolationsFrom,
+  type LadderViolation,
   setPackageLimits,
   updatePackage,
   type PackageDetail,
@@ -239,6 +242,19 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
    * and all three are idempotent. That is what makes a wrong code a plain retry rather than a
    * partial state to unpick.
    */
+  /**
+   * The ladder refusal, held between the failed save and the operator's decision.
+   *
+   * `pendingCode` is stored alongside because the retry has to reuse the **same** TOTP code. The
+   * step-up window is `epochTolerance: 1` and nothing marks a code as spent, so re-sending it is
+   * safe — but asking for a fresh one would make the operator re-open the authenticator to confirm
+   * a decision they have already made, and the code they typed may well have rolled by then.
+   */
+  const [ladderBlock, setLadderBlock] = useState<{
+    violations: LadderViolation[];
+    pendingCode: string;
+  } | null>(null);
+
   const save = useMutation({
     mutationFn: async (confirmCode: string | undefined) => {
       // Asserted, not assumed: the Save button only fires without a code when `needsStepUp` is
@@ -253,7 +269,9 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
         await updatePackage(pkg.id, patch, confirmCode);
       }
       if (featuresDirty) {
-        await setPackageFeatures(pkg.id, selection, code);
+        // `acknowledgeLadderViolation` is only ever true on the retry the operator confirmed, and
+        // it is cleared the moment that retry settles — a later save starts blocked again.
+        await setPackageFeatures(pkg.id, selection, code, Boolean(ladderBlock));
       }
       if (limitsDirty) {
         await setPackageLimits(pkg.id, limits, code);
@@ -261,13 +279,44 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
     },
     onSuccess: () => {
       closeStepUp();
-      toast.success("Package saved");
+      // Never leave the override armed. Without this the next save on this screen would silently
+      // carry the acknowledgement forward and skip the guard entirely.
+      const overrode = Boolean(ladderBlock);
+      setLadderBlock(null);
+      if (overrode) {
+        toast.warning("Package saved with a broken tier ladder", {
+          description: "The override is recorded in this package's audit trail.",
+        });
+      } else {
+        toast.success("Package saved");
+      }
+      void queryClient.invalidateQueries({ queryKey: ["package-ladder"] });
       void queryClient.invalidateQueries({ queryKey: ["packages"] });
       void queryClient.invalidateQueries({ queryKey: ["package-detail", pkg.id] });
       // So the publish diff below reflects the prices just saved, not the ones it loaded with.
       void queryClient.invalidateQueries({ queryKey: ["package-publish-status", pkg.id] });
     },
     onError: (err) => {
+      /**
+       * Intercepted BEFORE `stepUp.applyError`, and before any toast.
+       *
+       * A ladder refusal is not a failure the operator can do nothing about — it is a decision
+       * point. Falling through to the generic error toast is what made this feel like a wall:
+       * a sentence naming capabilities they did not knowingly tick, and no way forward.
+       */
+      const violations = ladderViolationsFrom(err);
+      if (violations) {
+        // ⚠️ Read the code BEFORE `closeStepUp`, which calls `stepUp.reset()` and clears it.
+        const pendingCode = stepUp.code ?? "";
+        // Close the step-up dialog rather than stacking the ladder dialog on top of it. The code
+        // has already been accepted — what is being asked now is a different question, and leaving
+        // an OTP field visible behind the confirmation implies the code was the problem.
+        closeStepUp();
+        setLadderBlock({ violations, pendingCode });
+        return;
+      }
+      // A retry that failed for some OTHER reason must not stay armed to override.
+      setLadderBlock(null);
       const rest = stepUp.applyError(err);
       if (rest === null) {
         // The server answered about the code itself, and `applyError` has already put the message
@@ -460,8 +509,11 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
 
         <FormSection
           title="What's included"
-          description="Ticking a sub-function includes its module automatically. Only enabled modules can be sold."
+          description="Ticking a sub-function includes its module automatically. Only enabled modules can be sold. Ticking a whole module selects every capability mapped under it — including ones that belong to higher tiers, which is what usually trips the ladder."
         >
+          {/* The ordering this package is held to, on the same screen as the thing that breaks it.
+              Collapsed by default: it is context for a refusal, not something to read every visit. */}
+          <LadderContextCard packageId={pkg.id} />
           <PackageFeaturePicker
             parents={featureState.parents}
             setParents={featureState.setParents}
@@ -537,6 +589,15 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
         >
           <PackageChangeHistory packageId={pkg.id} />
         </FormSection>
+
+        {/* Opens only when a save was refused for breaking the ordering. Cancelling leaves the
+            edits on the page, exactly like a rejected step-up code does. */}
+        <LadderViolationDialog
+          violations={ladderBlock?.violations ?? null}
+          isPending={save.isPending}
+          onCancel={() => setLadderBlock(null)}
+          onConfirm={() => save.mutate(ladderBlock?.pendingCode || undefined)}
+        />
       </div>
     </div>
   );

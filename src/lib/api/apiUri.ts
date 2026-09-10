@@ -560,6 +560,8 @@ export const apiUri = {
       list: (p: { page?: number; limit?: number; q?: string } = {}) =>
         `${V1}/admin/packages${listQs(p)}`,
       item: (id: string) => `${V1}/admin/packages/${id}`,
+      /** The sellable ladder with per-tier deltas and current violations. Reports, never refuses. */
+      ladder: `${V1}/admin/packages/ladder`,
       features: (id: string) => `${V1}/admin/packages/${id}/features`,
       limits: (id: string) => `${V1}/admin/packages/${id}/limits`,
       publishStatus: (id: string) => `${V1}/admin/packages/${id}/publish-status`,

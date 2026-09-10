@@ -284,11 +284,70 @@ export const setPackageFeatures = (
   id: string,
   features: Array<{ parentKey: string; childKey: string | null }>,
   confirmCode: string,
+  /**
+   * Save even though the contents break the tier ordering.
+   *
+   * Only ever set after `LadderViolationDialog` has shown the operator which capabilities break
+   * which neighbour and they have confirmed. Never set on a blind retry — the flag IS the record
+   * that someone looked.
+   */
+  acknowledgeLadderViolation = false,
 ) =>
-  apiRequest<PackageDetail>(apiUri.admin.packages.features(id), {
-    method: "PUT",
-    body: { features, confirmCode },
-  });
+  apiRequest<PackageDetail & { ladderViolations: LadderViolation[] }>(
+    apiUri.admin.packages.features(id),
+    {
+      method: "PUT",
+      body: { features, confirmCode, acknowledgeLadderViolation },
+    },
+  );
+
+// ── Tier ladder ───────────────────────────────────────────────────────────────────────────────
+
+/** One way a package breaks the ordering against an adjacent tier. Mirrors the server type. */
+export type LadderViolation = {
+  /**
+   * `missing_from_lower` — this tier omits something the tier BELOW sells, so upgrading LOSES a
+   * feature. `extra_over_upper` — this tier has something the tier ABOVE lacks, so the higher tier
+   * is no longer a superset.
+   */
+  kind: "missing_from_lower" | "extra_over_upper";
+  selfKey: string;
+  neighbourKey: string;
+  neighbourDirection: "lower" | "upper";
+  keys: string[];
+  message: string;
+};
+
+export type LadderRung = {
+  id: string;
+  key: string;
+  name: string;
+  sortOrder: number;
+  capabilityCount: number;
+  /** Gained when upgrading from the tier below. Empty on the lowest rung. */
+  addsOverLower: string[];
+  /** ⚠️ Lost when upgrading from the tier below. Non-empty means the ladder is broken. */
+  dropsFromLower: string[];
+  violations: LadderViolation[];
+};
+
+/** The sellable ladder as it stands — reports, never refuses. */
+export const getPackageLadder = () =>
+  apiRequest<{ rungs: LadderRung[] }>(apiUri.admin.packages.ladder);
+
+/**
+ * Pull the structured violations out of a rejected save.
+ *
+ * The server sends them under `details.violations`; the message is for humans and must never be
+ * parsed. Returns `null` for any other failure so a caller can fall through to normal error
+ * handling rather than showing an empty dialog.
+ */
+export const ladderViolationsFrom = (err: unknown): LadderViolation[] | null => {
+  const e = err as { code?: string; body?: { details?: { violations?: LadderViolation[] } } };
+  if (e?.code !== "LADDER_VIOLATION") return null;
+  const violations = e.body?.details?.violations;
+  return Array.isArray(violations) && violations.length > 0 ? violations : null;
+};
 
 /** The limit keys a package may override, matching the server's `LIMIT_KEYS`. */
 export const PACKAGE_LIMIT_KEYS = [

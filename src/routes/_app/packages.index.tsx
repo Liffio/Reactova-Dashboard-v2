@@ -3,7 +3,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
+  ChevronDown,
   ChevronRight,
+  Layers,
   Package as PackageIcon,
   PackageCheck,
   Plus,
@@ -12,6 +14,7 @@ import {
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { PackageLadder } from "@/components/admin/package-ladder";
 import { PlatformPermissionRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,6 +114,10 @@ function PackagesPage() {
       />
 
       <div className="space-y-4 p-4 sm:p-6 md:p-10">
+        {/* The ordering the save path holds these packages to, shown where they are listed.
+            Collapsed by default — it is reference, not something to read on every visit. */}
+        <LadderPanel />
+
         <div className="relative w-full sm:max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -335,5 +342,48 @@ function PackageCard({ pkg, onChanged }: { pkg: PackageRow; onChanged: () => voi
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/**
+ * The tier ladder, collapsed, above the package list.
+ *
+ * ## Why it is here at all
+ *
+ * The ordering was enforced on save and shown nowhere. The only way to learn it existed was to
+ * break it, and the only description of it was a refusal naming capability keys. Putting it beside
+ * the packages it constrains is the cheap half of making it usable; the override dialog is the
+ * other half.
+ *
+ * Collapsed by default because it costs a query and most visits to this screen are not about the
+ * ordering. Expanded state is deliberately not persisted — it is reference material, not a mode.
+ */
+function LadderPanel() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="rounded-2xl border bg-card p-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        <Layers className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="text-sm font-medium">Tier ladder</span>
+        <span className="hidden text-xs text-muted-foreground sm:inline">
+          Each tier should include everything the tier below it sells
+        </span>
+        <ChevronDown
+          className={`ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+      {open && (
+        <div className="mt-3">
+          <PackageLadder />
+        </div>
+      )}
+    </div>
   );
 }

@@ -538,6 +538,8 @@ export const apiUri = {
      */
     registry: {
       tree: `${V1}/admin/registry/tree`,
+      /** Read-only gating map: registry x packages x roles x route gates. */
+      gatingMap: `${V1}/admin/registry/gating-map`,
       parents: (p: { page?: number; limit?: number; q?: string } = {}) =>
         `${V1}/admin/registry/parents${listQs(p)}`,
       parent: (id: string) => `${V1}/admin/registry/parents/${id}`,

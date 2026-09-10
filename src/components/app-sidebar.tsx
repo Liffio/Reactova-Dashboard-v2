@@ -32,6 +32,7 @@ import {
   UserCog,
   Eye,
   ListChecks,
+  Network,
   ScrollText,
 } from "lucide-react";
 
@@ -208,6 +209,15 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
         url: "/admin/capabilities",
         icon: ListChecks,
         platformPermission: "platform:metrics_read",
+      },
+      {
+        // Read-only diagnostics: the registry, the packages, the roles and the route gates in one
+        // picture, read from the tables rather than from `tierDefinitions.ts`. Same permission as
+        // Module Registry — it shows exactly what that screen governs.
+        title: "Gating map",
+        url: "/admin/gating-map",
+        icon: Network,
+        platformPermission: "platform:module_manage",
       },
       { title: "RBAC master", url: "/rbac-master", icon: ShieldCheck },
       { title: "Email templates", url: "/admin/email-templates", icon: Mail },

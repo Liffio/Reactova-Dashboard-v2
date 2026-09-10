@@ -313,6 +313,63 @@ export const setPackageFeatures = (
     },
   );
 
+// ── Gating map ────────────────────────────────────────────────────────────────────────────────
+
+/** One capability, with every plane that decides whether it is usable. Mirrors the server type. */
+export type GatingCapability = {
+  key: string;
+  name: string;
+  description: string | null;
+  isEnabled: boolean;
+  /** Package keys that sell it. Empty = no tier includes it. */
+  packages: string[];
+  /** Role names that may grant it. Empty = no role can hold it. */
+  roles: string[];
+  /** HTTP routes this capability guards, from `capability_routes` — the code-level gate. */
+  routes: Array<{ method: string; path: string; isEnabled: boolean }>;
+};
+
+export type GatingModule = {
+  key: string;
+  name: string;
+  surface: string;
+  isEnabled: boolean;
+  requiredPermission: string | null;
+  route: string | null;
+  apiPrefix: string | null;
+  /** Whether a package ceiling can strip this module's CRUD (`surface='workspace'` AND mapped). */
+  gateable: boolean;
+  capabilities: GatingCapability[];
+};
+
+export type GatingMap = {
+  generatedAt: string;
+  packages: Array<{
+    id: string;
+    key: string;
+    name: string;
+    sortOrder: number;
+    isActive: boolean;
+    isPublic: boolean;
+    capabilityCount: number;
+    workspaceCount: number;
+  }>;
+  modules: GatingModule[];
+  roles: Array<{ name: string; isSystem: boolean; capabilityCount: number }>;
+  totals: {
+    packages: number;
+    modules: number;
+    capabilities: number;
+    unsoldCapabilities: number;
+    unmappedCapabilities: number;
+    routeGates: number;
+    gateableModules: number;
+  };
+};
+
+/** Read-only, derived entirely from the tables — so it reflects a package edit on the next read. */
+export const getGatingMap = () => apiRequest<GatingMap>(apiUri.admin.registry.gatingMap);
+
 // ── Change notifications ──────────────────────────────────────────────────────────────────────
 
 /**

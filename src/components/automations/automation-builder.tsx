@@ -529,6 +529,68 @@ export function AutomationBuilder({
     </span>
   ) : null;
 
+  /**
+   * Publish / Save-as-draft — defined once, rendered in exactly one place at any given width.
+   *
+   * ## Why this moved out of the header
+   *
+   * The builder's left column is a long wizard. Both actions lived only in `PageHeader`, so
+   * finishing an automation meant scrolling back to the top of the page to save it — the form's
+   * last field and its submit button were as far apart as the page is tall.
+   *
+   * On `lg` and up they now sit under the live DM preview, inside an `<aside>` that is already
+   * `lg:sticky lg:top-20`. That is the whole trick: the preview follows the scroll, so anything
+   * below it does too, and Publish is reachable from any step of the wizard.
+   *
+   * ⚠️ **Below `lg` the aside is not sticky** — the grid collapses to one column and the preview
+   * stacks *after* the form. Putting the only Publish button there would bury it at the bottom of a
+   * very long page, which is a different version of the same bug. So the header keeps them at
+   * narrow widths and the sidebar takes them at wide ones, gated by `lg:hidden` / `hidden lg:flex`.
+   * The two are mutually exclusive: there is never a width that shows both, and never one that
+   * shows neither.
+   *
+   * `block` stacks them full-width for the 360px sidebar; the header wants them inline.
+   */
+  const actionButtons = ({ block = false }: { block?: boolean } = {}) => (
+    <>
+      {!isEdit && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => submit("DRAFT")}
+          disabled={publishMutation.isPending}
+          className={cn(block && "w-full")}
+        >
+          <Check className="h-4 w-4" /> Save as draft
+        </Button>
+      )}
+      <Button
+        size="sm"
+        onClick={() => submit("ACTIVE")}
+        disabled={publishMutation.isPending}
+        className={cn(
+          "bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95",
+          block && "w-full",
+        )}
+      >
+        {publishMutation.isPending ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : isEdit ? (
+          <Check className="h-4 w-4" />
+        ) : (
+          <Send className="h-4 w-4" />
+        )}
+        {publishMutation.isPending
+          ? isEdit
+            ? "Saving…"
+            : "Publishing…"
+          : isEdit
+            ? "Save changes"
+            : "Publish"}
+      </Button>
+    </>
+  );
+
   return (
     <div>
       <LyraHandoffToast
@@ -603,37 +665,8 @@ export function AutomationBuilder({
                 <ArrowLeft className="h-4 w-4" /> Back
               </Link>
             </Button>
-            {!isEdit && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => submit("DRAFT")}
-                disabled={publishMutation.isPending}
-              >
-                <Check className="h-4 w-4" /> Save as draft
-              </Button>
-            )}
-            <Button
-              size="sm"
-              onClick={() => submit("ACTIVE")}
-              disabled={publishMutation.isPending}
-              className="bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
-            >
-              {publishMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : isEdit ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-              {publishMutation.isPending
-                ? isEdit
-                  ? "Saving…"
-                  : "Publishing…"
-                : isEdit
-                  ? "Save changes"
-                  : "Publish"}
-            </Button>
+            {/* Narrow widths only — at `lg` these move under the sticky preview. */}
+            <div className="flex flex-wrap items-center gap-2 lg:hidden">{actionButtons()}</div>
           </>
         }
       />
@@ -1023,6 +1056,11 @@ export function AutomationBuilder({
             followBeforeDm={form.followBeforeDm}
             followUps={form.followUps}
           />
+
+          {/* Rides the aside's existing `lg:sticky`, so Publish stays on screen at every step. */}
+          <div className="hidden flex-col gap-2 border-t pt-3 lg:flex">
+            {actionButtons({ block: true })}
+          </div>
         </aside>
       </div>
     </div>

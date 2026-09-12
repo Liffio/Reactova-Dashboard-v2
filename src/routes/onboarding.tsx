@@ -91,7 +91,7 @@ function OnboardingFlow() {
   const workspaceId = current.id !== "default" ? current.id : null;
 
   const { state } = useOnboardingState(workspaceId);
-  const { save, markOnboarded } = useSaveOnboarding(workspaceId);
+  const { save, saveWithFlags } = useSaveOnboarding(workspaceId);
 
   /**
    * Screen index, 1-based.
@@ -147,9 +147,31 @@ function OnboardingFlow() {
   const finish = useCallback(() => {
     if (finishing.current) return;
     finishing.current = true;
-    markOnboarded();
+    /**
+     * The terminal save carries the ANSWERS as well as the flag — it is not just
+     * `isOnboarded: true`.
+     *
+     * 🚩 This is what closes a redirect loop. Every per-screen save is fire-and-forget and may
+     * quietly fail (that is deliberate — see `useSaveOnboarding`). If `role` never landed but this
+     * final write succeeds, the server's response replaces the optimistic cache with a row that
+     * has no `role` — and `useNeedsNewOnboarding` reads exactly that key to decide whether the new
+     * flow has been seen. The user would be bounced straight back into onboarding, having just
+     * finished it.
+     *
+     * Re-sending everything makes the last write idempotent and complete, so one flaky request
+     * mid-flow cannot cost the user the whole result. `suggestedTemplate` prefers whatever is
+     * already stored, so a `skippedAt` recorded earlier is never clobbered.
+     */
+    saveWithFlags({
+      onboarding: {
+        role,
+        goal,
+        suggestedTemplate: state.suggestedTemplate ?? { id: templateForGoal(goal).id, version: 1 },
+      },
+      isOnboarded: true,
+    });
     void navigate({ to: "/dashboard", replace: true });
-  }, [markOnboarded, navigate]);
+  }, [saveWithFlags, navigate, role, goal, state.suggestedTemplate]);
 
   const pickRole = (next: OnboardingRole) => {
     setRole(next);

@@ -61,10 +61,23 @@ export function parseOnboardingState(raw: unknown): OnboardingState {
   const record = raw as Record<string, unknown>;
   const state: OnboardingState = {};
 
-  if (typeof record.role === "string" && ROLES.includes(record.role as OnboardingRole)) {
+  /**
+   * 🚩 `null` is preserved, and that is load-bearing — it is not the same as an absent key.
+   *
+   * "Skip" on screen 1 stores `role: null`; a workspace that never reached screen 1 has no `role`
+   * key at all. Collapsing the two to `undefined` loses the only durable record that someone was
+   * *asked* — and `useNeedsNewOnboarding` reads exactly that distinction to decide whether an
+   * account still needs the new flow. Without this, skipping screen 1 and then reaching the
+   * dashboard would send the user straight back into onboarding, forever.
+   */
+  if (record.role === null) {
+    state.role = null;
+  } else if (typeof record.role === "string" && ROLES.includes(record.role as OnboardingRole)) {
     state.role = record.role as OnboardingRole;
   }
-  if (typeof record.goal === "string" && GOALS.includes(record.goal as OnboardingGoal)) {
+  if (record.goal === null) {
+    state.goal = null;
+  } else if (typeof record.goal === "string" && GOALS.includes(record.goal as OnboardingGoal)) {
     state.goal = record.goal as OnboardingGoal;
   }
 

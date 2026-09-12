@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { NotifyDeliveryBar } from "@/components/admin/notify-delivery-controls";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { usePlatformAuthz } from "@/hooks/use-platform-authz";
+import { useNeedsNewOnboarding } from "@/hooks/use-onboarding";
 import {
   isAffiliateProgramRedirect,
   loginPathWithRedirect,
@@ -97,6 +98,9 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
   const permissions = useAuthState((s) => s.permissions);
   const emailVerified = useAuthState((s) => s.emailVerified);
   const isOnboarded = useAuthState((s) => s.isOnboarded);
+  // `isOnboarded` alone cannot answer this — liffio.com's own onboarding sets it before handing
+  // the session over, so a brand-new account arrives here already flagged as done. See the hook.
+  const { needsOnboarding, resolved: onboardingResolved } = useNeedsNewOnboarding();
 
   if (!mounted) {
     return <FullPageSpinner />;
@@ -120,6 +124,26 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
   if (!emailVerified) {
     // Pass token so liffio.com can restore the session
     window.location.href = confirmEmailUrl(token, returnTo !== "/" ? returnTo : undefined);
+    return <FullPageSpinner />;
+  }
+
+  const skipOnboarding = skipOnboardingForAffiliate || skipOnboardingForBilling;
+
+  /**
+   * Hold rather than guess while the workspaces query is still in flight.
+   *
+   * Answering "no onboarding needed" early renders the dashboard and then hard-navigates away from
+   * it — a wasted paint followed by a full page reload, which is the most jarring version of this.
+   * The query is already in flight for the shell's workspace switcher, so this adds latency only
+   * when it outruns `auth/me`. A failed query resolves to "no", so a network problem cannot strand
+   * anyone on a spinner.
+   */
+  if (!skipOnboarding && !onboardingResolved) {
+    return <FullPageSpinner />;
+  }
+
+  if (!skipOnboarding && needsOnboarding) {
+    window.location.replace("/onboarding");
     return <FullPageSpinner />;
   }
 

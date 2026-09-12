@@ -169,3 +169,84 @@ export function useBrandingConfig() {
     gcTime: 60 * 60 * 1000,
   });
 }
+
+/**
+ * The day the new onboarding flow shipped.
+ *
+ * Workspaces created **before** this are never routed into it — see `useNeedsNewOnboarding` for
+ * why this constant has to exist at all, and why deleting it is the goal rather than maintaining
+ * it. UTC, and compared against `workspace.createdAt`, which the API serialises as UTC ISO.
+ */
+const NEW_ONBOARDING_SHIPPED_AT = Date.parse("2026-09-12T00:00:00.000Z");
+
+/**
+ * Does this account still need to be shown the new onboarding flow?
+ *
+ * ## The problem this solves
+ *
+ * Signup happens on `liffio.com`, which runs its **own** onboarding and sets `isOnboarded: true`
+ * before handing the session to this app at `/auth/handoff`. So `ProtectedRoute`'s
+ * `!isOnboarded → /onboarding` branch — the only thing that routes anyone into the new flow —
+ * never fires for a new account, and the entire flow is unreachable in production.
+ *
+ * The real fix is for `liffio.com` to stop hosting onboarding and redirect to
+ * `/auth/handoff?redirect=/onboarding` instead. **This is the app-side fix that does not wait for
+ * it**: rather than trusting `isOnboarded` as the whole answer, it asks the question that flag
+ * cannot — *has this workspace been through the NEW flow?* A workspace carrying
+ * `{step, handle, completedAt, isOnboarded}` and no `role`/`goal`/`suggestedTemplate` went through
+ * the old one.
+ *
+ * ## Three conditions, and each one is load-bearing
+ *
+ * 1. **Created on or after {@link NEW_ONBOARDING_SHIPPED_AT}.** Without it, every pre-existing
+ *    workspace gets pulled through onboarding on its owner's next page load.
+ * 2. **The user has exactly one workspace.** This is the new-signup signature. It is what stops an
+ *    agency's second, third and twentieth client workspace — each created with an empty
+ *    `onboarding_state` — from re-triggering onboarding every time one is added.
+ * 3. **No `role`, `goal` or `suggestedTemplate`.** The flow writes `role` on screen 1, so the very
+ *    first answer clears this and it can never loop. A user who skips every screen still gets
+ *    `suggestedTemplate` written on screen 2's skip, and `role: null` is a *stored* answer that
+ *    `parseOnboardingState` keeps distinct from an absent key.
+ *
+ * ## 🚩 This is a workaround with a defined end
+ *
+ * It exists only while `liffio.com/onboarding` is still live. When that page is retired and the
+ * marketing site redirects here instead, `isOnboarded` becomes trustworthy again and this hook,
+ * the constant above, and its call site in `ProtectedRoute` should all be deleted together. It is
+ * written as one hook with one call site precisely so that removal is a three-line change.
+ *
+ * `resolved` is false until the workspaces query settles. The caller must hold rather than guess:
+ * answering "no" early renders the dashboard and then hard-navigates away from it, which is a
+ * wasted paint and a full page reload. On a failed query `resolved` becomes true with
+ * `needsOnboarding: false` — a network problem must not strand anyone on a spinner.
+ */
+export function useNeedsNewOnboarding(): { needsOnboarding: boolean; resolved: boolean } {
+  const accessToken = useAuthState((s) => s.accessToken);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["workspaces", accessToken],
+    queryFn: () => listWorkspaces(),
+    enabled: Boolean(accessToken),
+  });
+
+  return useMemo(() => {
+    if (isLoading) {
+      return { needsOnboarding: false, resolved: false };
+    }
+    if (isError || !data || data.length !== 1) {
+      return { needsOnboarding: false, resolved: true };
+    }
+
+    const workspace = data[0];
+    const createdAt = Date.parse(workspace.createdAt);
+    // An unparseable date is a reason to do nothing, not a reason to onboard someone.
+    if (!Number.isFinite(createdAt) || createdAt < NEW_ONBOARDING_SHIPPED_AT) {
+      return { needsOnboarding: false, resolved: true };
+    }
+
+    const state = parseOnboardingState(workspace.onboardingState);
+    const seenNewFlow =
+      state.role !== undefined || state.goal !== undefined || Boolean(state.suggestedTemplate);
+
+    return { needsOnboarding: !seenNewFlow, resolved: true };
+  }, [data, isLoading, isError]);
+}

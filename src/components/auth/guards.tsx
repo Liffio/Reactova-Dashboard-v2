@@ -16,7 +16,6 @@ import { usePlatformAuthz } from "@/hooks/use-platform-authz";
 import {
   isAffiliateProgramRedirect,
   loginPathWithRedirect,
-  onboardingUrl,
   confirmEmailUrl,
 } from "@/lib/auth/auth-navigation";
 
@@ -125,8 +124,20 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
   }
 
   if (!isOnboarded && !skipOnboardingForAffiliate && !skipOnboardingForBilling) {
-    // Pass token so liffio.com can restore the session for onboarding
-    window.location.href = onboardingUrl(token);
+    /**
+     * In-app now, not a bounce to liffio.com. (`plan/onboarding-revamp.md`)
+     *
+     * This used to be `window.location.href = onboardingUrl(token)` — a full page load to the
+     * marketing site with the access token in the query string, which then had to hand the session
+     * back. The flow lives at `/onboarding` in this app, so it is an ordinary client-side
+     * navigation: no token in a URL, no round trip through another origin, and no second copy of
+     * the session to keep in step.
+     *
+     * `window.location.replace` rather than the router: this runs during render, and TanStack's
+     * navigate is not safe to call there. `replace` also keeps the un-onboarded page out of
+     * history, so Back from onboarding does not land on the page that redirected here.
+     */
+    window.location.replace("/onboarding");
     return <FullPageSpinner />;
   }
 

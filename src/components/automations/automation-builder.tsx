@@ -73,6 +73,7 @@ import {
 } from "@/components/ui/dialog";
 import type { LyraAutomationCopilotOutput, LyraAutomationDraftFields } from "@/lib/api/lyra-api";
 import { bareHandle } from "@/lib/format";
+import { useBrandingConfig, useWorkspaceUsage } from "@/hooks/use-onboarding";
 import {
   createTriggerBlock,
   defaultForm,
@@ -116,6 +117,22 @@ export type AutomationBuilderProps = {
   lockTarget?: boolean;
   /** Create-mode only: arrival from the Ask AI drawer (`?lyraDraft=true`). */
   lyraDraft?: boolean;
+  /**
+   * Placeholder for the trigger-keyword field.
+   *
+   * Arriving from an onboarding template shows that template's keyword here (`GUIDE`, `LINK`,
+   * `price, cost, how much`) rather than the generic `e.g. GUIDE`, so the field reads as "type
+   * yours, here is the shape" instead of "we already filled this in". See `templateBuilderForm`
+   * for why it is a placeholder and not a value.
+   */
+  keywordPlaceholder?: string;
+  /**
+   * Create-mode only: "Skip for now" under the publish button.
+   *
+   * Present only when the user arrived from an onboarding suggestion. It creates nothing and
+   * records the skip on the workspace, which is what stops the rest of the app asking again.
+   */
+  onSkip?: () => void;
 };
 
 export function AutomationBuilder({
@@ -124,6 +141,8 @@ export function AutomationBuilder({
   initialForm,
   lockTarget = false,
   lyraDraft = false,
+  keywordPlaceholder,
+  onSkip,
 }: AutomationBuilderProps = {}) {
   const isEdit = mode === "edit";
   const navigate = useNavigate();
@@ -133,6 +152,9 @@ export function AutomationBuilder({
   // Backend-resolved capability flags. Controls for features this account lacks are not rendered
   // at all — the server enforces the same set independently.
   const features = useAutomationFeatures();
+  // Powers the "this uses N of M" line under the publish button. Shared query key with the
+  // dashboard, so arriving here from Home costs no extra request.
+  const { data: usage } = useWorkspaceUsage(isWorkspaceReady(workspaceId) ? workspaceId : null);
   const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set());
 
   const [form, setForm] = useState<BuilderForm>(initialForm ?? defaultForm);
@@ -397,7 +419,7 @@ export function AutomationBuilder({
       const { postScope: _scope, postId: _post, status: _status, ...editable } = payload;
       return updateAutomation(workspaceId, automationId, editable);
     },
-    onSuccess: async (_, status) => {
+    onSuccess: async (created, status) => {
       if (!isEdit) await autosave.clear();
       // The listing page's cache stays fresh for staleTime (30s), so without this the
       // just-created automation is missing from /automations until the cache expires.
@@ -411,6 +433,23 @@ export function AutomationBuilder({
             ? `"${form.name}" is live`
             : `"${form.name}" saved as draft`,
       );
+      /**
+       * A brand-new LIVE automation goes to "You're live", not back to the list.
+       * (`plan/onboarding-revamp.md`, create flow)
+       *
+       * The list answers "did it save". The question at this moment is "is this real", and the
+       * only thing that answers it is seeing a DM arrive — which is what that screen is for.
+       *
+       * Drafts and edits keep the old destination on purpose: a draft has nothing to test, and an
+       * edit came *from* somewhere the user was already working.
+       */
+      if (!isEdit && status === "ACTIVE" && created?.id) {
+        void navigate({
+          to: "/automations/$automationId/live",
+          params: { automationId: created.id },
+        });
+        return;
+      }
       void navigate({ to: "/automations" });
     },
     onError: (error) => toast.error((error as Error).message),
@@ -583,6 +622,24 @@ export function AutomationBuilder({
    */
   const actionButtons = () => (
     <>
+      {/*
+        The allowance, read from the usage endpoint rather than from the plan matrix.
+        (`plan/onboarding-revamp.md`, "Nothing hardcoded")
+
+        The number has to be the one that will actually refuse the next create: a package can raise
+        a workspace's ceiling above its plan default, and `assertWorkflowLimit` counts *every*
+        non-deleted automation, drafts included. A hardcoded "3" would be right for most Free
+        workspaces and quietly wrong for the rest, on the screen where being wrong means telling
+        someone they have room they do not have.
+
+        Hidden entirely while the usage query is in flight, and for unlimited workspaces.
+      */}
+      {!isEdit && usage?.automations.limit != null && (
+        <p className="text-center text-[11px] text-muted-foreground">
+          This uses {usage.automations.used + 1} of your {usage.automations.limit} automations
+          {current.plan === "Free" ? " on Free" : ""}.
+        </p>
+      )}
       {!isEdit && (
         <Button
           size="sm"
@@ -613,8 +670,23 @@ export function AutomationBuilder({
             : "Publishing…"
           : isEdit
             ? "Save changes"
-            : "Publish"}
+            : "Go live"}
       </Button>
+      {/*
+        "Skip for now" — only when the user arrived from an onboarding suggestion.
+        It creates nothing and records the skip on the workspace, which is what stops Home, the
+        checklist and the Automations tab asking again. See `home-getting-started.tsx`.
+      */}
+      {!isEdit && onSkip && (
+        <button
+          type="button"
+          onClick={onSkip}
+          disabled={publishMutation.isPending}
+          className="mx-auto rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+        >
+          Skip for now
+        </button>
+      )}
     </>
   );
 
@@ -805,6 +877,13 @@ export function AutomationBuilder({
                     {wizardData.isLoading && (
                       <p className="text-xs text-muted-foreground">Loading your Instagram posts…</p>
                     )}
+                    {!wizardData.isLoading && !wizardData.isError && (
+                      <p className="text-[11px] text-muted-foreground">
+                        {(wizardData.data?.media?.length ?? 0) === 0
+                          ? "No posts yet, so this will run on your next post."
+                          : "Tip: pick a post that's already getting comments."}
+                      </p>
+                    )}
                     {wizardData.isError && (
                       <p className="text-xs text-destructive">
                         {(wizardData.error as Error).message}
@@ -831,6 +910,14 @@ export function AutomationBuilder({
                             />
                           ) : (
                             <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10" />
+                          )}
+                          {/* Rendered ONLY when the count is known. A cached media entry from
+                              before `comments_count` was requested carries null, and "0" on a post
+                              with forty comments is worse than no number at all. */}
+                          {item.commentsCount != null && (
+                            <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                              {item.commentsCount} 💬
+                            </span>
                           )}
                           {form.postId === item.id && (
                             <div className="absolute inset-0 flex items-center justify-center bg-primary/25">
@@ -942,6 +1029,10 @@ export function AutomationBuilder({
                       <TriggerBlockFields
                         block={block}
                         showKeywordStep
+                        // Only the first block gets the template's placeholder — blocks 2+ are
+                        // keywords the user is adding of their own accord, and suggesting the
+                        // template's word again there would suggest a duplicate the form rejects.
+                        keywordPlaceholder={i === 0 ? keywordPlaceholder : undefined}
                         onChange={(patch) => updateTriggerBlock(block.id, patch)}
                       />
                     </AccordionContent>
@@ -1088,6 +1179,7 @@ export function AutomationBuilder({
             autoReply={form.triggerBlocks[0]?.autoReply ? form.triggerBlocks[0].replyMessage : ""}
             followBeforeDm={form.followBeforeDm}
             followUps={form.followUps}
+            showFreeBranding={current.plan === "Free"}
           />
 
           {/* Rides the aside's existing `lg:sticky`, so Publish stays on screen at every step. */}
@@ -1128,10 +1220,12 @@ function TimelineStep({
 function TriggerBlockFields({
   block,
   showKeywordStep,
+  keywordPlaceholder,
   onChange,
 }: {
   block: TriggerBlock;
   showKeywordStep: boolean;
+  keywordPlaceholder?: string;
   onChange: (patch: Partial<TriggerBlock>) => void;
 }) {
   const features = useAutomationFeatures();
@@ -1153,7 +1247,7 @@ function TriggerBlockFields({
                 onChange({ keyword: e.target.value.slice(0, LIMITS.keyword.max).toUpperCase() })
               }
               maxLength={LIMITS.keyword.max}
-              placeholder="e.g. GUIDE"
+              placeholder={keywordPlaceholder ?? "e.g. GUIDE"}
               className="font-mono uppercase"
             />
             <KeywordSuggest
@@ -1163,7 +1257,7 @@ function TriggerBlockFields({
             />
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Not case-sensitive. The comment must contain this word.
+            What people comment to get your DM. Any case works, even inside a longer comment.
           </p>
         </TimelineStep>
       )}
@@ -1292,6 +1386,20 @@ function SectionTitle({
   );
 }
 
+/**
+ * The live DM preview.
+ *
+ * 🚩 On Free it renders the **branding line and the branded follow-up**, from
+ * `GET /workspaces/branding-config`. (`plan/onboarding-revamp.md`, "Nothing hidden in DMs")
+ *
+ * It did not, and that was the gap: we append a line to the customer's message and then send a
+ * second, unsolicited message advertising ourselves — from their account, to their follower — and
+ * the screen where they wrote that message showed neither. The first time a Free user learned
+ * about it was when a follower asked them about it.
+ *
+ * The strings are fetched rather than held here so they cannot drift from what the sender actually
+ * appends; while the fetch is in flight, nothing stands in for them.
+ */
 function DmPreview({
   username,
   keyword,
@@ -1301,6 +1409,7 @@ function DmPreview({
   autoReply,
   followBeforeDm,
   followUps,
+  showFreeBranding,
 }: {
   username: string;
   keyword: string;
@@ -1310,7 +1419,9 @@ function DmPreview({
   autoReply: string;
   followBeforeDm: boolean;
   followUps: FollowUpDraft[];
+  showFreeBranding: boolean;
 }) {
+  const { data: branding } = useBrandingConfig();
   const handle = bareHandle(username) ?? "";
   const delayLabel = (minutes: number) =>
     DELAY_OPTIONS.find((d) => d.minutes === minutes)?.label ?? `${minutes} min`;
@@ -1357,6 +1468,11 @@ function DmPreview({
 
           <Bubble>
             {message || <span className="italic opacity-70">Your DM message appears here…</span>}
+            {showFreeBranding && branding?.brandingLine ? (
+              <span className="mt-2 block whitespace-pre-wrap opacity-80">
+                {branding.brandingLine.trim()}
+              </span>
+            ) : null}
           </Bubble>
 
           {(buttonLabel || buttonUrl) && (
@@ -1376,6 +1492,28 @@ function DmPreview({
               </div>
             </div>
           )}
+
+          {showFreeBranding && branding ? (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1 bg-border" />
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {branding.followUpDelayMinutes} minutes later
+                </span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <Bubble>{branding.followUpMessage}</Bubble>
+              <div className="flex justify-end">
+                <div className="max-w-[80%] rounded-xl border bg-card px-3 py-1.5 text-[11px] font-medium">
+                  {branding.followUpButtonLabel}
+                </div>
+              </div>
+              <p className="px-1 pt-1 text-[10px] leading-relaxed text-muted-foreground">
+                The last line and the second message get added on Free. Remove branding on paid
+                plans.
+              </p>
+            </div>
+          ) : null}
 
           {followUps.map((f, i) => (
             <div key={f.id} className="space-y-1.5">

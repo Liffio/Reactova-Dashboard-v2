@@ -1,5 +1,6 @@
 import { apiUri } from "./apiUri";
 import { apiRequest } from "./http";
+import type { OnboardingPatch } from "@/lib/onboarding/onboarding-state";
 
 export type WorkspaceApi = {
   id: string;
@@ -41,6 +42,19 @@ export type WorkspaceApi = {
   leadsThisMonth?: number;
   clicksThisMonth?: number;
   activeAutomations?: number;
+  /**
+   * Connection health — the three ways a workspace can say "connected" and still send nothing.
+   * (server handoff items 1 and 2)
+   *
+   * `null` on every one of them means "not applicable or not recorded", and is **not** `false`.
+   * `webhookSubscribed: null` is an account connected before the field existed, not a failed
+   * subscribe; `permissionsVerified: false` means Instagram told us nothing, not that it said no.
+   * Rendering either as a problem would put healthy workspaces in front of a reconnect screen.
+   */
+  webhookSubscribed?: boolean | null;
+  hasMessagingPermission?: boolean | null;
+  hasCommentPermission?: boolean | null;
+  permissionsVerified?: boolean;
 };
 
 export function listWorkspaces() {
@@ -57,7 +71,15 @@ export function createWorkspace(input: { name?: string }) {
 export type UpdateWorkspaceInput = {
   displayName?: string;
   isOnboarded?: boolean;
-  onboarding?: Record<string, unknown>;
+  /**
+   * Typed against the server's strict schema rather than `Record<string, unknown>`.
+   *
+   * The endpoint now rejects unknown keys outright — it used to merge any JSON straight over the
+   * stored object, which is how `ig` and `isOnboarded` were client-writable. Typing it here means
+   * a key the server will refuse fails at compile time instead of as a silent 400 on a save the
+   * flow is designed never to block on.
+   */
+  onboarding?: OnboardingPatch;
 };
 
 export function updateWorkspace(workspaceId: string, body: UpdateWorkspaceInput) {
@@ -70,4 +92,41 @@ export function updateWorkspace(workspaceId: string, body: UpdateWorkspaceInput)
 
 export function deleteWorkspace(workspaceId: string) {
   return apiRequest<void>(apiUri.workspaces.remove(workspaceId), { method: "DELETE" });
+}
+
+/**
+ * Automation / seat usage and the activation timestamp. (server handoff item 9)
+ *
+ * `limit: null` means unlimited. Every "x of y on Free" string in the app reads y from here —
+ * the plan matrix is not the answer, because a package can raise a workspace's ceiling above its
+ * plan's default and the number on screen has to match the number that blocks creation.
+ */
+export type WorkspaceUsage = {
+  plan: string;
+  automations: { used: number; limit: number | null };
+  teamMembers: { used: number; limit: number | null };
+  /** ISO timestamp of the first DM this workspace ever delivered, or null. */
+  firstDmSentAt: string | null;
+};
+
+export function getWorkspaceUsage(workspaceId: string) {
+  return apiRequest<WorkspaceUsage>(apiUri.workspaces.usage(workspaceId), { workspaceId });
+}
+
+/**
+ * The Free-tier strings appended to every DM a Free workspace sends. (server handoff item 7)
+ *
+ * Fetched, never hardcoded: the demo and the "Set it up" preview both claim to show exactly what
+ * will be sent, and these values are env-driven on the server.
+ */
+export type BrandingConfig = {
+  brandingLine: string;
+  followUpMessage: string;
+  followUpButtonLabel: string;
+  followUpButtonUrl: string;
+  followUpDelayMinutes: number;
+};
+
+export function getBrandingConfig() {
+  return apiRequest<BrandingConfig>(apiUri.workspaces.brandingConfig);
 }

@@ -73,6 +73,14 @@ export type AutomationWizardData = {
     thumbnailUrl: string | null;
     permalink: string | null;
     timestamp: string | null;
+    /**
+     * How many comments this post already has. (server handoff item 10)
+     *
+     * `null` means **unknown**, not zero: the server's media cache keeps serving entries fetched
+     * before the field was requested, and a confident "0 comments" on a post with forty of them
+     * would send someone to pick the wrong post. Every consumer hides the count when it is null.
+     */
+    commentsCount: number | null;
   }>;
 };
 

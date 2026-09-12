@@ -5,6 +5,7 @@ import { ArrowRight, ChevronRight, Plus } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { HomeGettingStarted, SetupGuideButton } from "@/components/onboarding/home-getting-started";
 import { SendRateBanner } from "@/components/dashboard/send-rate-banner";
 import { TokenMeter } from "@/components/dashboard/token-meter";
 import {
@@ -182,6 +183,10 @@ function DashboardPage() {
                 clearLabel="This month"
               />
             </div>
+            {/* Brings the checklist back after "Hide". Renders nothing unless the checklist is
+                hidden AND still has open items — a button that reopens a finished list is a
+                button that appears to do nothing. */}
+            <SetupGuideButton />
             <Button
               size="sm"
               asChild
@@ -201,6 +206,21 @@ function DashboardPage() {
             otherwise. A one-time toast is not enough: someone who misses it and later notices
             slow sends is exactly the support ticket this is meant to prevent. */}
         <SendRateBanner />
+
+        {/*
+          Getting-started block — suggestion card, setup checklist, skipped-state note.
+          (`plan/onboarding-revamp.md`, screen 5)
+
+          Placed ABOVE the analytics, and it removes itself piece by piece as each thing is done:
+          the suggestion goes when a live automation exists, the checklist when it is hidden or
+          emptied, the note when dismissed. It renders nothing at all for a workspace that has
+          finished everything, so an established account sees the dashboard it has always seen.
+
+          Deliberately not a separate "setup mode" dashboard. The first screen after onboarding is
+          the real app, with the remaining steps sitting on it — not a scaffold the user has to
+          graduate out of before they are allowed to see their numbers.
+        */}
+        <HomeGettingStarted />
 
         <div className="sm:hidden">
           <RangeChips value={range} onChange={setRange}>

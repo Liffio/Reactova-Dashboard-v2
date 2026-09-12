@@ -90,6 +90,10 @@ export const apiUri = {
     create: `${V1}/workspaces`,
     update: (workspaceId: string) => `${V1}/workspaces/${workspaceId}`,
     remove: (workspaceId: string) => `${V1}/workspaces/${workspaceId}`,
+    /** Automation / seat counts and the first-DM activation timestamp. Never hardcode these. */
+    usage: (workspaceId: string) => `${V1}/workspaces/${encodeURIComponent(workspaceId)}/usage`,
+    /** Free-tier DM branding strings, env-driven server-side. */
+    brandingConfig: `${V1}/workspaces/branding-config`,
   },
 
   team: {
@@ -298,6 +302,8 @@ export const apiUri = {
       oauthStart: `${V1}/integrations/meta/oauth/start`,
       unlink: `${V1}/integrations/meta/unlink`,
       instagramMusicSession: `${V1}/integrations/meta/instagram-music-session`,
+      /** Re-runs the account-level webhook subscribe; backs the "not receiving comments" retry. */
+      webhookSubscriptions: `${V1}/integrations/meta/webhook/subscriptions`,
     },
   },
 

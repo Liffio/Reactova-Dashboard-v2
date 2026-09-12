@@ -15,6 +15,22 @@ export type MetaOAuthResult = {
   /** Workspace that received the Instagram connection (from OAuth state). */
   workspaceId?: string;
   igHandle?: string | null;
+  /**
+   * Connection health, carried from the callback. (server handoff items 1 and 2)
+   *
+   * A connect can succeed and still be broken: the account-level webhook subscribe can fail (no
+   * comment ever arrives), or the user can untick messaging in Instagram's dialog (the DM half is
+   * dead). Both used to be invisible — the redirect said `meta=connected` and stopped there.
+   *
+   * `undefined` means the callback did not say, which is **not** the same as `false`. The durable
+   * source for all three is `GET /workspaces`, which now returns them on every load; these are the
+   * same values available one beat earlier, for the moment right after connect.
+   */
+  webhookSubscribed?: boolean;
+  hasMessagingPermission?: boolean;
+  hasCommentPermission?: boolean;
+  /** `false` when Instagram returned no permissions list, so the two flags above are unknown. */
+  permissionsVerified?: boolean;
 };
 
 type MetaOAuthMessage = {

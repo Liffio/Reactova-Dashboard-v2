@@ -52,6 +52,49 @@ export function createTriggerBlock(overrides: Partial<TriggerBlock> = {}): Trigg
   };
 }
 
+/**
+ * The starting form for an onboarding template. (`plan/onboarding-revamp.md`, "Set it up")
+ *
+ * 🚩 **The keyword is deliberately EMPTY.** Everything else — public reply, DM body, button label
+ * — is prefilled from the registry, but the trigger word is not, and the template's keyword shows
+ * as a greyed placeholder instead. A prefilled `GUIDE` is the single easiest thing in this form to
+ * leave untouched, and it is also the one field that has to match a word the user will actually
+ * tell their audience to comment. Typing it is three seconds; discovering weeks later that every
+ * automation on the platform triggers on `GUIDE` is not recoverable.
+ *
+ * The button URL is empty for the same reason in reverse: there is no plausible default, and
+ * `validate()` refuses to publish without it.
+ *
+ * `postScope: "specific"` with a null `postId` puts the builder straight into the post picker and
+ * lets its existing effect select the most recent post — which is the default the spec asks for.
+ */
+export function templateBuilderForm(template: {
+  displayKeyword: string;
+  publicReply: string;
+  dmMessage: string;
+  dmButtonLabel: string;
+}): BuilderForm {
+  return {
+    name: `${template.displayKeyword} automation`,
+    postScope: "specific",
+    postId: null,
+    anyComment: false,
+    triggerBlocks: [
+      createTriggerBlock({
+        keyword: "",
+        autoReply: true,
+        replyMessage: template.publicReply,
+        dmMessage: template.dmMessage,
+        hasButton: true,
+        dmButtonLabel: template.dmButtonLabel,
+        dmButtonUrl: "",
+      }),
+    ],
+    followBeforeDm: false,
+    followUps: [],
+  };
+}
+
 export const defaultForm: BuilderForm = {
   name: "New automation",
   postScope: "any",

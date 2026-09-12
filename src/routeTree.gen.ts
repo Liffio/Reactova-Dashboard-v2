@@ -64,6 +64,7 @@ import { Route as AppAdminCreatorManagementRouteImport } from './routes/_app/adm
 import { Route as AppAdminCapabilitiesRouteImport } from './routes/_app/admin.capabilities'
 import { Route as AppAdminAffiliatesRouteImport } from './routes/_app/admin.affiliates'
 import { Route as AppAdminUsersIndexRouteImport } from './routes/_app/admin.users.index'
+import { Route as AppAutomationsAutomationIdLiveRouteImport } from './routes/_app/automations.$automationId.live'
 import { Route as AppAutomationsAutomationIdEditRouteImport } from './routes/_app/automations.$automationId.edit'
 import { Route as AppAdminUsersUserIdRouteImport } from './routes/_app/admin.users.$userId'
 import { Route as AppAdminPluginsSigningKeysRouteImport } from './routes/_app/admin.plugins_.signing-keys'
@@ -357,6 +358,12 @@ const AppAdminUsersIndexRoute = AppAdminUsersIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppAdminUsersRoute,
 } as any)
+const AppAutomationsAutomationIdLiveRoute =
+  AppAutomationsAutomationIdLiveRouteImport.update({
+    id: '/automations/$automationId/live',
+    path: '/automations/$automationId/live',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppAutomationsAutomationIdEditRoute =
   AppAutomationsAutomationIdEditRouteImport.update({
     id: '/automations/$automationId/edit',
@@ -506,6 +513,7 @@ export interface FileRoutesByFullPath {
   '/admin/plugins/signing-keys': typeof AppAdminPluginsSigningKeysRoute
   '/admin/users/$userId': typeof AppAdminUsersUserIdRouteWithChildren
   '/automations/$automationId/edit': typeof AppAutomationsAutomationIdEditRoute
+  '/automations/$automationId/live': typeof AppAutomationsAutomationIdLiveRoute
   '/admin/users/': typeof AppAdminUsersIndexRoute
   '/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
   '/admin/users/$userId/ai-api': typeof AppAdminUsersUserIdAiApiRoute
@@ -575,6 +583,7 @@ export interface FileRoutesByTo {
   '/admin/plugins/docs': typeof AppAdminPluginsDocsRoute
   '/admin/plugins/signing-keys': typeof AppAdminPluginsSigningKeysRoute
   '/automations/$automationId/edit': typeof AppAutomationsAutomationIdEditRoute
+  '/automations/$automationId/live': typeof AppAutomationsAutomationIdLiveRoute
   '/admin/users': typeof AppAdminUsersIndexRoute
   '/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
   '/admin/users/$userId/ai-api': typeof AppAdminUsersUserIdAiApiRoute
@@ -648,6 +657,7 @@ export interface FileRoutesById {
   '/_app/admin/plugins_/signing-keys': typeof AppAdminPluginsSigningKeysRoute
   '/_app/admin/users/$userId': typeof AppAdminUsersUserIdRouteWithChildren
   '/_app/automations/$automationId/edit': typeof AppAutomationsAutomationIdEditRoute
+  '/_app/automations/$automationId/live': typeof AppAutomationsAutomationIdLiveRoute
   '/_app/admin/users/': typeof AppAdminUsersIndexRoute
   '/_app/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
   '/_app/admin/users/$userId/ai-api': typeof AppAdminUsersUserIdAiApiRoute
@@ -721,6 +731,7 @@ export interface FileRouteTypes {
     | '/admin/plugins/signing-keys'
     | '/admin/users/$userId'
     | '/automations/$automationId/edit'
+    | '/automations/$automationId/live'
     | '/admin/users/'
     | '/admin/users/$userId/activity'
     | '/admin/users/$userId/ai-api'
@@ -790,6 +801,7 @@ export interface FileRouteTypes {
     | '/admin/plugins/docs'
     | '/admin/plugins/signing-keys'
     | '/automations/$automationId/edit'
+    | '/automations/$automationId/live'
     | '/admin/users'
     | '/admin/users/$userId/activity'
     | '/admin/users/$userId/ai-api'
@@ -862,6 +874,7 @@ export interface FileRouteTypes {
     | '/_app/admin/plugins_/signing-keys'
     | '/_app/admin/users/$userId'
     | '/_app/automations/$automationId/edit'
+    | '/_app/automations/$automationId/live'
     | '/_app/admin/users/'
     | '/_app/admin/users/$userId/activity'
     | '/_app/admin/users/$userId/ai-api'
@@ -1277,6 +1290,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminUsersIndexRouteImport
       parentRoute: typeof AppAdminUsersRoute
     }
+    '/_app/automations/$automationId/live': {
+      id: '/_app/automations/$automationId/live'
+      path: '/automations/$automationId/live'
+      fullPath: '/automations/$automationId/live'
+      preLoaderRoute: typeof AppAutomationsAutomationIdLiveRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/automations/$automationId/edit': {
       id: '/_app/automations/$automationId/edit'
       path: '/automations/$automationId/edit'
@@ -1498,6 +1518,7 @@ interface AppRouteChildren {
   AppAdminPluginsDocsRoute: typeof AppAdminPluginsDocsRoute
   AppAdminPluginsSigningKeysRoute: typeof AppAdminPluginsSigningKeysRoute
   AppAutomationsAutomationIdEditRoute: typeof AppAutomationsAutomationIdEditRoute
+  AppAutomationsAutomationIdLiveRoute: typeof AppAutomationsAutomationIdLiveRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -1545,6 +1566,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdminPluginsDocsRoute: AppAdminPluginsDocsRoute,
   AppAdminPluginsSigningKeysRoute: AppAdminPluginsSigningKeysRoute,
   AppAutomationsAutomationIdEditRoute: AppAutomationsAutomationIdEditRoute,
+  AppAutomationsAutomationIdLiveRoute: AppAutomationsAutomationIdLiveRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

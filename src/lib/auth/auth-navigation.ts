@@ -66,10 +66,18 @@ export function registerUrl(redirect?: string): string {
   return redirect ? `${base}?redirect=${encodeURIComponent(redirect)}` : base;
 }
 
-/** Returns the liffio.com onboarding URL, passing the current token so liffio.com can pick it up. */
-export function onboardingUrl(token: string): string {
-  return `${LIFFIO_ORIGIN}/onboarding?token=${encodeURIComponent(token)}`;
-}
+/**
+ * 🔴 REMOVED: `onboardingUrl(token)`.
+ *
+ * Onboarding is an in-app route (`/onboarding`) as of `plan/onboarding-revamp.md`. The function it
+ * replaced built `liffio.com/onboarding?token=<access token>` — a redirect to another origin with
+ * a bearer token in the query string, which lands in browser history, in the Referer header of the
+ * next request that page makes, and in any log that records URLs.
+ *
+ * `postAuthLandingPath` already returns the bare path `/onboarding`, and `ProtectedRoute`
+ * navigates to it directly. Nothing needs to build a cross-origin onboarding URL any more, so
+ * nothing should be able to.
+ */
 
 /** Returns the liffio.com confirm-email URL, passing the token. */
 export function confirmEmailUrl(token: string, redirectPath?: string): string {

@@ -23,7 +23,16 @@ type MetaCompleteSearch = {
   returnTo?: string;
   workspaceId?: string;
   igHandle?: string;
+  /** Connection health, forwarded by the callback as "true"/"false" strings. */
+  webhookSubscribed?: string;
+  hasMessagingPermission?: string;
+  hasCommentPermission?: string;
+  permissionsVerified?: string;
 };
+
+/** `undefined` when the param is absent — an unknown, which must not collapse to `false`. */
+const asBool = (value: string | undefined): boolean | undefined =>
+  value === undefined ? undefined : value === "true";
 
 export const Route = createFileRoute("/oauth/meta/complete")({
   validateSearch: (search: Record<string, unknown>): MetaCompleteSearch => ({
@@ -33,6 +42,14 @@ export const Route = createFileRoute("/oauth/meta/complete")({
     returnTo: typeof search.returnTo === "string" ? search.returnTo : undefined,
     workspaceId: typeof search.workspaceId === "string" ? search.workspaceId : undefined,
     igHandle: typeof search.igHandle === "string" ? search.igHandle : undefined,
+    webhookSubscribed:
+      typeof search.webhookSubscribed === "string" ? search.webhookSubscribed : undefined,
+    hasMessagingPermission:
+      typeof search.hasMessagingPermission === "string" ? search.hasMessagingPermission : undefined,
+    hasCommentPermission:
+      typeof search.hasCommentPermission === "string" ? search.hasCommentPermission : undefined,
+    permissionsVerified:
+      typeof search.permissionsVerified === "string" ? search.permissionsVerified : undefined,
   }),
   head: () => ({ meta: [{ title: "Connecting Instagram — Liffio" }] }),
   component: MetaOAuthComplete,
@@ -71,7 +88,19 @@ function MetaOAuthComplete() {
       const workspaceId = search.workspaceId;
       const igHandle = search.igHandle ?? null;
       const enriched: MetaOAuthResult =
-        result.meta === "connected" ? { ...result, workspaceId, igHandle } : result;
+        result.meta === "connected"
+          ? {
+              ...result,
+              workspaceId,
+              igHandle,
+              // Forwarded so the opener sees the same health the redirect carried. The durable
+              // source is GET /workspaces; this is the same answer one beat sooner.
+              webhookSubscribed: asBool(search.webhookSubscribed),
+              hasMessagingPermission: asBool(search.hasMessagingPermission),
+              hasCommentPermission: asBool(search.hasCommentPermission),
+              permissionsVerified: asBool(search.permissionsVerified),
+            }
+          : result;
 
       log("parsed result:", JSON.stringify(enriched), "returnTo:", returnTo);
 

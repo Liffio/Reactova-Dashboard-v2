@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Clock,
@@ -17,6 +17,8 @@ import {
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { useOnboardingState, useSaveOnboarding, useWorkspaceUsage } from "@/hooks/use-onboarding";
+import { templateById } from "@/lib/onboarding/templates";
 import { SendRateCard } from "@/components/settings/send-rate-card";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { InstagramRequired } from "@/components/auth/instagram-required";
@@ -89,6 +91,11 @@ const TABS = [
 function AutomationsPage() {
   const { current } = useApp();
   const workspaceId = current.id;
+  const navigate = useNavigate();
+  // Shared query keys with the dashboard — arriving from Home costs no extra request.
+  const { state: onboarding } = useOnboardingState(workspaceId);
+  const { save } = useSaveOnboarding(workspaceId);
+  const { data: usage } = useWorkspaceUsage(workspaceId);
   const queryClient = useQueryClient();
   const [deleting, setDeleting] = useState<Automation | null>(null);
 
@@ -153,12 +160,42 @@ function AutomationsPage() {
 
   const automations = list.items;
 
+  /**
+   * The dismissed/skipped suggestion, if there is one to bring back.
+   *
+   * Offered only while the workspace still has no automations — once one exists, the suggestion
+   * has nothing left to suggest, and a link restoring it would be an invitation to start over.
+   */
+  const restorable =
+    automations.length === 0 &&
+    !list.isNarrowed &&
+    onboarding.suggestedTemplate &&
+    (onboarding.suggestedTemplate.skippedAt || onboarding.suggestedTemplate.dismissedAt)
+      ? onboarding.suggestedTemplate
+      : null;
+
+  const restoreSuggestion = () => {
+    if (!restorable) return;
+    // Both timestamps cleared: the card comes back on Home AND the checklist regains its two
+    // automation steps. Clearing only one would half-restore a decision that was made once.
+    save({ suggestedTemplate: { id: restorable.id, version: 1 } });
+    void navigate({ to: "/automations/new", search: { template: restorable.id } });
+  };
+
   return (
     <div>
       <PageHeader
         eyebrow="Automate"
         title="Automations"
-        description="Trigger DMs from comments — every keyword gets its own message and link."
+        // The allowance, from the usage endpoint. Absent while loading and for unlimited
+        // workspaces — the sentence has to be true or not said at all.
+        description={
+          usage?.automations.limit != null
+            ? `${usage.automations.used} of ${usage.automations.limit} used${
+                usage.plan === "FREE" ? " on Free" : ""
+              }`
+            : "Trigger DMs from comments — every keyword gets its own message and link."
+        }
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -260,19 +297,39 @@ function AutomationsPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               {list.isNarrowed
                 ? "Try a different search or filter."
-                : "Create your first automation to start turning comments into DMs."}
+                : "Build one for any post. Nothing goes live until you say so."}
             </p>
             {list.isNarrowed ? (
               <Button size="sm" variant="outline" className="mt-4" onClick={list.clear}>
                 Clear filters
               </Button>
             ) : (
-              <Button asChild size="sm" className="mt-4 gap-1.5">
-                <Link to="/automations/new">
-                  <Plus className="h-4 w-4" />
-                  New automation
-                </Link>
-              </Button>
+              <>
+                <Button asChild size="sm" className="mt-4 gap-1.5">
+                  <Link to="/automations/new">
+                    <Plus className="h-4 w-4" />
+                    Create automation
+                  </Link>
+                </Button>
+                {/*
+                  The one place a dismissed suggestion can be recovered. (`plan/onboarding-revamp.md`)
+
+                  A skip is meant to be final on Home — nothing there asks again. But "final" must
+                  not mean "unreachable": someone who said "not now" in week one and comes looking
+                  in week three arrives here, and this is where the template they were offered is
+                  waiting. Clearing the skip also restores the two automation steps on the
+                  dashboard checklist, which is the same decision reversed.
+                */}
+                {restorable ? (
+                  <button
+                    type="button"
+                    onClick={restoreSuggestion}
+                    className="mx-auto mt-3 block text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+                  >
+                    Show the {templateById(restorable.id).displayKeyword} template again
+                  </button>
+                ) : null}
+              </>
             )}
           </div>
         ) : (

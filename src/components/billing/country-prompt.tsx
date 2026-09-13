@@ -70,7 +70,9 @@ export function CountryPrompt({
         const already = (err.body as { country?: string } | undefined)?.country;
         if (already) {
           // Not a failure: a concurrent request set it. Honour what the server holds.
-          onCaptured(already === "IN" ? "INR" : "USD");
+          // M3: normalise before comparing — every other comparison in this flow does (the server's
+          // own country codes are stored upper-case, but this is untrusted response body content).
+          onCaptured(already.trim().toUpperCase() === "IN" ? "INR" : "USD");
           handleOpenChange(false);
           return;
         }

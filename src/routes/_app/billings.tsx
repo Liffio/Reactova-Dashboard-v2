@@ -779,14 +779,21 @@ function BillingPage() {
                   title: "UPI / NetBanking / Cards",
                   sub: "India — via Razorpay",
                   /**
-                   * Falls back to USD when the tier carries no authored INR figure.
+                   * Currency-led, not INR-led. (I1 fix)
                    *
-                   * With Stripe gone this is the only row, so a null price would leave the payment
-                   * step showing no price at all. Falling back rather than converting is the same
-                   * rule `cardPriceText` follows: showing the real price in the wrong currency is
-                   * recoverable, showing an invented number in the right one is not.
+                   * 🚩 Was `inrText ?? usdText` — currency-BLIND. It always preferred the INR
+                   * figure when the package had one authored, regardless of who was looking at it:
+                   * a US customer on this confirm screen saw `₹4,999` and was then charged `$59` by
+                   * `startCheckout`/`proceedCheckout`, which dispatch off `displayCurrency`/the
+                   * explicit override, not off whatever text happened to render here. This is the
+                   * last screen before the gateway modal, so that mismatch was never caught before
+                   * money moved.
+                   *
+                   * `displayCurrency` picks the authored figure for the customer's actual currency
+                   * first; the other currency's text is still the fallback when the tier has no
+                   * authored figure of its own (D4 — no FX derivation anywhere in the product).
                    */
-                  price: inrText ?? usdText,
+                  price: displayCurrency === "INR" ? (inrText ?? usdText) : (usdText ?? inrText),
                 },
               };
 
@@ -859,15 +866,23 @@ function BillingPage() {
           setCountryPromptOpen(v);
           if (!v) setPendingPurchase(null);
         }}
-        onCaptured={(currency) => {
+        onCaptured={async (currency) => {
           const resume = pendingPurchase;
           setPendingPurchase(null);
           // `refreshAuth` invalidates the `auth-me` query (the same call the workspace switcher
           // uses) so `displayCurrency` is populated from the server for every OTHER reader of it
-          // (the plan cards, the payment-type dialog). It is fired off, not awaited: the resumed
-          // checkout below already knows the currency it just captured and must not wait on — or
-          // re-run the guard inside — a `startCheckout` closure frozen at `displayCurrency === null`.
-          void refreshAuth();
+          // (the plan cards, the payment-type dialog).
+          //
+          // 🚩 I2: this used to be `void refreshAuth()` — fired off, not awaited — so the dialog
+          // this component renders (the confirm-price payment-type step opened by `startCheckout`
+          // below, via `gatewayOptions`/`packageForPlan`) could paint with the stale, pre-capture
+          // `displayCurrency` (still `null`, or a leftover USD) for one tick while an INR
+          // subscription was actually being created. Awaiting here only delays *this* dispatch —
+          // it does not reintroduce the frozen-closure bug the design guards against, because
+          // `proceedCheckout` below receives `currency` as an explicit override and never reads
+          // `displayCurrency` off this render's closure (see its docstring). So awaiting is safe:
+          // it fixes the display race without resurrecting the stale-closure one.
+          await refreshAuth();
           // Pass `currency` through explicitly (S4.4c) rather than letting `proceedCheckout` read
           // `displayCurrency` off this render's closure — that value is still the pre-capture
           // `null` here, for the same reason `startCheckout` cannot be re-entered. If this just-set

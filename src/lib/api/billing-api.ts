@@ -22,8 +22,12 @@ export type BillingPlanConfig = {
   /**
    * Is this tier on the commercial ladder at all? `false` for retired tiers.
    *
-   * NOT the same as "can I check out right now" — that is `checkout` below. A tier can be sellable
-   * with no checkout id yet, which is exactly GROWTH's state until the SKUs are published.
+   * NOT the same as "can I check out right now" — availability-to-purchase comes from the PACKAGE
+   * catalogue (`getSellablePackages`/`package_prices`), not from this field. A tier can be sellable
+   * with no package price published yet, which is exactly GROWTH's state until the SKUs are
+   * published. (The server used to also carry a `checkout: { stripe, razorpay }` field here for
+   * this same question; it had no reader on this side either — see `lib/billing/pricing.ts` — and
+   * was removed alongside the retired `POST /billing/checkout` plan path.)
    */
   sellable: boolean;
   pricing: {
@@ -34,9 +38,6 @@ export type BillingPlanConfig = {
   limits: Record<string, number>;
   features: Record<string, boolean>;
   gates: Record<string, string>;
-  checkout?: {
-    razorpay: Record<"monthly" | "quarterly" | "yearly", boolean>;
-  };
 };
 
 export type BillingConfigResponse = {

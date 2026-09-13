@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CreditCard, ExternalLink, IndianRupee, RefreshCw, Zap } from "lucide-react";
@@ -235,9 +235,13 @@ function BillingPage() {
   const packageCheckoutMutation = useMutation({
     mutationFn: (body: PackageCheckoutInput) => createPackageCheckout(workspaceId, body),
     onSuccess: ({ checkoutUrl }) => {
+      dispatchingRef.current = false;
       if (checkoutUrl) window.location.href = checkoutUrl;
     },
-    onError: (e) => toast.error((e as Error).message),
+    onError: (e) => {
+      dispatchingRef.current = false;
+      toast.error((e as Error).message);
+    },
   });
 
   const checkoutMutation = useMutation({
@@ -247,6 +251,32 @@ function BillingPage() {
     },
     onError: (e) => toast.error((e as Error).message),
   });
+
+  /**
+   * Single source of truth for "a checkout is already being dispatched, anywhere on this
+   * page." (Race fix, alongside the `await refreshAuth()` change above.)
+   *
+   * 🚩 `packageCheckoutMutation` had no in-flight guard at all, and `createPackageCheckout`
+   * deliberately writes nothing locally (S0.6) with no per-workspace idempotency guard on the
+   * server — so two concurrent dispatches make two live, permanent Razorpay subscription
+   * objects. This has to cover every path that can reach a dispatch, not just the button that
+   * was clicked first: `proceedCheckout` below is the one chokepoint all of them funnel
+   * through, including the `CountryPrompt` / `PlaceOfSupplyPrompt` resume paths that call it
+   * from inside an async callback, after an `await`, with no button on screen left to disable.
+   */
+  const checkoutInFlight =
+    checkoutMutation.isPending || packageCheckoutMutation.isPending || payingRazorpay;
+
+  /**
+   * The state-based flags above only become `true` for the render *after* a dispatch starts
+   * — they go through React/TanStack Query's own batching, which is not instant relative to a
+   * second, independently-resolving async chain (e.g. two `onCaptured` resumes racing off two
+   * separate `refreshAuth()` calls). This ref closes that last, narrow gap: it is set
+   * synchronously at the two actual dispatch points below, immediately visible to any other
+   * call into `proceedCheckout` no matter how it got there, and cleared in every outcome
+   * (success or error) of that same dispatch so nothing is ever left permanently blocked.
+   */
+  const dispatchingRef = useRef(false);
 
   /**
    * Every gateway, always. One the backend has not enabled (or that has no price for the chosen
@@ -308,6 +338,7 @@ function BillingPage() {
       }
     } finally {
       setPayingRazorpay(false);
+      dispatchingRef.current = false;
     }
   };
 
@@ -336,6 +367,18 @@ function BillingPage() {
     gateway: Gateway,
     overrides?: { currency?: "USD" | "INR"; stateOverride?: string },
   ) => {
+    // Never let a second dispatch through while one is already in flight -- including one
+    // racing in from a CountryPrompt/PlaceOfSupplyPrompt resume that started before this one
+    // and is only now reaching its own `proceedCheckout` call post-`await`. Whichever call got
+    // here first wins; this one is silently dropped rather than creating a second live
+    // Razorpay subscription. `dispatchingRef` is checked alongside the state-based flags
+    // because it is synchronous -- it catches a second call arriving in the narrow gap before
+    // React has re-rendered with the mutation's own `isPending` flip.
+    if (checkoutInFlight || dispatchingRef.current) {
+      toast.info("A checkout is already in progress — please wait.");
+      return;
+    }
+
     /**
      * 🚩 The package path first, whenever a package exists for this tier. (S5.2)
      *
@@ -375,6 +418,7 @@ function BillingPage() {
         return;
       }
 
+      dispatchingRef.current = true;
       packageCheckoutMutation.mutate({
         packageId: pkg.id,
         interval,
@@ -386,6 +430,7 @@ function BillingPage() {
     // Razorpay is the only gateway, so there is no branch left to take. `gateway` is kept in the
     // signature because the payment-type step still passes the user's confirmed choice through,
     // and a second gateway would reinstate the branch rather than the parameter.
+    dispatchingRef.current = true;
     void startRazorpayCheckout(planKey);
   };
 
@@ -645,12 +690,7 @@ function BillingPage() {
                           ? "bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
                           : ""
                       }
-                      disabled={
-                        isCurrent ||
-                        checkoutMutation.isPending ||
-                        payingRazorpay ||
-                        plan.plan === "FREE"
-                      }
+                      disabled={isCurrent || checkoutInFlight || plan.plan === "FREE"}
                       onClick={() => {
                         if (isCurrent) return;
                         // A downgrade goes to a human, never to checkout: D20 keeps the mechanism
@@ -810,7 +850,7 @@ function BillingPage() {
                         )}
                         <button
                           type="button"
-                          disabled={!option.available}
+                          disabled={!option.available || checkoutInFlight}
                           className="flex w-full items-center justify-between rounded-lg border-2 p-4 text-left transition-colors enabled:hover:border-primary enabled:hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
                           onClick={() => startCheckout(gatewayChoice, option.value)}
                         >

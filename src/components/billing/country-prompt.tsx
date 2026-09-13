@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Country } from "country-state-city";
 
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,7 +41,7 @@ export function CountryPrompt({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onCaptured: (currency: "USD" | "INR") => void;
+  onCaptured: (currency: "USD" | "INR") => Promise<void>;
 }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -56,10 +57,24 @@ export function CountryPrompt({
     }
   };
 
+  /**
+   * `onCaptured` is async (it awaits `refreshAuth()` before resuming checkout), and both call
+   * sites below fire it from inside a `useMutation` callback without awaiting it — there is
+   * nothing there to return a promise to. Routed through here so a rejection can't become a
+   * silently swallowed, unhandled promise rejection: in practice `refreshAuth` resolves even
+   * when its underlying refetch fails, so this is a theoretical backstop, not an expected path.
+   */
+  const captureAndResume = (currency: "USD" | "INR") => {
+    onCaptured(currency).catch((err: unknown) => {
+      console.error("[billing] onCaptured failed after country capture", err);
+      toast.error("Something went wrong resuming your checkout. Please try upgrading again.");
+    });
+  };
+
   const save = useMutation({
     mutationFn: (value: string) => setAccountCountry(value),
     onSuccess: (res) => {
-      onCaptured(res.country === "IN" ? "INR" : "USD");
+      captureAndResume(res.country === "IN" ? "INR" : "USD");
       handleOpenChange(false);
     },
     onError: (err: unknown) => {
@@ -72,7 +87,7 @@ export function CountryPrompt({
           // Not a failure: a concurrent request set it. Honour what the server holds.
           // M3: normalise before comparing — every other comparison in this flow does (the server's
           // own country codes are stored upper-case, but this is untrusted response body content).
-          onCaptured(already.trim().toUpperCase() === "IN" ? "INR" : "USD");
+          captureAndResume(already.trim().toUpperCase() === "IN" ? "INR" : "USD");
           handleOpenChange(false);
           return;
         }

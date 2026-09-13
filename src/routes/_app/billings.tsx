@@ -62,6 +62,7 @@ import { useAuthState } from "@/lib/auth/auth-store";
 import { useApp } from "@/state/app-context";
 import { PlanLimitsPanel } from "@/components/billing/plan-limits-panel";
 import { CountryPrompt } from "@/components/billing/country-prompt";
+import { PlaceOfSupplyPrompt } from "@/components/billing/place-of-supply-prompt";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 /** Razorpay only — Stripe was removed from the product in full. */
@@ -126,6 +127,14 @@ function BillingPage() {
     gateway: Gateway;
   } | null>(null);
   const [countryPromptOpen, setCountryPromptOpen] = useState(false);
+  const [statePromptOpen, setStatePromptOpen] = useState(false);
+  /**
+   * The buyer's GST state code, captured just-in-time for an INR package purchase. (S4.4c)
+   *
+   * Held on the page, not on the account: unlike country, place of supply is per-purchase, so
+   * nothing here is persisted before a checkout actually uses it.
+   */
+  const [placeOfSupplyState, setPlaceOfSupplyState] = useState<string | null>(null);
   const userEmail = useAuthState((s) => s.user?.email);
   /**
    * 🔴 The customer's own currency, resolved by the SERVER. (S5.7)
@@ -314,8 +323,19 @@ function BillingPage() {
    * the `!displayCurrency` guard against that frozen `null` and re-open the dialog it just closed.
    * `onCaptured` already has the just-confirmed currency in hand, so it skips the guard entirely by
    * calling this instead.
+   *
+   * `overrides` exists for the exact same reason, one level down: once a currency or a GST state has
+   * just been captured (by `CountryPrompt` or `PlaceOfSupplyPrompt`), the resuming caller passes it
+   * in explicitly rather than letting this function read `displayCurrency` / `placeOfSupplyState`
+   * off its own closure — `setPlaceOfSupplyState` has not flushed by the time that resume callback
+   * runs, so a read of the closed-over state would still see the pre-capture value and could
+   * re-open the very dialog that just closed.
    */
-  const proceedCheckout = (planKey: string, gateway: Gateway) => {
+  const proceedCheckout = (
+    planKey: string,
+    gateway: Gateway,
+    overrides?: { currency?: "USD" | "INR"; stateOverride?: string },
+  ) => {
     /**
      * 🚩 The package path first, whenever a package exists for this tier. (S5.2)
      *
@@ -335,7 +355,31 @@ function BillingPage() {
      */
     const pkg = packageForPlan(planKey);
     if (pkg) {
-      packageCheckoutMutation.mutate({ packageId: pkg.id, interval });
+      /**
+       * An INR package sale needs a GST state. (S4.4c)
+       *
+       * `createPackageCheckout` throws `PLACE_OF_SUPPLY_REQUIRED` for INR without one, and this page
+       * never sent it, so every Indian package checkout failed. Scoped to the package branch only:
+       * the legacy plan path (`startRazorpayCheckout` below) has no `placeOfSupplyState` field on
+       * its schema at all, so there is nothing to gate there.
+       *
+       * USD is deliberately not gated: there is no place-of-supply concept on an export, and
+       * demanding a state from a customer in Germany is a worse experience for no benefit.
+       */
+      const currency = overrides?.currency ?? displayCurrency;
+      const state = overrides?.stateOverride ?? placeOfSupplyState;
+
+      if (currency === "INR" && !state) {
+        setPendingPurchase({ planKey, gateway });
+        setStatePromptOpen(true);
+        return;
+      }
+
+      packageCheckoutMutation.mutate({
+        packageId: pkg.id,
+        interval,
+        ...(state ? { placeOfSupplyState: state } : {}),
+      });
       return;
     }
 
@@ -815,7 +859,7 @@ function BillingPage() {
           setCountryPromptOpen(v);
           if (!v) setPendingPurchase(null);
         }}
-        onCaptured={() => {
+        onCaptured={(currency) => {
           const resume = pendingPurchase;
           setPendingPurchase(null);
           // `refreshAuth` invalidates the `auth-me` query (the same call the workspace switcher
@@ -824,7 +868,36 @@ function BillingPage() {
           // checkout below already knows the currency it just captured and must not wait on — or
           // re-run the guard inside — a `startCheckout` closure frozen at `displayCurrency === null`.
           void refreshAuth();
-          if (resume) proceedCheckout(resume.planKey, resume.gateway);
+          // Pass `currency` through explicitly (S4.4c) rather than letting `proceedCheckout` read
+          // `displayCurrency` off this render's closure — that value is still the pre-capture
+          // `null` here, for the same reason `startCheckout` cannot be re-entered. If this just-set
+          // currency is INR, `proceedCheckout` opens the state prompt next; country is never
+          // followed by a silent drop.
+          if (resume) proceedCheckout(resume.planKey, resume.gateway, { currency });
+        }}
+      />
+
+      <PlaceOfSupplyPrompt
+        open={statePromptOpen}
+        onOpenChange={(v) => {
+          setStatePromptOpen(v);
+          if (!v) setPendingPurchase(null);
+        }}
+        onCaptured={(stateCode) => {
+          setPlaceOfSupplyState(stateCode);
+          const resume = pendingPurchase;
+          setPendingPurchase(null);
+          // Same closure hazard as the country resume above: `setPlaceOfSupplyState` has not
+          // flushed yet, so pass both the state just captured and the currency that got us here
+          // explicitly rather than re-deriving either from this render's (possibly still stale)
+          // `displayCurrency` / `placeOfSupplyState`. `proceedCheckout` is only ever reached here
+          // because it just decided the currency was INR, so that part is not a guess.
+          if (resume) {
+            proceedCheckout(resume.planKey, resume.gateway, {
+              currency: "INR",
+              stateOverride: stateCode,
+            });
+          }
         }}
       />
     </div>

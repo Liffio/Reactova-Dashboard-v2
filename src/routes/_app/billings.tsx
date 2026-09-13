@@ -61,6 +61,7 @@ import {
 import { useAuthState } from "@/lib/auth/auth-store";
 import { useApp } from "@/state/app-context";
 import { PlanLimitsPanel } from "@/components/billing/plan-limits-panel";
+import { CountryPrompt } from "@/components/billing/country-prompt";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 /** Razorpay only — Stripe was removed from the product in full. */
@@ -120,6 +121,11 @@ function BillingPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [gatewayChoice, setGatewayChoice] = useState<string | null>(null);
   const [payingRazorpay, setPayingRazorpay] = useState(false);
+  const [pendingPurchase, setPendingPurchase] = useState<{
+    planKey: string;
+    gateway: Gateway;
+  } | null>(null);
+  const [countryPromptOpen, setCountryPromptOpen] = useState(false);
   const userEmail = useAuthState((s) => s.user?.email);
   /**
    * 🔴 The customer's own currency, resolved by the SERVER. (S5.7)
@@ -296,9 +302,20 @@ function BillingPage() {
     }
   };
 
-  const startCheckout = (planKey: string, gateway: Gateway) => {
-    setGatewayChoice(null);
-
+  /**
+   * The actual checkout dispatch, once a currency is already known to exist.
+   *
+   * Split out of `startCheckout` so the country-prompt resume path (`onCaptured` below) can call
+   * straight into it. `startCheckout` closes over `displayCurrency` from the render that created
+   * it — the render where the prompt opened, where `displayCurrency` is `null` by definition. A
+   * `.then(() => startCheckout(...))` chained off `refreshAuth()` still calls *that* stale closure,
+   * whose `displayCurrency` is a `const` bound forever at that render: it never becomes non-null,
+   * no matter how many times the store updates later. Calling `startCheckout` again would re-run
+   * the `!displayCurrency` guard against that frozen `null` and re-open the dialog it just closed.
+   * `onCaptured` already has the just-confirmed currency in hand, so it skips the guard entirely by
+   * calling this instead.
+   */
+  const proceedCheckout = (planKey: string, gateway: Gateway) => {
     /**
      * 🚩 The package path first, whenever a package exists for this tier. (S5.2)
      *
@@ -326,6 +343,26 @@ function BillingPage() {
     // signature because the payment-type step still passes the user's confirmed choice through,
     // and a second gateway would reinstate the branch rather than the parameter.
     void startRazorpayCheckout(planKey);
+  };
+
+  const startCheckout = (planKey: string, gateway: Gateway) => {
+    setGatewayChoice(null);
+
+    /**
+     * Country first, because checkout refuses without it. (S5.6)
+     *
+     * `displayCurrency` is resolved SERVER-SIDE and is null exactly when the server could not
+     * resolve a country — the same condition `createPackageCheckout` throws
+     * CHECKOUT_COUNTRY_REQUIRED on. Reading the resolved currency rather than re-deriving one from
+     * the account's country keeps a single answer to "what is this customer charged in".
+     */
+    if (!displayCurrency) {
+      setPendingPurchase({ planKey, gateway });
+      setCountryPromptOpen(true);
+      return;
+    }
+
+    proceedCheckout(planKey, gateway);
   };
 
   // Always open the payment-type step, even with a single usable gateway — the user
@@ -771,6 +808,25 @@ function BillingPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CountryPrompt
+        open={countryPromptOpen}
+        onOpenChange={(v) => {
+          setCountryPromptOpen(v);
+          if (!v) setPendingPurchase(null);
+        }}
+        onCaptured={() => {
+          const resume = pendingPurchase;
+          setPendingPurchase(null);
+          // `refreshAuth` invalidates the `auth-me` query (the same call the workspace switcher
+          // uses) so `displayCurrency` is populated from the server for every OTHER reader of it
+          // (the plan cards, the payment-type dialog). It is fired off, not awaited: the resumed
+          // checkout below already knows the currency it just captured and must not wait on — or
+          // re-run the guard inside — a `startCheckout` closure frozen at `displayCurrency === null`.
+          void refreshAuth();
+          if (resume) proceedCheckout(resume.planKey, resume.gateway);
+        }}
+      />
     </div>
   );
 }

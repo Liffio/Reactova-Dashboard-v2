@@ -37,6 +37,7 @@ import {
   cancelBillingSubscription,
   createBillingCheckout,
   createPackageCheckout,
+  fetchInvoiceViewHtml,
   getSellablePackages,
   type PackageCheckoutInput,
   getBillingConfig,
@@ -182,6 +183,19 @@ function BillingPage() {
     queryFn: () => listBillingInvoices(workspaceId),
     enabled: isWorkspaceReady(workspaceId),
   });
+
+  /**
+   * Open a stored invoice document. Not a plain `<a href>` — see `fetchInvoiceViewHtml`'s comment:
+   * the route is bearer-token authenticated and a bare navigation never attaches that header.
+   */
+  const openInvoiceView = async (hostedInvoiceUrl: string) => {
+    try {
+      const blob = await fetchInvoiceViewHtml(workspaceId, hostedInvoiceUrl);
+      window.open(URL.createObjectURL(blob), "_blank", "noopener,noreferrer");
+    } catch {
+      toast.error("Could not open invoice");
+    }
+  };
 
   const syncMutation = useMutation({
     mutationFn: (silent?: boolean) => syncBilling(workspaceId).then((r) => ({ ...r, silent })),
@@ -733,10 +747,10 @@ function BillingPage() {
                 <thead>
                   <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
                     <th className="px-6 py-3 font-medium">Date</th>
+                    <th className="px-4 py-3 font-medium">Invoice</th>
                     <th className="px-4 py-3 font-medium">Plan</th>
                     <th className="px-4 py-3 font-medium">Amount</th>
                     <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-6 py-3 font-medium" />
                   </tr>
                 </thead>
                 <tbody>
@@ -744,6 +758,19 @@ function BillingPage() {
                     <tr key={inv.id} className="border-b last:border-0 hover:bg-muted/30">
                       <td className="px-6 py-3 text-muted-foreground">
                         {new Date(inv.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        {inv.hostedInvoiceUrl && inv.invoiceNumber ? (
+                          <button
+                            type="button"
+                            onClick={() => void openInvoiceView(inv.hostedInvoiceUrl!)}
+                            className="inline-flex items-center gap-1 border-0 bg-transparent p-0 font-mono text-xs text-primary hover:underline"
+                          >
+                            {inv.invoiceNumber} <ExternalLink className="h-3 w-3" />
+                          </button>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 capitalize">{inv.plan ?? "—"}</td>
                       <td className="px-4 py-3 tabular-nums font-medium">
@@ -756,18 +783,6 @@ function BillingPage() {
                         >
                           {inv.status}
                         </Badge>
-                      </td>
-                      <td className="px-6 py-3">
-                        {inv.hostedInvoiceUrl && (
-                          <a
-                            href={inv.hostedInvoiceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                          >
-                            View <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
                       </td>
                     </tr>
                   ))}

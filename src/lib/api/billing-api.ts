@@ -1,5 +1,6 @@
 import { apiUri } from "./apiUri";
-import { apiRequest } from "./http";
+import { API_BASE, apiRequest } from "./http";
+import { authStore } from "@/lib/auth/auth-store";
 
 export type BillingPlanConfig = {
   plan: string;
@@ -82,6 +83,8 @@ export type BillingInvoiceRow = {
   periodStart: string | null;
   periodEnd: string | null;
   paidAt: string | null;
+  /** `LFO/2026-27/00427` — null for a pre-Task-5 row issued before invoice numbering existed. */
+  invoiceNumber: string | null;
   hostedInvoiceUrl: string | null;
   pdfUrl: string | null;
   createdAt: string;
@@ -110,6 +113,34 @@ export function listAllBillingInvoices(workspaceId: string) {
   return apiRequest<{ invoices: BillingInvoiceRow[] }>(apiUri.billing.invoicesAll, {
     workspaceId,
   });
+}
+
+/**
+ * Fetch a stored invoice document for viewing. (Task 7, plan/gst-invoicing.md)
+ *
+ * 🔴 `hostedInvoiceUrl` (e.g. `/api/v1/billing/invoices/<id>/view`) sits behind `requireAuth`, which
+ * reads the bearer token from the `Authorization` header only — there is no cookie fallback. A plain
+ * `<a href={hostedInvoiceUrl}>` opened in a new tab is a bare browser navigation, so it never attaches
+ * that header and the request 401s. Fetched manually here instead — same shape as
+ * `leads-api.ts`'s `exportLeadsCsv` and `admin.affiliates.tsx`'s `openKycDocument` — and the caller
+ * opens the returned blob in a new tab, which renders the stored HTML exactly as `text/html`.
+ */
+export async function fetchInvoiceViewHtml(
+  workspaceId: string,
+  hostedInvoiceUrl: string,
+): Promise<Blob> {
+  const token = authStore.getState().accessToken;
+  const res = await fetch(`${API_BASE}${hostedInvoiceUrl}`, {
+    credentials: "include",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "x-workspace-id": workspaceId,
+    },
+  });
+  if (!res.ok) {
+    throw new Error("Unable to open invoice right now");
+  }
+  return res.blob();
 }
 
 export type CheckoutResponse = {

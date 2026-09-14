@@ -249,12 +249,56 @@ function BillingPage() {
    * ⚠️ No `provider` and no `currency` are sent. D19 made Razorpay the only gateway and S4.4
    * moved currency onto the customer's country, both resolved server-side. A client that could ask
    * for either would be a second place they could disagree.
+   *
+   * On success, open the Razorpay Checkout.js MODAL — never redirect to `checkoutUrl`
+   * (Razorpay's hosted `short_url`). Mirrors `startRazorpayCheckout` below exactly: this
+   * used to do `window.location.href = checkoutUrl`, which sends the browser to Razorpay's
+   * own page and never comes back — the client's `?status=success` handler above never runs,
+   * so a paid subscription never settles locally (no `workspace_subscriptions` row, no
+   * invoice, no email). `createPackageCheckout` already returns `subscriptionId` alongside
+   * `checkoutUrl`; that id is all the modal needs.
+   *
+   * 🚩 By the time this fires, `createPackageCheckout` has already created a LIVE Razorpay
+   * subscription server-side (S0.6 — nothing is written locally, but the provider object
+   * exists the moment this resolves). `dispatchingRef.current` therefore stays `true` for
+   * this entire async body — through the modal being open and the verify call — and is only
+   * cleared in `finally`, exactly like `startRazorpayCheckout`'s own dispatch/clear pair.
+   * `setPayingRazorpay` is reused (not a second flag) so `checkoutInFlight` keeps the UI
+   * disabled for the whole flow, the same way it does for the legacy plan path.
    */
   const packageCheckoutMutation = useMutation({
     mutationFn: (body: PackageCheckoutInput) => createPackageCheckout(workspaceId, body),
-    onSuccess: ({ checkoutUrl }) => {
-      dispatchingRef.current = false;
-      if (checkoutUrl) window.location.href = checkoutUrl;
+    onSuccess: async ({ subscriptionId }, variables) => {
+      const keyId = configQuery.data?.providers.razorpay.keyId;
+      if (!subscriptionId || !keyId) {
+        dispatchingRef.current = false;
+        toast.error("Razorpay checkout could not be started");
+        return;
+      }
+      const pkg = packagesQuery.data?.packages.find((p) => p.id === variables.packageId);
+      setPayingRazorpay(true);
+      try {
+        const payload = await openRazorpaySubscriptionCheckout({
+          keyId,
+          subscriptionId,
+          email: userEmail ?? undefined,
+          description: pkg ? `${pkg.name} — billed ${variables.interval}` : undefined,
+        });
+        await verifyRazorpayCheckout(workspaceId, payload);
+        toast.success("Payment successful! Your plan is now active.");
+        void queryClient.invalidateQueries({ queryKey: ["billing-subscription", workspaceId] });
+        void queryClient.invalidateQueries({ queryKey: ["billing-invoices", workspaceId] });
+        void refreshAuth();
+      } catch (err) {
+        if (err instanceof RazorpayCheckoutCancelled) {
+          toast.info("Payment cancelled — no charge was made.");
+        } else {
+          toast.error(err instanceof Error ? err.message : "Payment failed");
+        }
+      } finally {
+        setPayingRazorpay(false);
+        dispatchingRef.current = false;
+      }
     },
     onError: (e) => {
       dispatchingRef.current = false;

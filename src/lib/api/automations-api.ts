@@ -27,6 +27,7 @@ export type Automation = {
   autoReply: boolean;
   replyMessages: string[];
   followBeforeDm: boolean;
+  brandingEnabled: boolean;
   triggerBlocks: Array<Record<string, unknown>>;
   status: AutomationStatus;
   followUps?: AutomationFollowUp[];
@@ -56,6 +57,7 @@ export type CreateAutomationInput = {
   dmButtonLabel?: string;
   dmButtonUrl?: string;
   followBeforeDm?: boolean;
+  brandingEnabled?: boolean;
   followUps?: AutomationFollowUp[];
   triggerBlocks?: Array<Record<string, unknown>>;
   status?: AutomationStatus;

@@ -33,6 +33,8 @@ export type BuilderForm = {
   anyComment: boolean;
   triggerBlocks: TriggerBlock[];
   followBeforeDm: boolean;
+  /** Liffio branding/watermark switch — per automation, defaults on. */
+  brandingEnabled: boolean;
   followUps: FollowUpDraft[];
 };
 
@@ -91,6 +93,7 @@ export function templateBuilderForm(template: {
       }),
     ],
     followBeforeDm: false,
+    brandingEnabled: true,
     followUps: [],
   };
 }
@@ -111,6 +114,7 @@ export const defaultForm: BuilderForm = {
     }),
   ],
   followBeforeDm: false,
+  brandingEnabled: true,
   followUps: [],
 };
 
@@ -163,6 +167,9 @@ export function automationToBuilderForm(automation: Automation): BuilderForm {
     anyComment: automation.anyComment,
     triggerBlocks: blocks,
     followBeforeDm: automation.followBeforeDm,
+    // Automations saved before this switch existed carry no column read — the API answers `true`
+    // (the entity's own default), and `?? true` covers any older cached shape besides.
+    brandingEnabled: automation.brandingEnabled ?? true,
     followUps: (automation.followUps ?? []).map((f, i) => ({
       id: f.id ?? `fu-${i}`,
       // The API may answer in either unit depending on how the follow-up was written.

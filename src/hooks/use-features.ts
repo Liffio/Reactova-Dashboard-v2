@@ -27,6 +27,7 @@ export const AUTOMATION_FEATURE_KEYS = [
   "dm_button",
   "dm_button_tracking",
   "follow_before_dm",
+  "branding_control",
 ] as const;
 
 export type AutomationFeatureKey = (typeof AUTOMATION_FEATURE_KEYS)[number];

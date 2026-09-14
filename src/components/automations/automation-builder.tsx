@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Send,
   ShieldCheck,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
@@ -362,6 +363,11 @@ export function AutomationBuilder({
       dmButtonLabel: primary.hasButton ? primary.dmButtonLabel.trim() || undefined : undefined,
       dmButtonUrl: primary.hasButton ? primary.dmButtonUrl.trim() || undefined : undefined,
       followBeforeDm: form.followBeforeDm || undefined,
+      // Sent unconditionally, unlike the capability-gated fields above: every automation carries
+      // this (it has a server default of `true`), it is not an opt-in paid feature whose mere
+      // presence trips a `capability_routes` `exists` rule, and the API enforces the Free-tier
+      // lock itself regardless of what is sent here.
+      brandingEnabled: form.brandingEnabled,
       followUps: form.followUps
         .filter((f) => f.message.trim())
         .map((f, i) => ({ delayMinutes: f.delayMinutes, message: f.message.trim(), order: i })),
@@ -1040,6 +1046,40 @@ export function AutomationBuilder({
                 ))}
               </Accordion>
             )}
+          </section>
+
+          {/*
+            Liffio branding/watermark — per automation, not per trigger block, so it is its own
+            section directly beneath the DM button link fields above rather than repeated inside
+            `TriggerBlockFields` for every trigger block. The lock is driven by
+            `features.branding_control` (backend-resolved entitlement), never by reading the
+            workspace's plan directly here.
+          */}
+          <section className="space-y-3 rounded-2xl border bg-card p-5 shadow-soft">
+            <SectionTitle
+              icon={Sparkles}
+              title="Liffio branding / watermark"
+              subtitle={
+                features.branding_control
+                  ? "A short Liffio line in this automation's DM and its 5-minute follow-up."
+                  : "Free automations always include a short Liffio line — upgrade to turn it off."
+              }
+            />
+            <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2.5">
+              <span className="text-xs font-medium">Liffio branding / watermark</span>
+              <div className="flex shrink-0 items-center gap-2">
+                {!features.branding_control && (
+                  <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                    <Lock className="mr-1 h-3 w-3" /> Upgrade to turn off
+                  </Badge>
+                )}
+                <Switch
+                  checked={features.branding_control ? form.brandingEnabled : true}
+                  disabled={!features.branding_control}
+                  onCheckedChange={(v) => update({ brandingEnabled: v })}
+                />
+              </div>
+            </div>
           </section>
 
           {/* Follow gate + follow-ups */}

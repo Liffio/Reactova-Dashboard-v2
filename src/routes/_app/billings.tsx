@@ -191,7 +191,11 @@ function BillingPage() {
   const openInvoiceView = async (hostedInvoiceUrl: string) => {
     try {
       const blob = await fetchInvoiceViewHtml(workspaceId, hostedInvoiceUrl);
-      window.open(URL.createObjectURL(blob), "_blank", "noopener,noreferrer");
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      // Give the new tab time to load the object URL before revoking it — matches the download
+      // pattern in admin.plugins_.signing-keys.tsx.
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
       toast.error("Could not open invoice");
     }

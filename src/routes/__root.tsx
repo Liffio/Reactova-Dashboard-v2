@@ -202,7 +202,6 @@ function RootComponent() {
             auth/me resolution.
           */}
           <ImpersonationBanner />
-          <BetaBanner />
           <RouteProgress />
           <Outlet />
           <ToastProvider />

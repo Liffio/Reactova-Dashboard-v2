@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { LyraBetaNotice } from "@/components/lyra/lyra-beta-notice";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { LyraThinking } from "@/components/lyra-thinking";
 import { useLyra } from "@/hooks/use-lyra";
@@ -788,8 +789,9 @@ export function CreatorAssistant({ triggerClassName }: { triggerClassName?: stri
                 )}
               </div>
             </div>
-            <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-              Lyra can make mistakes. Double-check important replies.
+            <LyraBetaNotice className="mt-1.5 text-center" />
+            <p className="mt-1 text-center text-[11px] text-muted-foreground">
+              Double-check important replies.
             </p>
           </div>
         )}

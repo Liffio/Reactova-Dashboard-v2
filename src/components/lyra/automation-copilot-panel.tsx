@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { LyraBetaNotice } from "@/components/lyra/lyra-beta-notice";
 import { LyraThinking } from "@/components/lyra-thinking";
 import { useLyra } from "@/hooks/use-lyra";
 import { usePersistedState } from "@/hooks/use-persisted-state";
@@ -106,6 +107,7 @@ export function AutomationCopilotPanel({
             className="overflow-hidden"
           >
             <div className="border-t px-4 py-3">
+              <LyraBetaNotice className="mb-3" />
               <div ref={listRef} className="max-h-72 space-y-3 overflow-y-auto pr-1">
                 {messages.map((m, i) => (
                   <div

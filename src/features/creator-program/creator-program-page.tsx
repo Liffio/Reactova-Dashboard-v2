@@ -83,8 +83,8 @@ export function CreatorProgramPage() {
       if (outcome.outcome === "instagram_not_connected") {
         toast.warning("Connect your Instagram account before applying.");
       }
-      // Everything else — decided, or rejected_eligibility_changed — is
-      // expressed by the next /status, so close and let the frame change say it.
+      // Everything else — decided, or queued_for_review — is expressed by the
+      // next /status, so close and let the frame change say it.
       setConfirmOpen(false);
       setSubmitNotice(null);
       invalidate();

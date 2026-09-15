@@ -160,7 +160,29 @@ export interface CreatorThresholdsResponse {
 export type CreatorApplyResponse =
   | { outcome: "decided"; applicationId: string; decision: string }
   | { outcome: "blocked_by_cooldown"; reapplyAt: string }
-  | { outcome: "rejected_eligibility_changed"; applicationId: string; reason: "EligibilityChanged" }
+  /**
+   * A hard requirement failed — 0 posts against `min_posts`, a private account, a
+   * stale one. The scoring algorithm would have rejected, but the application is
+   * queued for a superadmin instead of being decided.
+   *
+   * 🔴 Replaces `rejected_eligibility_changed`, which was terminal and invisible: the
+   * row was written straight to `Rejected` with a NULL score and its own submission
+   * time as `reviewedAt`, so it appeared in no queue and nobody ever saw it. The
+   * creator was told their eligibility had "changed" when nothing had.
+   *
+   * `notEligibleReason` names the specific gate, so the page can say what to fix
+   * rather than reporting a rejection that has not been decided.
+   */
+  | {
+      outcome: "queued_for_review";
+      applicationId: string;
+      notEligibleReason:
+        | "InstagramNotConnected"
+        | "PrivateAccount"
+        | "PersonalAccount"
+        | "InsufficientContent"
+        | "InactiveAccount";
+    }
   /**
    * No creator profile for this user, which — since profile creation is 1:1 with
    * Instagram connect — means no Instagram account has ever been connected.

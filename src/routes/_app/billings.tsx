@@ -129,7 +129,8 @@ function BillingPage() {
   const { status: checkoutStatus } = Route.useSearch();
   const [interval, setInterval] = useState<"monthly" | "yearly">("monthly");
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [gatewayChoice, setGatewayChoice] = useState<string | null>(null);
+  // 🔴 `gatewayChoice` is gone with the payment-type dialog — see `handleUpgradeClick`.
+  // Razorpay is the only gateway, so there was never a second thing to choose.
   const [payingRazorpay, setPayingRazorpay] = useState(false);
   /**
    * 🔴 `pendingPurchase`, `countryPromptOpen`, `statePromptOpen` and `placeOfSupplyState` ARE GONE.
@@ -433,8 +434,6 @@ function BillingPage() {
   };
 
   const startCheckout = (planKey: string, gateway: Gateway) => {
-    setGatewayChoice(null);
-
     /**
      * ⚠️ No country guard here any more. (Billing address capture)
      *
@@ -477,13 +476,27 @@ function BillingPage() {
     )}&body=${encodeURIComponent(body)}`;
   };
 
+  /**
+   * 🔴 The payment-type step is GONE. It picked between gateways that no longer exist.
+   *
+   * It opened a dialog to choose "how you want to pay" — a holdover from Stripe-vs-Razorpay.
+   * Stripe was removed from the product in full (`plan/stripe-removal.md`), so the dialog
+   * had exactly one option and asked the buyer to confirm a choice they did not have.
+   *
+   * ⚠️ It was never a card-vs-UPI chooser, which is the thing it looked like. Razorpay's own
+   * modal picks the instrument, and it does it better — it knows which methods are actually
+   * enabled on the account. This step sat in front of that asking a question with one answer.
+   *
+   * The availability check survives, because it answers something real: a package with no
+   * published price cannot be bought, and saying so beats opening a checkout that fails.
+   */
   const handleUpgradeClick = (planKey: string) => {
     const options = gatewayOptions(planKey);
     if (!options.some((o) => o.available)) {
       toast.error("This plan is not available for online checkout yet.");
       return;
     }
-    setGatewayChoice(planKey);
+    startCheckout(planKey, "razorpay");
   };
 
   const cancelMutation = useMutation({
@@ -810,106 +823,6 @@ function BillingPage() {
           )}
         </div>
       </div>
-
-      <Dialog
-        open={gatewayChoice !== null}
-        onOpenChange={(open) => !open && setGatewayChoice(null)}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-sm font-bold uppercase tracking-widest">
-              Payment type
-            </DialogTitle>
-            {gatewayChoice && (
-              <DialogDescription>
-                {configQuery.data?.plans.find((p) => p.plan === gatewayChoice)?.displayName ??
-                  gatewayChoice}{" "}
-                plan, billed {interval}. Your plan activates immediately after payment.
-              </DialogDescription>
-            )}
-          </DialogHeader>
-          {gatewayChoice &&
-            (() => {
-              /**
-               * 🔴 Both prices are read from the PACKAGE, authored per tier.
-               *
-               * This computed INR as `usd * (config.usdToInrRate ?? 84)`. `usdToInrRate` does not
-               * exist on `/billing/config`, so the fallback always fired and every INR price was
-               * inflated 1.5–2×. **There is no FX derivation anywhere in the product (D4)** — the
-               * catalogue holds the authored figure, so it is read, not computed.
-               */
-              const pkg = packageForPlan(gatewayChoice);
-              const usdText = formatUsdCents(usdCentsForInterval(pkg, interval));
-              const inrText = formatInrPaise(inrPaiseForInterval(pkg, interval));
-              const options = gatewayOptions(gatewayChoice);
-
-              const meta: Record<
-                Gateway,
-                { icon: typeof CreditCard; title: string; sub: string; price: string | null }
-              > = {
-                razorpay: {
-                  icon: IndianRupee,
-                  title: "UPI / NetBanking / Cards",
-                  sub: "India — via Razorpay",
-                  /**
-                   * Currency-led, not INR-led. (I1 fix)
-                   *
-                   * 🚩 Was `inrText ?? usdText` — currency-BLIND. It always preferred the INR
-                   * figure when the package had one authored, regardless of who was looking at it:
-                   * a US customer on this confirm screen saw `₹4,999` and was then charged `$59` by
-                   * `startCheckout`/`proceedCheckout`, which dispatch off `displayCurrency`/the
-                   * explicit override, not off whatever text happened to render here. This is the
-                   * last screen before the gateway modal, so that mismatch was never caught before
-                   * money moved.
-                   *
-                   * `displayCurrency` picks the authored figure for the customer's actual currency
-                   * first; the other currency's text is still the fallback when the tier has no
-                   * authored figure of its own (D4 — no FX derivation anywhere in the product).
-                   */
-                  price: displayCurrency === "INR" ? (inrText ?? usdText) : (usdText ?? inrText),
-                },
-              };
-
-              return (
-                <div className="flex flex-col gap-1">
-                  {options.map((option, idx) => {
-                    const m = meta[option.value];
-                    return (
-                      <div key={option.value}>
-                        {idx > 0 && (
-                          <p className="py-2 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                            or
-                          </p>
-                        )}
-                        <button
-                          type="button"
-                          disabled={!option.available || checkoutInFlight}
-                          className="flex w-full items-center justify-between rounded-lg border-2 p-4 text-left transition-colors enabled:hover:border-primary enabled:hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
-                          onClick={() => startCheckout(gatewayChoice, option.value)}
-                        >
-                          <span className="flex items-center gap-3">
-                            <m.icon className="h-5 w-5 text-primary" />
-                            <span>
-                              <span className="block text-sm font-bold uppercase tracking-wide">
-                                {m.title}
-                              </span>
-                              <span className="block text-xs text-muted-foreground">
-                                {option.available ? m.sub : (option.reason ?? "Unavailable")}
-                              </span>
-                            </span>
-                          </span>
-                          {option.available && m.price && (
-                            <span className="text-sm font-semibold">{m.price}</span>
-                          )}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-        </DialogContent>
-      </Dialog>
 
       <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <AlertDialogContent>

@@ -19,6 +19,7 @@ import { Route as AcceptInviteRouteImport } from './routes/accept-invite'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LeadsCapturedSlugRouteImport } from './routes/leads-captured.$slug'
+import { Route as CheckoutReviewRouteImport } from './routes/checkout_.review'
 import { Route as AuthHandoffRouteImport } from './routes/auth.handoff'
 import { Route as AppShortLinksRouteImport } from './routes/_app/short-links'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
@@ -128,6 +129,11 @@ const IndexRoute = IndexRouteImport.update({
 const LeadsCapturedSlugRoute = LeadsCapturedSlugRouteImport.update({
   id: '/leads-captured/$slug',
   path: '/leads-captured/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutReviewRoute = CheckoutReviewRouteImport.update({
+  id: '/checkout_/review',
+  path: '/checkout/review',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthHandoffRoute = AuthHandoffRouteImport.update({
@@ -481,6 +487,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRoute
   '/short-links': typeof AppShortLinksRoute
   '/auth/handoff': typeof AuthHandoffRoute
+  '/checkout/review': typeof CheckoutReviewRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
   '/admin/capabilities': typeof AppAdminCapabilitiesRoute
@@ -553,6 +560,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsRoute
   '/short-links': typeof AppShortLinksRoute
   '/auth/handoff': typeof AuthHandoffRoute
+  '/checkout/review': typeof CheckoutReviewRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
   '/admin/capabilities': typeof AppAdminCapabilitiesRoute
@@ -625,6 +633,7 @@ export interface FileRoutesById {
   '/_app/settings': typeof AppSettingsRoute
   '/_app/short-links': typeof AppShortLinksRoute
   '/auth/handoff': typeof AuthHandoffRoute
+  '/checkout_/review': typeof CheckoutReviewRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/_app/admin/affiliates': typeof AppAdminAffiliatesRoute
   '/_app/admin/capabilities': typeof AppAdminCapabilitiesRoute
@@ -699,6 +708,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/short-links'
     | '/auth/handoff'
+    | '/checkout/review'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
     | '/admin/capabilities'
@@ -771,6 +781,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/short-links'
     | '/auth/handoff'
+    | '/checkout/review'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
     | '/admin/capabilities'
@@ -842,6 +853,7 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_app/short-links'
     | '/auth/handoff'
+    | '/checkout_/review'
     | '/leads-captured/$slug'
     | '/_app/admin/affiliates'
     | '/_app/admin/capabilities'
@@ -898,6 +910,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   RegisterRoute: typeof RegisterRoute
   AuthHandoffRoute: typeof AuthHandoffRoute
+  CheckoutReviewRoute: typeof CheckoutReviewRoute
   LeadsCapturedSlugRoute: typeof LeadsCapturedSlugRoute
   AuthGoogleCompleteRoute: typeof AuthGoogleCompleteRoute
   OauthMetaCompleteRoute: typeof OauthMetaCompleteRoute
@@ -973,6 +986,13 @@ declare module '@tanstack/react-router' {
       path: '/leads-captured/$slug'
       fullPath: '/leads-captured/$slug'
       preLoaderRoute: typeof LeadsCapturedSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout_/review': {
+      id: '/checkout_/review'
+      path: '/checkout/review'
+      fullPath: '/checkout/review'
+      preLoaderRoute: typeof CheckoutReviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/handoff': {
@@ -1582,6 +1602,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   RegisterRoute: RegisterRoute,
   AuthHandoffRoute: AuthHandoffRoute,
+  CheckoutReviewRoute: CheckoutReviewRoute,
   LeadsCapturedSlugRoute: LeadsCapturedSlugRoute,
   AuthGoogleCompleteRoute: AuthGoogleCompleteRoute,
   OauthMetaCompleteRoute: OauthMetaCompleteRoute,

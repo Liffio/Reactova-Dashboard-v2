@@ -179,13 +179,17 @@ export type PackageCheckoutInput = {
   packageId: string;
   interval: "monthly" | "yearly";
   /**
-   * The buyer's state, for Indian GST place of supply. (S4.4c)
+   * 🔴 `placeOfSupplyState` IS GONE FROM THIS BODY. (Billing address capture, D7)
    *
-   * Required by the server when the resolved currency is INR — it decides IGST vs CGST+SGST — and
-   * refused with `PLACE_OF_SUPPLY_REQUIRED` if absent. The currency itself is **not** sent: the
-   * server derives it from the account's country, so a client cannot ask to be charged in one.
+   * It decided IGST vs CGST+SGST and used to be sent from here, which meant the client asserted
+   * the input to its own tax treatment. The server now reads it off the stored billing profile
+   * (`PUT /billing/profile`), so checkout refuses with `BILLING_PROFILE_REQUIRED` rather than
+   * `PLACE_OF_SUPPLY_REQUIRED` when it is missing — and the fix is to send the buyer to
+   * `/checkout/review`, not to add a field back here.
+   *
+   * Currency is still not sent either, for the same reason it never was: the server derives it
+   * from the account country, so a client cannot ask to be charged in one.
    */
-  placeOfSupplyState?: string;
 };
 
 /**
@@ -250,4 +254,104 @@ export function cancelBillingSubscription(workspaceId: string) {
     method: "POST",
     workspaceId,
   });
+}
+
+/**
+ * The workspace's billing address.
+ *
+ * Captured on `/checkout/review` before any payment can start, and snapshotted onto every
+ * invoice at issue time — so this is the live record, not the document. Editing it later never
+ * alters an invoice already issued.
+ */
+export type BillingProfile = {
+  id: string;
+  workspaceId: string;
+  country: string;
+  state: string;
+  gstStateCode: string | null;
+  postalCode: string;
+  /** Optional free text, one block — not parsed into line1 / line2 / city. */
+  address: string | null;
+};
+
+/** A previous profile from another workspace the same user owns, offered to save retyping. */
+export type BillingProfilePrefill = Omit<BillingProfile, "id" | "workspaceId">;
+
+export type BillingProfileResponse = {
+  profile: BillingProfile | null;
+  /** Populated only when `profile` is null — it can never overwrite a saved address. */
+  prefill: BillingProfilePrefill | null;
+};
+
+export function getBillingProfile(workspaceId: string) {
+  return apiRequest<BillingProfileResponse>(apiUri.billing.profile, { workspaceId });
+}
+
+export type BillingProfileInput = Omit<BillingProfile, "id" | "workspaceId">;
+
+/**
+ * Upsert the address.
+ *
+ * Also writes back `users.country` when it changed, in the same transaction — the two must never
+ * disagree, because currency is resolved from the account country while the tax treatment is
+ * derived from this address.
+ *
+ * On a validation failure the server returns `{ code: "BILLING_PROFILE_INVALID", fieldErrors }`;
+ * on a country change blocked by a live subscription, `{ code: "COUNTRY_LOCKED" }`.
+ */
+export function saveBillingProfile(workspaceId: string, body: BillingProfileInput) {
+  return apiRequest<{ profile: BillingProfile }>(apiUri.billing.profile, {
+    method: "PUT",
+    workspaceId,
+    body,
+  });
+}
+
+/**
+ * One line of the first-payment breakdown — a discount that was applied, and what it took off.
+ */
+export type FirstPaymentLine = {
+  kind: "intro" | "referral";
+  label: string;
+  /** Always positive, in minor units (paise for INR, cents for USD). */
+  deductionMinor: number;
+};
+
+/**
+ * What a customer pays today for a package, versus what it renews at.
+ *
+ * 🚩 Server-resolved, always. Eligibility depends on payment history and account age, and the
+ * amount depends on offer rules the client has no business knowing — and `createPackageCheckout`
+ * calls the same resolver, so what is displayed here and what Razorpay charges cannot drift.
+ */
+export type FirstPaymentQuote = {
+  packageId: string;
+  packageName: string;
+  interval: "monthly" | "yearly";
+  currency: "INR" | "USD";
+  /** What every payment AFTER the first one costs. */
+  listAmountMinor: number;
+  /** What is due today. */
+  amountMinor: number;
+  lines: FirstPaymentLine[];
+  introApplied: boolean;
+  referralApplied: boolean;
+  differsFromList: boolean;
+  /**
+   * How much time the first payment buys.
+   *
+   * `"month"` means one month regardless of the plan's interval — the ₹49 intro, which on a
+   * yearly plan buys a month and then charges the full year. `"interval"` means one full billing
+   * cycle at a reduced price. The summary copy has to say which, or a yearly buyer reads "₹49"
+   * and reasonably concludes they have bought a year.
+   */
+  firstPeriod: "month" | "interval";
+};
+
+export function getFirstPaymentQuote(
+  workspaceId: string,
+  params: { packageId: string; interval: "monthly" | "yearly" },
+) {
+  const query = new URLSearchParams(params).toString();
+  return apiRequest<FirstPaymentQuote>(`${apiUri.billing.quote}?${query}`, { workspaceId });
 }

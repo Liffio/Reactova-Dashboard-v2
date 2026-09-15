@@ -229,6 +229,10 @@ export const apiUri = {
   billing: {
     config: `${V1}/billing/config`,
     subscription: `${V1}/billing/subscription`,
+    /** The workspace's billing address — required before any checkout can start. */
+    profile: `${V1}/billing/profile`,
+    /** What this customer pays TODAY, after first-payment offers. Never computed client-side. */
+    quote: `${V1}/billing/quote`,
     invoices: `${V1}/billing/invoices`,
     invoicesAll: `${V1}/billing/invoices/all`,
     checkout: `${V1}/billing/checkout`,

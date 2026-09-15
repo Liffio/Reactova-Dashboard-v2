@@ -8,21 +8,22 @@ import { Logo } from "@/components/logo";
 import { VerifiedRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  createPackageCheckout,
-  getBillingConfig,
-  getSellablePackages,
-  verifyRazorpayCheckout,
-} from "@/lib/api/billing-api";
-import {
-  openRazorpaySubscriptionCheckout,
-  RazorpayCheckoutCancelled,
-} from "@/lib/razorpay-checkout";
+import { getBillingConfig, getSellablePackages } from "@/lib/api/billing-api";
 import { cardPriceText, packageGatewayAvailability } from "@/lib/billing/pricing";
 import { useAuthState } from "@/lib/auth/auth-store";
-import { useApp } from "@/state/app-context";
-import { CountryPrompt } from "@/components/billing/country-prompt";
-import { PlaceOfSupplyPrompt } from "@/components/billing/place-of-supply-prompt";
+
+/**
+ * 🔴 `CountryPrompt` and `PlaceOfSupplyPrompt` WERE IMPORTED HERE, AND BOTH COMPONENTS ARE
+ * DELETED. (Billing address capture —
+ * `docs/superpowers/specs/2026-09-15-billing-address-capture-design.md`)
+ *
+ * They collected a country and a GST state in two dialogs that interrupted an in-flight checkout.
+ * Both are now fields on `/checkout/review`, which gates the purchase instead of interrupting it.
+ *
+ * Everything this page did AFTER collecting them — `createPackageCheckout`,
+ * `openRazorpaySubscriptionCheckout`, `verifyRazorpayCheckout` — moved there too, which is why
+ * those imports are gone as well. This page's job is now choosing a plan and an interval.
+ */
 
 /*
  * Quarterly is DELETED from this page. (Task 6)
@@ -74,8 +75,6 @@ function PostRegistrationCheckout() {
   // Resolved below from the server's ladder — never defaulted here. (S5.1)
   const requestedPlan = search.plan?.toUpperCase();
   const workspaceId = useAuthState((s) => s.workspaceId) ?? "";
-  const userEmail = useAuthState((s) => s.user?.email);
-  const { refreshAuth } = useApp();
   /**
    * 🔴 The customer's own currency, resolved by the SERVER — same seam `/billings` reads. (Task 6)
    *
@@ -87,11 +86,6 @@ function PostRegistrationCheckout() {
 
   const [interval, setInterval] = useState<Interval>("monthly");
   const [gateway, setGateway] = useState<Gateway>("razorpay");
-  const [paying, setPaying] = useState(false);
-  const [countryPromptOpen, setCountryPromptOpen] = useState(false);
-  const [statePromptOpen, setStatePromptOpen] = useState(false);
-  /** The buyer's GST state code, captured just-in-time for an INR purchase — per-purchase, not persisted. */
-  const [placeOfSupplyState, setPlaceOfSupplyState] = useState<string | null>(null);
 
   const configQuery = useQuery({ queryKey: ["billing-config"], queryFn: getBillingConfig });
   /**
@@ -178,130 +172,36 @@ function PostRegistrationCheckout() {
       : (planConfig?.pricing.monthlyUsd ?? null);
   const price = cardPriceText({ displayCurrency, pkg, planUsd: priceUsd, interval });
 
-  const checkoutInFlight = paying;
   /**
-   * Synchronous dispatch guard, alongside `checkoutInFlight`. (Task 6 — mirrors `/billings`)
+   * 🔴 `proceedCheckout`, `dispatchingRef` and `checkoutInFlight` WERE HERE, AND ARE GONE.
+   * (Billing address capture)
    *
-   * `checkoutInFlight` only becomes `true` for the render AFTER a dispatch starts — one React tick
-   * behind an independently-resolving async chain such as a `CountryPrompt`/`PlaceOfSupplyPrompt`
-   * resume racing in from its own `await`. This ref closes that gap: set synchronously at the one
-   * dispatch point in `proceedCheckout`, checked at its top, cleared in every outcome. Without it a
-   * double-dispatch here creates TWO live Razorpay subscriptions for one workspace.
-   */
-  const dispatchingRef = useRef(false);
-
-  // If the preferred gateway is unavailable, fall to the first enabled. (Kept even though there is
-  // only ever one member in `gateways` today, in case a second gateway is ever added.)
-  useEffect(() => {
-    if (enabledGateways.length && !enabledGateways.some((g) => g.value === gateway)) {
-      setGateway(enabledGateways[0].value);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabledGateways.map((g) => g.value).join(","), gateway]);
-
-  /**
-   * The actual checkout dispatch, once a currency is already known to exist.
+   * All three existed to survive a dialog resuming a checkout that had already started:
+   * `dispatchingRef` was a synchronous guard because `checkoutInFlight` lagged a render behind an
+   * independently-resolving resume, and `proceedCheckout`'s `overrides` parameter existed because
+   * `setPlaceOfSupplyState` had not flushed when the resume callback read it.
    *
-   * Split out of `startCheckout` so the country/state-prompt resume paths (`onCaptured` below) can
-   * call straight into it, bypassing `startCheckout`'s guard entirely — see that function's comment
-   * for why re-entering the guard would reopen the very dialog that just closed.
-   *
-   * `overrides` exists for the same reason, one level down: once a currency or GST state has just
-   * been captured, the resuming caller passes it in explicitly rather than letting this function
-   * read `displayCurrency` / `placeOfSupplyState` off its own closure — neither has necessarily
-   * flushed to this render by the time the resume callback runs.
-   *
-   * 🚩 **Deliberately no `planKey` / `gateway` parameter**, unlike `/billings`' `proceedCheckout`.
-   * That page iterates a GRID of plan cards, so it needs the caller to say which one was clicked.
-   * This page has exactly one purchasable target per page load — `pkg` — already stable component
-   * state, not per-row data that could go stale across the async gap. There is nothing here that
-   * needs to be "remembered" the way `/billings`' `pendingPurchase` remembers it.
-   */
-  const proceedCheckout = async (overrides?: {
-    currency?: "USD" | "INR";
-    stateOverride?: string;
-  }) => {
-    // Never let a second dispatch through while one is already in flight — see `dispatchingRef`'s
-    // own comment above for why both checks are needed.
-    if (checkoutInFlight || dispatchingRef.current) {
-      toast.info("A checkout is already in progress — please wait.");
-      return;
-    }
-    if (!pkg || !workspaceId) return;
-
-    /**
-     * An INR sale needs a GST state before checkout, never after. (Mirrors `/billings`.)
-     *
-     * `createPackageCheckout` throws `PLACE_OF_SUPPLY_REQUIRED` for INR without one. USD is
-     * deliberately not gated — there is no place-of-supply concept on an export.
-     */
-    const currency = overrides?.currency ?? displayCurrency;
-    const state = overrides?.stateOverride ?? placeOfSupplyState;
-
-    if (currency === "INR" && !state) {
-      setStatePromptOpen(true);
-      return;
-    }
-
-    const keyId = config?.providers.razorpay.keyId;
-    if (!keyId) {
-      toast.error("Razorpay is not configured");
-      return;
-    }
-
-    dispatchingRef.current = true;
-    localStorage.setItem("liffio_post_checkout", "/onboarding");
-    setPaying(true);
-    try {
-      const result = await createPackageCheckout(workspaceId, {
-        packageId: pkg.id,
-        interval,
-        ...(state ? { placeOfSupplyState: state } : {}),
-      });
-
-      if (result.provider !== "razorpay" || !result.subscriptionId) {
-        throw new Error("Razorpay checkout could not be started");
-      }
-
-      const payload = await openRazorpaySubscriptionCheckout({
-        keyId,
-        subscriptionId: result.subscriptionId,
-        email: userEmail ?? undefined,
-        description: `${planConfig?.displayName ?? plan} plan — billed ${interval}`,
-      });
-
-      await verifyRazorpayCheckout(workspaceId, payload);
-      toast.success("Payment successful — your plan is active");
-      void navigate({ to: "/onboarding", replace: true });
-    } catch (err) {
-      if (err instanceof RazorpayCheckoutCancelled) {
-        toast.info("Payment cancelled — you can retry any time");
-      } else {
-        toast.error(err instanceof Error ? err.message : "Checkout failed");
-      }
-    } finally {
-      setPaying(false);
-      dispatchingRef.current = false;
-    }
-  };
-
-  /**
-   * The guard: country first, because checkout refuses without it. (Mirrors `/billings`.)
-   *
-   * `displayCurrency` is resolved SERVER-SIDE and is null exactly when the server could not resolve
-   * a country — the same condition `createPackageCheckout` throws `CHECKOUT_COUNTRY_REQUIRED` on.
+   * None of that is reachable now. Nothing is in flight while the buyer fills in
+   * `/checkout/review`, so there is exactly one dispatch, made from that page, reading current
+   * state. The race this machinery guarded — two live Razorpay subscriptions for one workspace —
+   * is prevented by there being one dispatch point rather than by detecting the second one.
    */
   const startCheckout = () => {
-    if (!displayCurrency) {
-      setCountryPromptOpen(true);
+    if (!pkg) {
+      toast.error("This plan is not available for checkout yet.");
       return;
     }
-    void proceedCheckout();
+    void navigate({
+      to: "/checkout/review",
+      search: { packageId: pkg.id, interval, from: "checkout" },
+    });
   };
 
   const highlights = planConfig?.highlights ?? [];
   const planLabel = planConfig?.displayName ?? plan;
-  const busy = checkoutInFlight;
+  // Nothing async happens on this page any more — the click navigates. "Busy" now means the
+  // catalogue has not arrived yet, not that a payment is pending.
+  const busy = packagesQuery.isLoading;
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-background p-4">
@@ -396,7 +296,7 @@ function PostRegistrationCheckout() {
               onClick={startCheckout}
               disabled={busy || !workspaceId || configQuery.isLoading || !enabledGateways.length}
             >
-              {busy ? "Waiting for payment…" : `Upgrade to ${planLabel}`}
+              {busy ? "Loading…" : `Upgrade to ${planLabel}`}
               <ArrowRight className="h-4 w-4" />
             </Button>
 
@@ -416,33 +316,6 @@ function PostRegistrationCheckout() {
           </p>
         )}
       </div>
-
-      <CountryPrompt
-        open={countryPromptOpen}
-        onOpenChange={setCountryPromptOpen}
-        onCaptured={async (currency) => {
-          // `refreshAuth` invalidates the `auth-me` query so `displayCurrency` is populated from
-          // the server for every other reader of it on this page (the price, the gateway rows).
-          // Awaited so a checkout dispatched right after does not race the display update — see
-          // `/billings`' identical comment for why this cannot resurrect the frozen-closure bug:
-          // `proceedCheckout` receives `currency` as an explicit override below and never reads
-          // `displayCurrency` off this closure.
-          await refreshAuth();
-          await proceedCheckout({ currency });
-        }}
-      />
-
-      <PlaceOfSupplyPrompt
-        open={statePromptOpen}
-        onOpenChange={setStatePromptOpen}
-        onCaptured={(stateCode) => {
-          setPlaceOfSupplyState(stateCode);
-          // Same closure hazard as the country resume above: `setPlaceOfSupplyState` has not
-          // flushed yet, so the just-captured state is passed through explicitly instead of being
-          // re-read off this render's (still stale) `placeOfSupplyState`.
-          void proceedCheckout({ currency: "INR", stateOverride: stateCode });
-        }}
-      />
     </div>
   );
 }

@@ -85,7 +85,7 @@ export function packageGatewayAvailability(input: {
  */
 export function inrPaiseForInterval(
   pkg: SellablePackage | undefined,
-  interval: PaidInterval
+  interval: PaidInterval,
 ): number | null {
   if (!pkg) return null;
   const paise = interval === "yearly" ? pkg.yearlyPriceInrPaise : pkg.monthlyPriceInrPaise;
@@ -95,7 +95,7 @@ export function inrPaiseForInterval(
 /** The authored USD price for an interval, in cents. Same contract as the INR side. */
 export function usdCentsForInterval(
   pkg: SellablePackage | undefined,
-  interval: PaidInterval
+  interval: PaidInterval,
 ): number | null {
   if (!pkg) return null;
   const cents = interval === "yearly" ? pkg.yearlyPriceUsdCents : pkg.monthlyPriceUsdCents;
@@ -118,6 +118,35 @@ export function formatInrPaise(paise: number | null): string | null {
 export function formatUsdCents(cents: number | null): string | null {
   if (cents == null) return null;
   return `$${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(cents / 100)}`;
+}
+
+/**
+ * Minor units → a display string that **keeps the decimals when there are any**.
+ *
+ * 🔴 The catalogue formatters above drop decimals deliberately — every authored price is a whole
+ * rupee or dollar, and `₹499.00` is noise. First-payment offers break that assumption: 10% of ₹49
+ * is **₹44.10**, and rendering it through `formatInrPaise` would print `₹44` next to a card that
+ * is about to be charged ₹44.10. A price shown one way and charged another is not a rounding
+ * nit — it is the wrong number on the screen where the customer decides.
+ *
+ * So: two fraction digits when the amount is not a whole unit, zero when it is. `₹499` stays
+ * `₹499`; `₹44.10` stays `₹44.10`.
+ */
+export function formatMinor(amountMinor: number, currency: "INR" | "USD"): string {
+  const major = amountMinor / 100;
+  const hasFraction = amountMinor % 100 !== 0;
+  const digits = hasFraction ? 2 : 0;
+
+  if (currency === "INR") {
+    return `₹${new Intl.NumberFormat("en-IN", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(major)}`;
+  }
+  return `$${new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(major)}`;
 }
 
 /** What the customer browses in. `null` = the server could not resolve their country. */

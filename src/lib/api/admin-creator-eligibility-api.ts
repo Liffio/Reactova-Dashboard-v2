@@ -94,12 +94,164 @@ export function getAdminCreatorApplication(id: string) {
   return apiRequest<AdminApplicationDetail>(apiUri.admin.creator.application(id));
 }
 
-export function approveAdminCreatorApplication(id: string) {
-  return apiRequest<{ ok: boolean }>(apiUri.admin.creator.approve(id), { method: "POST" });
+/* -------------------------------------------------------------------------
+ * Admin decision surface — ENDPOINT-CONTRACT.md §8
+ * ---------------------------------------------------------------------- */
+
+export type ApprovalMode = "permanent" | "regular";
+
+/**
+ * Per-creator thresholds are tri-state and the distinction matters:
+ *   number    -> set this creator's own threshold
+ *   null      -> reset to the program default
+ *   undefined -> leave whatever is there untouched
+ * Only sent for `mode: "regular"` — the API rejects them on a permanent approval.
+ */
+export type PerCreatorThresholds = {
+  minMonthlyDms?: number | null;
+  minActiveAutomations?: number | null;
+};
+
+export type ApproveApplicationBody = PerCreatorThresholds & {
+  mode: ApprovalMode;
+  /** Mandatory, non-empty. */
+  reason: string;
+  /** Approve over the active-creator cap. Without it, an approval at cap is waitlisted. */
+  force?: boolean;
+};
+
+export type ApproveApplicationResult = {
+  ok: boolean;
+  outcome: "approved" | "waitlisted";
+  applicationId: string;
+  profileId: string;
+  previousApplicationState: CreatorApplicationState;
+  applicationState: CreatorApplicationState;
+  previousProfileState: CreatorProfileState;
+  profileState: CreatorProfileState;
+  mode: ApprovalMode;
+  adminOverride: boolean;
+  thresholds: { minMonthlyDms: number | null; minActiveAutomations: number | null };
+  capacity: { activeCreatorCount: number; maxActiveCreators: number; forced: boolean };
+};
+
+/** Accepts an application in ANY state, including one the engine already rejected. */
+export function approveAdminCreatorApplication(id: string, body: ApproveApplicationBody) {
+  return apiRequest<ApproveApplicationResult>(apiUri.admin.creator.approve(id), {
+    method: "POST",
+    body,
+  });
 }
 
-export function rejectAdminCreatorApplication(id: string) {
-  return apiRequest<{ ok: boolean }>(apiUri.admin.creator.reject(id), { method: "POST" });
+export type RejectApplicationResult = {
+  ok: boolean;
+  applicationId: string;
+  profileId: string;
+  previousApplicationState: CreatorApplicationState;
+  applicationState: CreatorApplicationState;
+  previousProfileState: CreatorProfileState;
+  profileState: CreatorProfileState;
+};
+
+export function rejectAdminCreatorApplication(id: string, body: { reason: string }) {
+  return apiRequest<RejectApplicationResult>(apiUri.admin.creator.reject(id), {
+    method: "POST",
+    body,
+  });
+}
+
+/** `pass: null` means the value is genuinely unknown — never render it as a failure. */
+export type CriterionRow = {
+  key: string;
+  label: string;
+  currentValue: number | null;
+  displayValue?: string | null;
+  threshold: number | null;
+  programDefault: number | null;
+  source: "program_default" | "per_creator_override";
+  comparator?: "lte";
+  pass: boolean | null;
+  scoreContribution: number | null;
+};
+
+export type CreatorDecisionContext = {
+  profileId: string;
+  state: CreatorProfileState;
+  override: {
+    adminOverride: boolean;
+    overriddenAt: string | null;
+    overriddenBy: string | null;
+    reason: string | null;
+    timeBoxedUntil: string | null;
+  };
+  autoDecision: {
+    pass: boolean;
+    reason: string | null;
+    score: number | null;
+    breakdown: {
+      accountQuality: number;
+      audience: number;
+      engagement: number;
+      consistency: number;
+      normalized: boolean;
+      droppedBuckets?: string[];
+    } | null;
+    autoApproveThreshold: number;
+    manualReviewThreshold: number;
+    wouldBe: "auto_approve" | "manual_review" | "auto_reject" | "hard_fail";
+  };
+  eligibilityCriteria: CriterionRow[];
+  usageCriteria: CriterionRow[];
+  capacity: { activeCreatorCount: number; maxActiveCreators: number; atCapacity: boolean };
+  gracePeriod: { days: number; activatedAt: string | null; active: boolean };
+  reachableStates: CreatorProfileState[];
+};
+
+/** Live criteria breakdown — what is true NOW, not the decision-time snapshot. */
+export function getAdminCreatorDecisionContext(profileId: string) {
+  return apiRequest<CreatorDecisionContext>(apiUri.admin.creator.decisionContext(profileId));
+}
+
+export function setAdminCreatorStatus(
+  profileId: string,
+  body: { targetState: CreatorProfileState; reason: string; force?: boolean },
+) {
+  return apiRequest<{
+    ok: boolean;
+    profileId: string;
+    previousState: CreatorProfileState;
+    state: CreatorProfileState;
+    reachableStates: CreatorProfileState[];
+  }>(apiUri.admin.creator.status(profileId), { method: "POST", body });
+}
+
+/**
+ * Clears the PERMANENT admin override (§8.3). Distinct from
+ * `clearAdminCreatorOverride` above, which clears the time-boxed Health Engine
+ * pause (§4.8) and is Super-Admin-only.
+ */
+export function clearAdminCreatorPermanentOverride(profileId: string, body: { reason: string }) {
+  return apiRequest<{
+    ok: boolean;
+    profileId: string;
+    state: CreatorProfileState;
+    conditions: string[];
+  }>(apiUri.admin.creator.adminOverride(profileId), { method: "DELETE", body });
+}
+
+export function convertAdminCreatorApprovalMode(
+  profileId: string,
+  body: PerCreatorThresholds & { mode: ApprovalMode; reason: string },
+) {
+  return apiRequest<{
+    ok: boolean;
+    profileId: string;
+    mode: ApprovalMode;
+    adminOverride: boolean;
+    previousState: CreatorProfileState;
+    state: CreatorProfileState;
+    conditions: string[];
+  }>(apiUri.admin.creator.approvalMode(profileId), { method: "POST", body });
 }
 
 export type AdminCreatorOverview = {
@@ -161,6 +313,20 @@ export type AdminCreatorDetail = {
   secondaryReasons: string[];
   metrics: CreatorMetricsSnapshot;
   override: { active: boolean; until: string | null; reason: string | null; by: string | null };
+  // ENDPOINT-CONTRACT.md §8.7 — the permanent admin override, separate from the
+  // time-boxed `override` above.
+  adminOverride: {
+    active: boolean;
+    at: string | null;
+    by: string | null;
+    byEmail: string | null;
+    byName: string | null;
+    reason: string | null;
+  };
+  approvalMode: ApprovalMode | null;
+  perCreatorThresholds: { minMonthlyDms: number | null; minActiveAutomations: number | null };
+  activatedAt: string | null;
+  reachableStates: CreatorProfileState[];
   // Phase 6 additive fields — ENDPOINT-CONTRACT.md §6.2 (same endpoint as §4.6, always present now).
   removed: { removedAt: string | null; removedReason: string | null; removedBy: string | null };
   progress: CreatorProgress;
@@ -311,16 +477,31 @@ export type BulkCreatorAction =
   | "pause"
   | "reactivate"
   | "force-health-check"
-  | "force-metrics-sync";
+  | "force-metrics-sync"
+  /* Decision actions — ENDPOINT-CONTRACT.md §8.5. These require a reason. */
+  | "approve-regular"
+  | "approve-permanent"
+  | "clear-override";
+
+/** The bulk actions the API rejects without a `reason`. */
+export const BULK_DECISION_ACTIONS: BulkCreatorAction[] = [
+  "approve-regular",
+  "approve-permanent",
+  "clear-override",
+];
 
 export type BulkCreatorActionResult = {
   results: Array<{ profileId: string; ok: boolean; error?: string }>;
 };
 
-export function bulkAdminCreatorAction(action: BulkCreatorAction, profileIds: string[]) {
+export function bulkAdminCreatorAction(
+  action: BulkCreatorAction,
+  profileIds: string[],
+  reason?: string,
+) {
   return apiRequest<BulkCreatorActionResult>(apiUri.admin.creator.bulk(action), {
     method: "POST",
-    body: { profileIds },
+    body: reason ? { profileIds, reason } : { profileIds },
   });
 }
 

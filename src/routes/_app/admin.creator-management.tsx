@@ -3,7 +3,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  Check,
   CheckCircle2,
+  ShieldOff,
   Database,
   Download,
   ExternalLink,
@@ -25,6 +27,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -44,6 +48,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  BULK_DECISION_ACTIONS,
   bulkAdminCreatorAction,
   exportAdminCreators,
   getAdminCreatorAnalytics,
@@ -54,6 +59,7 @@ import {
   type BulkCreatorAction,
 } from "@/lib/api/admin-creator-eligibility-api";
 import { stateStyles } from "@/components/admin/creator-detail-shared";
+import { CreatorRowDecisionActions } from "@/components/admin/creator-row-actions";
 
 export const Route = createFileRoute("/_app/admin/creator-management")({
   validateSearch: (search: Record<string, unknown>): { search?: string; state?: string } => ({
@@ -178,6 +184,8 @@ function CreatorTable() {
   const [searchInput, setSearchInput] = useState(search.search ?? "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmAction, setConfirmAction] = useState<BulkCreatorAction | null>(null);
+  // The decision bulk actions require a reason; the API 400s without one.
+  const [bulkReason, setBulkReason] = useState("");
   const [enumerating, setEnumerating] = useState(false);
 
   // Debounce free-text search into the URL (shareable/bookmarkable per spec 6.3).
@@ -218,7 +226,12 @@ function CreatorTable() {
   };
 
   const bulkMutation = useMutation({
-    mutationFn: (action: BulkCreatorAction) => bulkAdminCreatorAction(action, Array.from(selected)),
+    mutationFn: (action: BulkCreatorAction) =>
+      bulkAdminCreatorAction(
+        action,
+        Array.from(selected),
+        BULK_DECISION_ACTIONS.includes(action) ? bulkReason.trim() : undefined,
+      ),
     onSuccess: (res, action) => {
       const results = Array.isArray(res?.results) ? res.results : [];
       const okCount = results.filter((r) => r.ok).length;
@@ -236,6 +249,7 @@ function CreatorTable() {
       }
       setSelected(new Set());
       setConfirmAction(null);
+      setBulkReason("");
       invalidateAll();
     },
     onError: (e) => {
@@ -398,6 +412,30 @@ function CreatorTable() {
             </Button>
             <Button
               size="sm"
+              variant="outline"
+              className="h-7 gap-1.5 text-xs"
+              onClick={() => setConfirmAction("approve-regular")}
+            >
+              <Check className="h-3.5 w-3.5" /> Bulk approve (regular)
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1.5 text-xs"
+              onClick={() => setConfirmAction("approve-permanent")}
+            >
+              <Check className="h-3.5 w-3.5" /> Bulk approve (permanent)
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1.5 text-xs"
+              onClick={() => setConfirmAction("clear-override")}
+            >
+              <ShieldOff className="h-3.5 w-3.5" /> Bulk clear override
+            </Button>
+            <Button
+              size="sm"
               variant="ghost"
               className="h-7 text-xs"
               onClick={() => setSelected(new Set())}
@@ -420,6 +458,7 @@ function CreatorTable() {
                 <th className="px-4 py-3 font-medium">State</th>
                 <th className="px-4 py-3 font-medium hidden sm:table-cell">State since</th>
                 <th className="px-4 py-3 font-medium hidden lg:table-cell">Profile created</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
                 <th className="px-4 py-3 font-medium text-right">Details</th>
               </tr>
             </thead>
@@ -447,6 +486,9 @@ function CreatorTable() {
                   <td className="px-4 py-3 hidden lg:table-cell text-xs text-muted-foreground">
                     {new Date(r.createdAt).toLocaleDateString()}
                   </td>
+                  <td className="px-4 py-3">
+                    <CreatorRowDecisionActions profileId={r.id} onDone={invalidateAll} />
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" asChild>
                       <Link to="/admin/creator-management/$profileId" params={{ profileId: r.id }}>
@@ -458,7 +500,7 @@ function CreatorTable() {
               ))}
               {rows.length === 0 && !listQuery.isLoading && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={7} className="px-6 py-10 text-center text-sm text-muted-foreground">
                     No creators match the current filters.
                   </td>
                 </tr>
@@ -503,12 +545,46 @@ function CreatorTable() {
             <AlertDialogDescription>
               This runs individually per creator — one failure won't block the rest of the batch.
               You'll see a summary of successes and failures when it's done.
+              {confirmAction === "approve-permanent" && (
+                <span className="mt-2 block font-medium text-warning">
+                  These creators will no longer be evaluated against the criteria.
+                </span>
+              )}
+              {confirmAction === "approve-regular" && (
+                <span className="mt-2 block">
+                  Approves each creator's most recent application against the program defaults. Set
+                  per-creator thresholds from the creator's detail page instead.
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {confirmAction && BULK_DECISION_ACTIONS.includes(confirmAction) && (
+            <div className="space-y-2">
+              <Label>
+                Reason <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                rows={3}
+                placeholder="Batch-approved after the September creator review"
+                value={bulkReason}
+                onChange={(e) => setBulkReason(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Required. Written to the audit log against every creator in this batch.
+              </p>
+            </div>
+          )}
+
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setBulkReason("")}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              disabled={bulkMutation.isPending}
+              disabled={
+                bulkMutation.isPending ||
+                (confirmAction !== null &&
+                  BULK_DECISION_ACTIONS.includes(confirmAction) &&
+                  bulkReason.trim().length === 0)
+              }
               onClick={(e) => {
                 e.preventDefault();
                 if (confirmAction) bulkMutation.mutate(confirmAction);
@@ -533,6 +609,12 @@ function actionLabel(action: BulkCreatorAction): string {
       return "Force health check on";
     case "force-metrics-sync":
       return "Force metrics sync on";
+    case "approve-regular":
+      return "Approve (regular)";
+    case "approve-permanent":
+      return "Approve (permanent)";
+    case "clear-override":
+      return "Clear override on";
   }
 }
 

@@ -56,7 +56,7 @@ import {
 import { useAuthState } from "@/lib/auth/auth-store";
 import {
   addAdminCreatorNote,
-  approveAdminCreatorApplication,
+  getAdminCreatorDecisionContext,
   changeAdminCreatorPlan,
   forceEligibilityCheckAdminCreator,
   forceHealthCheckAdminCreator,
@@ -64,13 +64,18 @@ import {
   getAdminCreatorDetail,
   pauseAdminCreator,
   reactivateAdminCreator,
-  rejectAdminCreatorApplication,
   removeAdminCreator,
   type AdminCreatorDetail,
   type CreatorPlanTier,
+  type CreatorDecisionContext,
 } from "@/lib/api/admin-creator-eligibility-api";
 import { reasonLabel } from "@/lib/creator-eligibility-copy";
 import { MetricsPanel, OverridePanel, stateStyles } from "@/components/admin/creator-detail-shared";
+import {
+  AdminOverridePanel,
+  CreatorDecisionActions,
+  CriteriaBreakdownPanel,
+} from "@/components/admin/creator-decision-actions";
 
 export const Route = createFileRoute("/_app/admin/creator-management/$profileId")({
   head: () => ({ meta: [{ title: "Creator detail — Management" }] }),
@@ -104,8 +109,51 @@ function AdminCreatorManagementDetailPage() {
       queryKey: ["admin-creator-management-detail", profileId],
     });
 
+  /**
+   * Live criteria breakdown — what is true NOW. Separate query from the detail
+   * so a slow/failed context fetch degrades the panel rather than the page.
+   */
+  const contextQuery = useQuery({
+    queryKey: ["admin-creator-decision-context", profileId],
+    queryFn: () => getAdminCreatorDecisionContext(profileId),
+    retry: false,
+  });
+
   const detail = detailQuery.data;
+  const context = contextQuery.data;
+
+  /**
+   * The application an admin decision targets. A PendingReview one is the
+   * obvious case, but the whole point of this surface is that an already-decided
+   * application can be reversed — so fall back to the most recent one. The list
+   * arrives newest-first from the API.
+   */
   const pendingApplication = detail?.applications.find((a) => a.state === "PendingReview");
+  const targetApplication = pendingApplication ?? detail?.applications[0];
+
+  /** The latest engine-blocked-by-override entry, for the divergence warning. */
+  const divergence = (() => {
+    const entry = detail?.timeline.find(
+      (t) =>
+        t.type === "event" &&
+        (t.data as { eventType?: string })?.eventType === "HealthStatusChangeBlockedByOverride",
+    );
+    if (!entry) return null;
+    const payload = ((entry.data as { payload?: Record<string, unknown> })?.payload ?? {}) as {
+      wouldBeState?: string;
+      conditions?: string[];
+    };
+    return {
+      at: entry.at,
+      wouldBeState: payload.wouldBeState ?? "another state",
+      conditions: Array.isArray(payload.conditions) ? payload.conditions : [],
+    };
+  })();
+
+  const invalidateAll = () => {
+    invalidate();
+    void queryClient.invalidateQueries({ queryKey: ["admin-creator-decision-context", profileId] });
+  };
 
   return (
     <div>
@@ -151,9 +199,32 @@ function AdminCreatorManagementDetailPage() {
             <ActionsBar
               detail={detail}
               pendingApplicationId={pendingApplication?.id}
+              targetApplicationId={targetApplication?.id}
+              context={context}
               isSuperAdmin={isSuperAdmin}
-              onChanged={invalidate}
+              onChanged={invalidateAll}
             />
+
+            <AdminOverridePanel
+              profileId={profileId}
+              override={detail.adminOverride}
+              approvalMode={detail.approvalMode}
+              divergence={divergence}
+              onDone={invalidateAll}
+            />
+
+            {context ? (
+              <CriteriaBreakdownPanel context={context} />
+            ) : contextQuery.isLoading ? (
+              <Skeleton className="h-64 w-full rounded-2xl" />
+            ) : (
+              <div className="rounded-2xl border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                The criteria breakdown isn't available right now
+                {(contextQuery.error as Error)?.message
+                  ? ` — ${(contextQuery.error as Error).message}`
+                  : "."}
+              </div>
+            )}
 
             <StatusAndProgress detail={detail} />
             <MetricsPanel detail={detail} />
@@ -177,11 +248,15 @@ function AdminCreatorManagementDetailPage() {
 function ActionsBar({
   detail,
   pendingApplicationId,
+  targetApplicationId,
+  context,
   isSuperAdmin,
   onChanged,
 }: {
   detail: AdminCreatorDetail;
   pendingApplicationId: string | undefined;
+  targetApplicationId: string | undefined;
+  context: CreatorDecisionContext | undefined;
   isSuperAdmin: boolean;
   onChanged: () => void;
 }) {
@@ -189,22 +264,6 @@ function ActionsBar({
   const [removeOpen, setRemoveOpen] = useState(false);
   const [plan, setPlan] = useState<CreatorPlanTier | "">("");
 
-  const approveMutation = useMutation({
-    mutationFn: () => approveAdminCreatorApplication(pendingApplicationId!),
-    onSuccess: () => {
-      toast.success("Application approved");
-      onChanged();
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
-  const rejectMutation = useMutation({
-    mutationFn: () => rejectAdminCreatorApplication(pendingApplicationId!),
-    onSuccess: () => {
-      toast.success("Application rejected");
-      onChanged();
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
   const pauseMutation = useMutation({
     mutationFn: () => pauseAdminCreator(detail.id),
     onSuccess: () => {
@@ -282,9 +341,9 @@ function ActionsBar({
   const canForceHealth = detail.state === "Active" || detail.state === "NeedsAttention";
   const canPause = detail.state === "Active" || detail.state === "NeedsAttention";
   const canReactivate = detail.state === "Paused";
+  // Approve/reject now live in CreatorDecisionActions, which owns its own
+  // pending state — only the inline actions below gate on this.
   const anyPending =
-    approveMutation.isPending ||
-    rejectMutation.isPending ||
     pauseMutation.isPending ||
     reactivateMutation.isPending ||
     forceEligibilityMutation.isPending ||
@@ -295,29 +354,33 @@ function ActionsBar({
     <div className="rounded-2xl border bg-card p-6 shadow-soft space-y-4">
       <h2 className="font-display text-lg font-semibold">Admin actions</h2>
 
-      {pendingApplicationId && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
-          <span className="text-sm">This creator has a pending application.</span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 border-success/30 text-success hover:bg-success/10"
-            disabled={anyPending}
-            onClick={() => approveMutation.mutate()}
-          >
-            <CheckCircle2 className="h-3.5 w-3.5" /> Approve
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10"
-            disabled={anyPending}
-            onClick={() => rejectMutation.mutate()}
-          >
-            <XCircle className="h-3.5 w-3.5" /> Reject
-          </Button>
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/20 p-3">
+        <div className="text-sm">
+          {pendingApplicationId ? (
+            <span className="inline-flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-warning" />
+              This creator has a pending application.
+            </span>
+          ) : targetApplicationId ? (
+            <span className="inline-flex items-center gap-1.5">
+              <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+              Decide this creator's latest application, whatever the engine decided.
+            </span>
+          ) : (
+            "This creator has never applied — use Change status."
+          )}
         </div>
-      )}
+        <div className="ml-auto">
+          <CreatorDecisionActions
+            profileId={detail.id}
+            currentState={detail.state}
+            reachableStates={detail.reachableStates ?? []}
+            applicationId={targetApplicationId}
+            context={context}
+            onDone={onChanged}
+          />
+        </div>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {canPause && (

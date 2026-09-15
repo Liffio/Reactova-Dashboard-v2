@@ -670,6 +670,15 @@ export const apiUri = {
       overview: `${CREATOR_V1}/admin/overview`,
       creator: (profileId: string) => `${CREATOR_V1}/admin/creators/${profileId}`,
       override: (profileId: string) => `${CREATOR_V1}/admin/creators/${profileId}/override`,
+      // Admin decision surface — ENDPOINT-CONTRACT.md §8. `adminOverride` is the
+      // permanent override; `override` above is the separate time-boxed pause.
+      decisionContext: (profileId: string) =>
+        `${CREATOR_V1}/admin/creators/${profileId}/decision-context`,
+      status: (profileId: string) => `${CREATOR_V1}/admin/creators/${profileId}/status`,
+      adminOverride: (profileId: string) =>
+        `${CREATOR_V1}/admin/creators/${profileId}/admin-override`,
+      approvalMode: (profileId: string) =>
+        `${CREATOR_V1}/admin/creators/${profileId}/approval-mode`,
       settings: `${CREATOR_V1}/admin/settings`,
       // Phase 6 — Creator Management Dashboard (ENDPOINT-CONTRACT.md §6)
       list: (params: { limit?: number; cursor?: string; search?: string; state?: string } = {}) => {
@@ -693,7 +702,15 @@ export const apiUri = {
       plan: (profileId: string) => `${CREATOR_V1}/admin/creators/${profileId}/plan`,
       notes: (profileId: string) => `${CREATOR_V1}/admin/creators/${profileId}/notes`,
       bulk: (
-        action: "pause" | "reactivate" | "force-health-check" | "force-metrics-sync" | "export",
+        action:
+          | "pause"
+          | "reactivate"
+          | "force-health-check"
+          | "force-metrics-sync"
+          | "export"
+          | "approve-regular"
+          | "approve-permanent"
+          | "clear-override",
         params: { state?: string; search?: string } = {},
       ) => {
         const qs = new URLSearchParams();

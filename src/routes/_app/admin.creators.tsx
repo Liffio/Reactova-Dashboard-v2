@@ -14,6 +14,10 @@ import {
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import {
+  ApproveCreatorDialog,
+  RejectCreatorDialog,
+} from "@/components/admin/creator-decision-actions";
 import { PlatformAdminRoute } from "@/components/auth/guards";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Button } from "@/components/ui/button";
@@ -32,14 +36,13 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  approveAdminCreatorApplication,
+  getAdminCreatorDecisionContext,
   getAdminAuditLog,
   getAdminCreatorApplication,
   getAdminCreatorOverview,
   getAdminCreatorSettings,
   listAdminCreatorApplications,
   listAdminWaitlist,
-  rejectAdminCreatorApplication,
   updateAdminCreatorSettings,
   type AdminApplicationDetail,
   type AdminApplicationListItem,
@@ -130,22 +133,20 @@ function ReviewQueueTab() {
     void queryClient.invalidateQueries({ queryKey: ["admin-creator-overview"] });
   };
 
-  const approveMutation = useMutation({
-    mutationFn: (id: string) => approveAdminCreatorApplication(id),
-    onSuccess: () => {
-      toast.success("Approved — the creator has been notified");
-      invalidateQueue();
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
+  /**
+   * Approve and reject now take a mandatory reason and an approval mode, so the
+   * queue opens the same shared modals the Creator Management dashboard uses
+   * rather than firing a bare mutation on click.
+   */
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
 
-  const rejectMutation = useMutation({
-    mutationFn: (id: string) => rejectAdminCreatorApplication(id),
-    onSuccess: () => {
-      toast.success("Rejected");
-      invalidateQueue();
-    },
-    onError: (e) => toast.error((e as Error).message),
+  const currentProfileId = detailQuery.data?.creatorProfile?.id;
+  const contextQuery = useQuery({
+    queryKey: ["admin-creator-decision-context", currentProfileId],
+    queryFn: () => getAdminCreatorDecisionContext(currentProfileId!),
+    enabled: Boolean(currentProfileId),
+    retry: false,
   });
 
   const resetQueue = () => {
@@ -209,12 +210,27 @@ function ReviewQueueTab() {
           {detailQuery.isLoading || !detailQuery.data ? (
             <Skeleton className="h-56 w-full" />
           ) : (
-            <ReviewCard
-              application={detailQuery.data}
-              onApprove={() => approveMutation.mutate(current.id)}
-              onReject={() => rejectMutation.mutate(current.id)}
-              pending={approveMutation.isPending || rejectMutation.isPending}
-            />
+            <>
+              <ReviewCard
+                application={detailQuery.data}
+                onApprove={() => setApproveOpen(true)}
+                onReject={() => setRejectOpen(true)}
+                pending={false}
+              />
+              <ApproveCreatorDialog
+                open={approveOpen}
+                onOpenChange={setApproveOpen}
+                applicationId={current.id}
+                context={contextQuery.data}
+                onDone={invalidateQueue}
+              />
+              <RejectCreatorDialog
+                open={rejectOpen}
+                onOpenChange={setRejectOpen}
+                applicationId={current.id}
+                onDone={invalidateQueue}
+              />
+            </>
           )}
         </div>
       )}

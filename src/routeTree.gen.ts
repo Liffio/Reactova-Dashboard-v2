@@ -63,6 +63,7 @@ import { Route as AppAdminEmailTemplatesRouteImport } from './routes/_app/admin.
 import { Route as AppAdminCreatorsRouteImport } from './routes/_app/admin.creators'
 import { Route as AppAdminCreatorManagementRouteImport } from './routes/_app/admin.creator-management'
 import { Route as AppAdminCapabilitiesRouteImport } from './routes/_app/admin.capabilities'
+import { Route as AppAdminBrandingLinksRouteImport } from './routes/_app/admin.branding-links'
 import { Route as AppAdminAffiliatesRouteImport } from './routes/_app/admin.affiliates'
 import { Route as AppAdminUsersIndexRouteImport } from './routes/_app/admin.users.index'
 import { Route as AppAutomationsAutomationIdLiveRouteImport } from './routes/_app/automations.$automationId.live'
@@ -72,6 +73,7 @@ import { Route as AppAdminPluginsSigningKeysRouteImport } from './routes/_app/ad
 import { Route as AppAdminPluginsDocsRouteImport } from './routes/_app/admin.plugins_.docs'
 import { Route as AppAdminCreatorsProfileIdRouteImport } from './routes/_app/admin.creators.$profileId'
 import { Route as AppAdminCreatorManagementProfileIdRouteImport } from './routes/_app/admin.creator-management.$profileId'
+import { Route as AppAdminBrandingLinksLinkIdRouteImport } from './routes/_app/admin.branding-links_.$linkId'
 import { Route as AppAdminUsersUserIdIndexRouteImport } from './routes/_app/admin.users.$userId.index'
 import { Route as AppAdminUsersUserIdWorkspacesRouteImport } from './routes/_app/admin.users.$userId.workspaces'
 import { Route as AppAdminUsersUserIdSessionsRouteImport } from './routes/_app/admin.users.$userId.sessions'
@@ -354,6 +356,11 @@ const AppAdminCapabilitiesRoute = AppAdminCapabilitiesRouteImport.update({
   path: '/admin/capabilities',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminBrandingLinksRoute = AppAdminBrandingLinksRouteImport.update({
+  id: '/admin/branding-links',
+  path: '/admin/branding-links',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAdminAffiliatesRoute = AppAdminAffiliatesRouteImport.update({
   id: '/admin/affiliates',
   path: '/admin/affiliates',
@@ -403,6 +410,12 @@ const AppAdminCreatorManagementProfileIdRoute =
     id: '/$profileId',
     path: '/$profileId',
     getParentRoute: () => AppAdminCreatorManagementRoute,
+  } as any)
+const AppAdminBrandingLinksLinkIdRoute =
+  AppAdminBrandingLinksLinkIdRouteImport.update({
+    id: '/admin/branding-links_/$linkId',
+    path: '/admin/branding-links/$linkId',
+    getParentRoute: () => AppRoute,
   } as any)
 const AppAdminUsersUserIdIndexRoute =
   AppAdminUsersUserIdIndexRouteImport.update({
@@ -490,6 +503,7 @@ export interface FileRoutesByFullPath {
   '/checkout/review': typeof CheckoutReviewRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
+  '/admin/branding-links': typeof AppAdminBrandingLinksRoute
   '/admin/capabilities': typeof AppAdminCapabilitiesRoute
   '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
@@ -514,6 +528,7 @@ export interface FileRoutesByFullPath {
   '/module-registry/': typeof AppModuleRegistryIndexRoute
   '/packages/': typeof AppPackagesIndexRoute
   '/team/': typeof AppTeamIndexRoute
+  '/admin/branding-links/$linkId': typeof AppAdminBrandingLinksLinkIdRoute
   '/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
   '/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
   '/admin/plugins/docs': typeof AppAdminPluginsDocsRoute
@@ -563,6 +578,7 @@ export interface FileRoutesByTo {
   '/checkout/review': typeof CheckoutReviewRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
+  '/admin/branding-links': typeof AppAdminBrandingLinksRoute
   '/admin/capabilities': typeof AppAdminCapabilitiesRoute
   '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
@@ -586,6 +602,7 @@ export interface FileRoutesByTo {
   '/module-registry': typeof AppModuleRegistryIndexRoute
   '/packages': typeof AppPackagesIndexRoute
   '/team': typeof AppTeamIndexRoute
+  '/admin/branding-links/$linkId': typeof AppAdminBrandingLinksLinkIdRoute
   '/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
   '/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
   '/admin/plugins/docs': typeof AppAdminPluginsDocsRoute
@@ -636,6 +653,7 @@ export interface FileRoutesById {
   '/checkout_/review': typeof CheckoutReviewRoute
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/_app/admin/affiliates': typeof AppAdminAffiliatesRoute
+  '/_app/admin/branding-links': typeof AppAdminBrandingLinksRoute
   '/_app/admin/capabilities': typeof AppAdminCapabilitiesRoute
   '/_app/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/_app/admin/creators': typeof AppAdminCreatorsRouteWithChildren
@@ -660,6 +678,7 @@ export interface FileRoutesById {
   '/_app/module-registry/': typeof AppModuleRegistryIndexRoute
   '/_app/packages/': typeof AppPackagesIndexRoute
   '/_app/team/': typeof AppTeamIndexRoute
+  '/_app/admin/branding-links_/$linkId': typeof AppAdminBrandingLinksLinkIdRoute
   '/_app/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
   '/_app/admin/creators/$profileId': typeof AppAdminCreatorsProfileIdRoute
   '/_app/admin/plugins_/docs': typeof AppAdminPluginsDocsRoute
@@ -711,6 +730,7 @@ export interface FileRouteTypes {
     | '/checkout/review'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
+    | '/admin/branding-links'
     | '/admin/capabilities'
     | '/admin/creator-management'
     | '/admin/creators'
@@ -735,6 +755,7 @@ export interface FileRouteTypes {
     | '/module-registry/'
     | '/packages/'
     | '/team/'
+    | '/admin/branding-links/$linkId'
     | '/admin/creator-management/$profileId'
     | '/admin/creators/$profileId'
     | '/admin/plugins/docs'
@@ -784,6 +805,7 @@ export interface FileRouteTypes {
     | '/checkout/review'
     | '/leads-captured/$slug'
     | '/admin/affiliates'
+    | '/admin/branding-links'
     | '/admin/capabilities'
     | '/admin/creator-management'
     | '/admin/creators'
@@ -807,6 +829,7 @@ export interface FileRouteTypes {
     | '/module-registry'
     | '/packages'
     | '/team'
+    | '/admin/branding-links/$linkId'
     | '/admin/creator-management/$profileId'
     | '/admin/creators/$profileId'
     | '/admin/plugins/docs'
@@ -856,6 +879,7 @@ export interface FileRouteTypes {
     | '/checkout_/review'
     | '/leads-captured/$slug'
     | '/_app/admin/affiliates'
+    | '/_app/admin/branding-links'
     | '/_app/admin/capabilities'
     | '/_app/admin/creator-management'
     | '/_app/admin/creators'
@@ -880,6 +904,7 @@ export interface FileRouteTypes {
     | '/_app/module-registry/'
     | '/_app/packages/'
     | '/_app/team/'
+    | '/_app/admin/branding-links_/$linkId'
     | '/_app/admin/creator-management/$profileId'
     | '/_app/admin/creators/$profileId'
     | '/_app/admin/plugins_/docs'
@@ -1296,6 +1321,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminCapabilitiesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/branding-links': {
+      id: '/_app/admin/branding-links'
+      path: '/admin/branding-links'
+      fullPath: '/admin/branding-links'
+      preLoaderRoute: typeof AppAdminBrandingLinksRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/admin/affiliates': {
       id: '/_app/admin/affiliates'
       path: '/admin/affiliates'
@@ -1358,6 +1390,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/creator-management/$profileId'
       preLoaderRoute: typeof AppAdminCreatorManagementProfileIdRouteImport
       parentRoute: typeof AppAdminCreatorManagementRoute
+    }
+    '/_app/admin/branding-links_/$linkId': {
+      id: '/_app/admin/branding-links_/$linkId'
+      path: '/admin/branding-links/$linkId'
+      fullPath: '/admin/branding-links/$linkId'
+      preLoaderRoute: typeof AppAdminBrandingLinksLinkIdRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/admin/users/$userId/': {
       id: '/_app/admin/users/$userId/'
@@ -1513,6 +1552,7 @@ interface AppRouteChildren {
   AppSettingsRoute: typeof AppSettingsRoute
   AppShortLinksRoute: typeof AppShortLinksRoute
   AppAdminAffiliatesRoute: typeof AppAdminAffiliatesRoute
+  AppAdminBrandingLinksRoute: typeof AppAdminBrandingLinksRoute
   AppAdminCapabilitiesRoute: typeof AppAdminCapabilitiesRoute
   AppAdminCreatorManagementRoute: typeof AppAdminCreatorManagementRouteWithChildren
   AppAdminCreatorsRoute: typeof AppAdminCreatorsRouteWithChildren
@@ -1535,6 +1575,7 @@ interface AppRouteChildren {
   AppModuleRegistryIndexRoute: typeof AppModuleRegistryIndexRoute
   AppPackagesIndexRoute: typeof AppPackagesIndexRoute
   AppTeamIndexRoute: typeof AppTeamIndexRoute
+  AppAdminBrandingLinksLinkIdRoute: typeof AppAdminBrandingLinksLinkIdRoute
   AppAdminPluginsDocsRoute: typeof AppAdminPluginsDocsRoute
   AppAdminPluginsSigningKeysRoute: typeof AppAdminPluginsSigningKeysRoute
   AppAutomationsAutomationIdEditRoute: typeof AppAutomationsAutomationIdEditRoute
@@ -1561,6 +1602,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsRoute: AppSettingsRoute,
   AppShortLinksRoute: AppShortLinksRoute,
   AppAdminAffiliatesRoute: AppAdminAffiliatesRoute,
+  AppAdminBrandingLinksRoute: AppAdminBrandingLinksRoute,
   AppAdminCapabilitiesRoute: AppAdminCapabilitiesRoute,
   AppAdminCreatorManagementRoute: AppAdminCreatorManagementRouteWithChildren,
   AppAdminCreatorsRoute: AppAdminCreatorsRouteWithChildren,
@@ -1583,6 +1625,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppModuleRegistryIndexRoute: AppModuleRegistryIndexRoute,
   AppPackagesIndexRoute: AppPackagesIndexRoute,
   AppTeamIndexRoute: AppTeamIndexRoute,
+  AppAdminBrandingLinksLinkIdRoute: AppAdminBrandingLinksLinkIdRoute,
   AppAdminPluginsDocsRoute: AppAdminPluginsDocsRoute,
   AppAdminPluginsSigningKeysRoute: AppAdminPluginsSigningKeysRoute,
   AppAutomationsAutomationIdEditRoute: AppAutomationsAutomationIdEditRoute,

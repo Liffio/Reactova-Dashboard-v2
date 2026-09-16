@@ -222,6 +222,12 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
       { title: "RBAC master", url: "/rbac-master", icon: ShieldCheck },
       { title: "Email templates", url: "/admin/email-templates", icon: Mail },
       { title: "Affiliates", url: "/admin/affiliates", icon: Handshake },
+      {
+        title: "Branding links",
+        url: "/admin/branding-links",
+        icon: Link2,
+        platformPermission: "platform:branding_read",
+      },
       { title: "Creator Applications", url: "/admin/creators", icon: ClipboardCheck },
       { title: "Creator Management", url: "/admin/creator-management", icon: Database },
       { title: "AI Tokens", url: "/ai-tokens-master", icon: Coins },

@@ -348,6 +348,18 @@ export const apiUri = {
      *  tree, additively carrying each child's `enforcementState`. Gated `platform:metrics_read`,
      *  distinct from the `platform:module_manage`-gated registry CRUD console. */
     capabilities: `${V1}/admin/capabilities`,
+    /** Branding-link analytics (Free Tier + Creator). Admin-only; gated server-side on
+     *  `platform:branding_read`. */
+    brandingLinks: {
+      overview: (params: Record<string, string | undefined>) =>
+        `${V1}/admin/branding-links/overview${listQs(params)}`,
+      list: (params: Record<string, string | undefined>) =>
+        `${V1}/admin/branding-links/list${listQs(params)}`,
+      detail: (linkId: string, includeBots = false) =>
+        `${V1}/admin/branding-links/${linkId}${listQs({ includeBots: includeBots ? "true" : undefined })}`,
+      exportCsv: (params: Record<string, string | undefined>) =>
+        `${V1}/admin/branding-links/export/csv${listQs(params)}`,
+    },
     /** Saved views on the admin Users list (spec §4.3, Task 22). `filters` is validated
      *  server-side against the exact schema `GET /admin/users`'s query string parses against.
      *  Gated `platform:user_manage`. */

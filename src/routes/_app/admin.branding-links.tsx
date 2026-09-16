@@ -139,11 +139,18 @@ function BrandingLinksContent() {
         description="Free-tier and Creator branding surfaces — clicks, signups, and funnel conversion. The two tabs are separate data by construction, never merged."
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {/* Labelled "Last 30 days", not "All time", because that is what the server actually
+                applies: `adminBrandingLinks.ts`'s `range()` defaults an absent from/to to the
+                trailing 30 days so an unfiltered page never scans the whole history. The picker
+                previously claimed all-time while the numbers underneath were 30 days, and the
+                embedded per-owner panel is a genuinely different (all-time) window again — three
+                windows, two identical labels. The label is corrected here rather than making the
+                server unbounded, which would turn /list and /overview into full-history scans. */}
             <DateRangePicker
               value={dateRangeValue}
               onChange={handleDateChange}
-              clearLabel="All time"
-              placeholderLabel="All time"
+              clearLabel="Last 30 days"
+              placeholderLabel="Last 30 days"
             />
             <Button
               size="sm"

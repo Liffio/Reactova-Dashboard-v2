@@ -404,7 +404,10 @@ function BrandingLinkDetailContent() {
               {/* No referring tab is known here (this page can be reached directly, e.g. a
                   shared link) — `scope` is a required search param on the list route, so this
                   defaults to the Free tab rather than guessing. */}
-              <Link to="/admin/branding-links" search={{ scope: "free", from: undefined, to: undefined }}>
+              <Link
+                to="/admin/branding-links"
+                search={{ scope: "free", from: undefined, to: undefined }}
+              >
                 <ArrowLeft className="h-3.5 w-3.5" /> Back to branding links
               </Link>
             </Button>

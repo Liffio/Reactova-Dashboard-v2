@@ -74,11 +74,43 @@ export type BrandingLinkDetail = {
   }>;
 };
 
+/** The sort fields the table exposes, named after the row fields they order by. */
+export type BrandingSortField = "humanClicks" | "signups" | "conversionRate" | "paidConversions";
+
+/**
+ * The UI's column vocabulary and the API's `sort` enum are deliberately different: the table
+ * sorts by the field it renders, while the endpoint validates against its own fixed keys
+ * (`server/src/api/routes/adminBrandingLinks.ts`: `z.enum(["clicks", "signups", "paid",
+ * "conversion", "created"])`). This is the adapter boundary, so the translation lives here rather
+ * than leaking API vocabulary into the components. Typed as a total `Record` so adding a sortable
+ * column without teaching the API about it is a compile error, not a 400 at runtime.
+ */
+const SORT_FIELD_TO_API: Record<BrandingSortField, "clicks" | "signups" | "conversion" | "paid"> = {
+  humanClicks: "clicks",
+  signups: "signups",
+  conversionRate: "conversion",
+  paidConversions: "paid",
+};
+
+/**
+ * `from`/`to` travel through the UI as plain `YYYY-MM-DD` (shareable, human-readable URL —
+ * matches `admin.users.index.tsx`'s `created_after`/`created_before` convention), but the
+ * endpoint validates them with `z.string().datetime()`, which rejects a bare date. Widened to
+ * inclusive UTC day boundaries here, at the same adapter boundary as the sort translation, so
+ * every caller (list, overview, CSV export) sends a value the schema actually accepts.
+ */
+function toIsoDayStart(date: string | undefined): string | undefined {
+  return date ? `${date}T00:00:00.000Z` : undefined;
+}
+function toIsoDayEnd(date: string | undefined): string | undefined {
+  return date ? `${date}T23:59:59.999Z` : undefined;
+}
+
 type ListParams = {
   scope: BrandingScope;
   from?: string;
   to?: string;
-  sort?: string;
+  sort?: BrandingSortField;
   dir?: string;
   page?: number;
   limit?: number;
@@ -87,9 +119,9 @@ type ListParams = {
 
 const toQuery = (p: ListParams): Record<string, string | undefined> => ({
   scope: p.scope,
-  from: p.from,
-  to: p.to,
-  sort: p.sort,
+  from: toIsoDayStart(p.from),
+  to: toIsoDayEnd(p.to),
+  sort: p.sort ? SORT_FIELD_TO_API[p.sort] : undefined,
   dir: p.dir,
   page: p.page ? String(p.page) : undefined,
   limit: p.limit ? String(p.limit) : undefined,
@@ -119,7 +151,11 @@ export async function exportBrandingLinksCsv(p: {
 }): Promise<Blob> {
   const token = authStore.getState().accessToken;
   const res = await fetch(
-    `${API_BASE}${apiUri.admin.brandingLinks.exportCsv({ scope: p.scope, from: p.from, to: p.to })}`,
+    `${API_BASE}${apiUri.admin.brandingLinks.exportCsv({
+      scope: p.scope,
+      from: toIsoDayStart(p.from),
+      to: toIsoDayEnd(p.to),
+    })}`,
     {
       credentials: "include",
       headers: token ? { Authorization: `Bearer ${token}` } : {},

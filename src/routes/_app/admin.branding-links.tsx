@@ -37,6 +37,7 @@ import {
   fetchBrandingOverview,
   type BrandingLinkRow,
   type BrandingScope,
+  type BrandingSortField,
 } from "@/lib/api/admin-branding-links-api";
 
 const BRANDING_READ = "platform:branding_read";
@@ -183,8 +184,6 @@ function BrandingLinksContent() {
   );
 }
 
-type SortField = "humanClicks" | "signups" | "conversionRate" | "paidConversions";
-
 function SortHeader({
   label,
   value,
@@ -193,10 +192,10 @@ function SortHeader({
   onSort,
 }: {
   label: string;
-  value: SortField;
-  sort: SortField;
+  value: BrandingSortField;
+  sort: BrandingSortField;
   dir: "asc" | "desc";
-  onSort: (value: SortField) => void;
+  onSort: (value: BrandingSortField) => void;
 }) {
   const active = sort === value;
   return (
@@ -226,7 +225,7 @@ function SortHeader({
  *  each tab owns its own queries, keyed on `scope`, so free and creator can never cross-pollute. */
 function ScopePanel({ scope, from, to }: { scope: BrandingScope; from?: string; to?: string }) {
   const navigate = useNavigate();
-  const [sort, setSort] = useState<SortField>("humanClicks");
+  const [sort, setSort] = useState<BrandingSortField>("humanClicks");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
@@ -262,7 +261,7 @@ function ScopePanel({ scope, from, to }: { scope: BrandingScope; from?: string; 
   // a short final page (or an empty one) means there is nothing after it.
   const hasMore = rows.length === PAGE_SIZE;
 
-  const toggleSort = (field: SortField) => {
+  const toggleSort = (field: BrandingSortField) => {
     if (sort === field) {
       setDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
@@ -277,28 +276,34 @@ function ScopePanel({ scope, from, to }: { scope: BrandingScope; from?: string; 
 
   return (
     <div className="space-y-5">
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {overviewQuery.isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)
-        ) : (
-          <>
-            <StatCard
-              label="Human clicks"
-              value={formatNum(humanClicks)}
-              icon={MousePointerClick}
-              hint={`${formatNum(botClicks)} bot clicks filtered`}
-            />
-            <StatCard label="Signups" value={formatNum(signups)} icon={UserPlus} />
-            <StatCard
-              label="Conversion %"
-              value={`${conversionRate.toFixed(1)}%`}
-              icon={Percent}
-              hint="clicks → paid"
-            />
-            <StatCard label="Paid conversions" value={formatNum(paidConversions)} icon={Wallet} />
-          </>
-        )}
-      </section>
+      {overviewQuery.isError ? (
+        <ErrorPanel error={overviewQuery.error} onRetry={() => void overviewQuery.refetch()} />
+      ) : (
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {overviewQuery.isLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-2xl" />
+            ))
+          ) : (
+            <>
+              <StatCard
+                label="Human clicks"
+                value={formatNum(humanClicks)}
+                icon={MousePointerClick}
+                hint={`${formatNum(botClicks)} bot clicks filtered`}
+              />
+              <StatCard label="Signups" value={formatNum(signups)} icon={UserPlus} />
+              <StatCard
+                label="Conversion %"
+                value={`${conversionRate.toFixed(1)}%`}
+                icon={Percent}
+                hint="clicks → paid"
+              />
+              <StatCard label="Paid conversions" value={formatNum(paidConversions)} icon={Wallet} />
+            </>
+          )}
+        </section>
+      )}
 
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />

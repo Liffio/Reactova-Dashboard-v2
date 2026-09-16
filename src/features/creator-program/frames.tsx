@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   ActivityTimeline,
@@ -15,6 +16,7 @@ import {
   CpLink,
   CreatorArea,
   Eyebrow,
+  Figure,
   HelpBar,
   Meta,
   SectionTitle,
@@ -25,12 +27,16 @@ import { bannerCopy, notEligibleCopy, takeoverCopy } from "./copy";
 import { CREATOR_PROGRAM_LINKS } from "./links";
 import {
   formatAbsoluteInstant,
+  formatCount,
   formatDayMonth,
+  formatEngagement,
   formatFullDate,
   formatSyncedAgo,
   periodMonthName,
 } from "./format";
 import type { CreatorStatusResponse, CreatorThresholdsResponse } from "./contract";
+import { fetchCreatorBrandingLink } from "@/lib/api/creator-eligibility-api";
+import { toast } from "@/lib/toast";
 
 export type FrameActions = {
   onReconnect: () => void;
@@ -111,6 +117,88 @@ function QuickActions({
   );
 }
 
+const CREATOR_BRANDING_LINK_KEY = ["creator-branding-link"];
+
+/**
+ * Best-effort clipboard write. `navigator.clipboard` can be missing (non-secure context, older
+ * browser) or throw (permission denied) — either way this is a convenience, never something the
+ * page depends on, so it degrades to "nothing happened" rather than a thrown error.
+ */
+async function copyText(value: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The creator's own branding link plus three headline numbers — clicks, signups, conversion.
+ * Deliberately nothing else: no date filters, no breakdowns, no per-click data. Those stay
+ * admin-side by explicit product decision (detailed tracking data is an admin surface).
+ *
+ * Fetches independently of the page's own `/status` query and renders nothing while loading or on
+ * any failure — including the 404 a member with no `CreatorProfile` yet would get — rather than a
+ * broken or empty card. Branding must never break the page it appears on.
+ */
+function BrandingLinkCard() {
+  const [copied, setCopied] = useState(false);
+  const { data, isPending, isError } = useQuery({
+    queryKey: CREATOR_BRANDING_LINK_KEY,
+    queryFn: fetchCreatorBrandingLink,
+    retry: false,
+  });
+
+  if (isPending || isError || !data) return null;
+
+  const handleCopy = async () => {
+    const ok = await copyText(data.url);
+    if (!ok) {
+      toast.error("Couldn't copy the link");
+      return;
+    }
+    setCopied(true);
+    toast.success("Link copied");
+    window.setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <Card className="min-w-0 flex-1 p-[22px] sm:px-6">
+      <div className="text-[14px] font-semibold">Your link</div>
+      <Meta className="mt-0.5">Share it anywhere — clicks and signups are tracked here</Meta>
+
+      <div className="mt-3.5 flex items-center gap-2.5 rounded-[9px] border border-[var(--cp-card-border)] bg-[var(--cp-surface-muted)] px-3 py-2.5">
+        <Figure className="min-w-0 flex-1 truncate text-[13px]">{data.url}</Figure>
+        <CpButton className="shrink-0" onClick={() => void handleCopy()}>
+          {copied ? "Copied" : "Copy"}
+        </CpButton>
+      </div>
+
+      <div className="mt-5 flex border-t border-[var(--cp-hairline)] pt-[18px]">
+        <div className="flex-1">
+          <Meta>Clicks</Meta>
+          <Figure className="mt-[3px] block text-[18px] font-semibold">
+            {formatCount(data.clicks)}
+          </Figure>
+        </div>
+        <div className="flex-1">
+          <Meta>Signups</Meta>
+          <Figure className="mt-[3px] block text-[18px] font-semibold">
+            {formatCount(data.signups)}
+          </Figure>
+        </div>
+        <div className="flex-1">
+          <Meta>Conversion</Meta>
+          <Figure className="mt-[3px] block text-[18px] font-semibold">
+            {formatEngagement(data.conversionRate)}
+          </Figure>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 /** The lower half of the membership page — shared by Active and the priority-2 banner frame. */
 function MembershipBody({ status, actions, now }: FrameProps) {
   return (
@@ -126,6 +214,9 @@ function MembershipBody({ status, actions, now }: FrameProps) {
         )}
         <BenefitList title="Your membership" description="Business plan, at no cost" />
         <ActivityTimeline events={status.timeline} />
+      </div>
+      <div className="mt-5">
+        <BrandingLinkCard />
       </div>
       <QuickActions status={status} actions={actions} />
     </>

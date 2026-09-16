@@ -14,6 +14,7 @@ import {
 } from "@/lib/api/admin-creator-eligibility-api";
 import { reasonLabel } from "@/lib/creator-eligibility-copy";
 import { MetricsPanel, OverridePanel, stateStyles } from "@/components/admin/creator-detail-shared";
+import { BrandingLinkPanel } from "@/features/admin/branding-link-panel";
 
 export const Route = createFileRoute("/_app/admin/creators/$profileId")({
   head: () => ({ meta: [{ title: "Creator detail — Admin" }] }),
@@ -76,6 +77,7 @@ function AdminCreatorDetailPage() {
           <>
             <StatusPanel detail={detailQuery.data} />
             <MetricsPanel detail={detailQuery.data} />
+            <BrandingLinkPanel creatorProfileId={profileId} />
             <div className="rounded-2xl border bg-muted/30 p-4 text-xs text-muted-foreground">
               Resolved-condition history and the creator event timeline aren't exposed by the
               current API contract (ENDPOINT-CONTRACT.md §5) — only the currently unresolved

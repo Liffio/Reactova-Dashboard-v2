@@ -76,6 +76,7 @@ import {
   CreatorDecisionActions,
   CriteriaBreakdownPanel,
 } from "@/components/admin/creator-decision-actions";
+import { BrandingLinkPanel } from "@/features/admin/branding-link-panel";
 
 export const Route = createFileRoute("/_app/admin/creator-management/$profileId")({
   head: () => ({ meta: [{ title: "Creator detail — Management" }] }),
@@ -228,6 +229,7 @@ function AdminCreatorManagementDetailPage() {
 
             <StatusAndProgress detail={detail} />
             <MetricsPanel detail={detail} />
+            <BrandingLinkPanel creatorProfileId={profileId} />
             <MetricsHistoryChart rows={detail.metricsHistory} />
             <ApplicationHistory applications={detail.applications} />
             <Timeline entries={detail.timeline} />

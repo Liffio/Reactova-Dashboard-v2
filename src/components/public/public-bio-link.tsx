@@ -136,6 +136,23 @@ function PublicBioLinkInner() {
           ),
         )}
       </div>
+
+      {/* "Powered by @Liffio" badge — the server has already resolved package entitlement and
+          Creator Program membership into `hidePoweredByBadge`, so this only has to read the flag.
+          `!data.hidePoweredByBadge` treats an absent flag (e.g. a stale cached payload) as "show
+          it", which is the safe default: Creator Program members are never allowed to hide it. */}
+      {!data.hidePoweredByBadge && (
+        <div className="mt-8 text-center">
+          <a
+            href={data.brandingUrl || "https://liffio.com"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block text-xs opacity-60 transition-opacity hover:opacity-90"
+          >
+            Powered by @Liffio
+          </a>
+        </div>
+      )}
     </BioFrame>
   );
 }

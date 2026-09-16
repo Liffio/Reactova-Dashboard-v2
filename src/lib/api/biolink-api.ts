@@ -80,6 +80,11 @@ export type PublicBioLinkPayload = {
   slug: string;
   displayName: string;
   bio: string | null;
+  avatarUrl: string | null;
+  /** Already resolved against package entitlement + Creator Program membership server-side. */
+  hidePoweredByBadge: boolean;
+  /** Tracked link the "Powered by @Liffio" badge points at. Degrades to a plain https://liffio.com. */
+  brandingUrl: string;
   accentColor: string;
   buttonStyle: "filled" | "outlined" | "soft";
   backgroundType: "solid" | "gradient";
@@ -90,7 +95,6 @@ export type PublicBioLinkPayload = {
   cardColor: string;
   cardOpacity: number;
   fontFamily: "inter" | "poppins" | "space-grotesk" | "playfair";
-  avatarUrl: string | null;
   buttonTextColor: string;
   buttonRadius: number;
   buttonBorderWidth: number;

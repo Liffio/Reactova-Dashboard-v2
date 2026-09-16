@@ -37,6 +37,7 @@ export type RegisterInput = {
   sessionRef?: string;
   localRef?: string;
   deviceFingerprint?: string;
+  brandingCode?: string;
 };
 
 export function login(input: { email: string; password: string }) {

@@ -63,3 +63,21 @@ export function applyToCreatorProgram() {
 export function getCreatorThresholds() {
   return apiRequest<CreatorThresholdsResponse>(apiUri.creator.thresholds);
 }
+
+/**
+ * The caller's own branding link and three headline numbers — clicks, signups, conversion rate.
+ * Deliberately no date filters, breakdowns or per-click data: detailed tracking stays admin-side
+ * (`platform:branding_read`). Throws (via `apiRequest`/`ApiError`, `status: 404`) if the caller
+ * has no `CreatorProfile` yet, same as `getCreatorProfile` above.
+ */
+export type CreatorBrandingLink = {
+  url: string;
+  code: string;
+  clicks: number;
+  signups: number;
+  conversionRate: number;
+};
+
+export function fetchCreatorBrandingLink() {
+  return apiRequest<CreatorBrandingLink>(apiUri.creator.brandingLink);
+}

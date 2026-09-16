@@ -280,6 +280,7 @@ export const apiUri = {
     profile: `${CREATOR_V1}/profile`,
     apply: `${CREATOR_V1}/apply`,
     thresholds: `${CREATOR_V1}/thresholds`,
+    brandingLink: `${CREATOR_V1}/branding-link`,
   },
 
   agency: {

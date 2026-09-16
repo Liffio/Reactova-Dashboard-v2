@@ -139,6 +139,13 @@ export const fetchBrandingList = (p: ListParams) =>
 export const fetchBrandingLinkDetail = (linkId: string, includeBots = false) =>
   apiRequest<BrandingLinkDetail>(apiUri.admin.brandingLinks.detail(linkId, includeBots));
 
+/** Null when the owner has never rendered branding — links are minted lazily, so this is a
+ *  normal state, not an error. */
+export const fetchBrandingLinkByOwner = (params: {
+  workspaceId?: string;
+  creatorProfileId?: string;
+}) => apiRequest<BrandingLinkRow | null>(apiUri.admin.brandingLinks.byOwner(params));
+
 /**
  * CSV export, fetched directly rather than through `apiRequest` (which always parses JSON) —
  * same shape as `exportLeadsCsv`. No `x-workspace-id` header: this is a platform-admin surface,

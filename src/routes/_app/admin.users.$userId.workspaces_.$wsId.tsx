@@ -101,6 +101,7 @@ import {
   type EffectiveAccessPermission,
   type EffectiveAccessTraceEntry,
 } from "@/lib/api/admin-users-api";
+import { BrandingLinkPanel } from "@/features/admin/branding-link-panel";
 
 /**
  * Access drill-down (Task 10) — read-only. Reachable from a row in the Workspaces tab
@@ -426,6 +427,8 @@ function EffectiveAccessPageInner({ userId, wsId }: { userId: string; wsId: stri
               });
             }}
           />
+
+          <BrandingLinkPanel workspaceId={wsId} />
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
             <div className="min-w-0 space-y-4 rounded-2xl border bg-card p-4 shadow-soft sm:p-5">

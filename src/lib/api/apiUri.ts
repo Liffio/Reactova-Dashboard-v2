@@ -359,6 +359,10 @@ export const apiUri = {
         `${V1}/admin/branding-links/${linkId}${listQs({ includeBots: includeBots ? "true" : undefined })}`,
       exportCsv: (params: Record<string, string | undefined>) =>
         `${V1}/admin/branding-links/export/csv${listQs(params)}`,
+      /** Powers the compact panel embedded on the admin creator/workspace detail pages. Exactly
+       *  one of `workspaceId`/`creatorProfileId` — the endpoint 400s on both or neither. */
+      byOwner: (params: { workspaceId?: string; creatorProfileId?: string }) =>
+        `${V1}/admin/branding-links/by-owner${listQs(params)}`,
     },
     /** Saved views on the admin Users list (spec §4.3, Task 22). `filters` is validated
      *  server-side against the exact schema `GET /admin/users`'s query string parses against.

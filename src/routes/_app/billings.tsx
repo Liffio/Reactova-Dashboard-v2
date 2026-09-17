@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Country } from "country-state-city";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CreditCard, ExternalLink, IndianRupee, RefreshCw, Zap } from "lucide-react";
+import { CreditCard, Download, ExternalLink, IndianRupee, Loader2, RefreshCw, Zap } from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -39,6 +39,10 @@ import {
   createBillingCheckout,
   createPackageCheckout,
   fetchInvoiceViewHtml,
+  fetchInvoicePdf,
+  saveBlob,
+  invoiceFileName,
+  type BillingInvoiceRow,
   getSellablePackages,
   type PackageCheckoutInput,
   getBillingConfig,
@@ -182,6 +186,9 @@ function BillingPage() {
     enabled: isWorkspaceReady(workspaceId),
   });
 
+  /** Which row's PDF is in flight, so only that button shows a spinner. */
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
   const invoicesQuery = useQuery({
     queryKey: ["billing-invoices", workspaceId],
     queryFn: () => listBillingInvoices(workspaceId),
@@ -206,6 +213,26 @@ function BillingPage() {
    * Open a stored invoice document. Not a plain `<a href>` — see `fetchInvoiceViewHtml`'s comment:
    * the route is bearer-token authenticated and a bare navigation never attaches that header.
    */
+  /**
+   * Save an invoice PDF.
+   *
+   * Only offered when the row reports `hasPdf`. That flag is an existence check on the stored bytes,
+   * which is exactly what the endpoint 404s on — so the button and the route agree. Invoices issued
+   * before the PDF renderer was fixed have HTML and no PDF, and for those the control is disabled
+   * with a reason rather than hidden, so the absence is explained instead of mysterious.
+   */
+  const downloadInvoicePdf = async (inv: BillingInvoiceRow) => {
+    setDownloadingId(inv.id);
+    try {
+      const blob = await fetchInvoicePdf(workspaceId, inv.id);
+      saveBlob(blob, invoiceFileName(inv, "pdf"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not download invoice");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const openInvoiceView = async (hostedInvoiceUrl: string) => {
     try {
       const blob = await fetchInvoiceViewHtml(workspaceId, hostedInvoiceUrl);
@@ -782,6 +809,7 @@ function BillingPage() {
                     <th className="px-4 py-3 font-medium">Plan</th>
                     <th className="px-4 py-3 font-medium">Amount</th>
                     <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 text-right font-medium">Download</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -814,6 +842,27 @@ function BillingPage() {
                         >
                           {inv.status}
                         </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={!inv.hasPdf || downloadingId === inv.id}
+                          onClick={() => void downloadInvoicePdf(inv)}
+                          title={
+                            inv.hasPdf
+                              ? "Download this invoice as a PDF"
+                              : "A PDF is not available for this invoice"
+                          }
+                        >
+                          {downloadingId === inv.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5" />
+                          )}
+                          <span className="ml-1.5">PDF</span>
+                        </Button>
                       </td>
                     </tr>
                   ))}

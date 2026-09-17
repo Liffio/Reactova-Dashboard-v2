@@ -261,6 +261,9 @@ export const apiUri = {
     quote: `${V1}/billing/quote`,
     invoices: `${V1}/billing/invoices`,
     invoicesAll: `${V1}/billing/invoices/all`,
+    /** The customer's own invoice PDF. Authed — see `fetchInvoicePdf`, not an `<a href>`. */
+    invoicePdf: (invoiceId: string) =>
+      `${V1}/billing/invoices/${encodeURIComponent(invoiceId)}/pdf`,
     checkout: `${V1}/billing/checkout`,
     /** The sellable-package list (S4.7). Non-public/inactive are excluded server-side. */
     packages: `${V1}/billing/packages`,
@@ -549,6 +552,12 @@ export const apiUri = {
         `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/subscription`,
       invoices: (workspaceId: string, params: { limit?: number; offset?: number } = {}) =>
         `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/invoices${listQs(params)}`,
+      invoiceView: (workspaceId: string, invoiceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/invoices/${encodeURIComponent(invoiceId)}/view`,
+      invoicePdf: (workspaceId: string, invoiceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/invoices/${encodeURIComponent(invoiceId)}/pdf`,
+      invoiceResend: (workspaceId: string, invoiceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/invoices/${encodeURIComponent(invoiceId)}/resend`,
       subscriptionComp: (workspaceId: string) =>
         `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/subscription/comp`,
       subscriptionCancelAtPeriodEnd: (workspaceId: string) =>

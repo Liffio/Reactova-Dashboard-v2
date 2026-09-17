@@ -89,6 +89,18 @@ export type BillingInvoiceRow = {
   pdfUrl: string | null;
   createdAt: string;
   workspace?: { id: string; igHandle: string | null };
+  /**
+   * Whether the stored HTML / PDF documents exist.
+   *
+   * 🔴 Never infer these from `invoiceNumber`. An amount-only fallback row has neither, and every
+   * invoice issued before the PDF renderer was fixed has a number and HTML but no PDF — so a
+   * download control keyed on the number would 404. The API computes both as existence checks on
+   * the columns the download routes themselves key on.
+   *
+   * Optional because `/billing/invoices/all` does not compute them.
+   */
+  hasDocument?: boolean;
+  hasPdf?: boolean;
 };
 
 export type CheckoutInput = {
@@ -141,6 +153,57 @@ export async function fetchInvoiceViewHtml(
     throw new Error("Unable to open invoice right now");
   }
   return res.blob();
+}
+
+/**
+ * Fetch a stored invoice PDF.
+ *
+ * Same reason this is a manual `fetch` rather than an `<a href>` as `fetchInvoiceViewHtml` above:
+ * the route sits behind `requireAuth`, which reads the bearer token from the `Authorization` header
+ * only, and a bare browser navigation attaches no such header. The caller saves the returned blob.
+ */
+export async function fetchInvoicePdf(workspaceId: string, invoiceId: string): Promise<Blob> {
+  const token = authStore.getState().accessToken;
+  const res = await fetch(`${API_BASE}${apiUri.billing.invoicePdf(invoiceId)}`, {
+    credentials: "include",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "x-workspace-id": workspaceId,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(
+      res.status === 404
+        ? "No PDF is available for this invoice yet"
+        : "Unable to download invoice right now",
+    );
+  }
+  return res.blob();
+}
+
+/**
+ * Hands the browser a blob to save under a given filename.
+ *
+ * The object URL is revoked on the next tick rather than immediately: revoking it synchronously
+ * after `click()` races the download in some browsers and produces an empty file.
+ */
+export function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/** `LFO/2026-27/00042` contains slashes, which a filename may not. */
+export function invoiceFileName(
+  invoice: { invoiceNumber: string | null; id: string },
+  ext: string,
+): string {
+  return `${(invoice.invoiceNumber ?? invoice.id).replace(/[^A-Za-z0-9._-]/g, "-")}.${ext}`;
 }
 
 export type CheckoutResponse = {

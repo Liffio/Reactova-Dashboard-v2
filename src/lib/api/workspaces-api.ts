@@ -21,7 +21,14 @@ export type WorkspaceApi = {
   humanId?: string | null;
   displayName?: string | null;
   instagramConnected: boolean;
-  plan: "FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY";
+  /**
+   * 🔴 `GROWTH` is in this union because the server's `Plan` enum has always had it.
+   *
+   * It was missing here, and `mapPlan` in `app-context` had no case for it either, so every Growth
+   * workspace fell through to the default and rendered a "Free" chip. Cosmetic while the switcher
+   * was a flat list; not once every row carries a plan badge.
+   */
+  plan: "FREE" | "STARTER" | "GROWTH" | "PRO" | "BUSINESS" | "AGENCY";
   status: "ACTIVE" | "PAUSED" | "PAYMENT_FAILED" | "INSTAGRAM_DISCONNECTED";
   billingCycleEnd?: string | null;
   onboarding?: Record<string, unknown> | null;

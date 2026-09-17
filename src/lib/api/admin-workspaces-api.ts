@@ -12,7 +12,8 @@
  * don't fit `admin-users-api.ts` (workspace-scoped, no `:userId` in the path).
  */
 import { apiUri } from "./apiUri";
-import { apiRequest } from "./http";
+import { apiRequest, API_BASE } from "./http";
+import { authStore } from "@/lib/auth/auth-store";
 import type { TokenBalance } from "./ai-tokens-api";
 import type { BillingInvoiceRow } from "./billing-api";
 
@@ -473,4 +474,65 @@ export function revokeWorkspaceInviteAdmin(workspaceId: string, inviteId: string
   return apiRequest<{ ok: true }>(apiUri.admin.workspaces.inviteItem(workspaceId, inviteId), {
     method: "DELETE",
   });
+}
+
+/**
+ * Invoice documents and resend, for the console's billing drill-down.
+ *
+ * The two fetches are manual rather than `<a href>` links for the same reason as their tenant-side
+ * counterparts in `billing-api.ts`: these routes sit behind `requireAuth`, which reads the bearer
+ * token from the `Authorization` header only, and a bare browser navigation attaches no header.
+ */
+async function fetchAdminInvoiceDocument(url: string, kind: "PDF" | "invoice"): Promise<Blob> {
+  const token = authStore.getState().accessToken;
+  const res = await fetch(`${API_BASE}${url}`, {
+    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    throw new Error(
+      res.status === 404
+        ? `No ${kind} is available for this invoice`
+        : `Unable to load this ${kind} right now`,
+    );
+  }
+  return res.blob();
+}
+
+export function fetchInvoicePdfAdmin(workspaceId: string, invoiceId: string): Promise<Blob> {
+  return fetchAdminInvoiceDocument(apiUri.admin.workspaces.invoicePdf(workspaceId, invoiceId), "PDF");
+}
+
+export function fetchInvoiceViewAdmin(workspaceId: string, invoiceId: string): Promise<Blob> {
+  return fetchAdminInvoiceDocument(
+    apiUri.admin.workspaces.invoiceView(workspaceId, invoiceId),
+    "invoice",
+  );
+}
+
+export type ResendInvoiceResponse = {
+  ok: true;
+  invoiceId: string;
+  invoiceNumber: string | null;
+  /** Where it actually went, so the UI can state a fact rather than an intention. */
+  sentTo: string;
+  overridden: boolean;
+};
+
+/**
+ * Re-send an issued invoice.
+ *
+ * `to` redirects it away from the address stored on the invoice. That is a disclosure of the
+ * customer's billing details to a third party, so the server audit-logs both addresses — the UI
+ * asks for a reason on every resend for the same reason.
+ */
+export function resendInvoiceAdmin(
+  workspaceId: string,
+  invoiceId: string,
+  body: { to?: string; reason: string },
+) {
+  return apiRequest<ResendInvoiceResponse>(
+    apiUri.admin.workspaces.invoiceResend(workspaceId, invoiceId),
+    { method: "POST", body },
+  );
 }

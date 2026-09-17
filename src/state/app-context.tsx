@@ -27,7 +27,7 @@ import { clearLyraPersisted } from "@/lib/lyra-persist";
 import { safeIdentify } from "@/lib/analytics";
 import { authStore, useAuthState, type AuthorizationModule } from "@/lib/auth/auth-store";
 
-export type PlanName = "Free" | "Starter" | "Pro" | "Business" | "Agency";
+export type PlanName = "Free" | "Starter" | "Growth" | "Pro" | "Business" | "Agency";
 export type WorkspaceStatus = "active" | "paused" | "failed" | "disconnected";
 
 export interface Workspace {
@@ -93,10 +93,20 @@ const defaultWorkspace: Workspace = {
   activeAutomations: null,
 };
 
+/**
+ * 🔴 `GROWTH` was missing from this switch, so it hit `default` and every Growth workspace was
+ * labelled "Free".
+ *
+ * Kept only for the legacy `GET /workspaces` list. The switcher reads `planLabel` straight off
+ * `GET /workspaces/switcher`, which the server resolves — including an admin-renamed package name,
+ * which no client-side map could ever produce.
+ */
 const mapPlan = (planKey?: string): PlanName => {
   switch (planKey) {
     case "STARTER":
       return "Starter";
+    case "GROWTH":
+      return "Growth";
     case "PRO":
       return "Pro";
     case "BUSINESS":

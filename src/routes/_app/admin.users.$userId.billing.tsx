@@ -8,6 +8,10 @@ import {
   ExternalLink,
   FileText,
   RefreshCw,
+  Download,
+  Eye,
+  Loader2,
+  Send,
 } from "lucide-react";
 
 import { EmptyState, FormSection, ToggleRow } from "@/components/admin/form-page";
@@ -66,12 +70,16 @@ import {
   compWorkspacePlan,
   getWorkspaceSubscriptionAdmin,
   listWorkspaceInvoicesAdmin,
+  fetchInvoicePdfAdmin,
+  fetchInvoiceViewAdmin,
+  resendInvoiceAdmin,
   setWorkspaceCancelAtPeriodEnd,
   syncWorkspaceSubscriptionAdmin,
   type AdminBillingPlan,
   type AdminWorkspaceSubscriptionDetail,
 } from "@/lib/api/admin-workspaces-api";
 import type { BillingInvoiceRow } from "@/lib/api/billing-api";
+import { saveBlob, invoiceFileName } from "@/lib/api/billing-api";
 
 /**
  * "Billing" tab (Task 21) — spec §6.8–§6.9. Same workspace-selector shape as the AI & API tab
@@ -606,10 +614,62 @@ function SubscriptionCard({
 
 const INVOICE_PAGE_SIZE = 10;
 
-function InvoiceRow({ invoice }: { invoice: BillingInvoiceRow }) {
-  const downloadUrl = invoice.hostedInvoiceUrl ?? invoice.pdfUrl;
+/**
+ * One invoice, with the three things support actually needs: read it, save it, send it again.
+ *
+ * 🔴 The previous control here was `<a href={invoice.hostedInvoiceUrl}>`, which could not work.
+ * `hostedInvoiceUrl` is the TENANT route (`/billing/invoices/:id/view`) — it needs a workspace
+ * context the admin does not have, and a bare `<a>` navigation attaches no `Authorization` header
+ * either. Both documents are fetched from the admin routes instead and handed over as blobs.
+ *
+ * `hasDocument` / `hasPdf` arrive on the list payload as existence checks on the stored columns —
+ * the same columns the endpoints 404 on — so a control is only enabled when it will actually work.
+ * Invoices issued before the PDF renderer was fixed have HTML and no PDF; those show a disabled
+ * button with a reason rather than no button at all, so the absence is explained.
+ */
+function InvoiceRow({
+  invoice,
+  workspaceId,
+  canManage,
+  onResend,
+}: {
+  invoice: BillingInvoiceRow;
+  workspaceId: string;
+  canManage: boolean;
+  onResend: (invoice: BillingInvoiceRow) => void;
+}) {
+  const [busy, setBusy] = useState<"view" | "pdf" | null>(null);
+
+  const openDocument = async () => {
+    setBusy("view");
+    try {
+      const blob = await fetchInvoiceViewAdmin(workspaceId, invoice.id);
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      // Revoked on a delay, not immediately: the new tab still has to read from it.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not open invoice");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const downloadPdf = async () => {
+    setBusy("pdf");
+    try {
+      const blob = await fetchInvoicePdfAdmin(workspaceId, invoice.id);
+      saveBlob(blob, invoiceFileName(invoice, "pdf"));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not download invoice");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <TableRow>
+      <TableCell className="font-mono text-xs">{invoice.invoiceNumber ?? "—"}</TableCell>
       <TableCell>
         <Badge
           variant="outline"
@@ -633,24 +693,155 @@ function InvoiceRow({ invoice }: { invoice: BillingInvoiceRow }) {
         {invoice.paidAt ? formatDate(invoice.paidAt) : "—"}
       </TableCell>
       <TableCell>
-        {downloadUrl && (
-          <a
-            href={downloadUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-muted-foreground hover:text-foreground"
-            aria-label="Open invoice"
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!invoice.hasDocument || busy !== null}
+            onClick={() => void openDocument()}
+            title={invoice.hasDocument ? "View the issued invoice" : "No document was issued"}
           >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
-        )}
+            {busy === "view" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Eye className="h-3.5 w-3.5" />
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!invoice.hasPdf || busy !== null}
+            onClick={() => void downloadPdf()}
+            title={invoice.hasPdf ? "Download the PDF" : "No PDF is available for this invoice"}
+          >
+            {busy === "pdf" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5" />
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!canManage}
+            onClick={() => onResend(invoice)}
+            title={canManage ? "Resend this invoice by email" : "You cannot resend invoices"}
+          >
+            <Send className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </TableCell>
     </TableRow>
   );
 }
 
+/**
+ * Resend dialog.
+ *
+ * A reason is required every time, and the recipient defaults to the address on the invoice. The
+ * override exists because support genuinely needs "send it to our accounts team instead" — but an
+ * invoice carries the customer legal name, registered address and GSTIN, so redirecting one
+ * discloses all of that to a third party. The copy says so, and the server records both addresses
+ * on the audit row.
+ */
+function ResendInvoiceDialog({
+  invoice,
+  workspaceId,
+  onClose,
+}: {
+  invoice: BillingInvoiceRow | null;
+  workspaceId: string;
+  onClose: () => void;
+}) {
+  const [to, setTo] = useState("");
+  const [reason, setReason] = useState("");
+
+  const resend = useMutation({
+    mutationFn: () =>
+      resendInvoiceAdmin(workspaceId, invoice!.id, {
+        ...(to.trim() ? { to: to.trim() } : {}),
+        reason: reason.trim(),
+      }),
+    onSuccess: (result) => {
+      // Names where it actually went, rather than a generic "sent".
+      toast.success(`Invoice queued for ${result.sentTo}`);
+      setTo("");
+      setReason("");
+      onClose();
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not resend this invoice");
+    },
+  });
+
+  return (
+    <Dialog open={invoice !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Resend invoice</DialogTitle>
+          <DialogDescription>
+            {invoice?.invoiceNumber
+              ? `${invoice.invoiceNumber} will be emailed again.`
+              : "This invoice will be emailed again."}{" "}
+            The document is not regenerated, so the customer receives exactly what was issued.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="resend-to">Send to</Label>
+            <Input
+              id="resend-to"
+              type="email"
+              placeholder="Leave blank to use the address on the invoice"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Fill this in only to send somewhere other than the billing address on record. An
+              invoice shows the customer legal name, address and GSTIN, so any override is recorded
+              in the audit log.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="resend-reason">Reason</Label>
+            <Textarea
+              id="resend-reason"
+              rows={2}
+              placeholder="Why is this being resent?"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={reason.trim().length === 0 || resend.isPending}
+            onClick={() => resend.mutate()}
+          >
+            {resend.isPending ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
+            Resend
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function InvoicesTable({ workspaceId }: { workspaceId: string }) {
   const [page, setPage] = useState(1);
+  /** The invoice whose resend dialog is open, or null. */
+  const [resendTarget, setResendTarget] = useState<BillingInvoiceRow | null>(null);
+  const canManage = usePlatformCan(BILLING_MANAGE);
   const invoicesQuery = useQuery({
     queryKey: ["admin-workspace", workspaceId, "billing", "invoices", page],
     queryFn: () =>
@@ -683,17 +874,24 @@ function InvoicesTable({ workspaceId }: { workspaceId: string }) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Invoice</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Plan</TableHead>
                   <TableHead>Period</TableHead>
                   <TableHead>Paid</TableHead>
-                  <TableHead className="w-8" />
+                  <TableHead className="w-32 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {invoices.map((inv) => (
-                  <InvoiceRow key={inv.id} invoice={inv} />
+                  <InvoiceRow
+                    key={inv.id}
+                    invoice={inv}
+                    workspaceId={workspaceId}
+                    canManage={canManage}
+                    onResend={setResendTarget}
+                  />
                 ))}
               </TableBody>
             </Table>
@@ -710,6 +908,12 @@ function InvoicesTable({ workspaceId }: { workspaceId: string }) {
           </div>
         </>
       )}
+
+      <ResendInvoiceDialog
+        invoice={resendTarget}
+        workspaceId={workspaceId}
+        onClose={() => setResendTarget(null)}
+      />
     </FormSection>
   );
 }

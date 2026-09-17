@@ -6,7 +6,12 @@ import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ResponsiveDialog } from "./responsive-dialog";
+import {
+  DialogBody,
+  DialogFooterBar,
+  DialogHeaderBar,
+  ResponsiveDialog,
+} from "./responsive-dialog";
 import { SlotBar } from "./slot-bar";
 import { createWorkspaceInGroup, type SwitcherGroup } from "@/lib/api/workspace-switcher-api";
 
@@ -66,14 +71,14 @@ export function AddToGroupDialog({
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange} title={`Add to ${group.name}`}>
-      <div className="px-6 pt-6">
+      <DialogHeaderBar>
         <h2 className="font-display text-xl font-semibold tracking-tight">Add to {group.name}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           No payment needed. This uses one of your agency slots.
         </p>
-      </div>
+      </DialogHeaderBar>
 
-      <div className="px-6 py-5">
+      <DialogBody className="px-6 py-5">
         <Label htmlFor="group-ws-name" className="mb-1.5 block text-[13px] font-medium">
           Workspace name
         </Label>
@@ -103,16 +108,16 @@ export function AddToGroupDialog({
         </div>
 
         <SlotBar used={nextSlot} limit={group.slotLimit} size="lg" className="mt-3" />
-      </div>
+      </DialogBody>
 
-      <div className="flex flex-wrap items-center gap-3 border-t px-6 py-4">
+      <DialogFooterBar>
         <span className="min-w-[180px] flex-1 text-xs text-muted-foreground">
           {remaining} {remaining === 1 ? "slot" : "slots"} left after this one
         </span>
         <Button disabled={!name.trim() || busy} onClick={() => void submit()}>
           {busy ? "Creating…" : "Create workspace"}
         </Button>
-      </div>
+      </DialogFooterBar>
     </ResponsiveDialog>
   );
 }

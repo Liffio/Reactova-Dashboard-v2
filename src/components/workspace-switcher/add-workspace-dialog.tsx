@@ -6,7 +6,12 @@ import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ResponsiveDialog } from "./responsive-dialog";
+import {
+  DialogBody,
+  DialogFooterBar,
+  DialogHeaderBar,
+  ResponsiveDialog,
+} from "./responsive-dialog";
 import { PlanOption } from "./plan-option";
 import { createWorkspace } from "@/lib/api/workspaces-api";
 import {
@@ -358,16 +363,16 @@ export function AddWorkspaceDialog({
         </div>
       ) : (
         <>
-          <div className="px-6 pt-6">
+          <DialogHeaderBar>
             <h2 className="font-display text-xl font-semibold tracking-tight">Add a workspace</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {freeSlotAvailable
                 ? "Use your one free workspace, or pick a paid plan."
                 : "Your free workspace is already in use, so a new one needs a paid plan."}
             </p>
-          </div>
+          </DialogHeaderBar>
 
-          <div className="px-6 py-5">
+          <DialogBody className="px-6 py-5">
             <Label htmlFor="ws-name" className="mb-1.5 block text-[13px] font-medium">
               Workspace name
             </Label>
@@ -411,9 +416,9 @@ export function AddWorkspaceDialog({
                 );
               })}
             </div>
-          </div>
+          </DialogBody>
 
-          <div className="flex flex-wrap items-center gap-3 border-t px-6 py-4">
+          <DialogFooterBar>
             <span className="flex min-w-[180px] flex-1 items-center gap-1.5 text-xs text-muted-foreground">
               {selected === FREE ? (
                 <>
@@ -439,7 +444,7 @@ export function AddWorkspaceDialog({
                   ? `Pay ${money(quote.amountMinor, quote.currency)} and create`
                   : "Loading price…"}
             </Button>
-          </div>
+          </DialogFooterBar>
         </>
       )}
     </ResponsiveDialog>

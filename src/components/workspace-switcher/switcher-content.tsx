@@ -160,7 +160,7 @@ export function SwitcherContent({
           <SlotBar used={group.slotsUsed} limit={group.slotLimit} size="lg" className="mt-2" />
         </div>
 
-        <div className="max-h-[min(50vh,320px)] flex-1 overflow-y-auto p-1.5">
+        <div className="max-h-[min(50dvh,320px)] flex-1 overflow-y-auto p-1.5">
           {group.workspaces.map((workspace) => (
             <WorkspaceRow
               key={workspace.id}
@@ -225,7 +225,7 @@ export function SwitcherContent({
         />
       </label>
 
-      <div className="max-h-[min(50vh,340px)] flex-1 overflow-y-auto p-1.5">
+      <div className="max-h-[min(50dvh,340px)] flex-1 overflow-y-auto p-1.5">
         {hits ? (
           hits.length > 0 ? (
             hits

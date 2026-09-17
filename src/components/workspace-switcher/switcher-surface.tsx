@@ -20,6 +20,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
  * Built on `vaul` directly rather than on `components/ui/drawer`, because that shared wrapper
  * hardcodes its own grabber at 100x8px and this surface needs the reference's 40x4. `vaul` is
  * already a dependency; nothing new is installed.
+ *
+ * 🔴 Heights are `dvh`, never `vh` (FX1). On iOS `100vh` is the LARGE viewport: it ignores
+ * Safari's address bar and bottom toolbar, so a `vh` cap is taller than the space actually on
+ * screen and the bottom of the sheet sits under the toolbar. `dvh` tracks the dynamic viewport
+ * and shrinks while those toolbars are showing.
  */
 
 /**
@@ -58,7 +63,7 @@ export function SwitcherSurface({
           <DrawerPrimitive.Overlay className="fixed inset-0 z-50 bg-foreground/35" />
           <DrawerPrimitive.Content
             className={cn(
-              "fixed inset-x-0 bottom-0 z-50 flex max-h-[82vh] flex-col",
+              "fixed inset-x-0 bottom-0 z-50 flex max-h-[82dvh] min-h-0 flex-col",
               "rounded-t-[20px] border bg-popover pb-[env(safe-area-inset-bottom)]",
               "shadow-[0_1px_2px_rgba(22,10,8,.06),0_16px_40px_-12px_rgba(22,10,8,.22)]",
             )}
@@ -80,7 +85,7 @@ export function SwitcherSurface({
         side={desktopSide}
         align={desktopAlign}
         sideOffset={8}
-        className="flex max-h-[calc(100vh-80px)] w-[340px] flex-col overflow-hidden rounded-2xl p-0"
+        className="flex max-h-[calc(100dvh-80px)] w-[340px] min-h-0 flex-col overflow-hidden rounded-2xl p-0"
       >
         {children}
       </PopoverContent>

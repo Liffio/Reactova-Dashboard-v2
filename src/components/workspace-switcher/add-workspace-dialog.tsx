@@ -259,6 +259,15 @@ export function AddWorkspaceDialog({
 
   const pay = async () => {
     if (dispatching.current) return;
+    /**
+     * The sub-second window before the catalogue lands, when FX4 has not had a plan id to select
+     * yet. The button is no longer disabled (FX5), so this is what stops a tap in that window
+     * posting an empty `packageId`. Says so rather than failing silently.
+     */
+    if (!selected || selected === FREE) {
+      toast.error("Pick a plan first");
+      return;
+    }
     const keyId = configQuery.data?.providers.razorpay.keyId;
     if (!keyId) {
       toast.error("Razorpay is not configured");
@@ -544,9 +553,23 @@ export function AddWorkspaceDialog({
                 </>
               )}
             </span>
+            {/*
+              🔴 Never disabled on an empty name (FX5).
+              A disabled button is a dead end: it does not say what is missing, and on touch there
+              is nothing to tap to find out. It stays enabled and `requireName()` does the
+              explaining. Still disabled while a request is in flight, which is a different thing:
+              that guards against a double submit rather than withholding an answer.
+            */}
             <Button
-              disabled={!trimmed || busy || selected === "" || (paidSelected && !quote)}
-              onClick={() => (selected === FREE ? void createFree() : void pay())}
+              disabled={busy}
+              onClick={() => {
+                if (requireName()) return;
+                if (selected === FREE) {
+                  void createFree();
+                  return;
+                }
+                void pay();
+              }}
             >
               {/*
                 🔴 No loading state in the button (FX2). It read "Loading price…", which looks

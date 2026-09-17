@@ -21,6 +21,7 @@ import { ProtectedRoute } from "@/components/auth/guards";
 import { PageTransition } from "@/components/page-transition";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { WorkspaceReadOnlyBanner } from "@/components/workspace-read-only-banner";
 import { useLogoutMutation } from "@/hooks/use-auth";
 import { useSessionWatcher } from "@/hooks/use-session-watcher";
 import { useWorkspaceEvents } from "@/hooks/use-workspace-events";
@@ -174,6 +175,11 @@ function AppLayout() {
             {/* 92px clears the tab bar plus its safe-area padding, so nothing at the end of a
                 page ends up trapped underneath it. */}
             <main className="flex flex-1 flex-col pb-[92px] md:pb-0">
+              {/* Above the page, not inside it: an expired plan is a property of the workspace, so
+                  it has to be visible on every route rather than on whichever ones remembered.
+                  Unwrapped, and it carries its own spacing — a wrapper here would add padding to
+                  every page for every customer to serve the few whose plan has lapsed. */}
+              <WorkspaceReadOnlyBanner />
               <PageTransition keyProp={pathname}>
                 <Outlet />
               </PageTransition>

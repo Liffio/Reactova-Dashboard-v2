@@ -94,6 +94,32 @@ export const apiUri = {
     usage: (workspaceId: string) => `${V1}/workspaces/${encodeURIComponent(workspaceId)}/usage`,
     /** Free-tier DM branding strings, env-driven server-side. */
     brandingConfig: `${V1}/workspaces/branding-config`,
+    /**
+     * Everything the switcher renders, in one call: standalone workspaces, groups with their
+     * members and slot counts, plan labels, read-only state, and whether the free slot is open.
+     * The client infers none of it — a grouped workspace's plan lives on its group.
+     */
+    switcher: `${V1}/workspaces/switcher`,
+  },
+
+  /**
+   * Buying a NEW paid workspace. Nothing is created until Razorpay confirms payment, so a failed
+   * or abandoned checkout leaves no workspace behind.
+   */
+  workspaceCheckout: {
+    /** What this package costs THIS user today, offers included. Never computed client-side. */
+    quote: `${V1}/workspaces/checkout/quote`,
+    start: `${V1}/workspaces/checkout`,
+    intent: (intentId: string) => `${V1}/workspaces/checkout/${encodeURIComponent(intentId)}`,
+    verify: (intentId: string) =>
+      `${V1}/workspaces/checkout/${encodeURIComponent(intentId)}/verify`,
+  },
+
+  /** Agency groups. Adding a workspace inside one needs no payment — the slot is already bought. */
+  workspaceGroups: {
+    createWorkspace: (groupId: string) =>
+      `${V1}/workspace-groups/${encodeURIComponent(groupId)}/workspaces`,
+    rename: (groupId: string) => `${V1}/workspace-groups/${encodeURIComponent(groupId)}`,
   },
 
   team: {

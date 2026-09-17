@@ -93,6 +93,14 @@ export function AddWorkspaceDialog({
 
   const [step, setStep] = useState<Step>("form");
   const [name, setName] = useState("");
+  /**
+   * FX4: the sheet never opens with nothing selected.
+   *
+   * It used to initialise to `""` whenever the free slot was taken, so a customer who already had
+   * a free workspace opened the picker with no plan chosen, a disabled button, and nothing saying
+   * which plan they were about to buy. Free when the slot is open, otherwise the cheapest paid
+   * plan, which the effect below fills in once the catalogue arrives.
+   */
   const [selected, setSelected] = useState<string>(freeSlotAvailable ? FREE : "");
   const [busy, setBusy] = useState(false);
   const [createdName, setCreatedName] = useState("");
@@ -177,6 +185,22 @@ export function AddWorkspaceDialog({
     queryFn: () => getWorkspaceCheckoutQuote({ packageId: selected, interval: "monthly" }),
     enabled: open && paidSelected,
   });
+
+  /**
+   * Fall back to the cheapest paid plan once the catalogue is known. (FX4)
+   *
+   * Cannot be done in `useState`: when the sheet opens, `packages` is still empty, so there is no
+   * plan id to select yet. Runs only while nothing is selected, so it can never overwrite a
+   * choice the customer has already made, and never fights the reset effect below.
+   *
+   * "Cheapest paid" is `packages[0]`, which is already sorted by `sortOrder`, the same ladder the
+   * pricing page renders. That is Starter today; deriving it rather than naming it means a new
+   * entry-level plan is picked up without touching this file.
+   */
+  useEffect(() => {
+    if (!open || selected !== "" || packages.length === 0) return;
+    setSelected(packages[0].id);
+  }, [open, selected, packages]);
 
   useEffect(() => {
     if (!open) {

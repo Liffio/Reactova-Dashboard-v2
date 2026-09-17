@@ -1,71 +1,11 @@
-import { useState } from "react";
 import { Check, ChevronRight, Pencil } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { formatHandle, bareHandle } from "@/lib/format";
 import { SlotBar } from "./slot-bar";
 import { PlanChip, ExpiredChip } from "./plan-chip";
+import { GroupTileStack, WorkspaceTile } from "./workspace-tile";
 import type { SwitcherGroup, SwitcherWorkspace } from "@/lib/api/workspace-switcher-api";
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
-
-/**
- * The workspace's Instagram avatar, falling back to its initials.
- *
- * Both fallbacks are ordinary paths, not error handling: most workspaces have no Instagram
- * connected, and the CDN URLs that do exist are signed and expire, so one can reach the browser and
- * 403. `failedSrc` is compared against the current `src` rather than being a boolean, so a
- * different workspace re-attempts its own image instead of inheriting the previous failure.
- */
-function Avatar({
-  name,
-  src,
-  className,
-  muted,
-}: {
-  name: string;
-  src: string | null;
-  className?: string;
-  /** Expired rows grey their avatar, matching the row's own de-emphasis. */
-  muted?: boolean;
-}) {
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const url = src?.trim() || null;
-
-  if (!url || failedSrc === url) {
-    return (
-      <span
-        className={cn(
-          "grid size-8 shrink-0 place-items-center rounded-lg bg-brand-gradient text-xs font-semibold text-primary-foreground",
-          muted && "opacity-50 grayscale",
-          className,
-        )}
-      >
-        {initials(name)}
-      </span>
-    );
-  }
-  return (
-    <img
-      src={url}
-      alt=""
-      className={cn(
-        "size-8 shrink-0 rounded-lg object-cover",
-        muted && "opacity-50 grayscale",
-        className,
-      )}
-      onError={() => setFailedSrc(url)}
-    />
-  );
-}
 
 /** The second line: what this workspace is, or why it cannot be used. */
 function subLine(workspace: SwitcherWorkspace, inGroupName: string | null): string {
@@ -117,11 +57,11 @@ export function WorkspaceRow({
           </span>
         ) : null}
 
-        <Avatar
+        <WorkspaceTile
           name={workspace.name}
           src={workspace.profilePictureUrl}
+          size={showSlotNo ? "sm" : "md"}
           muted={expired}
-          className={showSlotNo ? "size-7" : undefined}
         />
 
         <span className="grid min-w-0 flex-1 leading-tight">
@@ -185,15 +125,10 @@ export function GroupRow({
         aria-label={`Open ${group.name}, ${group.slotsUsed} of ${group.slotLimit} workspaces used`}
         className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-2 text-left"
       >
-        {/* Stacked tiles: one glance says "this is several workspaces", which a single avatar
-            cannot. Purely decorative, so it carries no text of its own. */}
-        <span aria-hidden className="relative size-8 shrink-0">
-          <span className="absolute left-0 top-0 size-[26px] rounded-lg bg-brand-gradient opacity-40" />
-          <span className="absolute left-[5px] top-[3px] size-[26px] rounded-lg bg-brand-gradient opacity-70" />
-          <span className="absolute left-[10px] top-[6px] grid size-[26px] place-items-center rounded-lg bg-brand-gradient text-[11px] font-semibold text-primary-foreground">
-            {initials(group.name)}
-          </span>
-        </span>
+        {/* Stacked tiles: one glance says "this is several workspaces", which a single tile cannot.
+            They use the group's first workspaces' own photos, so an agency reads as those
+            particular workspaces rather than as a generic icon. */}
+        <GroupTileStack name={group.name} members={group.workspaces} muted={group.readOnly} />
 
         <span className="grid min-w-0 flex-1 leading-tight">
           <span className="flex min-w-0 items-center gap-1.5">

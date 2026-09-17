@@ -15,6 +15,12 @@ type View = { kind: "root" } | { kind: "group"; groupId: string };
  * Search deliberately reaches INSIDE groups. An agency owner looking for "Bloom Room" knows the
  * workspace's name, not which of twenty slots it sits in, and making them drill in first would be
  * asking them to remember something the product already knows.
+ *
+ * 🔴 NO PENCIL ON TOP-LEVEL ROWS. Spec 5.7: renaming appears only inside the agency group view, on
+ * the group header and on each row within it. A standalone workspace is renamed from Settings.
+ * This file used to pass `onRename` to every root row the user owned, which put a pencil on rows
+ * the HTML shows without one. The group view below still passes it, which is the whole of the
+ * distinction.
  */
 export function SwitcherContent({
   data,
@@ -38,6 +44,19 @@ export function SwitcherContent({
 
   const group =
     view.kind === "group" ? (data.groups.find((g) => g.id === view.groupId) ?? null) : null;
+
+  /**
+   * Row order, matching the reference exactly: live workspaces, then agencies, then expired ones.
+   *
+   * The reference prototype keeps ONE ordered list and inserts every new item before the first
+   * expired row, so an expired workspace always sinks to the bottom and a group sits among the
+   * live rows. The API returns `workspaces` and `groups` as two arrays, and rendering them in that
+   * order put the agency BELOW an expired workspace, which is the one structural difference the
+   * first screenshot comparison found. Sorting here rather than changing the API keeps the fix on
+   * the side that owns presentation.
+   */
+  const activeWorkspaces = data.workspaces.filter((w) => !w.readOnly);
+  const expiredWorkspaces = data.workspaces.filter((w) => w.readOnly);
 
   const select = (workspaceId: string) => {
     onSelectWorkspace(workspaceId);
@@ -220,17 +239,12 @@ export function SwitcherContent({
             <div className="px-2 pb-1 pt-2 text-[11.5px] font-medium text-muted-foreground">
               Your workspaces
             </div>
-            {data.workspaces.map((workspace) => (
+            {activeWorkspaces.map((workspace) => (
               <WorkspaceRow
                 key={workspace.id}
                 workspace={workspace}
                 isCurrent={workspace.id === currentWorkspaceId}
                 onSelect={() => select(workspace.id)}
-                onRename={
-                  workspace.isOwner
-                    ? () => onRename({ kind: "workspace", id: workspace.id, name: workspace.name })
-                    : undefined
-                }
               />
             ))}
             {data.groups.map((g) => (
@@ -239,6 +253,14 @@ export function SwitcherContent({
                 group={g}
                 containsCurrent={g.workspaces.some((w) => w.id === currentWorkspaceId)}
                 onOpen={() => setView({ kind: "group", groupId: g.id })}
+              />
+            ))}
+            {expiredWorkspaces.map((workspace) => (
+              <WorkspaceRow
+                key={workspace.id}
+                workspace={workspace}
+                isCurrent={workspace.id === currentWorkspaceId}
+                onSelect={() => select(workspace.id)}
               />
             ))}
           </>

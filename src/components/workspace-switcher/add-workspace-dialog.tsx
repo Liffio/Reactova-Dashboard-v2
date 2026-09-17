@@ -4,10 +4,14 @@ import { Check, Loader2, ShieldCheck, X } from "lucide-react";
 
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ResponsiveDialog } from "./responsive-dialog";
+import {
+  DialogBody,
+  DialogFooterBar,
+  DialogHeaderBar,
+  ResponsiveDialog,
+} from "./responsive-dialog";
 import { PlanOption } from "./plan-option";
+import { NameField } from "./name-field";
 import { createWorkspace } from "@/lib/api/workspaces-api";
 import {
   getSellablePackages,
@@ -89,10 +93,24 @@ export function AddWorkspaceDialog({
 
   const [step, setStep] = useState<Step>("form");
   const [name, setName] = useState("");
+  /**
+   * FX4: the sheet never opens with nothing selected.
+   *
+   * It used to initialise to `""` whenever the free slot was taken, so a customer who already had
+   * a free workspace opened the picker with no plan chosen, a disabled button, and nothing saying
+   * which plan they were about to buy. Free when the slot is open, otherwise the cheapest paid
+   * plan, which the effect below fills in once the catalogue arrives.
+   */
   const [selected, setSelected] = useState<string>(freeSlotAvailable ? FREE : "");
   const [busy, setBusy] = useState(false);
   const [createdName, setCreatedName] = useState("");
   const [createdIsGroup, setCreatedIsGroup] = useState(false);
+  /** FX6: set when the used Free row is tapped, so it can say why it cannot be picked. */
+  const [freeNotice, setFreeNotice] = useState(false);
+  /** FX5: set when create is tapped with an empty name. Cleared as soon as they type. */
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [shaking, setShaking] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
   /** Guards against a double submit dispatching two checkouts for one intent. */
   const dispatching = useRef(false);
 
@@ -146,6 +164,16 @@ export function AddWorkspaceDialog({
   const paidSelected = selected !== FREE && selected !== "";
 
   /**
+   * Whether the plan catalogue is still in flight, and whether it gave up. (FX2)
+   *
+   * Drives the per-row skeletons and the inline retry. Both are deliberately about the CATALOGUE,
+   * not about the per-selection quote: the catalogue is what every row needs before it can show a
+   * number, while the quote only refines the one row the customer has chosen.
+   */
+  const pricesPending = packagesQuery.isPending || configQuery.isPending;
+  const pricesFailed = packagesQuery.isError || configQuery.isError;
+
+  /**
    * The price for the selected plan, from the server.
    *
    * Refetched per selection rather than pre-fetched for every package: the quote depends on offer
@@ -158,17 +186,57 @@ export function AddWorkspaceDialog({
     enabled: open && paidSelected,
   });
 
+  /**
+   * Fall back to the cheapest paid plan once the catalogue is known. (FX4)
+   *
+   * Cannot be done in `useState`: when the sheet opens, `packages` is still empty, so there is no
+   * plan id to select yet. Runs only while nothing is selected, so it can never overwrite a
+   * choice the customer has already made, and never fights the reset effect below.
+   *
+   * "Cheapest paid" is `packages[0]`, which is already sorted by `sortOrder`, the same ladder the
+   * pricing page renders. That is Starter today; deriving it rather than naming it means a new
+   * entry-level plan is picked up without touching this file.
+   */
+  useEffect(() => {
+    if (!open || selected !== "" || packages.length === 0) return;
+    setSelected(packages[0].id);
+  }, [open, selected, packages]);
+
   useEffect(() => {
     if (!open) {
       setStep("form");
       setName("");
       setSelected(freeSlotAvailable ? FREE : "");
+      setFreeNotice(false);
+      setNameError(null);
+      setShaking(false);
       setBusy(false);
       dispatching.current = false;
     }
   }, [open, freeSlotAvailable]);
 
   const trimmed = name.trim();
+
+  /**
+   * The empty-name path. (FX5)
+   *
+   * Returns true when it handled the tap, so callers read as
+   * `if (requireName()) return;`. The button is NEVER disabled, so this is what makes a tap with
+   * no name informative instead of inert: scroll the field into view (it can be above the fold
+   * once the plan list is long), shake it, focus it, and say what is missing under it.
+   *
+   * `preventScroll` on the focus call because `scrollIntoView` is already animating; letting
+   * focus scroll as well fights it and lands somewhere between the two.
+   */
+  const requireName = () => {
+    if (name.trim()) return false;
+    setNameError("Give your workspace a name first.");
+    setShaking(true);
+    window.setTimeout(() => setShaking(false), 450);
+    nameRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    nameRef.current?.focus({ preventScroll: true });
+    return true;
+  };
   const quote = quoteQuery.data;
 
   const createFree = async () => {
@@ -191,6 +259,15 @@ export function AddWorkspaceDialog({
 
   const pay = async () => {
     if (dispatching.current) return;
+    /**
+     * The sub-second window before the catalogue lands, when FX4 has not had a plan id to select
+     * yet. The button is no longer disabled (FX5), so this is what stops a tap in that window
+     * posting an empty `packageId`. Says so rather than failing silently.
+     */
+    if (!selected || selected === FREE) {
+      toast.error("Pick a plan first");
+      return;
+    }
     const keyId = configQuery.data?.providers.razorpay.keyId;
     if (!keyId) {
       toast.error("Razorpay is not configured");
@@ -358,25 +435,29 @@ export function AddWorkspaceDialog({
         </div>
       ) : (
         <>
-          <div className="px-6 pt-6">
+          <DialogHeaderBar>
             <h2 className="font-display text-xl font-semibold tracking-tight">Add a workspace</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {freeSlotAvailable
                 ? "Use your one free workspace, or pick a paid plan."
                 : "Your free workspace is already in use, so a new one needs a paid plan."}
             </p>
-          </div>
+          </DialogHeaderBar>
 
-          <div className="px-6 py-5">
-            <Label htmlFor="ws-name" className="mb-1.5 block text-[13px] font-medium">
-              Workspace name
-            </Label>
-            <Input
+          <DialogBody className="px-6 py-5">
+            <NameField
+              ref={nameRef}
               id="ws-name"
+              label="Workspace name"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(value) => {
+                setName(value);
+                // FX5: the error clears the moment they start typing, not on the next submit.
+                if (nameError) setNameError(null);
+              }}
               placeholder="e.g. Bloom Room"
-              maxLength={40}
+              error={nameError}
+              shaking={shaking}
               autoFocus
             />
 
@@ -391,10 +472,32 @@ export function AddWorkspaceDialog({
                 price="Free"
                 priceNote="forever"
                 selected={selected === FREE}
-                disabled={!freeSlotAvailable}
+                unavailable={!freeSlotAvailable}
                 disabledChipLabel="Used"
-                onSelect={() => setSelected(FREE)}
+                describedById={freeNotice && !freeSlotAvailable ? "free-plan-notice" : undefined}
+                onSelect={() => {
+                  if (!freeSlotAvailable) {
+                    setFreeNotice(true);
+                    return;
+                  }
+                  setFreeNotice(false);
+                  setSelected(FREE);
+                }}
               />
+
+              {/*
+                FX6: the used Free row explains itself instead of sitting dead. Rendered under the
+                row it belongs to, and as a live region so it is announced when it appears.
+              */}
+              {freeNotice && !freeSlotAvailable ? (
+                <p
+                  id="free-plan-notice"
+                  role="status"
+                  className="-mt-1 rounded-lg bg-muted px-3 py-2 text-[12.5px] text-muted-foreground"
+                >
+                  Your free workspace is already in use. Pick a paid plan, or upgrade that one.
+                </p>
+              ) : null}
 
               {packages.map((pkg) => {
                 const { price, note } = priceFor(pkg);
@@ -405,15 +508,40 @@ export function AddWorkspaceDialog({
                     description={pkg.description ?? ""}
                     price={price}
                     priceNote={note}
+                    priceLoading={pricesPending}
                     selected={selected === pkg.id}
-                    onSelect={() => setSelected(pkg.id)}
+                    onSelect={() => {
+                      setFreeNotice(false);
+                      setSelected(pkg.id);
+                    }}
                   />
                 );
               })}
-            </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-3 border-t px-6 py-4">
+              {/*
+                FX2: a failed catalogue fetch retries HERE, in the list that is missing, not in the
+                button. Putting it in the button conflates "this control is broken" with "this
+                control is the way forward".
+              */}
+              {pricesFailed ? (
+                <div className="rounded-xl border border-dashed px-3.5 py-3 text-[12.5px] text-muted-foreground">
+                  Could not load plan prices.{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary underline underline-offset-2"
+                    onClick={() => {
+                      void packagesQuery.refetch();
+                      void configQuery.refetch();
+                    }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </DialogBody>
+
+          <DialogFooterBar>
             <span className="flex min-w-[180px] flex-1 items-center gap-1.5 text-xs text-muted-foreground">
               {selected === FREE ? (
                 <>
@@ -427,19 +555,41 @@ export function AddWorkspaceDialog({
                 </>
               )}
             </span>
+            {/*
+              🔴 Never disabled on an empty name (FX5).
+              A disabled button is a dead end: it does not say what is missing, and on touch there
+              is nothing to tap to find out. It stays enabled and `requireName()` does the
+              explaining. Still disabled while a request is in flight, which is a different thing:
+              that guards against a double submit rather than withholding an answer.
+            */}
             <Button
-              disabled={!trimmed || busy || selected === "" || (paidSelected && !quote)}
-              onClick={() => (selected === FREE ? void createFree() : void pay())}
+              disabled={busy}
+              onClick={() => {
+                if (requireName()) return;
+                if (selected === FREE) {
+                  void createFree();
+                  return;
+                }
+                void pay();
+              }}
             >
+              {/*
+                🔴 No loading state in the button (FX2). It read "Loading price…", which looks
+                like a dead control: the label is where the ACTION goes, not where progress goes.
+                While the amount is still coming the label simply omits it; the plan rows carry
+                the skeleton, and a failed fetch offers its retry there too.
+              */}
               {selected === FREE
                 ? busy
                   ? "Creating…"
                   : "Create workspace"
-                : quote
-                  ? `Pay ${money(quote.amountMinor, quote.currency)} and create`
-                  : "Loading price…"}
+                : busy
+                  ? "Starting…"
+                  : quote
+                    ? `Pay ${money(quote.amountMinor, quote.currency)} and create`
+                    : "Pay and create"}
             </Button>
-          </div>
+          </DialogFooterBar>
         </>
       )}
     </ResponsiveDialog>

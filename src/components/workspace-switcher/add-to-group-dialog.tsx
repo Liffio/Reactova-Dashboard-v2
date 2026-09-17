@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Building2 } from "lucide-react";
 
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ResponsiveDialog } from "./responsive-dialog";
+import {
+  DialogBody,
+  DialogFooterBar,
+  DialogHeaderBar,
+  ResponsiveDialog,
+} from "./responsive-dialog";
 import { SlotBar } from "./slot-bar";
+import { NameField } from "./name-field";
 import { createWorkspaceInGroup, type SwitcherGroup } from "@/lib/api/workspace-switcher-api";
 
 /**
@@ -32,6 +36,20 @@ export function AddToGroupDialog({
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  /** FX5, the same contract as the Add-workspace sheet: never disable, explain instead. */
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [shaking, setShaking] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  const requireName = () => {
+    if (name.trim()) return false;
+    setNameError("Give your workspace a name first.");
+    setShaking(true);
+    window.setTimeout(() => setShaking(false), 450);
+    nameRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    nameRef.current?.focus({ preventScroll: true });
+    return true;
+  };
 
   useEffect(() => {
     if (!open) {
@@ -66,26 +84,31 @@ export function AddToGroupDialog({
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange} title={`Add to ${group.name}`}>
-      <div className="px-6 pt-6">
+      <DialogHeaderBar>
         <h2 className="font-display text-xl font-semibold tracking-tight">Add to {group.name}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           No payment needed. This uses one of your agency slots.
         </p>
-      </div>
+      </DialogHeaderBar>
 
-      <div className="px-6 py-5">
-        <Label htmlFor="group-ws-name" className="mb-1.5 block text-[13px] font-medium">
-          Workspace name
-        </Label>
-        <Input
+      <DialogBody className="px-6 py-5">
+        <NameField
+          ref={nameRef}
           id="group-ws-name"
+          label="Workspace name"
           value={name}
-          onChange={(event) => setName(event.target.value)}
+          onChange={(value) => {
+            setName(value);
+            if (nameError) setNameError(null);
+          }}
           placeholder="e.g. Client name"
-          maxLength={40}
+          error={nameError}
+          shaking={shaking}
           autoFocus
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && name.trim() && !busy) void submit();
+          onEnter={() => {
+            if (busy) return;
+            if (requireName()) return;
+            void submit();
           }}
         />
 
@@ -103,16 +126,22 @@ export function AddToGroupDialog({
         </div>
 
         <SlotBar used={nextSlot} limit={group.slotLimit} size="lg" className="mt-3" />
-      </div>
+      </DialogBody>
 
-      <div className="flex flex-wrap items-center gap-3 border-t px-6 py-4">
+      <DialogFooterBar>
         <span className="min-w-[180px] flex-1 text-xs text-muted-foreground">
           {remaining} {remaining === 1 ? "slot" : "slots"} left after this one
         </span>
-        <Button disabled={!name.trim() || busy} onClick={() => void submit()}>
+        <Button
+          disabled={busy}
+          onClick={() => {
+            if (requireName()) return;
+            void submit();
+          }}
+        >
           {busy ? "Creating…" : "Create workspace"}
         </Button>
-      </div>
+      </DialogFooterBar>
     </ResponsiveDialog>
   );
 }

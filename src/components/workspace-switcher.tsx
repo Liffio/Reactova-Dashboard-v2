@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronsUpDown, ChevronRight } from "lucide-react";
 
 import { SwitcherSurface, SWITCHER_SHEET_BREAKPOINT } from "./workspace-switcher/switcher-surface";
@@ -14,6 +14,7 @@ import { WorkspaceIdChip } from "@/components/workspace-id-chip";
 import { useApp } from "@/state/app-context";
 import { formatHandle } from "@/lib/format";
 import { getSwitcher, type SwitcherGroup } from "@/lib/api/workspace-switcher-api";
+import { getBillingConfig, getSellablePackages } from "@/lib/api/billing-api";
 import { SwitcherContent } from "./workspace-switcher/switcher-content";
 import { AddWorkspaceDialog } from "./workspace-switcher/add-workspace-dialog";
 import { AddToGroupDialog } from "./workspace-switcher/add-to-group-dialog";
@@ -78,6 +79,31 @@ export function WorkspaceSwitcher({
     queryFn: getSwitcher,
     enabled: open || addOpen || Boolean(groupTarget),
   });
+
+  /**
+   * Warm the plan catalogue as soon as the SWITCHER opens, not when the Add sheet does. (FX2)
+   *
+   * The sheet used to start both requests on mount, so it opened with no prices and the primary
+   * button sat on "Loading price…" for as long as the round trip took. Opening the switcher is
+   * already a strong signal that "Add workspace" may be next, and the fetch costs nothing if it is
+   * not: these are cached under the same keys the sheet reads, so by the time the sheet mounts the
+   * data is usually already there.
+   *
+   * `prefetchQuery` rather than another `useQuery`: this component never renders the prices, it
+   * only wants them in the cache, and prefetch is a no-op when the entry is still fresh.
+   */
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!open) return;
+    void queryClient.prefetchQuery({
+      queryKey: ["billing-sellable-packages"],
+      queryFn: getSellablePackages,
+    });
+    void queryClient.prefetchQuery({
+      queryKey: ["billing-config"],
+      queryFn: getBillingConfig,
+    });
+  }, [open, queryClient]);
 
   const data = switcherQuery.data;
 

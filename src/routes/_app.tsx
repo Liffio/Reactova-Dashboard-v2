@@ -15,6 +15,7 @@ import { SearchIconTrigger, SearchTrigger } from "@/components/shell/search-trig
 import { GlobalSearchPalette } from "@/components/shell/global-search";
 import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
 import { AccessChangedModal } from "@/components/access/access-changed-modal";
+import { AccessRefreshListener } from "@/components/access/access-refresh-listener";
 import { RegistryUpdatedListener } from "@/components/plugins/registry-updated-listener";
 import { NotificationsMenu } from "@/components/notifications/notifications-menu";
 import { ProtectedRoute } from "@/components/auth/guards";
@@ -163,6 +164,9 @@ function AppLayout() {
       {/* Mounted once for the whole authenticated shell so an access change interrupts the user
           wherever they are, not only on permission-related pages. */}
       <AccessChangedModal />
+      {/* Separate from the modal on purpose: this keeps permissions true even when the operator
+          suppressed the notice, which is the default for package edits. See the component. */}
+      <AccessRefreshListener />
       <RegistryUpdatedListener />
       {/* Mounted once, here, for the same reason `useWorkspaceEvents` is: both topbar triggers and
           the ⌘K shortcut dispatch one DOM event, and a second listener would open two dialogs. */}

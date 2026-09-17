@@ -40,6 +40,7 @@ import {
   createPackageCheckout,
   fetchInvoiceViewHtml,
   fetchInvoicePdf,
+  requestInvoicePdf,
   saveBlob,
   invoiceFileName,
   type BillingInvoiceRow,
@@ -214,17 +215,23 @@ function BillingPage() {
    * the route is bearer-token authenticated and a bare navigation never attaches that header.
    */
   /**
-   * Save an invoice PDF.
+   * Save an invoice PDF, producing it first if it was never rendered.
    *
-   * Only offered when the row reports `hasPdf`. That flag is an existence check on the stored bytes,
-   * which is exactly what the endpoint 404s on — so the button and the route agree. Invoices issued
-   * before the PDF renderer was fixed have HTML and no PDF, and for those the control is disabled
-   * with a reason rather than hidden, so the absence is explained instead of mysterious.
+   * Offered when the row has stored bytes (`hasPdf`) **or** can still produce them
+   * (`canRenderPdf`). Keying on `hasPdf` alone is what made this button permanently dead for any
+   * invoice whose issuance-time render failed: the flag was truthful and the state had no way out,
+   * so the customer saw a disabled control on their own paid invoice forever.
+   *
+   * Still disabled, with a reason, when neither holds. Those rows genuinely have no document and
+   * cannot honestly be given one — see the route, which refuses for the same reason rather than
+   * composing a tax invoice out of today's configuration.
    */
   const downloadInvoicePdf = async (inv: BillingInvoiceRow) => {
     setDownloadingId(inv.id);
     try {
-      const blob = await fetchInvoicePdf(workspaceId, inv.id);
+      const blob = inv.hasPdf
+        ? await fetchInvoicePdf(workspaceId, inv.id)
+        : await requestInvoicePdf(workspaceId, inv.id);
       saveBlob(blob, invoiceFileName(inv, "pdf"));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not download invoice");
@@ -848,12 +855,18 @@ function BillingPage() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          disabled={!inv.hasPdf || downloadingId === inv.id}
+                          disabled={
+                            (!inv.hasPdf && !inv.canRenderPdf) || downloadingId === inv.id
+                          }
                           onClick={() => void downloadInvoicePdf(inv)}
                           title={
                             inv.hasPdf
                               ? "Download this invoice as a PDF"
-                              : "A PDF is not available for this invoice"
+                              : inv.canRenderPdf
+                                ? "Prepare this invoice as a PDF and download it"
+                                : inv.hasDocument
+                                  ? "This invoice was issued before PDF support. Use View to open it."
+                                  : "This payment was not issued as an invoice, so there is no document"
                           }
                         >
                           {downloadingId === inv.id ? (

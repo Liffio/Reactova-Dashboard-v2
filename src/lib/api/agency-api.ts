@@ -20,8 +20,14 @@ export type AgencyDashboard = {
      * count or an overage — an unlimited agency has neither.
      */
     unlimitedWorkspaces?: boolean;
-    /** Returned but deliberately not rendered: it is an unbacked presentation placeholder. */
-    extraMeteredRate: number;
+    /*
+     * 🔴 `extraMeteredRate` WAS HERE, AND THE SERVER NO LONGER SENDS IT.
+     *
+     * A hardcoded $9 "overage rate" with no source of truth, which this file already noted was
+     * never rendered. Under the workspace-plans model it cannot mean anything: an agency is a group
+     * with a fixed number of slots, adding a workspace inside it costs nothing, and at the limit
+     * the create is refused with `AGENCY_SLOTS_FULL` rather than billed.
+     */
   };
   clients: Array<{
     id: string;

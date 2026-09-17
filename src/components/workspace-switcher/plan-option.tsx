@@ -24,6 +24,7 @@ export function PlanOption({
   unavailable,
   disabledChipLabel,
   priceLoading,
+  describedById,
   onSelect,
 }: {
   name: string;
@@ -41,6 +42,8 @@ export function PlanOption({
   disabledChipLabel?: string;
   /** While the price is still being fetched, the amount is a skeleton (FX2), never text. */
   priceLoading?: boolean;
+  /** Id of the note explaining why an `unavailable` row cannot be chosen (FX6). */
+  describedById?: string;
   onSelect: () => void;
 }) {
   return (
@@ -49,6 +52,7 @@ export function PlanOption({
       role="radio"
       aria-checked={selected}
       aria-disabled={unavailable || undefined}
+      aria-describedby={describedById}
       onClick={onSelect}
       className={cn(
         "flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition-colors",

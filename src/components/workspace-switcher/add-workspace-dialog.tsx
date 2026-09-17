@@ -474,6 +474,7 @@ export function AddWorkspaceDialog({
                 selected={selected === FREE}
                 unavailable={!freeSlotAvailable}
                 disabledChipLabel="Used"
+                describedById={freeNotice && !freeSlotAvailable ? "free-plan-notice" : undefined}
                 onSelect={() => {
                   if (!freeSlotAvailable) {
                     setFreeNotice(true);
@@ -490,6 +491,7 @@ export function AddWorkspaceDialog({
               */}
               {freeNotice && !freeSlotAvailable ? (
                 <p
+                  id="free-plan-notice"
                   role="status"
                   className="-mt-1 rounded-lg bg-muted px-3 py-2 text-[12.5px] text-muted-foreground"
                 >

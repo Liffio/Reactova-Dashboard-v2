@@ -440,6 +440,47 @@ export type FirstPaymentLine = {
  * amount depends on offer rules the client has no business knowing — and `createPackageCheckout`
  * calls the same resolver, so what is displayed here and what Razorpay charges cannot drift.
  */
+/** Why a discount code was refused. Mapped to copy by `discountRejectionMessage`. */
+export type DiscountRejection =
+  | "not_found"
+  | "inactive"
+  | "not_started"
+  | "expired"
+  | "exhausted"
+  | "already_used"
+  | "wrong_package"
+  | "wrong_currency"
+  | "unsupported_duration";
+
+/**
+ * What to tell the customer when a code does not apply.
+ *
+ * Deliberately specific. "Invalid code" for all nine cases makes an expired code and a typo look
+ * identical, and the person who cannot tell them apart opens a support ticket for both.
+ */
+export function discountRejectionMessage(reason: DiscountRejection): string {
+  switch (reason) {
+    case "not_found":
+      return "We do not recognise that code";
+    case "inactive":
+      return "That code is no longer active";
+    case "not_started":
+      return "That code is not active yet";
+    case "expired":
+      return "That code has expired";
+    case "exhausted":
+      return "That code has been fully claimed";
+    case "already_used":
+      return "You have already used that code";
+    case "wrong_package":
+      return "That code does not apply to this plan";
+    case "wrong_currency":
+      return "That code cannot be used in this currency";
+    case "unsupported_duration":
+      return "That code cannot be applied automatically. Contact support.";
+  }
+}
+
 export type FirstPaymentQuote = {
   packageId: string;
   packageName: string;
@@ -452,6 +493,13 @@ export type FirstPaymentQuote = {
   lines: FirstPaymentLine[];
   introApplied: boolean;
   referralApplied: boolean;
+  /** The code that actually applied, or null when none did or it lost to the intro offer. */
+  codeApplied?: { codeId: string; code: string } | null;
+  /**
+   * Why a typed code did not apply. Present with a full-price quote rather than an error, so a
+   * mistyped code still shows a price and the customer is told what went wrong.
+   */
+  discountRejection?: DiscountRejection | null;
   differsFromList: boolean;
   /**
    * How much time the first payment buys.
@@ -466,8 +514,14 @@ export type FirstPaymentQuote = {
 
 export function getFirstPaymentQuote(
   workspaceId: string,
-  params: { packageId: string; interval: "monthly" | "yearly" },
+  params: { packageId: string; interval: "monthly" | "yearly"; discountCode?: string },
 ) {
-  const query = new URLSearchParams(params).toString();
+  // An empty box must not become `discountCode=`, which the server would read as a code to look up
+  // and reject, putting "we do not recognise that code" under an input nobody typed in.
+  const query = new URLSearchParams({
+    packageId: params.packageId,
+    interval: params.interval,
+    ...(params.discountCode?.trim() ? { discountCode: params.discountCode.trim() } : {}),
+  }).toString();
   return apiRequest<FirstPaymentQuote>(`${apiUri.billing.quote}?${query}`, { workspaceId });
 }

@@ -8,10 +8,12 @@ import { Logo } from "@/components/logo";
 import { VerifiedRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { BillingAddressForm } from "@/components/billing/billing-address-form";
 import {
   createPackageCheckout,
+  discountRejectionMessage,
   getBillingConfig,
   getBillingProfile,
   getFirstPaymentQuote,
@@ -116,9 +118,24 @@ function CheckoutReview() {
    * page can change it — the ₹49 intro is India-only, so switching country must re-quote rather
    * than leave a stale total on screen next to a form that no longer matches it.
    */
+  /**
+   * The code box, and the code actually being quoted.
+   *
+   * Two pieces of state on purpose. `codeInput` is what the customer is typing; `appliedCode` is
+   * what the quote was asked for. Quoting on every keystroke would send a request per character and
+   * flash "we do not recognise that code" at somebody halfway through typing a valid one.
+   */
+  const [codeInput, setCodeInput] = useState("");
+  const [appliedCode, setAppliedCode] = useState("");
+
   const quoteQuery = useQuery({
-    queryKey: ["billing-quote", workspaceId, packageId, interval, user?.country],
-    queryFn: () => getFirstPaymentQuote(workspaceId, { packageId: packageId as string, interval }),
+    queryKey: ["billing-quote", workspaceId, packageId, interval, user?.country, appliedCode],
+    queryFn: () =>
+      getFirstPaymentQuote(workspaceId, {
+        packageId: packageId as string,
+        interval,
+        discountCode: appliedCode || undefined,
+      }),
     enabled: Boolean(workspaceId && packageId),
     // A quote is a price. Re-fetch rather than serve a cached one across a country change.
     staleTime: 0,
@@ -342,6 +359,71 @@ function CheckoutReview() {
                   ))}
                 </>
               )}
+
+              {/*
+                The code box sits ABOVE the total, because applying one changes the total and a
+                control that changes a number should be read before it, not after.
+              */}
+              <Separator />
+              <div className="space-y-1.5">
+                <label htmlFor="discount-code" className="text-xs text-muted-foreground">
+                  Have a discount code?
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    id="discount-code"
+                    value={codeInput}
+                    // Uppercased as they type, because that is how codes are stored and it saves a
+                    // "why did my code not work" ticket from someone who typed it in lower case.
+                    onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        setAppliedCode(codeInput.trim());
+                      }
+                    }}
+                    placeholder="Enter code"
+                    className="h-9"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    // Disabled when it would re-ask the same question: nothing typed, or the code
+                    // already quoted.
+                    disabled={
+                      quoteQuery.isFetching ||
+                      codeInput.trim().length === 0 ||
+                      codeInput.trim() === appliedCode
+                    }
+                    onClick={() => setAppliedCode(codeInput.trim())}
+                  >
+                    {quoteQuery.isFetching ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      "Apply"
+                    )}
+                  </Button>
+                </div>
+                {/*
+                  The rejection arrives WITH a full-price quote rather than as an error, so the
+                  customer still sees what they owe. Saying which of the nine reasons applies is the
+                  difference between fixing a typo and opening a ticket.
+                */}
+                {quote?.discountRejection && (
+                  <p className="text-xs text-destructive">
+                    {discountRejectionMessage(quote.discountRejection)}
+                  </p>
+                )}
+                {quote?.codeApplied && (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                    Code {quote.codeApplied.code} applied
+                  </p>
+                )}
+              </div>
 
               <Separator />
               <div className="flex items-baseline justify-between text-base font-semibold">

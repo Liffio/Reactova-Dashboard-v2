@@ -619,6 +619,15 @@ export const apiUri = {
       codegen: (parentKey?: string) =>
         `${V1}/admin/registry/codegen${parentKey ? `?parentKey=${encodeURIComponent(parentKey)}` : ""}`,
     },
+    /** Operator-created discount codes. See `adminDiscountCodes.ts` for why codes are data and the
+     *  ₹49 intro is config. */
+    discountCodes: {
+      list: (includeInactive = false) =>
+        `${V1}/admin/discount-codes${includeInactive ? "?includeInactive=true" : ""}`,
+      create: `${V1}/admin/discount-codes`,
+      deactivate: (id: string) => `${V1}/admin/discount-codes/${id}/deactivate`,
+      redemptions: (id: string) => `${V1}/admin/discount-codes/${id}/redemptions`,
+    },
     packages: {
       list: (p: { page?: number; limit?: number; q?: string } = {}) =>
         `${V1}/admin/packages${listQs(p)}`,

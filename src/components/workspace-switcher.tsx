@@ -1,17 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronsUpDown, ChevronRight } from "lucide-react";
 
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SwitcherSurface, SWITCHER_SHEET_BREAKPOINT } from "./workspace-switcher/switcher-surface";
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { cn } from "@/lib/utils";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { WorkspaceIdChip } from "@/components/workspace-id-chip";
 import { useApp } from "@/state/app-context";
 import { formatHandle } from "@/lib/format";
@@ -21,15 +19,25 @@ import { AddWorkspaceDialog } from "./workspace-switcher/add-workspace-dialog";
 import { AddToGroupDialog } from "./workspace-switcher/add-to-group-dialog";
 import { RenameDialog, type RenameTarget } from "./workspace-switcher/rename-dialog";
 import { PlanChip, ExpiredChip } from "./workspace-switcher/plan-chip";
+import { WorkspaceTile } from "./workspace-switcher/workspace-tile";
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+/**
+ * Matches the reference's `@media (max-width: 820px)` rather than the app-wide 768px hook, so the
+ * switcher becomes a sheet at exactly the width the design says it should. Kept local for the
+ * reason spelled out in `switcher-surface.tsx`.
+ */
+function useSwitcherIsSheet() {
+  const [isSheet, setIsSheet] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${SWITCHER_SHEET_BREAKPOINT - 1}px)`);
+    const sync = () => setIsSheet(mql.matches);
+    sync();
+    mql.addEventListener("change", sync);
+    return () => mql.removeEventListener("change", sync);
+  }, []);
+
+  return isSheet;
 }
 
 /**
@@ -56,7 +64,7 @@ export function WorkspaceSwitcher({
 } = {}) {
   const { current, setCurrentId, refreshAuth } = useApp();
   const { isMobile, setOpenMobile } = useSidebar();
-  const mobile = useIsMobile();
+  const isSheet = useSwitcherIsSheet();
   const page = usePageTitle();
 
   const [open, setOpen] = useState(false);
@@ -119,9 +127,11 @@ export function WorkspaceSwitcher({
       aria-label={`Workspace: ${current.name}`}
       className="flex h-9 min-w-0 max-w-[190px] shrink-0 items-center gap-2 rounded-lg border bg-card px-2 shadow-soft transition-colors hover:bg-accent"
     >
-      <span className="grid size-6 shrink-0 place-items-center rounded-md bg-brand-gradient text-[10px] font-semibold text-primary-foreground">
-        {initials(current.name)}
-      </span>
+      <WorkspaceTile
+        name={current.name}
+        src={activeRow?.profilePictureUrl}
+        className="size-6 rounded-[7px] text-[10px]"
+      />
       <span className="hidden min-w-0 flex-1 truncate text-left text-xs font-medium sm:block">
         {current.name}
       </span>
@@ -129,9 +139,7 @@ export function WorkspaceSwitcher({
     </button>
   ) : (
     <SidebarMenuButton size="lg" tooltip={current.name}>
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-gradient text-xs font-semibold text-primary-foreground">
-        {initials(current.name)}
-      </span>
+      <WorkspaceTile name={current.name} src={activeRow?.profilePictureUrl} />
       <span className="grid min-w-0 flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="truncate text-sm font-semibold text-sidebar-foreground">
@@ -152,45 +160,41 @@ export function WorkspaceSwitcher({
   );
 
   const panel = (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent
-        align={topbar ? "end" : "start"}
-        side={topbar || crumb || mobile ? "bottom" : "right"}
-        sideOffset={6}
-        className={cn(
-          "flex w-[340px] flex-col overflow-hidden p-0",
-          // On phones the popover spans the viewport rather than floating in a corner, which is the
-          // bottom-sheet shape the rest of this flow uses.
-          "max-sm:w-[calc(100vw-2rem)]",
-        )}
-      >
-        {data ? (
-          <SwitcherContent
-            data={data}
-            currentWorkspaceId={current.id}
-            onSelectWorkspace={(id) => void switchTo(id)}
-            onAddWorkspace={() => {
-              setOpen(false);
-              setAddOpen(true);
-            }}
-            onAddToGroup={(group) => {
-              setOpen(false);
-              setGroupTarget(group);
-            }}
-            onRename={(target) => {
-              setOpen(false);
-              setRenameTarget(target);
-            }}
-            onClose={() => setOpen(false)}
-          />
-        ) : (
-          <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-            {switcherQuery.isError ? "Could not load workspaces" : "Loading workspaces…"}
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
+    <SwitcherSurface
+      open={open}
+      onOpenChange={setOpen}
+      isSheet={isSheet}
+      trigger={trigger}
+      // The sidebar trigger sits at the FOOT of the sidebar, so its popover opens upward, anchored
+      // above it. The header pills sit at the top and open downward, as a header control should.
+      desktopSide={topbar || crumb ? "bottom" : "top"}
+      desktopAlign={topbar ? "end" : "start"}
+    >
+      {data ? (
+        <SwitcherContent
+          data={data}
+          currentWorkspaceId={current.id}
+          onSelectWorkspace={(id) => void switchTo(id)}
+          onAddWorkspace={() => {
+            setOpen(false);
+            setAddOpen(true);
+          }}
+          onAddToGroup={(group) => {
+            setOpen(false);
+            setGroupTarget(group);
+          }}
+          onRename={(target) => {
+            setOpen(false);
+            setRenameTarget(target);
+          }}
+          onClose={() => setOpen(false)}
+        />
+      ) : (
+        <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+          {switcherQuery.isError ? "Could not load workspaces" : "Loading workspaces…"}
+        </div>
+      )}
+    </SwitcherSurface>
   );
 
   return (

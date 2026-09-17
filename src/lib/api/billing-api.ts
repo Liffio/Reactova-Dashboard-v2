@@ -101,6 +101,14 @@ export type BillingInvoiceRow = {
    */
   hasDocument?: boolean;
   hasPdf?: boolean;
+  /**
+   * Whether a PDF can still be produced, which is not the same question as whether one exists.
+   *
+   * `hasPdf` alone left the download button permanently dead for any invoice whose issuance-time
+   * render failed. This says the state is recoverable: the row keeps the model the document is
+   * composed from, so asking for it will produce the real document rather than a reconstruction.
+   */
+  canRenderPdf?: boolean;
 };
 
 export type CheckoutInput = {
@@ -153,6 +161,51 @@ export async function fetchInvoiceViewHtml(
     throw new Error("Unable to open invoice right now");
   }
   return res.blob();
+}
+
+/**
+ * Ask the server to produce a PDF that does not exist yet, and wait for it.
+ *
+ * The server renders on its worker rather than in the request — PDF composition is kept off the
+ * API process on purpose (see the route's comment: a 1 GiB cap, no swap, that queue pinned to
+ * concurrency 1). So `POST` returns 202 "asked for" and the bytes appear shortly afterwards. This
+ * polls the `GET` until they do.
+ *
+ * ⚠️ Bounded, and it gives up rather than spinning. A worker that is down is the exact condition
+ * that produced the missing PDF in the first place, so "the queue never drains" is a live
+ * possibility here, not a hypothetical. Ten attempts over roughly 20 seconds, then an honest error.
+ */
+export async function requestInvoicePdf(workspaceId: string, invoiceId: string): Promise<Blob> {
+  const token = authStore.getState().accessToken;
+  const res = await fetch(`${API_BASE}${apiUri.billing.invoicePdf(invoiceId)}`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "x-workspace-id": workspaceId,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(
+      res.status === 404
+        ? "This invoice cannot be turned into a PDF"
+        : "Unable to prepare this invoice right now",
+    );
+  }
+
+  // `{ ready: true }` means it was already there, so skip straight to the download.
+  const body = (await res.json().catch(() => ({}))) as { ready?: boolean };
+  if (body.ready) return fetchInvoicePdf(workspaceId, invoiceId);
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    try {
+      return await fetchInvoicePdf(workspaceId, invoiceId);
+    } catch {
+      // Still rendering. The GET 404s until the bytes are stored, which is the signal to wait.
+    }
+  }
+  throw new Error("Your invoice is still being prepared. Try again in a minute.");
 }
 
 /**

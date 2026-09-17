@@ -98,6 +98,8 @@ export function AddWorkspaceDialog({
   const [busy, setBusy] = useState(false);
   const [createdName, setCreatedName] = useState("");
   const [createdIsGroup, setCreatedIsGroup] = useState(false);
+  /** FX6: set when the used Free row is tapped, so it can say why it cannot be picked. */
+  const [freeNotice, setFreeNotice] = useState(false);
   /** Guards against a double submit dispatching two checkouts for one intent. */
   const dispatching = useRef(false);
 
@@ -151,6 +153,16 @@ export function AddWorkspaceDialog({
   const paidSelected = selected !== FREE && selected !== "";
 
   /**
+   * Whether the plan catalogue is still in flight, and whether it gave up. (FX2)
+   *
+   * Drives the per-row skeletons and the inline retry. Both are deliberately about the CATALOGUE,
+   * not about the per-selection quote: the catalogue is what every row needs before it can show a
+   * number, while the quote only refines the one row the customer has chosen.
+   */
+  const pricesPending = packagesQuery.isPending || configQuery.isPending;
+  const pricesFailed = packagesQuery.isError || configQuery.isError;
+
+  /**
    * The price for the selected plan, from the server.
    *
    * Refetched per selection rather than pre-fetched for every package: the quote depends on offer
@@ -168,6 +180,7 @@ export function AddWorkspaceDialog({
       setStep("form");
       setName("");
       setSelected(freeSlotAvailable ? FREE : "");
+      setFreeNotice(false);
       setBusy(false);
       dispatching.current = false;
     }
@@ -396,10 +409,30 @@ export function AddWorkspaceDialog({
                 price="Free"
                 priceNote="forever"
                 selected={selected === FREE}
-                disabled={!freeSlotAvailable}
+                unavailable={!freeSlotAvailable}
                 disabledChipLabel="Used"
-                onSelect={() => setSelected(FREE)}
+                onSelect={() => {
+                  if (!freeSlotAvailable) {
+                    setFreeNotice(true);
+                    return;
+                  }
+                  setFreeNotice(false);
+                  setSelected(FREE);
+                }}
               />
+
+              {/*
+                FX6: the used Free row explains itself instead of sitting dead. Rendered under the
+                row it belongs to, and as a live region so it is announced when it appears.
+              */}
+              {freeNotice && !freeSlotAvailable ? (
+                <p
+                  role="status"
+                  className="-mt-1 rounded-lg bg-muted px-3 py-2 text-[12.5px] text-muted-foreground"
+                >
+                  Your free workspace is already in use. Pick a paid plan, or upgrade that one.
+                </p>
+              ) : null}
 
               {packages.map((pkg) => {
                 const { price, note } = priceFor(pkg);
@@ -410,11 +443,36 @@ export function AddWorkspaceDialog({
                     description={pkg.description ?? ""}
                     price={price}
                     priceNote={note}
+                    priceLoading={pricesPending}
                     selected={selected === pkg.id}
-                    onSelect={() => setSelected(pkg.id)}
+                    onSelect={() => {
+                      setFreeNotice(false);
+                      setSelected(pkg.id);
+                    }}
                   />
                 );
               })}
+
+              {/*
+                FX2: a failed catalogue fetch retries HERE, in the list that is missing, not in the
+                button. Putting it in the button conflates "this control is broken" with "this
+                control is the way forward".
+              */}
+              {pricesFailed ? (
+                <div className="rounded-xl border border-dashed px-3.5 py-3 text-[12.5px] text-muted-foreground">
+                  Could not load plan prices.{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-primary underline underline-offset-2"
+                    onClick={() => {
+                      void packagesQuery.refetch();
+                      void configQuery.refetch();
+                    }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : null}
             </div>
           </DialogBody>
 
@@ -436,13 +494,21 @@ export function AddWorkspaceDialog({
               disabled={!trimmed || busy || selected === "" || (paidSelected && !quote)}
               onClick={() => (selected === FREE ? void createFree() : void pay())}
             >
+              {/*
+                🔴 No loading state in the button (FX2). It read "Loading price…", which looks
+                like a dead control: the label is where the ACTION goes, not where progress goes.
+                While the amount is still coming the label simply omits it; the plan rows carry
+                the skeleton, and a failed fetch offers its retry there too.
+              */}
               {selected === FREE
                 ? busy
                   ? "Creating…"
                   : "Create workspace"
-                : quote
-                  ? `Pay ${money(quote.amountMinor, quote.currency)} and create`
-                  : "Loading price…"}
+                : busy
+                  ? "Starting…"
+                  : quote
+                    ? `Pay ${money(quote.amountMinor, quote.currency)} and create`
+                    : "Pay and create"}
             </Button>
           </DialogFooterBar>
         </>

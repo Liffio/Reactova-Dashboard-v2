@@ -48,6 +48,12 @@ type ServerToClientEvents = {
   "socket:error": (payload: { message: string }) => void;
   "notification:new": (payload: Record<string, unknown>) => void;
   "token-balance-updated": (payload: Record<string, unknown>) => void;
+  /**
+   * Permissions changed; re-read them. Payload-free, and emitted whether or not the operator chose
+   * to show a notice — so this, not `access:changed`, is what keeps the session's permission set
+   * true. See `components/access/access-refresh-listener.tsx`.
+   */
+  "access:refresh": () => void;
   "access:changed": (payload: AccessChangedPayload) => void;
   "workspace:event": (payload: WorkspaceEventPayload) => void;
   /**

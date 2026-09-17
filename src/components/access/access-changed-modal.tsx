@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { Minus, Plus, ShieldAlert } from "lucide-react";
 
 import {
@@ -17,16 +16,14 @@ import {
   type AccessChangeItem,
   type AccessChangedPayload,
 } from "@/lib/socket";
-import { authStore, useAuthState } from "@/lib/auth/auth-store";
-import { getAuthMe } from "@/lib/api/auth-api";
-import { PLATFORM_AUTHZ_QUERY_KEY } from "@/hooks/use-platform-authz";
+import { useAuthState } from "@/lib/auth/auth-store";
 
 /**
  * Real-time "your access changed" notice.
  *
- * Mounted once inside the authenticated shell. Two things happen when the event arrives:
- * the modal appears, and the session's permissions are refetched — otherwise the user would be
- * told their access changed while the UI carried on rendering from the old permission set.
+ * Mounted once inside the authenticated shell. This shows the notice and nothing else — the
+ * session's permissions are refreshed by `AccessRefreshListener`, which also handles the case
+ * where the operator suppressed this notice entirely.
  *
  * The server replays a change that arrived while the user was offline on the next connect, so
  * closing the tab does not lose the notice.
@@ -34,7 +31,6 @@ import { PLATFORM_AUTHZ_QUERY_KEY } from "@/hooks/use-platform-authz";
 export function AccessChangedModal() {
   const token = useAuthState((s) => s.accessToken);
   const [payload, setPayload] = useState<AccessChangedPayload | null>(null);
-  const queryClient = useQueryClient();
 
   useEffect(() => {
     // Tearing down here rather than inside the auth store keeps the dependency one-directional
@@ -47,27 +43,18 @@ export function AccessChangedModal() {
     const socket = getSocket();
     if (!socket) return;
 
+    // Presentation only. The permission refresh that used to live here now sits in
+    // `AccessRefreshListener`, which listens to this same event *and* to the ungated
+    // `access:refresh` — because a suppressed notice must still refresh. See the note there.
     const onAccessChanged = (next: AccessChangedPayload) => {
       setPayload(next);
-      // Refresh permissions immediately — by the time the user clicks OK the UI should already
-      // reflect what they can actually do now.
-      void (async () => {
-        try {
-          const me = await getAuthMe();
-          // `setAuthMe` is on the store object itself, not on the state snapshot getState() returns.
-          authStore.setAuthMe(me);
-        } catch {
-          // A failed refresh must not suppress the notice; the next request will 403 honestly.
-        }
-        void queryClient.invalidateQueries({ queryKey: PLATFORM_AUTHZ_QUERY_KEY });
-      })();
     };
 
     socket.on("access:changed", onAccessChanged);
     return () => {
       socket.off("access:changed", onAccessChanged);
     };
-  }, [token, queryClient]);
+  }, [token]);
 
   const acknowledge = () => {
     // Clears the server-side marker so it isn't replayed on the next connect. The server

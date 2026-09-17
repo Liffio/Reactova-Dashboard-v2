@@ -18,7 +18,13 @@ const PLAN_STYLES: Record<WorkspacePlanKey, string> = {
   FREE: "border-transparent bg-muted text-muted-foreground",
   STARTER: "border-transparent bg-accent text-accent-foreground",
   GROWTH: "border-transparent bg-chart-5/15 text-chart-5",
-  PRO: "border-transparent bg-chart-3/15 text-chart-3",
+  /**
+   * 🔴 Distinct from BUSINESS. These two shared `chart-3` and rendered identically, which defeats
+   * the only thing a chip is for — telling plans apart at a glance in a list. The reference HTML
+   * has no Pro at all (it predates the six-package catalogue), so there was no colour to copy and
+   * the nearest one got reused.
+   */
+  PRO: "border-transparent bg-chart-2/15 text-chart-2",
   BUSINESS: "border-transparent bg-chart-3/15 text-chart-3",
   AGENCY: "border-transparent bg-warning/15 text-warning",
 };

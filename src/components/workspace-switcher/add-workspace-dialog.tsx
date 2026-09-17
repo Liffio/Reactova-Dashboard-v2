@@ -9,7 +9,13 @@ import { Label } from "@/components/ui/label";
 import { ResponsiveDialog } from "./responsive-dialog";
 import { PlanOption } from "./plan-option";
 import { createWorkspace } from "@/lib/api/workspaces-api";
-import { getSellablePackages, getBillingConfig, getBillingProfile } from "@/lib/api/billing-api";
+import {
+  getSellablePackages,
+  getBillingConfig,
+  getBillingProfile,
+  type SellablePackage,
+} from "@/lib/api/billing-api";
+import { cardPriceText } from "@/lib/billing/pricing";
 import {
   getWorkspaceCheckoutQuote,
   startWorkspaceCheckout,
@@ -78,6 +84,8 @@ export function AddWorkspaceDialog({
 }) {
   const queryClient = useQueryClient();
   const user = useAuthState((s) => s.user);
+  /** Resolved by the SERVER from the account country. Never guessed here. */
+  const displayCurrency = useAuthState((s) => s.user?.displayCurrency) ?? null;
 
   const [step, setStep] = useState<Step>("form");
   const [name, setName] = useState("");
@@ -99,9 +107,40 @@ export function AddWorkspaceDialog({
     enabled: open,
   });
 
+  /**
+   * The sellable ladder, minus any package that is itself Free.
+   *
+   * 🔴 The catalogue contains a real "Free" package, and this list renders a synthetic Free row of
+   * its own — so without this filter the picker showed **Free twice**, once selectable and once
+   * disabled, which is indistinguishable from a bug. The synthetic row is the one that stays,
+   * because Free here is the absence of a package: choosing it calls `POST /workspaces`, not
+   * checkout, and the free-slot rule is what decides whether it is offered at all.
+   *
+   * Matched on price rather than on the key or name — a package named "Free" could be renamed in
+   * the admin console, but one that costs nothing is free whatever it is called.
+   */
   const packages = useMemo(
-    () => [...(packagesQuery.data?.packages ?? [])].sort((a, b) => a.sortOrder - b.sortOrder),
-    [packagesQuery.data],
+    () =>
+      [...(packagesQuery.data?.packages ?? [])]
+        .filter((pkg) => pkg.monthlyPriceUsdCents > 0 || (pkg.monthlyPriceInrPaise ?? 0) > 0)
+        /**
+         * 🔴 A plan with no price in THIS customer's currency is not offered.
+         *
+         * Found by opening the picker as an Indian account: every plan showed a rupee figure except
+         * one, which showed `$29` because it has no INR price authored. That is worse than it looks
+         * — it is not only a mixed-currency list, it is a dead end. `resolvePackagePurchase` asks
+         * `resolveCurrentPackagePrice` for this currency and throws `PACKAGE_NOT_PUBLISHED` when
+         * there is none, so choosing that plan could never have completed.
+         *
+         * Offering something that cannot be bought is worse than not listing it.
+         */
+        .filter((pkg) =>
+          displayCurrency === "INR"
+            ? (pkg.monthlyPriceInrPaise ?? 0) > 0
+            : pkg.monthlyPriceUsdCents > 0,
+        )
+        .sort((a, b) => a.sortOrder - b.sortOrder),
+    [packagesQuery.data, displayCurrency],
   );
 
   const paidSelected = selected !== FREE && selected !== "";
@@ -246,13 +285,27 @@ export function AddWorkspaceDialog({
   };
   void recheck;
 
-  const priceFor = (packageId: string) => {
-    if (packageId !== selected || !quote) return { price: "…", note: "per month" };
+  /**
+   * Every row shows a price immediately; the SELECTED row shows what is actually due today.
+   *
+   * 🔴 This used to return "…" for every unselected package, because the quote is only fetched for
+   * the current selection — so the picker opened with no prices at all and the customer had to click
+   * each plan to discover what it cost. The catalogue figure comes from the same
+   * `package_prices`-backed payload `/checkout` renders, through the same helper, so the two cannot
+   * disagree; the quote then replaces it with the offer-adjusted amount once a plan is chosen.
+   */
+  const priceFor = (pkg: SellablePackage) => {
+    if (pkg.id === selected && quote) {
+      return {
+        price: money(quote.amountMinor, quote.currency),
+        note: quote.differsFromList
+          ? `then ${money(quote.listAmountMinor, quote.currency)} per month`
+          : "per month",
+      };
+    }
     return {
-      price: money(quote.amountMinor, quote.currency),
-      note: quote.differsFromList
-        ? `then ${money(quote.listAmountMinor, quote.currency)} per month`
-        : "per month",
+      price: cardPriceText({ displayCurrency, pkg, planUsd: null, interval: "monthly" }),
+      note: "per month",
     };
   };
 
@@ -344,13 +397,13 @@ export function AddWorkspaceDialog({
               />
 
               {packages.map((pkg) => {
-                const { price, note } = priceFor(pkg.id);
+                const { price, note } = priceFor(pkg);
                 return (
                   <PlanOption
                     key={pkg.id}
                     name={pkg.name}
                     description={pkg.description ?? ""}
-                    price={selected === pkg.id && quoteQuery.isPending ? "…" : price}
+                    price={price}
                     priceNote={note}
                     selected={selected === pkg.id}
                     onSelect={() => setSelected(pkg.id)}

@@ -4,8 +4,6 @@ import { Check, Loader2, ShieldCheck, X } from "lucide-react";
 
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   DialogBody,
   DialogFooterBar,
@@ -13,6 +11,7 @@ import {
   ResponsiveDialog,
 } from "./responsive-dialog";
 import { PlanOption } from "./plan-option";
+import { NameField } from "./name-field";
 import { createWorkspace } from "@/lib/api/workspaces-api";
 import {
   getSellablePackages,
@@ -100,6 +99,10 @@ export function AddWorkspaceDialog({
   const [createdIsGroup, setCreatedIsGroup] = useState(false);
   /** FX6: set when the used Free row is tapped, so it can say why it cannot be picked. */
   const [freeNotice, setFreeNotice] = useState(false);
+  /** FX5: set when create is tapped with an empty name. Cleared as soon as they type. */
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [shaking, setShaking] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
   /** Guards against a double submit dispatching two checkouts for one intent. */
   const dispatching = useRef(false);
 
@@ -181,12 +184,35 @@ export function AddWorkspaceDialog({
       setName("");
       setSelected(freeSlotAvailable ? FREE : "");
       setFreeNotice(false);
+      setNameError(null);
+      setShaking(false);
       setBusy(false);
       dispatching.current = false;
     }
   }, [open, freeSlotAvailable]);
 
   const trimmed = name.trim();
+
+  /**
+   * The empty-name path. (FX5)
+   *
+   * Returns true when it handled the tap, so callers read as
+   * `if (requireName()) return;`. The button is NEVER disabled, so this is what makes a tap with
+   * no name informative instead of inert: scroll the field into view (it can be above the fold
+   * once the plan list is long), shake it, focus it, and say what is missing under it.
+   *
+   * `preventScroll` on the focus call because `scrollIntoView` is already animating; letting
+   * focus scroll as well fights it and lands somewhere between the two.
+   */
+  const requireName = () => {
+    if (name.trim()) return false;
+    setNameError("Give your workspace a name first.");
+    setShaking(true);
+    window.setTimeout(() => setShaking(false), 450);
+    nameRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    nameRef.current?.focus({ preventScroll: true });
+    return true;
+  };
   const quote = quoteQuery.data;
 
   const createFree = async () => {
@@ -386,15 +412,19 @@ export function AddWorkspaceDialog({
           </DialogHeaderBar>
 
           <DialogBody className="px-6 py-5">
-            <Label htmlFor="ws-name" className="mb-1.5 block text-[13px] font-medium">
-              Workspace name
-            </Label>
-            <Input
+            <NameField
+              ref={nameRef}
               id="ws-name"
+              label="Workspace name"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(value) => {
+                setName(value);
+                // FX5: the error clears the moment they start typing, not on the next submit.
+                if (nameError) setNameError(null);
+              }}
               placeholder="e.g. Bloom Room"
-              maxLength={40}
+              error={nameError}
+              shaking={shaking}
               autoFocus
             />
 

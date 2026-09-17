@@ -347,6 +347,33 @@
 }
 
 /* ─── Keyframes ───────────────────────────────────────────── */
+/**
+ * The shake on the workspace-name field when create is tapped with it empty. (FX5)
+ *
+ * Small amplitude on purpose: enough to read as "look here", not enough to feel like an error
+ * animation on a field the user has simply not filled in yet. Guarded by `motion-safe:` at the
+ * call site, so it does nothing for anyone who has asked for reduced motion.
+ */
+@keyframes ws-name-shake {
+  10%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  80% {
+    transform: translateX(3px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-5px);
+  }
+  40%,
+  60% {
+    transform: translateX(5px);
+  }
+}
+
 @keyframes shimmer {
   100% {
     transform: translateX(100%);

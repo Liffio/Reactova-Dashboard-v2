@@ -21,6 +21,7 @@ import {
   FileKey,
   Package as PackageIcon,
   PackageCheck,
+  Ticket,
   Mail,
   Handshake,
   BookOpen,
@@ -184,6 +185,14 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
         title: "Assign packages",
         url: "/packages/assign",
         icon: PackageCheck,
+        platformPermission: "platform:package_manage",
+      },
+      {
+        // Sits beside Packages under the same permission: both decide what a customer pays, and an
+        // operator who can reprice a package can already do strictly more than issue a code.
+        title: "Discount codes",
+        url: "/discount-codes",
+        icon: Ticket,
         platformPermission: "platform:package_manage",
       },
       {

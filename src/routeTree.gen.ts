@@ -28,6 +28,7 @@ import { Route as AppRbacMasterRouteImport } from './routes/_app/rbac-master'
 import { Route as AppPlatformAdminsRouteImport } from './routes/_app/platform-admins'
 import { Route as AppNotificationsRouteImport } from './routes/_app/notifications'
 import { Route as AppLeadsCapturedRouteImport } from './routes/_app/leads-captured'
+import { Route as AppDiscountCodesRouteImport } from './routes/_app/discount-codes'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppCreatorsProgramRouteImport } from './routes/_app/creators-program'
 import { Route as AppBioLinkRouteImport } from './routes/_app/bio-link'
@@ -176,6 +177,11 @@ const AppNotificationsRoute = AppNotificationsRouteImport.update({
 const AppLeadsCapturedRoute = AppLeadsCapturedRouteImport.update({
   id: '/leads-captured',
   path: '/leads-captured',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDiscountCodesRoute = AppDiscountCodesRouteImport.update({
+  id: '/discount-codes',
+  path: '/discount-codes',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
@@ -492,6 +498,7 @@ export interface FileRoutesByFullPath {
   '/bio-link': typeof AppBioLinkRoute
   '/creators-program': typeof AppCreatorsProgramRoute
   '/dashboard': typeof AppDashboardRoute
+  '/discount-codes': typeof AppDiscountCodesRoute
   '/leads-captured': typeof AppLeadsCapturedRoute
   '/notifications': typeof AppNotificationsRoute
   '/platform-admins': typeof AppPlatformAdminsRoute
@@ -567,6 +574,7 @@ export interface FileRoutesByTo {
   '/bio-link': typeof AppBioLinkRoute
   '/creators-program': typeof AppCreatorsProgramRoute
   '/dashboard': typeof AppDashboardRoute
+  '/discount-codes': typeof AppDiscountCodesRoute
   '/leads-captured': typeof AppLeadsCapturedRoute
   '/notifications': typeof AppNotificationsRoute
   '/platform-admins': typeof AppPlatformAdminsRoute
@@ -642,6 +650,7 @@ export interface FileRoutesById {
   '/_app/bio-link': typeof AppBioLinkRoute
   '/_app/creators-program': typeof AppCreatorsProgramRoute
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/discount-codes': typeof AppDiscountCodesRoute
   '/_app/leads-captured': typeof AppLeadsCapturedRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/platform-admins': typeof AppPlatformAdminsRoute
@@ -719,6 +728,7 @@ export interface FileRouteTypes {
     | '/bio-link'
     | '/creators-program'
     | '/dashboard'
+    | '/discount-codes'
     | '/leads-captured'
     | '/notifications'
     | '/platform-admins'
@@ -794,6 +804,7 @@ export interface FileRouteTypes {
     | '/bio-link'
     | '/creators-program'
     | '/dashboard'
+    | '/discount-codes'
     | '/leads-captured'
     | '/notifications'
     | '/platform-admins'
@@ -868,6 +879,7 @@ export interface FileRouteTypes {
     | '/_app/bio-link'
     | '/_app/creators-program'
     | '/_app/dashboard'
+    | '/_app/discount-codes'
     | '/_app/leads-captured'
     | '/_app/notifications'
     | '/_app/platform-admins'
@@ -1074,6 +1086,13 @@ declare module '@tanstack/react-router' {
       path: '/leads-captured'
       fullPath: '/leads-captured'
       preLoaderRoute: typeof AppLeadsCapturedRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/discount-codes': {
+      id: '/_app/discount-codes'
+      path: '/discount-codes'
+      fullPath: '/discount-codes'
+      preLoaderRoute: typeof AppDiscountCodesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dashboard': {
@@ -1544,6 +1563,7 @@ interface AppRouteChildren {
   AppBioLinkRoute: typeof AppBioLinkRoute
   AppCreatorsProgramRoute: typeof AppCreatorsProgramRoute
   AppDashboardRoute: typeof AppDashboardRoute
+  AppDiscountCodesRoute: typeof AppDiscountCodesRoute
   AppLeadsCapturedRoute: typeof AppLeadsCapturedRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppPlatformAdminsRoute: typeof AppPlatformAdminsRoute
@@ -1594,6 +1614,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppBioLinkRoute: AppBioLinkRoute,
   AppCreatorsProgramRoute: AppCreatorsProgramRoute,
   AppDashboardRoute: AppDashboardRoute,
+  AppDiscountCodesRoute: AppDiscountCodesRoute,
   AppLeadsCapturedRoute: AppLeadsCapturedRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppPlatformAdminsRoute: AppPlatformAdminsRoute,

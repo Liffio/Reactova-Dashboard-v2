@@ -136,3 +136,59 @@ export function updateTeamMember(workspaceId: string, userId: string, body: Upda
 export function removeTeamMember(workspaceId: string, userId: string) {
   return apiRequest<void>(apiUri.team.member(userId), { method: "DELETE", workspaceId });
 }
+
+/* ── The Team page (U5, spec 5.7) ────────────────────────────────────────────────────────────── */
+
+export type TeamAccessSource = "OWNER" | "MEMBER" | "GROUP" | "NONE";
+
+export type TeamOverviewMember = {
+  userId: string;
+  name: string | null;
+  email: string;
+  roleKey: string;
+  roleName: string;
+  isOwner: boolean;
+  /** How they reach this workspace. Decides what the Access column says. */
+  source: TeamAccessSource;
+  scope: "GROUP" | "SELECTED" | null;
+  canDownloadInvoices: boolean;
+  selectedWorkspaceIds: string[];
+};
+
+export type TeamOverview = {
+  /** Whether anything on the page is editable. The server re-checks every write regardless. */
+  viewerIsOwner: boolean;
+  /** The RESOLVED limit, so a package or admin override is reflected, not the plan default. */
+  limit: number;
+  /** Includes the owner, and counts a whole-group member in every workspace of the group. (T3) */
+  used: number;
+  members: TeamOverviewMember[];
+  /** The agency's own workspaces, for the invite modal's checklist. Owner only, null otherwise. */
+  group: { id: string; name: string; workspaces: Array<{ id: string; name: string; slotNo: number }> } | null;
+};
+
+export function getTeamOverview(workspaceId: string) {
+  return apiRequest<TeamOverview>(apiUri.team.overview, { workspaceId });
+}
+
+/** Grant or change somebody's access to the agency. Owner only, server-enforced. (T2) */
+export function upsertGroupMember(
+  groupId: string,
+  body: {
+    email?: string;
+    userId?: string;
+    roleKey: string;
+    scope: "GROUP" | "SELECTED";
+    workspaceIds?: string[];
+    canDownloadInvoices?: boolean;
+  },
+) {
+  return apiRequest<{ member: TeamOverviewMember }>(apiUri.workspaceGroups.members(groupId), {
+    method: "POST",
+    body,
+  });
+}
+
+export function removeGroupMember(groupId: string, userId: string) {
+  return apiRequest<void>(apiUri.workspaceGroups.member(groupId, userId), { method: "DELETE" });
+}

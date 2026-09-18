@@ -120,6 +120,10 @@ export const apiUri = {
     createWorkspace: (groupId: string) =>
       `${V1}/workspace-groups/${encodeURIComponent(groupId)}/workspaces`,
     rename: (groupId: string) => `${V1}/workspace-groups/${encodeURIComponent(groupId)}`,
+    /** Team access to the agency. Owner only, enforced in the service. (T2) */
+    members: (groupId: string) => `${V1}/workspace-groups/${encodeURIComponent(groupId)}/members`,
+    member: (groupId: string, userId: string) =>
+      `${V1}/workspace-groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`,
   },
 
   team: {
@@ -133,6 +137,8 @@ export const apiUri = {
     invitesSearchSpec: `${V1}/team/invites/search-spec`,
     grantable: `${V1}/team/invites/grantable`,
     options: `${V1}/team/options`,
+    /** Everything the Team page renders, in one call. (U5) */
+    overview: `${V1}/team/overview`,
   },
 
   assistant: {

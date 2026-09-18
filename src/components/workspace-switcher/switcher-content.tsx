@@ -30,6 +30,7 @@ export function SwitcherContent({
   onAddToGroup,
   onRename,
   onClose,
+  initialGroupId = null,
 }: {
   data: SwitcherPayload;
   currentWorkspaceId: string | null;
@@ -38,8 +39,22 @@ export function SwitcherContent({
   onAddToGroup: (group: SwitcherGroup) => void;
   onRename: (target: RenameTarget) => void;
   onClose: () => void;
+  /**
+   * Open straight into this group instead of the root list. (FX8)
+   *
+   * Set only after a purchase that landed inside an agency, so the group the customer just bought
+   * into is the thing they see, with their new workspace in it. Left null the rest of the time: the
+   * switcher opening at the root is what every other entry point expects.
+   *
+   * Read once, in the initial state below. Both surfaces unmount their content when the panel
+   * closes, so a later open re-reads it, which is why clearing it after the first open is the
+   * caller's job rather than an effect here.
+   */
+  initialGroupId?: string | null;
 }) {
-  const [view, setView] = useState<View>({ kind: "root" });
+  const [view, setView] = useState<View>(() =>
+    initialGroupId ? { kind: "group", groupId: initialGroupId } : { kind: "root" },
+  );
   const [query, setQuery] = useState("");
 
   const group =

@@ -98,7 +98,11 @@ export function AddWorkspaceDialog({
    * valid address for this buyer, which is the whole point of that field.
    */
   prefillFromWorkspaceId: string | null;
-  onCreated: (workspaceId: string) => void;
+  /**
+   * Called once the workspace exists, with the agency it was bought into when there is one. (FX8)
+   * The caller is what refreshes state, switches and navigates; this sheet never does.
+   */
+  onCreated: (workspaceId: string, groupId: string | null) => void;
 }) {
   const queryClient = useQueryClient();
   const user = useAuthState((s) => s.user);
@@ -280,7 +284,7 @@ export function AddWorkspaceDialog({
       setCreatedName(trimmed);
       setCreatedIsGroup(false);
       setStep("done");
-      onCreated(workspace.id);
+      onCreated(workspace.id, null);
     } catch (error) {
       // The server names the workspace already using the free slot, which is the actionable part.
       toast.error(error instanceof Error ? error.message : "Could not create the workspace");
@@ -331,12 +335,15 @@ export function AddWorkspaceDialog({
       });
 
       const settled = await verifyWorkspaceCheckout(started.intentId, payload);
-      await queryClient.invalidateQueries({ queryKey: ["workspace-switcher"] });
-      await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
       setCreatedName(trimmed);
       setCreatedIsGroup(Boolean(settled.groupId));
       setStep("done");
-      onCreated(settled.workspaceId);
+      /**
+       * Only now, with the intent PAID. `onCreated` refetches the list from the server before it
+       * makes the new workspace active, so nothing here invalidates first: two refreshes of the
+       * same data, one of them not awaited, is how the switch used to race the list. (FX8)
+       */
+      onCreated(settled.workspaceId, settled.groupId);
     } catch (error) {
       if (error instanceof RazorpayCheckoutCancelled) {
         // Nothing was created and nothing was charged, so this is a return to the form rather
@@ -416,11 +423,10 @@ export function AddWorkspaceDialog({
     try {
       const intent = await getWorkspaceCheckoutIntent(intentId);
       if (intent.status === "PAID" && intent.workspaceId) {
-        await queryClient.invalidateQueries({ queryKey: ["workspace-switcher"] });
         setCreatedName(intent.workspaceName);
         setCreatedIsGroup(Boolean(intent.groupId));
         setStep("done");
-        onCreated(intent.workspaceId);
+        onCreated(intent.workspaceId, intent.groupId);
       }
     } catch {
       // Leave the failed state as-is; the customer can retry.

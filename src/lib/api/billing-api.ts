@@ -73,7 +73,9 @@ export type BillingSubscription = {
 
 export type BillingInvoiceRow = {
   id: string;
-  workspaceId: string;
+  workspaceId: string | null;
+  /** Set instead of `workspaceId` when the GROUP was billed. (I2) */
+  groupId: string | null;
   provider: string;
   providerInvoiceId: string;
   amountCents: number;
@@ -125,8 +127,19 @@ export function getBillingSubscription(workspaceId: string) {
   return apiRequest<BillingSubscription>(apiUri.billing.subscription, { workspaceId });
 }
 
+/**
+ * This workspace's invoices, plus its group's. (I3)
+ *
+ * `canDownload` is the server's verdict for THIS viewer, sent with the list so the Billing page can
+ * render the refusal (a disabled button with the note from spec 2.7) rather than only receive one
+ * when it is too late to explain. Same rule `hasPdf` follows: the control offered and the route
+ * that serves it agree.
+ */
 export function listBillingInvoices(workspaceId: string) {
-  return apiRequest<{ invoices: BillingInvoiceRow[] }>(apiUri.billing.invoices, { workspaceId });
+  return apiRequest<{ invoices: BillingInvoiceRow[]; canDownload: boolean }>(
+    apiUri.billing.invoices,
+    { workspaceId },
+  );
 }
 
 export function listAllBillingInvoices(workspaceId: string) {

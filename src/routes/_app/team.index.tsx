@@ -229,7 +229,15 @@ function TeamPage() {
             <TabsTrigger value="members" className="gap-1.5">
               <Users className="h-3.5 w-3.5" />
               {/* The workspace total from the server, not the page length. */}
-              Members ({memberList.total})
+              {/*
+                * The count has to be the count of the table under it. (U8)
+                *
+                * `memberList.total` is the old `workspace_members` page count, which excludes the
+                * owner and every whole-group member, so an agency workspace showing three people
+                * had a tab reading "Members (1)" directly under a header reading "3 of 15".
+                * `overview.used` is the same number T3 enforces the limit against.
+                */}
+              Members ({overview ? overview.used : memberList.total})
             </TabsTrigger>
             <TabsTrigger value="invites" className="gap-1.5">
               <MailPlus className="h-3.5 w-3.5" />

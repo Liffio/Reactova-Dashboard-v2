@@ -127,6 +127,8 @@ const statusStyles: Record<string, string> = {
   PAST_DUE: "border-warning/30 bg-warning/10 text-warning",
   PAYMENT_FAILED: "border-destructive/30 bg-destructive/10 text-destructive",
   CANCELED: "border-border bg-muted text-muted-foreground",
+  /** A group whose cycle has run out. Its workspaces are read-only together. (U8) */
+  EXPIRED: "border-destructive/30 bg-destructive/10 text-destructive",
 };
 
 function BillingPage() {
@@ -625,11 +627,31 @@ function BillingPage() {
                 <Skeleton className="mt-1 h-7 w-32" />
               ) : (
                 <div className="mt-1 flex items-center gap-2">
-                  <h2 className="font-display text-2xl font-bold">{sub?.displayName ?? "Free"}</h2>
-                  {sub?.billingStatus && (
-                    <Badge variant="outline" className={statusStyles[sub.billingStatus] ?? ""}>
-                      {sub.billingStatus.toLowerCase().replace(/_/g, " ")}
+                  {/*
+                   * 🔴 A grouped workspace names the GROUP's plan, not its own. (spec 2.4.10, U8)
+                   *
+                   * `sub` is this workspace's own `workspace_subscriptions` row, and a workspace
+                   * inside an agency has none: it is the group that is subscribed. Falling back to
+                   * "Free" put the word Free at the top of the Billing page of a workspace on a
+                   * paid Agency plan, directly under a card that says the agency renews next month.
+                   * The group's own label is already in hand from the switcher payload.
+                   */}
+                  <h2 className="font-display text-2xl font-bold">
+                    {group ? group.planLabel : (sub?.displayName ?? "Free")}
+                  </h2>
+                  {group ? (
+                    <Badge
+                      variant="outline"
+                      className={group.readOnly ? (statusStyles.EXPIRED ?? "") : (statusStyles.ACTIVE ?? "")}
+                    >
+                      {group.readOnly ? "expired" : "active"}
                     </Badge>
+                  ) : (
+                    sub?.billingStatus && (
+                      <Badge variant="outline" className={statusStyles[sub.billingStatus] ?? ""}>
+                        {sub.billingStatus.toLowerCase().replace(/_/g, " ")}
+                      </Badge>
+                    )
                   )}
                 </div>
               )}

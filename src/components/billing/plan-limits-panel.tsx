@@ -23,7 +23,7 @@ const LIMIT_LABELS: Array<{ key: string; label: string; unit?: string }> = [
   { key: "workflows", label: "Automations" },
   { key: "dmsPerMonth", label: "DMs", unit: "per month" },
   { key: "dmFollowUps", label: "Follow-up DMs", unit: "per automation" },
-  { key: "teamMembers", label: "Team seats" },
+  { key: "teamMembers", label: "Team members" },
   { key: "workspacesIncluded", label: "Workspaces included" },
   { key: "analyticsHistoryDays", label: "Analytics history", unit: "days" },
   { key: "schedulerPostsPerDay", label: "Scheduled posts", unit: "per day" },

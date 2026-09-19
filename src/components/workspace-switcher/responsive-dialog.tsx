@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useKeyboardInset, scrollFocusedIntoView } from "@/hooks/use-keyboard-inset";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 
@@ -52,11 +53,60 @@ export function ResponsiveDialog({
   className?: string;
 }) {
   const isMobile = useIsMobile();
+  const keyboardInset = useKeyboardInset();
+
+  /**
+   * 🔴 The page behind is locked while the sheet is open. (R4)
+   *
+   * Reported as "content behind shows through". Two different things were happening and both are
+   * handled here, because the fix for one does not fix the other:
+   *
+   * - The body could still scroll under the sheet, so a drag that started on the overlay moved the
+   *   page. `overflow: hidden` on the documentElement is what stops that on iOS; `body` alone is
+   *   not enough there.
+   * - `overscroll-behavior: none` stops a scroll that reaches the end of the sheet's own body from
+   *   chaining to the page behind it, which is the version of this that only shows up once the
+   *   list is scrolled to the bottom.
+   */
+  useEffect(() => {
+    if (!open || !isMobile) return;
+    const root = document.documentElement;
+    const previous = {
+      overflow: root.style.overflow,
+      overscroll: root.style.overscrollBehavior,
+    };
+    root.style.overflow = "hidden";
+    root.style.overscrollBehavior = "none";
+    return () => {
+      root.style.overflow = previous.overflow;
+      root.style.overscrollBehavior = previous.overscroll;
+    };
+  }, [open, isMobile]);
+
+  // Once the keyboard has settled, put the focused field back where it can be seen.
+  useEffect(() => {
+    if (keyboardInset > 0) scrollFocusedIntoView();
+  }, [keyboardInset]);
 
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="flex max-h-[92dvh] min-h-0 flex-col">
+        <DrawerContent
+          className="flex min-h-0 flex-col overscroll-contain"
+          /**
+           * Height comes from the VISUAL viewport, not from `dvh`. (R4)
+           *
+           * `dvh` tracks Safari's toolbars and is still right for them, but it does not shrink for
+           * the keyboard: iOS draws the keyboard over the page rather than resizing it. A sheet
+           * sized purely in `dvh` therefore keeps its full height with the keyboard up, and its
+           * pinned footer and create button end up underneath it.
+           *
+           * Subtracting the measured inset is what puts the footer directly above the keyboard.
+           * The inset is 0 whenever there is no keyboard, so this is exactly the old behaviour on
+           * every device that does not have one.
+           */
+          style={{ maxHeight: `calc(92dvh - ${keyboardInset}px)` }}
+        >
           <DrawerTitle className="sr-only">{title}</DrawerTitle>
           {/*
             No `overflow-y-auto` here any more. Scrolling belongs to the BODY, so the footer can
@@ -96,7 +146,9 @@ export function DialogBody({
       className={cn(
         // `min-h-0` is what lets this shrink inside the flex column so the overflow engages;
         // `-webkit-overflow-scrolling` keeps momentum scrolling on iOS.
-        "min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch]",
+        // `overscroll-contain` stops a scroll that reaches either end of this list from chaining to
+        // the page behind the sheet, which is the other half of "content behind shows through".
+        "min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]",
         className,
       )}
     >
@@ -118,13 +170,25 @@ export function DialogFooterBar({
   children: ReactNode;
   className?: string;
 }) {
+  const keyboardInset = useKeyboardInset();
+
   return (
     <div
       className={cn(
         "flex shrink-0 flex-wrap items-center gap-3 border-t bg-popover px-6 pt-4",
-        "pb-[calc(1rem+env(safe-area-inset-bottom))]",
         className,
       )}
+      /**
+       * The home indicator inset is dropped while the keyboard is up. (R4)
+       *
+       * `env(safe-area-inset-bottom)` exists to clear the home indicator, and the keyboard is
+       * already covering it. Keeping both leaves a band of empty sheet between the button and the
+       * keyboard, which is the "floating over the page" look from the other side.
+       */
+      style={{
+        paddingBottom:
+          keyboardInset > 0 ? "1rem" : "calc(1rem + env(safe-area-inset-bottom))",
+      }}
     >
       {children}
     </div>

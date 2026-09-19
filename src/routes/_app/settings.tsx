@@ -807,7 +807,7 @@ function TeamSettings() {
           <div>
             <h2 className="font-display text-base font-semibold">Invite team member</h2>
             <p className="text-xs text-muted-foreground">
-              {memberCount} / {memberLimit} seats used
+              {memberCount} / {memberLimit} team members used
             </p>
           </div>
           <Users className="h-5 w-5 text-muted-foreground" />

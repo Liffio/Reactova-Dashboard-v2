@@ -122,7 +122,13 @@ export function GroupRow({
       <button
         type="button"
         onClick={onOpen}
-        aria-label={`Open ${group.name}, ${group.slotsUsed} of ${group.slotLimit} workspaces used`}
+        aria-label={
+          group.slotsUsed !== null && group.slotLimit !== null
+            ? `Open ${group.name}, ${group.slotsUsed} of ${group.slotLimit} workspaces used`
+            : `Open ${group.name}, ${group.visibleCount} ${
+                group.visibleCount === 1 ? "workspace" : "workspaces"
+              }`
+        }
         className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-2 text-left"
       >
         {/* Stacked tiles: one glance says "this is several workspaces", which a single tile cannot.
@@ -141,10 +147,22 @@ export function GroupRow({
               />
             ) : null}
           </span>
-          <span className="truncate text-xs text-muted-foreground">
-            {group.slotsUsed} of {group.slotLimit} workspaces used
-          </span>
-          <SlotBar used={group.slotsUsed} limit={group.slotLimit} className="mt-1.5" />
+          {/*
+            An owner sees how full the agency is; a member sees how much of it they can open, and
+            no bar. (U6, spec 2.7) The server does not send a member the counts a bar would draw.
+          */}
+          {group.slotsUsed !== null && group.slotLimit !== null ? (
+            <>
+              <span className="truncate text-xs text-muted-foreground">
+                {group.slotsUsed} of {group.slotLimit} workspaces used
+              </span>
+              <SlotBar used={group.slotsUsed} limit={group.slotLimit} className="mt-1.5" />
+            </>
+          ) : (
+            <span className="truncate text-xs text-muted-foreground">
+              {group.visibleCount} {group.visibleCount === 1 ? "workspace" : "workspaces"}
+            </span>
+          )}
         </span>
 
         {group.readOnly ? <ExpiredChip /> : <PlanChip plan={group.plan} label={group.planLabel} />}

@@ -85,6 +85,16 @@ export function RenameDialog({
           onChange={(event) => setName(event.target.value)}
           maxLength={40}
           autoFocus
+          /**
+           * Select the existing name on open, the way the reference does. (U8)
+           *
+           * Renaming almost always means replacing, not appending: the field arrives holding the
+           * current name and the first keystroke should overwrite it rather than land at whichever
+           * end of it the caret happened to go. `onFocus` rather than a ref effect because
+           * `autoFocus` and a `useEffect` race each other inside a dialog that mounts its content
+           * lazily.
+           */
+          onFocus={(event) => event.currentTarget.select()}
           onKeyDown={(event) => {
             if (event.key === "Enter" && name.trim() && !busy) void submit();
           }}

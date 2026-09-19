@@ -6,6 +6,9 @@ import { CreditCard, Download, ExternalLink, IndianRupee, Loader2, RefreshCw, Za
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { getSwitcher } from "@/lib/api/workspace-switcher-api";
+import { SlotBar } from "@/components/workspace-switcher/slot-bar";
+import { Building2, ShieldCheck, Lock } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -124,6 +127,8 @@ const statusStyles: Record<string, string> = {
   PAST_DUE: "border-warning/30 bg-warning/10 text-warning",
   PAYMENT_FAILED: "border-destructive/30 bg-destructive/10 text-destructive",
   CANCELED: "border-border bg-muted text-muted-foreground",
+  /** A group whose cycle has run out. Its workspaces are read-only together. (U8) */
+  EXPIRED: "border-destructive/30 bg-destructive/10 text-destructive",
 };
 
 function BillingPage() {
@@ -551,6 +556,35 @@ function BillingPage() {
     .filter((p) => p.sellable)
     .sort((a, b) => a.sortOrder - b.sortOrder);
   const invoices = invoicesQuery.data?.invoices ?? [];
+  /**
+   * May THIS person download these documents? (U4, spec 2.7)
+   *
+   * The server's verdict, sent with the list. Defaulted to true while the list is still loading so
+   * the buttons do not flicker through a disabled state on every page load; nothing can be
+   * downloaded before the list arrives anyway, and the endpoint refuses regardless.
+   */
+  const canDownloadInvoices = invoicesQuery.data?.canDownload ?? true;
+
+  /**
+   * The agency this workspace belongs to, if any, and whether the viewer owns it. (U4, spec 2.4)
+   *
+   * Read from the switcher payload rather than a new endpoint: it already resolves the group, the
+   * slot counts an owner may see, the renew date, and the viewer flag, all through the one access
+   * resolver. A second endpoint answering the same question is a second answer.
+   */
+  const switcherQuery = useQuery({
+    queryKey: ["workspace-switcher"],
+    queryFn: getSwitcher,
+    enabled: isWorkspaceReady(workspaceId),
+  });
+  const group =
+    switcherQuery.data?.groups.find((g) => g.workspaces.some((w) => w.id === workspaceId)) ?? null;
+  const isOwner = group
+    ? group.isOwner
+    : (switcherQuery.data?.workspaces.find((w) => w.id === workspaceId)?.isOwner ?? true);
+  const groupRenews = group?.renewsAt
+    ? new Date(group.renewsAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+    : null;
   // Tier comparison uses `rank`, never `sortOrder`. A plan the server does not recognise has
   // rank null and is treated as not comparable, so nothing is labelled a downgrade by accident.
   const currentRank =
@@ -563,18 +597,21 @@ function BillingPage() {
         title="Billing"
         description="Manage your subscription plan and view payment history."
         actions={
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              disabled={syncMutation.isPending}
-              onClick={() => syncMutation.mutate(false)}
-            >
-              <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-              Sync
-            </Button>
-          </div>
+          // Owner only, and the server refuses it for anybody else regardless. (T4, spec 2.7)
+          isOwner ? (
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                disabled={syncMutation.isPending}
+                onClick={() => syncMutation.mutate(false)}
+              >
+                <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+                Sync
+              </Button>
+            </div>
+          ) : null
         }
       />
 
@@ -590,22 +627,66 @@ function BillingPage() {
                 <Skeleton className="mt-1 h-7 w-32" />
               ) : (
                 <div className="mt-1 flex items-center gap-2">
-                  <h2 className="font-display text-2xl font-bold">{sub?.displayName ?? "Free"}</h2>
-                  {sub?.billingStatus && (
-                    <Badge variant="outline" className={statusStyles[sub.billingStatus] ?? ""}>
-                      {sub.billingStatus.toLowerCase().replace(/_/g, " ")}
+                  {/*
+                   * 🔴 A grouped workspace names the GROUP's plan, not its own. (spec 2.4.10, U8)
+                   *
+                   * `sub` is this workspace's own `workspace_subscriptions` row, and a workspace
+                   * inside an agency has none: it is the group that is subscribed. Falling back to
+                   * "Free" put the word Free at the top of the Billing page of a workspace on a
+                   * paid Agency plan, directly under a card that says the agency renews next month.
+                   * The group's own label is already in hand from the switcher payload.
+                   */}
+                  <h2 className="font-display text-2xl font-bold">
+                    {group ? group.planLabel : (sub?.displayName ?? "Free")}
+                  </h2>
+                  {group ? (
+                    <Badge
+                      variant="outline"
+                      className={group.readOnly ? (statusStyles.EXPIRED ?? "") : (statusStyles.ACTIVE ?? "")}
+                    >
+                      {group.readOnly ? "expired" : "active"}
                     </Badge>
+                  ) : (
+                    sub?.billingStatus && (
+                      <Badge variant="outline" className={statusStyles[sub.billingStatus] ?? ""}>
+                        {sub.billingStatus.toLowerCase().replace(/_/g, " ")}
+                      </Badge>
+                    )
                   )}
                 </div>
               )}
-              {sub?.billingCycleEnd && (
+              {/*
+                An agency is ONE plan on ONE cycle, so a grouped workspace says whose plan it is
+                and that the date covers all of them, instead of quietly showing a renewal that
+                looks like this workspace's own. (U4, spec 2.4)
+              */}
+              {group ? (
+                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Building2 aria-hidden className="size-3.5" />
+                    {group.name}
+                  </span>
+                  {groupRenews ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <RefreshCw aria-hidden className="size-3.5" />
+                      Renews {groupRenews} for all workspaces in the group
+                    </span>
+                  ) : null}
+                  {isOwner && group.slotsUsed !== null && group.slotLimit !== null ? (
+                    <span>
+                      {group.slotsUsed} of {group.slotLimit} workspaces used
+                    </span>
+                  ) : null}
+                </div>
+              ) : sub?.billingCycleEnd ? (
                 <p className="mt-1 text-sm text-muted-foreground">
                   {sub.cancelAtPeriodEnd ? "Cancels" : "Renews"}{" "}
                   {new Date(sub.billingCycleEnd).toLocaleDateString()}
                 </p>
-              )}
+              ) : null}
             </div>
-            {sub?.hasActiveSubscription && (
+            {/* Billing actions are the owner's. A member sees the plan read-only. (spec 2.7) */}
+            {isOwner && sub?.hasActiveSubscription && (
               <Button
                 variant="outline"
                 size="sm"
@@ -616,6 +697,19 @@ function BillingPage() {
               </Button>
             )}
           </div>
+
+          {group && isOwner && group.slotsUsed !== null && group.slotLimit !== null ? (
+            <SlotBar used={group.slotsUsed} limit={group.slotLimit} size="lg" className="mt-4" />
+          ) : null}
+
+          {group || !isOwner ? (
+            <div className="mt-3 flex items-center gap-2 text-[12.5px] text-muted-foreground">
+              <ShieldCheck aria-hidden className="size-3.5 shrink-0" />
+              {isOwner
+                ? "One plan and one invoice cover every workspace in this group."
+                : "Only the owner can change billing."}
+            </div>
+          ) : null}
         </div>
 
         {/*
@@ -793,8 +887,16 @@ function BillingPage() {
 
         {/* Invoices */}
         <div className="rounded-2xl border bg-card shadow-soft">
-          <div className="border-b px-6 py-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b px-6 py-4">
             <h2 className="font-display text-lg font-semibold">Invoice history</h2>
+            {/*
+              Says whose invoices these are. A grouped workspace lists the GROUP's, and they appear
+              identically on every workspace in it, so without this the customer sees the same
+              invoice in several places and cannot tell why. (U4, spec 2.4)
+            */}
+            <span className="text-[12.5px] text-muted-foreground">
+              {group ? `Shared by all workspaces in ${group.name}` : "For this workspace"}
+            </span>
           </div>
           {invoicesQuery.isLoading ? (
             <div className="space-y-3 p-6">
@@ -856,11 +958,15 @@ function BillingPage() {
                           variant="outline"
                           size="sm"
                           disabled={
-                            (!inv.hasPdf && !inv.canRenderPdf) || downloadingId === inv.id
+                            !canDownloadInvoices ||
+                            (!inv.hasPdf && !inv.canRenderPdf) ||
+                            downloadingId === inv.id
                           }
                           onClick={() => void downloadInvoicePdf(inv)}
                           title={
-                            inv.hasPdf
+                            !canDownloadInvoices
+                              ? "Invoice downloads are turned off for you. Ask the owner if you need them."
+                              : inv.hasPdf
                               ? "Download this invoice as a PDF"
                               : inv.canRenderPdf
                                 ? "Prepare this invoice as a PDF and download it"
@@ -883,6 +989,18 @@ function BillingPage() {
               </table>
             </div>
           )}
+
+          {/*
+            The reason, under the table it applies to. (U4, spec 2.7)
+            Only when there is something to be refused: an empty list with a lock note would be
+            telling somebody they cannot have documents that do not exist.
+          */}
+          {!canDownloadInvoices && invoices.length > 0 ? (
+            <div className="flex items-center gap-2 border-t px-6 py-3 text-[12.5px] text-muted-foreground">
+              <Lock aria-hidden className="size-3.5 shrink-0" />
+              Invoice downloads are turned off for you. Ask the owner if you need them.
+            </div>
+          ) : null}
         </div>
       </div>
 

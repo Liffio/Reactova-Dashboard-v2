@@ -1,7 +1,19 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MailPlus, MoreHorizontal, RefreshCw, Search, Trash2, UserMinus, Users } from "lucide-react";
+import {
+  Download,
+  Lock,
+  MailPlus,
+  MoreHorizontal,
+  Pencil,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Trash2,
+  UserMinus,
+  Users,
+} from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -41,6 +53,36 @@ import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
 import { useAuthState } from "@/lib/auth/auth-store";
+import { cn } from "@/lib/utils";
+import { getTeamOverview, type TeamOverview, type TeamOverviewMember } from "@/lib/api/team-api";
+import { TeamAccessDialog } from "@/components/team/team-access-dialog";
+
+/** Initials for the round person avatar. People, not workspaces, so a circle is right here. */
+function initialsOf(nameOrEmail: string): string {
+  const parts = nameOrEmail.trim().split(/[\s@.]+/).filter(Boolean);
+  return (parts[0]?.[0] ?? "?").toUpperCase() + (parts[1]?.[0] ?? "").toUpperCase();
+}
+
+/**
+ * What the Access column says. (U5, spec 5.7)
+ *
+ * "Everything" for the owner, "Whole group" for a whole-group grant, the workspaces by NAME for a
+ * selection, and "This workspace" for a plain membership. Naming them matters: "3 workspaces" tells
+ * an owner how many they granted but not which, which is the question they opened the page to ask.
+ */
+function accessLabel(member: TeamOverviewMember, overview: TeamOverview | null): string {
+  if (member.isOwner) return "Everything";
+  if (member.source !== "GROUP") return "This workspace";
+  if (member.scope === "GROUP") return "Whole group";
+
+  const names = member.selectedWorkspaceIds
+    .map((id) => overview?.group?.workspaces.find((w) => w.id === id)?.name)
+    .filter((name): name is string => Boolean(name));
+
+  const count = member.selectedWorkspaceIds.length;
+  const noun = count === 1 ? "workspace" : "workspaces";
+  return names.length > 0 ? `${count} ${noun}: ${names.join(", ")}` : `${count} ${noun}`;
+}
 
 export const Route = createFileRoute("/_app/team/")({
   head: () => ({ meta: [{ title: "Team — Liffio" }] }),
@@ -122,21 +164,62 @@ function TeamPage() {
   const members = memberList.items;
   const invites = invitesQuery.data ?? [];
 
+  /**
+   * Everything the reference's Team page renders, in one call. (U5)
+   *
+   * Separate from the paged member search above, which is a permissions console: it answers "who
+   * holds what permission", page by page. This answers "who can open this workspace, how, and how
+   * much of the plan's allowance that uses", which is a different question with a different shape.
+   */
+  const overviewQuery = useQuery({
+    queryKey: ["team-overview", workspaceId],
+    queryFn: () => getTeamOverview(workspaceId),
+    enabled: isWorkspaceReady(workspaceId),
+  });
+  const overview = overviewQuery.data ?? null;
+  const teamMembers = overview?.members ?? [];
+  const atLimit = Boolean(overview && overview.used >= overview.limit);
+
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<TeamOverviewMember | null>(null);
+
   return (
     <div>
       <PageHeader
         eyebrow="Account"
         title="Team"
-        description="Manage team members and workspace invitations."
+        /*
+          The count the reference shows, and it is not the length of this table: it includes the
+          owner and counts a whole-group member in every workspace of the group (T3). The limit is
+          the RESOLVED one, so a package or admin override is reflected rather than the plan default
+          the pricing page advertises.
+        */
+        description={
+          overview
+            ? `${overview.used} of ${overview.limit} team members in this workspace${
+                atLimit ? ". Limit reached" : ""
+              }`
+            : "Manage team members and workspace invitations."
+        }
         actions={
-          <Button
-            size="sm"
-            className="gap-1.5 bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
-            onClick={() => void navigate({ to: "/team/invite" })}
-          >
-            <MailPlus className="h-4 w-4" />
-            Invite member
-          </Button>
+          // Owner only (spec 2.7), and disabled at the limit rather than failing on submit.
+          overview?.viewerIsOwner ? (
+            <Button
+              size="sm"
+              disabled={atLimit}
+              className="gap-1.5 bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
+              onClick={() => {
+                // A grouped workspace invites through the agency, because the grant is a group
+                // grant: scope, role and the invoice permission. A standalone one keeps the
+                // existing per-workspace invite flow.
+                if (overview.group) setInviteOpen(true);
+                else void navigate({ to: "/team/invite" });
+              }}
+            >
+              <MailPlus className="h-4 w-4" />
+              Invite
+            </Button>
+          ) : null
         }
       />
 
@@ -146,7 +229,15 @@ function TeamPage() {
             <TabsTrigger value="members" className="gap-1.5">
               <Users className="h-3.5 w-3.5" />
               {/* The workspace total from the server, not the page length. */}
-              Members ({memberList.total})
+              {/*
+                * The count has to be the count of the table under it. (U8)
+                *
+                * `memberList.total` is the old `workspace_members` page count, which excludes the
+                * owner and every whole-group member, so an agency workspace showing three people
+                * had a tab reading "Members (1)" directly under a header reading "3 of 15".
+                * `overview.used` is the same number T3 enforces the limit against.
+                */}
+              Members ({overview ? overview.used : memberList.total})
             </TabsTrigger>
             <TabsTrigger value="invites" className="gap-1.5">
               <MailPlus className="h-3.5 w-3.5" />
@@ -155,17 +246,15 @@ function TeamPage() {
           </TabsList>
 
           <TabsContent value="members">
-            <div className="relative mb-4 w-full sm:max-w-sm">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                placeholder="Search members by name or email…"
-                value={memberList.search}
-                onChange={(e) => memberList.setSearch(e.target.value)}
-              />
-            </div>
+            {/*
+              The reference's table, not a permissions console. (U5, spec 5.7)
 
-            {memberList.isLoading ? (
+              Person, Role, Access, Invoices, and a pencil for the owner. The Access column is the
+              one that did not exist and could not: until T1 there was no way to say "whole group"
+              or "these three workspaces", because access was a row per workspace with nothing
+              recording what had been granted.
+            */}
+            {overviewQuery.isLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <Skeleton key={i} className="h-16 rounded-xl" />
@@ -173,87 +262,97 @@ function TeamPage() {
               </div>
             ) : (
               <div className="rounded-2xl border bg-card shadow-soft">
-                <div className="divide-y">
-                  {members.map((member) => {
-                    const name = member.user.name;
-                    const initials = name
-                      .split(" ")
-                      .map((p) => p[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase();
-                    const isSelf = member.user.id === currentUserId;
-                    return (
-                      <div key={member.user.id} className="flex items-center gap-4 px-6 py-4">
-                        <Avatar className="h-10 w-10 shrink-0">
-                          <AvatarFallback className="bg-brand-gradient text-sm font-semibold text-primary-foreground">
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{name}</p>
-                            {isSelf && (
-                              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-                                You
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-xs font-medium text-muted-foreground">
+                        <th className="px-5 py-3">Person</th>
+                        <th className="px-4 py-3">Role</th>
+                        <th className="px-4 py-3">Access</th>
+                        <th className="px-4 py-3">Invoices</th>
+                        <th className="px-4 py-3" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teamMembers.map((member) => (
+                        <tr key={member.userId} className="border-b last:border-0">
+                          <td className="px-5 py-3">
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              {/* Round, deliberately: these are people, not workspaces. */}
+                              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-brand-gradient text-xs font-semibold text-primary-foreground">
+                                {initialsOf(member.name ?? member.email)}
+                              </span>
+                              <span className="grid min-w-0 leading-tight">
+                                <span className="truncate text-[13.5px] font-semibold">
+                                  {member.name ?? member.email}
+                                </span>
+                                <span className="truncate text-xs text-muted-foreground">
+                                  {member.email}
+                                </span>
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge variant="outline">
+                              {member.isOwner ? "Owner" : member.roleName}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3 text-[12.5px] text-muted-foreground">
+                            {accessLabel(member, overview)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {member.isOwner ? null : (
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1 text-xs",
+                                  member.canDownloadInvoices
+                                    ? "text-success"
+                                    : "text-muted-foreground",
+                                )}
+                              >
+                                {member.canDownloadInvoices ? (
+                                  <Download aria-hidden className="size-3.5" />
+                                ) : (
+                                  <Lock aria-hidden className="size-3.5" />
+                                )}
+                                Invoices {member.canDownloadInvoices ? "on" : "off"}
                               </span>
                             )}
-                            {member.immutableSuperAdmin && (
-                              <Badge variant="outline" className="text-[10px]">
-                                Owner
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {member.user.email}
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="shrink-0">
-                          {member.role.name}
-                        </Badge>
-                        {!isSelf && !member.immutableSuperAdmin && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button className="rounded-md p-1 hover:bg-muted">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                className="cursor-pointer text-destructive focus:text-destructive"
-                                onClick={() => setRemovingMember(member)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {/* Owner only, and only for a group grant: a standalone member's role
+                                is edited through the existing member flow. */}
+                            {overview?.viewerIsOwner &&
+                            !member.isOwner &&
+                            member.source === "GROUP" ? (
+                              <button
+                                type="button"
+                                onClick={() => setEditingMember(member)}
+                                aria-label={`Edit access for ${member.name ?? member.email}`}
+                                className="grid size-[30px] place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
                               >
-                                <UserMinus className="mr-2 h-4 w-4" /> Remove
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {members.length === 0 && (
-                    <div className="py-10 text-center text-sm text-muted-foreground">
-                      {memberList.isNarrowed
-                        ? "No members match that search."
-                        : "No team members yet."}
-                    </div>
-                  )}
+                                <Pencil aria-hidden className="size-4" />
+                              </button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
 
-            {memberList.total > 0 && (
-              <div className="mt-4">
-                <PaginationBar
-                  page={memberList.page}
-                  pages={memberList.pages}
-                  total={memberList.total}
-                  limit={memberList.limit}
-                  onPageChange={memberList.setPage}
-                  label="members"
-                />
+            {/*
+              The read-only half of spec 2.7: a member SEES the team, and is told why they cannot
+              change it. Not a hidden page, and not a page whose buttons fail when pressed.
+            */}
+            {overview && !overview.viewerIsOwner ? (
+              <div className="mt-3 flex items-center gap-2 text-[12.5px] text-muted-foreground">
+                <ShieldCheck aria-hidden className="size-3.5 shrink-0" />
+                Only the owner can invite people or change access.
               </div>
-            )}
+            ) : null}
           </TabsContent>
 
           <TabsContent value="invites">
@@ -334,6 +433,20 @@ function TeamPage() {
             )}
           </TabsContent>
         </Tabs>
+
+        {overview ? (
+          <TeamAccessDialog
+            open={inviteOpen || Boolean(editingMember)}
+            onOpenChange={(next) => {
+              if (next) return;
+              setInviteOpen(false);
+              setEditingMember(null);
+            }}
+            overview={overview}
+            editing={editingMember}
+            workspaceId={workspaceId}
+          />
+        ) : null}
       </div>
 
       <AlertDialog

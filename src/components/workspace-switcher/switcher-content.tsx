@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, Lock, Pencil, Plus, Search } from "lucide-react";
+import { ChevronLeft, Lock, Pencil, Plus, Search, ShieldCheck } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { SlotBar } from "./slot-bar";
@@ -30,6 +30,7 @@ export function SwitcherContent({
   onAddToGroup,
   onRename,
   onClose,
+  initialGroupId = null,
 }: {
   data: SwitcherPayload;
   currentWorkspaceId: string | null;
@@ -38,8 +39,22 @@ export function SwitcherContent({
   onAddToGroup: (group: SwitcherGroup) => void;
   onRename: (target: RenameTarget) => void;
   onClose: () => void;
+  /**
+   * Open straight into this group instead of the root list. (FX8)
+   *
+   * Set only after a purchase that landed inside an agency, so the group the customer just bought
+   * into is the thing they see, with their new workspace in it. Left null the rest of the time: the
+   * switcher opening at the root is what every other entry point expects.
+   *
+   * Read once, in the initial state below. Both surfaces unmount their content when the panel
+   * closes, so a later open re-reads it, which is why clearing it after the first open is the
+   * caller's job rather than an effect here.
+   */
+  initialGroupId?: string | null;
 }) {
-  const [view, setView] = useState<View>({ kind: "root" });
+  const [view, setView] = useState<View>(() =>
+    initialGroupId ? { kind: "group", groupId: initialGroupId } : { kind: "root" },
+  );
   const [query, setQuery] = useState("");
 
   const group =
@@ -113,7 +128,17 @@ export function SwitcherContent({
   }, [query, data, currentWorkspaceId]);
 
   if (group) {
-    const full = group.slotsUsed >= group.slotLimit;
+    /**
+     * A member has no slot counts, by design. (U6, spec 2.7)
+     *
+     * The server sends `slotLimit` / `slotsUsed` only to an owner: how big their client's agency is
+     * and how much of it is spent is not a guest's business. So everything below reads them through
+     * `isOwner` rather than assuming a number is there, and the member's half of the view renders
+     * "N workspaces you can open" instead of the bar.
+     */
+    const slotsUsed = group.slotsUsed;
+    const slotLimit = group.slotLimit;
+    const full = slotsUsed !== null && slotLimit !== null && slotsUsed >= slotLimit;
     const renews = group.renewsAt
       ? new Date(group.renewsAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })
       : null;
@@ -146,10 +171,17 @@ export function SwitcherContent({
           </div>
 
           <div className="mt-2.5 flex justify-between gap-2 px-0.5 text-xs text-muted-foreground">
-            <span>
-              <b className="font-semibold tabular-nums text-foreground">{group.slotsUsed}</b> of{" "}
-              {group.slotLimit} workspaces used
-            </span>
+            {slotsUsed !== null && slotLimit !== null ? (
+              <span>
+                <b className="font-semibold tabular-nums text-foreground">{slotsUsed}</b> of{" "}
+                {slotLimit} workspaces used
+              </span>
+            ) : (
+              <span>
+                <b className="font-semibold tabular-nums text-foreground">{group.visibleCount}</b>{" "}
+                {group.visibleCount === 1 ? "workspace" : "workspaces"} you can open
+              </span>
+            )}
             {group.readOnly ? (
               <span className="text-destructive">Expired</span>
             ) : renews ? (
@@ -157,7 +189,10 @@ export function SwitcherContent({
             ) : null}
           </div>
 
-          <SlotBar used={group.slotsUsed} limit={group.slotLimit} size="lg" className="mt-2" />
+          {/* No slot bar for a member: they were not told the numbers it would draw. */}
+          {slotsUsed !== null && slotLimit !== null ? (
+            <SlotBar used={slotsUsed} limit={slotLimit} size="lg" className="mt-2" />
+          ) : null}
         </div>
 
         <div className="max-h-[min(50dvh,320px)] flex-1 overflow-y-auto p-1.5">
@@ -198,14 +233,25 @@ export function SwitcherContent({
               {group.readOnly
                 ? "Renew to add workspaces"
                 : full
-                  ? `All ${group.slotLimit} slots used`
+                  ? `All ${slotLimit} slots used`
                   : "Add workspace"}
               <span className="ml-auto text-xs font-medium tabular-nums text-muted-foreground">
-                {group.slotsUsed}/{group.slotLimit}
+                {slotsUsed}/{slotLimit}
               </span>
             </button>
           </div>
-        ) : null}
+        ) : (
+          /*
+            A member gets the reason in place of the button, not a disabled button. (spec 2.7)
+            A disabled control says "not now"; this says who to ask.
+          */
+          <div className="border-t p-1.5">
+            <div className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2.5 text-left text-sm font-medium text-muted-foreground">
+              <ShieldCheck aria-hidden className="size-4" />
+              Only the owner can add workspaces
+            </div>
+          </div>
+        )}
       </>
     );
   }
@@ -237,7 +283,7 @@ export function SwitcherContent({
         ) : (
           <>
             <div className="px-2 pb-1 pt-2 text-[11.5px] font-medium text-muted-foreground">
-              Your workspaces
+              {data.viewer === "OWNER" ? "Your workspaces" : "Workspaces shared with you"}
             </div>
             {activeWorkspaces.map((workspace) => (
               <WorkspaceRow
@@ -267,19 +313,26 @@ export function SwitcherContent({
         )}
       </div>
 
-      <div className="border-t p-1.5">
-        <button
-          type="button"
-          onClick={onAddWorkspace}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2.5 text-left text-sm font-medium text-primary hover:bg-accent/60"
-        >
-          <Plus aria-hidden className="size-4" />
-          Add workspace
-          <span className="ml-auto text-xs font-medium text-muted-foreground">
-            {data.freeSlotAvailable ? "Free or paid" : "Paid plan"}
-          </span>
-        </button>
-      </div>
+      {/*
+        No Add workspace footer for a team member at all. (U6, spec 2.7)
+        "Team members do not see the Add workspace footer for the owner's workspaces." Not a
+        disabled button: there is nothing here they could ever do, so the control does not exist.
+      */}
+      {data.viewer === "OWNER" ? (
+        <div className="border-t p-1.5">
+          <button
+            type="button"
+            onClick={onAddWorkspace}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2.5 text-left text-sm font-medium text-primary hover:bg-accent/60"
+          >
+            <Plus aria-hidden className="size-4" />
+            Add workspace
+            <span className="ml-auto text-xs font-medium text-muted-foreground">
+              {data.freeSlotAvailable ? "Free or paid" : "Paid plan"}
+            </span>
+          </button>
+        </div>
+      ) : null}
     </>
   );
 }

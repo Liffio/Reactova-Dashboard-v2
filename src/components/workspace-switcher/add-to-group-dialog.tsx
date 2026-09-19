@@ -58,7 +58,13 @@ export function AddToGroupDialog({
     }
   }, [open]);
 
-  if (!group) return null;
+  /**
+   * Only an owner can reach this dialog: the member switcher renders "Only the owner can add
+   * workspaces" where the button would be, and the server refuses a non-owner regardless. The slot
+   * counts are therefore always present here, and this returns null rather than asserting it, so a
+   * future caller that opens it without them shows nothing instead of rendering "NaN of null".
+   */
+  if (!group || group.slotsUsed === null || group.slotLimit === null) return null;
 
   const nextSlot = group.slotsUsed + 1;
   const remaining = group.slotLimit - nextSlot;

@@ -137,10 +137,13 @@ function InvitePage() {
                     seatFull ? "border-destructive/30 bg-destructive/10 text-destructive" : "bg-muted/40 text-muted-foreground"
                   }`}
                 >
+                  {/* "team members", never "seats". The API field keeps its name; the copy does not. */}
                   {seats.limit === null
-                    ? `${seats.members} member(s), ${seats.pendingInvites} pending invite(s) — unlimited seats.`
-                    : `${seats.members} of ${seats.limit} seats used, ${seats.pendingInvites} pending invite(s). ${
-                        seatFull ? "No seats remaining — accepting will be blocked." : `${seats.remaining} left.`
+                    ? `${seats.members} member(s), ${seats.pendingInvites} pending invite(s). Unlimited team members.`
+                    : `${seats.members} of ${seats.limit} team members used, ${seats.pendingInvites} pending invite(s). ${
+                        seatFull
+                          ? "No team members remaining, so accepting will be blocked."
+                          : `${seats.remaining} left.`
                       }`}
                 </div>
               )}

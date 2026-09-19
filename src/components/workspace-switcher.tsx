@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { ChevronsUpDown, ChevronRight } from "lucide-react";
 
 import { SwitcherSurface, SWITCHER_SHEET_BREAKPOINT } from "./workspace-switcher/switcher-surface";
@@ -21,6 +22,7 @@ import { AddToGroupDialog } from "./workspace-switcher/add-to-group-dialog";
 import { RenameDialog, type RenameTarget } from "./workspace-switcher/rename-dialog";
 import { PlanChip, ExpiredChip } from "./workspace-switcher/plan-chip";
 import { WorkspaceTile } from "./workspace-switcher/workspace-tile";
+import { landInNewWorkspace as landInNewWorkspaceFlow } from "./workspace-switcher/land-in-new-workspace";
 
 /**
  * Matches the reference's `@media (max-width: 820px)` rather than the app-wide 768px hook, so the
@@ -67,11 +69,14 @@ export function WorkspaceSwitcher({
   const { isMobile, setOpenMobile } = useSidebar();
   const isSheet = useSwitcherIsSheet();
   const page = usePageTitle();
+  const navigate = useNavigate();
 
   const [open, setOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [groupTarget, setGroupTarget] = useState<SwitcherGroup | null>(null);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
+  /** The agency a just-bought workspace landed in, so the next open drills into it. (FX8) */
+  const [landedGroupId, setLandedGroupId] = useState<string | null>(null);
 
   /** Fetched only while the panel has been opened at least once — the shell renders the trigger. */
   const switcherQuery = useQuery({
@@ -115,11 +120,57 @@ export function WorkspaceSwitcher({
   const activeGroup =
     data?.groups.find((g) => g.workspaces.some((w) => w.id === current.id)) ?? null;
 
+  /**
+   * `landedGroupId` steers exactly ONE open of the switcher, the one right after a purchase.
+   * Cleared on close rather than on open: the content reads it in its initial state, so clearing it
+   * any earlier would race the render that needs it.
+   */
+  useEffect(() => {
+    if (!open && landedGroupId) setLandedGroupId(null);
+  }, [open, landedGroupId]);
+
   const switchTo = async (workspaceId: string) => {
     setCurrentId(workspaceId);
     await refreshAuth();
     if (isMobile) setOpenMobile(false);
   };
+
+  /**
+   * Where the buyer lands once a purchase resolves. (FX8)
+   *
+   * 🔴 **The server is asked first, and only then is the workspace made active.** The workspace
+   * list is what `AppProvider` validates the active id against: `pickWorkspaceId` falls back to
+   * `workspaces[0]` for an id it cannot find, and an effect writes that fallback straight back into
+   * `currentId`. So switching to a workspace the list has not caught up with does not just fail to
+   * land, it actively bounces the customer back into the workspace they came from, which is the
+   * defect this step exists to remove. `refetchQueries` rather than `invalidateQueries` because the
+   * distinction here is exactly "the data has arrived" versus "the data has been marked stale".
+   *
+   * Then one navigation, and only now that the payment has resolved: to the new workspace's
+   * dashboard. Never back to the previous workspace, and never to the billing page.
+   */
+  const landInNewWorkspace = (workspaceId: string, groupId?: string | null) =>
+    landInNewWorkspaceFlow(
+      {
+        // `refetchQueries` rather than `invalidateQueries`: the distinction that matters here is
+        // "the data has arrived", not "the data has been marked stale".
+        refetchWorkspaces: () =>
+          Promise.all([
+            queryClient.refetchQueries({ queryKey: ["workspaces"] }),
+            queryClient.refetchQueries({ queryKey: ["workspace-switcher"] }),
+          ]),
+        setCurrentId,
+        refreshAuth,
+        rememberGroup: setLandedGroupId,
+        closePanel: () => {
+          setOpen(false);
+          if (isMobile) setOpenMobile(false);
+        },
+        navigateToDashboard: () => navigate({ to: "/dashboard" }),
+      },
+      workspaceId,
+      groupId ?? null,
+    );
 
   const topbar = variant === "topbar";
   const crumb = variant === "crumb";
@@ -214,6 +265,7 @@ export function WorkspaceSwitcher({
             setRenameTarget(target);
           }}
           onClose={() => setOpen(false)}
+          initialGroupId={landedGroupId}
         />
       ) : (
         <div className="px-3 py-8 text-center text-sm text-muted-foreground">
@@ -241,14 +293,14 @@ export function WorkspaceSwitcher({
         freeSlotAvailable={data?.freeSlotAvailable ?? false}
         freeWorkspaceName={data?.freeWorkspace?.name ?? null}
         prefillFromWorkspaceId={current.id || null}
-        onCreated={(id) => void switchTo(id)}
+        onCreated={(id, groupId) => void landInNewWorkspace(id, groupId)}
       />
 
       <AddToGroupDialog
         group={groupTarget}
         open={Boolean(groupTarget)}
         onOpenChange={(next) => !next && setGroupTarget(null)}
-        onCreated={(id) => void switchTo(id)}
+        onCreated={(id) => void landInNewWorkspace(id, groupTarget?.id ?? null)}
       />
 
       <RenameDialog

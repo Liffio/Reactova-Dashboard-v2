@@ -632,6 +632,11 @@ export const apiUri = {
         `${V1}/admin/discount-codes${includeInactive ? "?includeInactive=true" : ""}`,
       create: `${V1}/admin/discount-codes`,
       deactivate: (id: string) => `${V1}/admin/discount-codes/${id}/deactivate`,
+      /** The other half of deactivate, which had none before R7. */
+      activate: (id: string) => `${V1}/admin/discount-codes/${id}/activate`,
+      update: (id: string) => `${V1}/admin/discount-codes/${id}`,
+      /** Soft: sets deleted_at, so redemption history keeps pointing at a row that exists. */
+      remove: (id: string) => `${V1}/admin/discount-codes/${id}`,
       redemptions: (id: string) => `${V1}/admin/discount-codes/${id}/redemptions`,
     },
     packages: {

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Ticket } from "lucide-react";
+import { Pause, Play, Pencil, Plus, Ticket, Trash2, Users } from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -12,13 +12,27 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import {
+  activateDiscountCode,
   createDiscountCode,
   deactivateDiscountCode,
+  deleteDiscountCode,
   listDiscountCodes,
   type AdminDiscountCode,
   type CreateDiscountCodeInput,
   type DiscountCodeKind,
 } from "@/lib/api/discount-codes-api";
+import { DiscountCodeEditor } from "@/components/admin/discount-code-editor";
+import { DiscountCodeRedemptions } from "@/components/admin/discount-code-redemptions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 /**
  * Same permission as package management. Creating a code is a billing action with a direct revenue
@@ -52,6 +66,38 @@ function describe(code: AdminDiscountCode): string {
   return `${money(code.amountMinor, code.currency)} off`;
 }
 
+/**
+ * The badge for a code's live state. (R7)
+ *
+ * The status itself is computed by the server, so two screens cannot disagree about one code. This
+ * only decides how it looks. A falsy status means an older server that does not send one, in which
+ * case `isActive` is the best available answer.
+ */
+function StatusBadge({ code }: { code: AdminDiscountCode }) {
+  const status = code.status ?? (code.isActive ? "live" : "paused");
+  const tone: Record<string, string> = {
+    live: "border-success/30 bg-success/10 text-success",
+    paused: "border-warning/30 bg-warning/10 text-warning",
+    scheduled: "border-border bg-muted text-muted-foreground",
+    expired: "border-border bg-muted text-muted-foreground",
+    exhausted: "border-border bg-muted text-muted-foreground",
+    deleted: "border-destructive/30 bg-destructive/10 text-destructive",
+  };
+  const label: Record<string, string> = {
+    live: "Live",
+    paused: "Paused",
+    scheduled: "Scheduled",
+    expired: "Expired",
+    exhausted: "All used",
+    deleted: "Deleted",
+  };
+  return (
+    <Badge variant="outline" className={tone[status] ?? ""}>
+      {label[status] ?? status}
+    </Badge>
+  );
+}
+
 function DiscountCodesPage() {
   const queryClient = useQueryClient();
   const [showInactive, setShowInactive] = useState(false);
@@ -61,6 +107,7 @@ function DiscountCodesPage() {
     value: string;
     currency: "INR" | "USD";
     maxRedemptions: string;
+    perUserLimit: string;
     validUntil: string;
     note: string;
   }>({
@@ -69,9 +116,14 @@ function DiscountCodesPage() {
     value: "",
     currency: "INR",
     maxRedemptions: "",
+    perUserLimit: "",
     validUntil: "",
     note: "",
   });
+
+  const [editing, setEditing] = useState<AdminDiscountCode | null>(null);
+  const [viewingRedemptions, setViewingRedemptions] = useState<AdminDiscountCode | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<AdminDiscountCode | null>(null);
 
   const codesQuery = useQuery({
     queryKey: ["admin-discount-codes", showInactive],
@@ -82,7 +134,15 @@ function DiscountCodesPage() {
     mutationFn: (body: CreateDiscountCodeInput) => createDiscountCode(body),
     onSuccess: () => {
       toast.success("Code created");
-      setForm((f) => ({ ...f, code: "", value: "", maxRedemptions: "", validUntil: "", note: "" }));
+      setForm((f) => ({
+        ...f,
+        code: "",
+        value: "",
+        maxRedemptions: "",
+        perUserLimit: "",
+        validUntil: "",
+        note: "",
+      }));
       void queryClient.invalidateQueries({ queryKey: ["admin-discount-codes"] });
     },
     onError: (err: unknown) =>
@@ -97,6 +157,27 @@ function DiscountCodesPage() {
     },
     onError: (err: unknown) =>
       toast.error(err instanceof Error ? err.message : "Could not deactivate that code"),
+  });
+
+  const activate = useMutation({
+    mutationFn: (id: string) => activateDiscountCode(id),
+    onSuccess: () => {
+      toast.success("Code resumed");
+      void queryClient.invalidateQueries({ queryKey: ["admin-discount-codes"] });
+    },
+    onError: (err: unknown) =>
+      toast.error(err instanceof Error ? err.message : "Could not resume that code"),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteDiscountCode(id),
+    onSuccess: () => {
+      toast.success("Code deleted");
+      setConfirmDelete(null);
+      void queryClient.invalidateQueries({ queryKey: ["admin-discount-codes"] });
+    },
+    onError: (err: unknown) =>
+      toast.error(err instanceof Error ? err.message : "Could not delete that code"),
   });
 
   const submit = () => {
@@ -115,6 +196,8 @@ function DiscountCodesPage() {
         ? { percentBps: Math.round(numeric * 100) }
         : { amountMinor: Math.round(numeric * 100), currency: form.currency }),
       ...(form.maxRedemptions ? { maxRedemptions: Number(form.maxRedemptions) } : {}),
+      // Omitted means unlimited, which is what the server stores as NULL.
+      ...(form.perUserLimit ? { perUserLimit: Number(form.perUserLimit) } : {}),
       ...(form.validUntil ? { validUntil: new Date(form.validUntil).toISOString() } : {}),
       ...(form.note.trim() ? { note: form.note.trim() } : {}),
     });
@@ -213,6 +296,15 @@ function DiscountCodesPage() {
             />
           </div>
           <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">Uses per person (optional)</label>
+            <Input
+              value={form.perUserLimit}
+              onChange={(e) => setForm({ ...form, perUserLimit: e.target.value })}
+              placeholder="Unlimited"
+              inputMode="numeric"
+            />
+          </div>
+          <div className="space-y-1.5">
             <label className="text-xs text-muted-foreground">Expires (optional)</label>
             <Input
               type="date"
@@ -253,7 +345,9 @@ function DiscountCodesPage() {
                 <th className="px-4 py-3 font-medium">Code</th>
                 <th className="px-4 py-3 font-medium">Discount</th>
                 <th className="px-4 py-3 font-medium">Used</th>
-                <th className="px-4 py-3 font-medium">Expires</th>
+                <th className="px-4 py-3 font-medium">Per person</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Valid</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
@@ -262,35 +356,80 @@ function DiscountCodesPage() {
                 <tr key={c.id} className="border-t">
                   <td className="px-4 py-3">
                     <span className="font-mono">{c.code}</span>
-                    {!c.isActive && (
-                      <Badge variant="outline" className="ml-2">
-                        Inactive
-                      </Badge>
-                    )}
                     {c.note && (
                       <p className="mt-0.5 text-xs text-muted-foreground">{c.note}</p>
                     )}
                   </td>
                   <td className="px-4 py-3">{describe(c)}</td>
                   <td className="px-4 py-3">
-                    {c.redemptionCount}
-                    {c.maxRedemptions ? ` / ${c.maxRedemptions}` : ""}
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 underline-offset-2 hover:underline"
+                      onClick={() => setViewingRedemptions(c)}
+                    >
+                      <Users className="h-3.5 w-3.5" aria-hidden />
+                      {c.redemptionCount}
+                      {c.maxRedemptions ? ` of ${c.maxRedemptions}` : ""}
+                    </button>
+                  </td>
+                  {/* Null is unlimited, and is spelled out rather than shown as a dash. */}
+                  <td className="px-4 py-3">{c.perUserLimit == null ? "Unlimited" : c.perUserLimit}</td>
+                  <td className="px-4 py-3">
+                    <StatusBadge code={c} />
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {c.validFrom ? `From ${new Date(c.validFrom).toLocaleDateString()}` : "No start"}
+                    <br />
+                    {c.validUntil ? `Until ${new Date(c.validUntil).toLocaleDateString()}` : "No end"}
                   </td>
                   <td className="px-4 py-3">
-                    {c.validUntil ? new Date(c.validUntil).toLocaleDateString() : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {c.isActive && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={deactivate.isPending}
-                        onClick={() => deactivate.mutate(c.id)}
-                      >
-                        Deactivate
-                      </Button>
-                    )}
+                    <div className="flex items-center justify-end gap-1.5">
+                      {c.deletedAt ? null : (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`Edit ${c.code}`}
+                            onClick={() => setEditing(c)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" aria-hidden />
+                          </Button>
+                          {c.isActive ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={deactivate.isPending}
+                              onClick={() => deactivate.mutate(c.id)}
+                            >
+                              <Pause className="mr-1 h-3.5 w-3.5" aria-hidden />
+                              Pause
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={activate.isPending}
+                              onClick={() => activate.mutate(c.id)}
+                            >
+                              <Play className="mr-1 h-3.5 w-3.5" aria-hidden />
+                              Resume
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`Delete ${c.code}`}
+                            onClick={() => setConfirmDelete(c)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" aria-hidden />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -298,6 +437,49 @@ function DiscountCodesPage() {
           </table>
         </div>
       )}
+
+      <DiscountCodeEditor
+        code={editing}
+        open={editing !== null}
+        onOpenChange={(next) => !next && setEditing(null)}
+      />
+
+      <DiscountCodeRedemptions
+        code={viewingRedemptions}
+        open={viewingRedemptions !== null}
+        onOpenChange={(next) => !next && setViewingRedemptions(null)}
+      />
+
+      {/*
+        Deleting is soft and the dialog says so, because "delete" usually is not. The row stays as
+        the referent for every redemption and for the invoices that cite it; what changes is that
+        nobody can redeem it again.
+      */}
+      <AlertDialog
+        open={confirmDelete !== null}
+        onOpenChange={(next) => !next && setConfirmDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {confirmDelete?.code}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              It stops working immediately and nobody can redeem it again. The{" "}
+              {confirmDelete?.redemptionCount ?? 0} redemption
+              {confirmDelete?.redemptionCount === 1 ? "" : "s"} it already has are kept, and so are
+              the invoices that refer to it. Pause it instead if you might want it back.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => confirmDelete && remove.mutate(confirmDelete.id)}
+              disabled={remove.isPending}
+            >
+              {remove.isPending ? "Deleting…" : "Delete code"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

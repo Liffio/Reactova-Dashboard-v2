@@ -143,6 +143,10 @@ export function AddWorkspaceDialog({
   const [address, setAddress] = useState<BillingAddressInput>(() =>
     emptyBillingAddress({ country: user?.country ?? null }),
   );
+  /** Whether the address on screen came from a saved profile, so the step can summarise it. (R6) */
+  const [addressIsSaved, setAddressIsSaved] = useState(false);
+  /** Whether the buyer has asked to change it. (R6) */
+  const [editingAddress, setEditingAddress] = useState(true);
   /**
    * The address actually used for the dispatch in flight, so "Try again" on the failed step retries
    * the purchase rather than re-asking for an address that was already given.
@@ -240,6 +244,8 @@ export function AddWorkspaceDialog({
   useEffect(() => {
     if (!open) {
       setStep("form");
+      setAddressIsSaved(false);
+      setEditingAddress(true);
       setName("");
       setSelected(freeSlotAvailable ? FREE : "");
       setFreeNotice(false);
@@ -390,18 +396,32 @@ export function AddWorkspaceDialog({
       }
     }
 
-    if (!prefill) {
-      setStep("address");
-      return;
+    /**
+     * 🔴 A found address is SHOWN, not used silently. (R6)
+     *
+     * This used to dispatch straight to the gateway whenever a prefill came back, so the buyer
+     * never saw the address their invoice would carry and had no way to correct it before paying.
+     * An invoice with the wrong state on it is a tax document that has to be reissued.
+     *
+     * So the address step is now always the next thing, and it is the step that decides how to
+     * present itself: a summary of a known address with an Edit control, or the empty form when
+     * there is nothing to show. Neither case costs the buyer a retype.
+     */
+    if (prefill) {
+      setAddress({
+        country: prefill.country,
+        state: prefill.state,
+        gstStateCode: prefill.gstStateCode ?? null,
+        postalCode: prefill.postalCode,
+        address: prefill.address ?? null,
+      });
+      setAddressIsSaved(true);
+      setEditingAddress(false);
+    } else {
+      setAddressIsSaved(false);
+      setEditingAddress(true);
     }
-
-    await runCheckout({
-      country: prefill.country,
-      state: prefill.state,
-      gstStateCode: prefill.gstStateCode ?? null,
-      postalCode: prefill.postalCode,
-      address: prefill.address ?? null,
-    });
+    setStep("address");
   };
 
   /** "Try again" after a failure reuses the address already given rather than asking again. */
@@ -471,20 +491,73 @@ export function AddWorkspaceDialog({
           </DialogHeaderBar>
 
           <DialogBody className="px-6 py-5">
-            {/*
-              The same form the checkout page uses, so there is one billing address form in the
-              product rather than a second one that drifts. It carries its own submit button, which
-              is why this step has no DialogFooterBar.
-            */}
-            <BillingAddressForm
-              value={address}
-              onChange={setAddress}
-              submitLabel={
-                quote ? `Pay ${money(quote.amountMinor, quote.currency)} and create` : "Pay and create"
-              }
-              submitting={dispatching.current}
-              onSubmit={() => void runCheckout(address)}
-            />
+            {addressIsSaved && !editingAddress ? (
+              /*
+                The saved address, shown before it is used. (R6)
+                A buyer whose details are already on file should not retype them, and should also
+                not discover on the invoice which address was picked for them.
+              */
+              <div className="space-y-4">
+                <div className="rounded-xl border bg-muted/30 p-4 text-sm">
+                  <p className="mb-2 text-[12.5px] font-medium text-muted-foreground">
+                    Using your saved details
+                  </p>
+                  {address.address ? (
+                    <p className="whitespace-pre-line">{address.address}</p>
+                  ) : null}
+                  <p>
+                    {address.state} {address.postalCode}
+                  </p>
+                  <p>{address.country}</p>
+                  {address.gstStateCode ? (
+                    <p className="mt-1 text-muted-foreground">GST state {address.gstStateCode}</p>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => void runCheckout(address)}
+                    disabled={dispatching.current}
+                    className="flex-1"
+                  >
+                    {quote
+                      ? `Pay ${money(quote.amountMinor, quote.currency)} and create`
+                      : "Pay and create"}
+                  </Button>
+                  <Button variant="outline" onClick={() => setEditingAddress(true)}>
+                    Edit
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/*
+                  The same form the checkout page uses, so there is one billing address form in the
+                  product rather than a second one that drifts. It carries its own submit button,
+                  which is why this step has no DialogFooterBar.
+                */}
+                <BillingAddressForm
+                  value={address}
+                  onChange={setAddress}
+                  submitLabel={
+                    quote
+                      ? `Pay ${money(quote.amountMinor, quote.currency)} and create`
+                      : "Pay and create"
+                  }
+                  submitting={dispatching.current}
+                  onSubmit={() => void runCheckout(address)}
+                />
+                {addressIsSaved ? (
+                  <button
+                    type="button"
+                    className="mt-3 block text-[12.5px] text-muted-foreground underline underline-offset-2"
+                    onClick={() => setEditingAddress(false)}
+                  >
+                    Use my saved details instead
+                  </button>
+                ) : null}
+              </>
+            )}
             <button
               type="button"
               className="mt-3 text-[12.5px] text-muted-foreground underline underline-offset-2"

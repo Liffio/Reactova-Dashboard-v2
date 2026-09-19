@@ -10,6 +10,7 @@ import { getSwitcher } from "@/lib/api/workspace-switcher-api";
 import { SlotBar } from "@/components/workspace-switcher/slot-bar";
 import { Building2, ShieldCheck, Lock } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/guards";
+import { BillingAddressDialog } from "@/components/billing/billing-address-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -213,6 +214,7 @@ function BillingPage() {
     enabled: isWorkspaceReady(workspaceId),
   });
   const billingProfile = profileQuery.data?.profile ?? null;
+  const [addressOpen, setAddressOpen] = useState(false);
   const countryName = (iso: string) => Country.getCountryByCode(iso)?.name ?? iso;
 
   /**
@@ -849,13 +851,15 @@ function BillingPage() {
         <div className="rounded-2xl border bg-card shadow-soft">
           <div className="flex items-center justify-between border-b px-6 py-4">
             <h2 className="font-display text-lg font-semibold">Billing details</h2>
-            {billingProfile && (
-              <Button variant="outline" size="sm" asChild>
-                <Link to="/checkout/review" search={{ interval, from: "billings" }}>
-                  Edit
-                </Link>
-              </Button>
-            )}
+            {/*
+              Edits the address in place. (R6)
+              It used to link to `/checkout/review`, which needs a `packageId` to price a plan and
+              has nothing to render without one, so the only control offered for fixing an address
+              went somewhere that could not show it. Correcting an address is not a purchase.
+            */}
+            <Button variant="outline" size="sm" onClick={() => setAddressOpen(true)}>
+              {billingProfile ? "Edit" : "Add"}
+            </Button>
           </div>
           <div className="p-6 text-sm">
             {profileQuery.isLoading ? (
@@ -879,11 +883,19 @@ function BillingPage() {
                * without a `packageId` has nothing to show.
                */
               <p className="text-muted-foreground">
-                You will add these when you subscribe. They appear on every invoice.
+                You will add these when you subscribe. They appear on every invoice, and you can add
+                them now if you would rather.
               </p>
             )}
           </div>
         </div>
+
+        <BillingAddressDialog
+          workspaceId={workspaceId}
+          profile={billingProfile}
+          open={addressOpen}
+          onOpenChange={setAddressOpen}
+        />
 
         {/* Invoices */}
         <div className="rounded-2xl border bg-card shadow-soft">

@@ -436,6 +436,7 @@ function TeamPage() {
             }}
             overview={overview}
             editing={editingMember}
+            workspaceId={workspaceId}
           />
         ) : null}
       </div>

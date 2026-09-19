@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ShieldCheck, X } from "lucide-react";
 
 import { toast } from "@/lib/toast";
@@ -15,13 +15,22 @@ import {
 import { WorkspaceTile } from "@/components/workspace-switcher/workspace-tile";
 import { cn } from "@/lib/utils";
 import {
+  getTeamOptions,
   upsertGroupMember,
   type TeamOverview,
   type TeamOverviewMember,
 } from "@/lib/api/team-api";
 import { ApiError } from "@/lib/api/http";
 
-const ROLE_OPTIONS = ["ADMIN", "EDITOR", "VIEWER"] as const;
+/**
+ * Roles come from the SERVER, never a list written here. (U5)
+ *
+ * 🔴 The reference prototype offers Admin, Editor and Viewer. This product has no EDITOR role at
+ * all, and its VIEWER holds no `workspace` permission, so two of those three would either be
+ * refused outright with `INVALID_ROLE` or grant somebody access they cannot use. `GET /team/options`
+ * returns exactly the roles this workspace can assign, which is the only list that cannot go stale.
+ */
+const FALLBACK_ROLE = "MEMBER";
 
 /**
  * Invite somebody to an agency, or change what an existing member can reach. (U5, spec 5.7)
@@ -45,18 +54,28 @@ export function TeamAccessDialog({
   onOpenChange,
   overview,
   editing,
+  workspaceId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   overview: TeamOverview;
+  /** The workspace whose assignable roles the server should answer with. */
+  workspaceId: string;
   /** The member being edited, or null when inviting somebody new. */
   editing: TeamOverviewMember | null;
 }) {
   const queryClient = useQueryClient();
   const group = overview.group;
 
+  const rolesQuery = useQuery({
+    queryKey: ["team-options", group?.id ?? "standalone"],
+    queryFn: () => getTeamOptions(workspaceId),
+    enabled: open,
+  });
+  const roles = rolesQuery.data?.roles ?? [];
+
   const [email, setEmail] = useState("");
-  const [roleKey, setRoleKey] = useState<string>("VIEWER");
+  const [roleKey, setRoleKey] = useState<string>(FALLBACK_ROLE);
   const [scope, setScope] = useState<"GROUP" | "SELECTED">("SELECTED");
   const [workspaceIds, setWorkspaceIds] = useState<string[]>([]);
   /** Spec 2.7: off by default, because invoices carry billing and tax details. */
@@ -65,7 +84,7 @@ export function TeamAccessDialog({
   useEffect(() => {
     if (!open) return;
     setEmail("");
-    setRoleKey(editing?.roleKey ?? "VIEWER");
+    setRoleKey(editing?.roleKey ?? FALLBACK_ROLE);
     setScope(editing?.scope ?? "SELECTED");
     setWorkspaceIds(editing?.selectedWorkspaceIds ?? []);
     setCanDownloadInvoices(editing?.canDownloadInvoices ?? false);
@@ -149,9 +168,9 @@ export function TeamAccessDialog({
             onChange={(event) => setRoleKey(event.target.value)}
             className="mt-1.5 h-10 w-full rounded-lg border-[1.5px] bg-card px-3 text-sm outline-none focus:border-primary"
           >
-            {ROLE_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option.charAt(0) + option.slice(1).toLowerCase()}
+            {(roles.length > 0 ? roles : [{ key: FALLBACK_ROLE, name: "Member" }]).map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.name}
               </option>
             ))}
           </select>

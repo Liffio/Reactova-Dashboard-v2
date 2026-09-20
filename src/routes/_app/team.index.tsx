@@ -5,6 +5,7 @@ import {
   Download,
   Lock,
   MailPlus,
+  MailWarning,
   MoreHorizontal,
   Pencil,
   RefreshCw,
@@ -49,6 +50,7 @@ import {
   type TeamMember,
 } from "@/lib/api/team-api";
 import { apiUri } from "@/lib/api/apiUri";
+import { inviteDeliveryBadge, inviteDeliveryMessage } from "@/lib/invite-delivery";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
@@ -59,7 +61,10 @@ import { TeamAccessDialog } from "@/components/team/team-access-dialog";
 
 /** Initials for the round person avatar. People, not workspaces, so a circle is right here. */
 function initialsOf(nameOrEmail: string): string {
-  const parts = nameOrEmail.trim().split(/[\s@.]+/).filter(Boolean);
+  const parts = nameOrEmail
+    .trim()
+    .split(/[\s@.]+/)
+    .filter(Boolean);
   return (parts[0]?.[0] ?? "?").toUpperCase() + (parts[1]?.[0] ?? "").toUpperCase();
 }
 
@@ -142,9 +147,22 @@ function TeamPage() {
 
   const resendMutation = useMutation({
     mutationFn: (inviteId: string) => resendTeamInvite(workspaceId, inviteId),
-    onSuccess: () => {
-      toast.success("Invite resent");
+    /**
+     * A resend reports the same way an invite does, from the same field. (R3b)
+     *
+     * This used to say "Invite resent" whatever came back, which is the same defect the invite page
+     * had: the token really was rotated, so the write succeeded, but the owner pressed the button
+     * BECAUSE the email had not arrived and was told the thing they were trying to fix had worked.
+     * The row's own badge, refreshed by the invalidate below, is the durable half of this answer.
+     */
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["team-invites", workspaceId] });
+      if (result.emailSent !== false) {
+        toast.success("The invite email is on its way.");
+        return;
+      }
+      const message = inviteDeliveryMessage(result.deliveryIssue);
+      toast.error(message.headline, { description: message.detail });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -230,13 +248,13 @@ function TeamPage() {
               <Users className="h-3.5 w-3.5" />
               {/* The workspace total from the server, not the page length. */}
               {/*
-                * The count has to be the count of the table under it. (U8)
-                *
-                * `memberList.total` is the old `workspace_members` page count, which excludes the
-                * owner and every whole-group member, so an agency workspace showing three people
-                * had a tab reading "Members (1)" directly under a header reading "3 of 15".
-                * `overview.used` is the same number T3 enforces the limit against.
-                */}
+               * The count has to be the count of the table under it. (U8)
+               *
+               * `memberList.total` is the old `workspace_members` page count, which excludes the
+               * owner and every whole-group member, so an agency workspace showing three people
+               * had a tab reading "Members (1)" directly under a header reading "3 of 15".
+               * `overview.used` is the same number T3 enforces the limit against.
+               */}
               Members ({overview ? overview.used : memberList.total})
             </TabsTrigger>
             <TabsTrigger value="invites" className="gap-1.5">
@@ -383,12 +401,37 @@ function TeamPage() {
                             {inv.baseRole.name}
                           </td>
                           <td className="px-4 py-3.5">
-                            <Badge
-                              variant="outline"
-                              className={inviteStatusStyles[inv.status] ?? ""}
-                            >
-                              {inv.status.toLowerCase()}
-                            </Badge>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge
+                                variant="outline"
+                                className={inviteStatusStyles[inv.status] ?? ""}
+                              >
+                                {inv.status.toLowerCase()}
+                              </Badge>
+                              {/*
+                                A pending invite whose email went nowhere, marked so the owner can
+                                see it without having to remember the moment they created it. (R3b)
+
+                                `=== false` on purpose: `null` means nothing was recorded, which is
+                                every invite from before this was tracked, and those must not be
+                                accused of failing.
+                              */}
+                              {inv.status === "PENDING" && inv.lastDeliveryOk === false && (
+                                <Badge
+                                  variant="outline"
+                                  className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                                  title={inviteDeliveryMessage(inv.lastDeliveryIssue).headline}
+                                >
+                                  <MailWarning aria-hidden className="size-3" />
+                                  {inviteDeliveryBadge(inv.lastDeliveryIssue)}
+                                </Badge>
+                              )}
+                            </div>
+                            {inv.status === "PENDING" && inv.lastDeliveryOk === false && (
+                              <p className="mt-1 max-w-xs text-[11.5px] leading-relaxed text-muted-foreground">
+                                {inviteDeliveryMessage(inv.lastDeliveryIssue).detail}
+                              </p>
+                            )}
                           </td>
                           <td className="px-4 py-3.5 text-xs text-muted-foreground hidden md:table-cell">
                             {new Date(inv.expiresAt).toLocaleDateString()}
@@ -396,14 +439,40 @@ function TeamPage() {
                           <td className="px-6 py-3.5">
                             {inv.status === "PENDING" && (
                               <div className="flex items-center gap-3">
-                                <button
-                                  className="text-muted-foreground hover:text-foreground disabled:opacity-50"
-                                  title="Resend"
-                                  disabled={resendMutation.isPending}
-                                  onClick={() => resendMutation.mutate(inv.id)}
-                                >
-                                  <RefreshCw className="h-4 w-4" />
-                                </button>
+                                {/*
+                                  Resend is offered on every pending invite as before, and spelled
+                                  out on one whose email failed. An icon alone is a thing you notice
+                                  when you already know what you are looking for. (R3b)
+
+                                  `recipient_opted_out` gets no button: the person has turned these
+                                  emails off, so every resend would fail the same way, and offering
+                                  one would be busywork dressed as a fix.
+                                */}
+                                {inv.lastDeliveryOk === false &&
+                                inviteDeliveryMessage(inv.lastDeliveryIssue).canRetry ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 gap-1.5 px-2 text-xs"
+                                    disabled={resendMutation.isPending}
+                                    onClick={() => resendMutation.mutate(inv.id)}
+                                  >
+                                    <RefreshCw
+                                      aria-hidden
+                                      className={`size-3.5 ${resendMutation.isPending ? "animate-spin" : ""}`}
+                                    />
+                                    Resend
+                                  </Button>
+                                ) : inv.lastDeliveryOk === false ? null : (
+                                  <button
+                                    className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+                                    title="Resend"
+                                    disabled={resendMutation.isPending}
+                                    onClick={() => resendMutation.mutate(inv.id)}
+                                  >
+                                    <RefreshCw className="h-4 w-4" />
+                                  </button>
+                                )}
                                 <button
                                   className="text-muted-foreground hover:text-destructive"
                                   title="Revoke"

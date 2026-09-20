@@ -1,3 +1,4 @@
+import type { InviteDeliveryIssue } from "@/lib/invite-delivery";
 import { apiUri } from "./apiUri";
 import { apiRequest } from "./http";
 
@@ -25,6 +26,16 @@ export type WorkspaceInvite = {
   baseRole: { key: string; name: string };
   inviterUser: { id: string; email: string; name: string };
   createdAt: string;
+  /**
+   * How the last email for this invite went. (R3b)
+   *
+   * `null` is "never recorded", which every invite created before the column existed reads as. The
+   * Team page marks `false` and says nothing about `null`: a "not delivered" badge on an invite
+   * nobody measured would be a guess presented as a fact.
+   */
+  lastDeliveryOk?: boolean | null;
+  /** A classification, never the provider's own message. See `@/lib/invite-delivery`. */
+  lastDeliveryIssue?: InviteDeliveryIssue | null;
 };
 
 export type TeamOptions = {
@@ -88,7 +99,12 @@ export type GrantableAccess = {
   seats: InviteSeatInfo;
 };
 
-export type InviteRejection = { key: string; kind: "permission" | "policy"; reason: GrantReason | "unknown"; message: string };
+export type InviteRejection = {
+  key: string;
+  kind: "permission" | "policy";
+  reason: GrantReason | "unknown";
+  message: string;
+};
 
 export type UpdateMemberInput = {
   roleKey?: string;
@@ -109,13 +125,29 @@ export function getGrantableAccess(workspaceId: string) {
   return apiRequest<GrantableAccess>(apiUri.team.grantable, { workspaceId });
 }
 
+/** What the invite endpoints say about delivery. Shared so create and resend report identically. */
+export type InviteDeliveryReport = {
+  emailSent?: boolean;
+  /**
+   * The field the UI reads. (R3b)
+   *
+   * `emailReason` and `emailDetail` are also on the wire and are deliberately NOT typed here: they
+   * are the provider's own vocabulary, they exist for operators and logs, and a type that offers
+   * them to a component is an invitation to render them. The owner's words are chosen from
+   * `deliveryIssue` alone, in `@/lib/invite-delivery`.
+   */
+  deliveryIssue?: InviteDeliveryIssue | null;
+};
+
 export function createTeamInvite(workspaceId: string, body: CreateInviteInput) {
-  return apiRequest<{
-    id: string;
-    status: string;
-    expiresAt: string;
-    emailSent?: boolean;
-  }>(apiUri.team.invites, { method: "POST", workspaceId, body });
+  return apiRequest<
+    {
+      id: string;
+      email?: string;
+      status: string;
+      expiresAt: string;
+    } & InviteDeliveryReport
+  >(apiUri.team.invites, { method: "POST", workspaceId, body });
 }
 
 export function revokeTeamInvite(workspaceId: string, inviteId: string) {
@@ -123,9 +155,9 @@ export function revokeTeamInvite(workspaceId: string, inviteId: string) {
 }
 
 export function resendTeamInvite(workspaceId: string, inviteId: string) {
-  return apiRequest<{ id: string; resendCount: number; expiresAt: string; emailSent: boolean }>(
+  return apiRequest<{ id: string; resendCount: number; expiresAt: string } & InviteDeliveryReport>(
     apiUri.team.inviteResend(inviteId),
-    { method: "POST", workspaceId }
+    { method: "POST", workspaceId },
   );
 }
 
@@ -164,7 +196,11 @@ export type TeamOverview = {
   used: number;
   members: TeamOverviewMember[];
   /** The agency's own workspaces, for the invite modal's checklist. Owner only, null otherwise. */
-  group: { id: string; name: string; workspaces: Array<{ id: string; name: string; slotNo: number }> } | null;
+  group: {
+    id: string;
+    name: string;
+    workspaces: Array<{ id: string; name: string; slotNo: number }>;
+  } | null;
 };
 
 export function getTeamOverview(workspaceId: string) {

@@ -292,7 +292,6 @@ export function WorkspaceSwitcher({
         onOpenChange={setAddOpen}
         freeSlotAvailable={data?.freeSlotAvailable ?? false}
         freeWorkspaceName={data?.freeWorkspace?.name ?? null}
-        prefillFromWorkspaceId={current.id || null}
         onCreated={(id, groupId) => void landInNewWorkspace(id, groupId)}
       />
 

@@ -44,6 +44,7 @@ export function ResponsiveDialog({
   title,
   children,
   className,
+  modal = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -51,6 +52,23 @@ export function ResponsiveDialog({
   title: string;
   children: ReactNode;
   className?: string;
+  /**
+   * 🔴 Stand the sheet's modality down while something else owns the screen. (R5)
+   *
+   * A modal sheet does three things to the rest of the document: it sets `pointer-events: none` on
+   * `body`, it paints a `fixed inset-0 z-50` overlay, and it locks scrolling. All three are correct
+   * while the sheet IS the top thing. None of them is correct while a payment gateway is, because
+   * the gateway is appended to `body` by third-party script, outside this React portal, so it
+   * inherits the dead pointer events and is painted over by the overlay.
+   *
+   * Measured before the fix: `body` pointer-events `none`, and `elementFromPoint` over the gateway
+   * returned `DIV.fixed inset-0 z-50 bg-black/80`, this component's own overlay. The gateway was
+   * fully visible and completely unclickable. See `workspace-plans-v4/r5-repro.md`.
+   *
+   * The sheet STAYS MOUNTED either way. FX7 and FX8 depend on it being there to report back to and
+   * to return a cancelling buyer to; unmounting it is the defect they exist to prevent.
+   */
+  modal?: boolean;
 }) {
   const isMobile = useIsMobile();
   const keyboardInset = useKeyboardInset();
@@ -69,7 +87,9 @@ export function ResponsiveDialog({
    *   list is scrolled to the bottom.
    */
   useEffect(() => {
-    if (!open || !isMobile) return;
+    // `!modal` too: while the gateway owns the screen, Razorpay's own save-and-restore of the
+    // document's scroll state should be the only one operating. (R5)
+    if (!open || !isMobile || !modal) return;
     const root = document.documentElement;
     const previous = {
       overflow: root.style.overflow,
@@ -81,7 +101,7 @@ export function ResponsiveDialog({
       root.style.overflow = previous.overflow;
       root.style.overscrollBehavior = previous.overscroll;
     };
-  }, [open, isMobile]);
+  }, [open, isMobile, modal]);
 
   // Once the keyboard has settled, put the focused field back where it can be seen.
   useEffect(() => {
@@ -90,7 +110,7 @@ export function ResponsiveDialog({
 
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      <Drawer open={open} onOpenChange={onOpenChange} modal={modal}>
         <DrawerContent
           className="flex min-h-0 flex-col overscroll-contain"
           /**
@@ -119,8 +139,9 @@ export function ResponsiveDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange} modal={modal}>
       <DialogContent
+        withOverlay={modal}
         className={cn(
           "flex max-h-[calc(100dvh-4rem)] min-h-0 flex-col gap-0 p-0 sm:max-w-[540px]",
           className,

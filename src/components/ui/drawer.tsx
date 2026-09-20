@@ -7,6 +7,13 @@ const Drawer = ({
   shouldScaleBackground = true,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
+  /**
+   * `modal` is forwarded from props and NOT defaulted here. (R5)
+   *
+   * vaul defaults it to true, which is right for every ordinary drawer. A caller that passes
+   * `modal={false}` is saying something else owns the screen, and vaul then leaves `body`'s pointer
+   * events alone instead of disabling them for the whole document.
+   */
   <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} {...props} />
 );
 Drawer.displayName = "Drawer";

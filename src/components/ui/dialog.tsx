@@ -31,10 +31,20 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    /**
+     * Draw the dimming overlay. Defaults to true. (R5)
+     *
+     * Set false when something else owns the screen on top of this dialog, which in practice means
+     * a payment gateway. The overlay is `fixed inset-0 z-50`, so it sits ABOVE anything third-party
+     * script appends to `body`, and `elementFromPoint` over Razorpay's checkout returns this div
+     * rather than the gateway. Measured, not guessed: see `workspace-plans-v4/r5-repro.md`.
+     */
+    withOverlay?: boolean;
+  }
+>(({ className, children, withOverlay = true, ...props }, ref) => (
   <DialogPortal>
-    <DialogOverlay />
+    {withOverlay ? <DialogOverlay /> : null}
     <DialogPrimitive.Content
       ref={ref}
       className={cn(

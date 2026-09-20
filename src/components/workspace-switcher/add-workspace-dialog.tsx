@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2, ShieldCheck, X } from "lucide-react";
 
@@ -20,23 +21,15 @@ import {
   type SellablePackage,
 } from "@/lib/api/billing-api";
 import { cardPriceText } from "@/lib/billing/pricing";
-import {
-  getWorkspaceCheckoutQuote,
-  startWorkspaceCheckout,
-  verifyWorkspaceCheckout,
-  getWorkspaceCheckoutIntent,
-} from "@/lib/api/workspace-checkout-api";
-import {
-  openRazorpaySubscriptionCheckout,
-  RazorpayCheckoutCancelled,
-} from "@/lib/razorpay-checkout";
+/**
+ * Only the QUOTE is still imported from the checkout client. (R2)
+ *
+ * `startWorkspaceCheckout`, `verifyWorkspaceCheckout`, `getWorkspaceCheckoutIntent`,
+ * `openRazorpaySubscriptionCheckout` and `RazorpayCheckoutCancelled` all went with the payment UI.
+ * The sheet prices plans; `/checkout/review` takes the money.
+ */
+import { getWorkspaceCheckoutQuote } from "@/lib/api/workspace-checkout-api";
 import { useAuthState } from "@/lib/auth/auth-store";
-import { ApiError } from "@/lib/api/http";
-import { BillingAddressForm } from "@/components/billing/billing-address-form";
-import {
-  emptyBillingAddress,
-  type BillingAddressInput,
-} from "@/lib/billing/billing-address";
 
 /**
  * `address` is FX7: the step that used to be a full page navigation to `/billings`.
@@ -47,7 +40,13 @@ import {
  * tap from `createBillingCheckout(current.id)` -- buying the plan FOR THAT WORKSPACE instead of
  * creating a new one. See `workspace-plans-v2/fx7-findings.md` section 4.
  */
-type Step = "form" | "address" | "paying" | "failed" | "done";
+/**
+ * One screen. (R2)
+ *
+ * It was `"form" | "address" | "paying" | "failed" | "done"`, a five-state payment machine living
+ * beside the one on `/checkout/review`. The other four moved there with the rest of the payment UI.
+ */
+type Step = "form";
 
 /** The synthetic Free option. It is the absence of a package, so it has no id. */
 const FREE = "__free__";
@@ -82,7 +81,6 @@ export function AddWorkspaceDialog({
   onOpenChange,
   freeSlotAvailable,
   freeWorkspaceName,
-  prefillFromWorkspaceId,
   onCreated,
 }: {
   open: boolean;
@@ -90,21 +88,13 @@ export function AddWorkspaceDialog({
   freeSlotAvailable: boolean;
   freeWorkspaceName: string | null;
   /**
-   * A workspace the user already has, used only to read the billing-address PREFILL from.
-   *
-   * `GET /billing/profile` is workspace-scoped and the workspace being bought does not exist yet,
-   * so some existing workspace has to ask on its behalf. The server answers with that workspace's
-   * own profile, or a `prefill` copied from another workspace the same user owns — either is a
-   * valid address for this buyer, which is the whole point of that field.
-   */
-  prefillFromWorkspaceId: string | null;
-  /**
    * Called once the workspace exists, with the agency it was bought into when there is one. (FX8)
    * The caller is what refreshes state, switches and navigates; this sheet never does.
    */
   onCreated: (workspaceId: string, groupId: string | null) => void;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const user = useAuthState((s) => s.user);
   /** Resolved by the SERVER from the account country. Never guessed here. */
   const displayCurrency = useAuthState((s) => s.user?.displayCurrency) ?? null;
@@ -121,8 +111,6 @@ export function AddWorkspaceDialog({
    */
   const [selected, setSelected] = useState<string>(freeSlotAvailable ? FREE : "");
   const [busy, setBusy] = useState(false);
-  const [createdName, setCreatedName] = useState("");
-  const [createdIsGroup, setCreatedIsGroup] = useState(false);
   /** FX6: set when the used Free row is tapped, so it can say why it cannot be picked. */
   const [freeNotice, setFreeNotice] = useState(false);
   /** FX5: set when create is tapped with an empty name. Cleared as soon as they type. */
@@ -131,27 +119,6 @@ export function AddWorkspaceDialog({
   const nameRef = useRef<HTMLInputElement>(null);
   /** Guards against a double submit dispatching two checkouts for one intent. */
   const dispatching = useRef(false);
-
-  /**
-   * The billing address collected in the `address` step. (FX7)
-   *
-   * Seeded from the account country so the buyer is not asked for something the server already
-   * knows. It is sent in the `startWorkspaceCheckout` body, which is where the NEW workspace's
-   * profile is written from, and it is deliberately never passed to `saveBillingProfile`: that
-   * writes onto an existing workspace, which is the class of write this whole fix exists to stop.
-   */
-  const [address, setAddress] = useState<BillingAddressInput>(() =>
-    emptyBillingAddress({ country: user?.country ?? null }),
-  );
-  /** Whether the address on screen came from a saved profile, so the step can summarise it. (R6) */
-  const [addressIsSaved, setAddressIsSaved] = useState(false);
-  /** Whether the buyer has asked to change it. (R6) */
-  const [editingAddress, setEditingAddress] = useState(true);
-  /**
-   * The address actually used for the dispatch in flight, so "Try again" on the failed step retries
-   * the purchase rather than re-asking for an address that was already given.
-   */
-  const addressUsed = useRef<BillingAddressInput | null>(null);
 
   const packagesQuery = useQuery({
     queryKey: ["billing-sellable-packages"],
@@ -244,8 +211,6 @@ export function AddWorkspaceDialog({
   useEffect(() => {
     if (!open) {
       setStep("form");
-      setAddressIsSaved(false);
-      setEditingAddress(true);
       setName("");
       setSelected(freeSlotAvailable ? FREE : "");
       setFreeNotice(false);
@@ -253,7 +218,6 @@ export function AddWorkspaceDialog({
       setShaking(false);
       setBusy(false);
       dispatching.current = false;
-      addressUsed.current = null;
     }
   }, [open, freeSlotAvailable]);
 
@@ -287,9 +251,14 @@ export function AddWorkspaceDialog({
       const workspace = await createWorkspace({ name: trimmed });
       await queryClient.invalidateQueries({ queryKey: ["workspace-switcher"] });
       await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
-      setCreatedName(trimmed);
-      setCreatedIsGroup(false);
-      setStep("done");
+      /**
+       * Straight into the new workspace. (R2)
+       *
+       * There was a "done" card here with an Open workspace button. It went with the rest of the
+       * sheet's payment UI: `onCreated` lands the buyer IN the workspace they just made, so the
+       * card was a step between them and it.
+       */
+      onOpenChange(false);
       onCreated(workspace.id, null);
     } catch (error) {
       // The server names the workspace already using the free slot, which is the actionable part.
@@ -300,159 +269,38 @@ export function AddWorkspaceDialog({
   };
 
   /**
-   * Take the payment. (FX7)
+   * 🔴 A paid workspace is bought on the CHECKOUT ROUTE, not in this sheet. (R2)
    *
-   * 🔴 **Nothing navigates between here and the answer.** No `window.location`, no router push, no
-   * workspace switch: the sheet stays mounted over the gateway for the whole time the payment is in
-   * flight, and the active workspace is only changed by `onCreated`, which runs after the intent
-   * reads PAID. The purchase carries an intent id and a name, never a workspace id, so there is no
-   * request in this path that could name an existing workspace as the subscription target.
-   */
-  const runCheckout = async (billingAddress: BillingAddressInput) => {
-    if (dispatching.current) return;
-    const keyId = configQuery.data?.providers.razorpay.keyId;
-    if (!keyId) {
-      toast.error("Razorpay is not configured");
-      return;
-    }
-
-    addressUsed.current = billingAddress;
-    dispatching.current = true;
-    setStep("paying");
-    try {
-      const started = await startWorkspaceCheckout({
-        name: trimmed,
-        packageId: selected,
-        interval: "monthly",
-        billingAddress: {
-          country: billingAddress.country,
-          state: billingAddress.state,
-          gstStateCode: billingAddress.gstStateCode,
-          postalCode: billingAddress.postalCode,
-          address: billingAddress.address,
-        },
-      });
-
-      const payload = await openRazorpaySubscriptionCheckout({
-        keyId,
-        subscriptionId: started.subscriptionId,
-        email: user?.email ?? undefined,
-        description: `${quote?.packageName ?? "Workspace"}, billed monthly`,
-      });
-
-      const settled = await verifyWorkspaceCheckout(started.intentId, payload);
-      setCreatedName(trimmed);
-      setCreatedIsGroup(Boolean(settled.groupId));
-      setStep("done");
-      /**
-       * Only now, with the intent PAID. `onCreated` refetches the list from the server before it
-       * makes the new workspace active, so nothing here invalidates first: two refreshes of the
-       * same data, one of them not awaited, is how the switch used to race the list. (FX8)
-       */
-      onCreated(settled.workspaceId, settled.groupId);
-    } catch (error) {
-      if (error instanceof RazorpayCheckoutCancelled) {
-        // Nothing was created and nothing was charged, so this is a return to the form rather
-        // than a failure screen.
-        setStep("form");
-        toast.info("Payment cancelled. Nothing was created.");
-      } else if (error instanceof ApiError) {
-        setStep("failed");
-      } else {
-        setStep("failed");
-      }
-    } finally {
-      dispatching.current = false;
-    }
-  };
-
-  /**
-   * The pay button. Finds an address, or asks for one IN THIS SHEET, then dispatches.
+   * This sheet used to own a second, parallel payment UI: an address step, a "Waiting for payment"
+   * screen, a "Payment didn't go through" screen with a retry, and a success card. All four are
+   * gone, and so is the `runCheckout` that drove them. What replaced them is `/checkout/review`,
+   * which already had the discount code box, the order summary and the address form with its
+   * prefill, and which is the page every other purchase in the product already goes through.
    *
-   * The prefill is a profile from another workspace this user owns, which the server offers for
-   * exactly this purpose. When there is none (the ordinary case for a first paid workspace) the
-   * customer used to be thrown out to `/billings`; now the sheet shows the address step and the
-   * purchase continues from there without the route or the active workspace ever changing.
+   * Two copies of a payment flow is how they drift. The sheet's copy never grew discount codes and
+   * the route's copy never learned to buy a workspace that does not exist yet. One had to go, and
+   * it was the one with fewer features.
+   *
+   * What travels is the NAME and the plan. No workspace id, because there is no workspace yet, and
+   * naming the current one is precisely what HARD RULE 5 exists to prevent.
    */
-  const pay = async () => {
-    if (dispatching.current) return;
-    /**
-     * The sub-second window before the catalogue lands, when FX4 has not had a plan id to select
-     * yet. The button is no longer disabled (FX5), so this is what stops a tap in that window
-     * posting an empty `packageId`. Says so rather than failing silently.
-     */
+  const goToCheckout = () => {
+    if (requireName()) return;
     if (!selected || selected === FREE) {
       toast.error("Pick a plan first");
       return;
     }
-
-    let prefill = null;
-    if (prefillFromWorkspaceId) {
-      try {
-        const profile = await getBillingProfile(prefillFromWorkspaceId);
-        prefill = profile.profile ?? profile.prefill ?? null;
-      } catch {
-        prefill = null;
-      }
-    }
-
-    /**
-     * 🔴 A found address is SHOWN, not used silently. (R6)
-     *
-     * This used to dispatch straight to the gateway whenever a prefill came back, so the buyer
-     * never saw the address their invoice would carry and had no way to correct it before paying.
-     * An invoice with the wrong state on it is a tax document that has to be reissued.
-     *
-     * So the address step is now always the next thing, and it is the step that decides how to
-     * present itself: a summary of a known address with an Edit control, or the empty form when
-     * there is nothing to show. Neither case costs the buyer a retype.
-     */
-    if (prefill) {
-      setAddress({
-        country: prefill.country,
-        state: prefill.state,
-        gstStateCode: prefill.gstStateCode ?? null,
-        postalCode: prefill.postalCode,
-        address: prefill.address ?? null,
-      });
-      setAddressIsSaved(true);
-      setEditingAddress(false);
-    } else {
-      setAddressIsSaved(false);
-      setEditingAddress(true);
-    }
-    setStep("address");
+    onOpenChange(false);
+    void navigate({
+      to: "/checkout/review",
+      search: {
+        packageId: selected,
+        interval: "monthly" as const,
+        from: "switcher" as const,
+        newWorkspace: trimmed,
+      },
+    });
   };
-
-  /** "Try again" after a failure reuses the address already given rather than asking again. */
-  const retry = async () => {
-    const known = addressUsed.current;
-    if (known) {
-      await runCheckout(known);
-      return;
-    }
-    await pay();
-  };
-
-  /**
-   * If verify never completed but the webhook did, the intent is already PAID server-side. One
-   * poll on reaching the failed state tells the difference between "no payment" and "paid, but the
-   * browser lost the answer" — and the second must not be shown as a failure.
-   */
-  const recheck = async (intentId: string) => {
-    try {
-      const intent = await getWorkspaceCheckoutIntent(intentId);
-      if (intent.status === "PAID" && intent.workspaceId) {
-        setCreatedName(intent.workspaceName);
-        setCreatedIsGroup(Boolean(intent.groupId));
-        setStep("done");
-        onCreated(intent.workspaceId, intent.groupId);
-      }
-    } catch {
-      // Leave the failed state as-is; the customer can retry.
-    }
-  };
-  void recheck;
 
   /**
    * Every row shows a price immediately; the SELECTED row shows what is actually due today.
@@ -479,140 +327,26 @@ export function AddWorkspaceDialog({
   };
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange} title="Add a workspace">
-      {step === "address" ? (
-        <>
-          <DialogHeaderBar>
-            <h2 className="font-display text-xl font-semibold tracking-tight">Billing details</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              We need these for the invoice for <b>{trimmed}</b>. They apply to the new workspace
-              only.
-            </p>
-          </DialogHeaderBar>
-
-          <DialogBody className="px-6 py-5">
-            {addressIsSaved && !editingAddress ? (
-              /*
-                The saved address, shown before it is used. (R6)
-                A buyer whose details are already on file should not retype them, and should also
-                not discover on the invoice which address was picked for them.
-              */
-              <div className="space-y-4">
-                <div className="rounded-xl border bg-muted/30 p-4 text-sm">
-                  <p className="mb-2 text-[12.5px] font-medium text-muted-foreground">
-                    Using your saved details
-                  </p>
-                  {address.address ? (
-                    <p className="whitespace-pre-line">{address.address}</p>
-                  ) : null}
-                  <p>
-                    {address.state} {address.postalCode}
-                  </p>
-                  <p>{address.country}</p>
-                  {address.gstStateCode ? (
-                    <p className="mt-1 text-muted-foreground">GST state {address.gstStateCode}</p>
-                  ) : null}
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    onClick={() => void runCheckout(address)}
-                    disabled={dispatching.current}
-                    className="flex-1"
-                  >
-                    {quote
-                      ? `Pay ${money(quote.amountMinor, quote.currency)} and create`
-                      : "Pay and create"}
-                  </Button>
-                  <Button variant="outline" onClick={() => setEditingAddress(true)}>
-                    Edit
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <>
-                {/*
-                  The same form the checkout page uses, so there is one billing address form in the
-                  product rather than a second one that drifts. It carries its own submit button,
-                  which is why this step has no DialogFooterBar.
-                */}
-                <BillingAddressForm
-                  value={address}
-                  onChange={setAddress}
-                  submitLabel={
-                    quote
-                      ? `Pay ${money(quote.amountMinor, quote.currency)} and create`
-                      : "Pay and create"
-                  }
-                  submitting={dispatching.current}
-                  onSubmit={() => void runCheckout(address)}
-                />
-                {addressIsSaved ? (
-                  <button
-                    type="button"
-                    className="mt-3 block text-[12.5px] text-muted-foreground underline underline-offset-2"
-                    onClick={() => setEditingAddress(false)}
-                  >
-                    Use my saved details instead
-                  </button>
-                ) : null}
-              </>
-            )}
-            <button
-              type="button"
-              className="mt-3 text-[12.5px] text-muted-foreground underline underline-offset-2"
-              onClick={() => setStep("form")}
-            >
-              Back to plans
-            </button>
-          </DialogBody>
-        </>
-      ) : step === "paying" ? (
-        <div className="px-6 py-10 text-center" aria-live="polite">
-          <Loader2 aria-hidden className="mx-auto mb-4 size-9 animate-spin text-primary" />
-          <h2 className="font-display text-xl font-semibold tracking-tight">Waiting for payment</h2>
-          <p className="mx-auto mt-1.5 max-w-[40ch] text-sm text-muted-foreground">
-            Finish paying in the Razorpay window. We'll create <b>{trimmed}</b> as soon as the
-            payment is confirmed. You can close this safely, it keeps going.
-          </p>
-        </div>
-      ) : step === "failed" ? (
-        <div className="px-6 py-10 text-center" aria-live="polite">
-          <span className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-destructive/10 text-destructive">
-            <X aria-hidden className="size-6" />
-          </span>
-          <h2 className="font-display text-xl font-semibold tracking-tight">
-            Payment didn't go through
-          </h2>
-          <p className="mx-auto mt-1.5 max-w-[40ch] text-sm text-muted-foreground">
-            No workspace was created and you weren't charged. Try again, or use another payment
-            method.
-          </p>
-          <div className="mt-5 flex justify-center gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void retry()}>Try again</Button>
-          </div>
-        </div>
-      ) : step === "done" ? (
-        <div className="px-6 py-10 text-center" aria-live="polite">
-          <span className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-success/10 text-success">
-            <Check aria-hidden className="size-6" />
-          </span>
-          <h2 className="font-display text-xl font-semibold tracking-tight">
-            {createdName} is ready
-          </h2>
-          <p className="mx-auto mt-1.5 max-w-[42ch] text-sm text-muted-foreground">
-            {createdIsGroup
-              ? `Your agency has its slots ready. ${createdName} is workspace 1, and you can add the rest from inside the agency.`
-              : "Connect Instagram next to start automating."}
-          </p>
-          <div className="mt-5 flex justify-center">
-            <Button onClick={() => onOpenChange(false)}>Open workspace</Button>
-          </div>
-        </div>
-      ) : (
+    <ResponsiveDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Add a workspace"
+      /**
+       * Always modal. (R2)
+       *
+       * R5 made this conditional, because the gateway used to open over this sheet: a modal sheet
+       * sets `pointer-events: none` on `body` and paints a `fixed inset-0 z-50` overlay, and
+       * Razorpay's checkout is appended to `body` outside this React portal, so it inherited the
+       * dead pointer events and was painted over.
+       *
+       * The gateway no longer opens from here at all. It opens on `/checkout/review`, which is a
+       * page rather than a dialog, so there is no modality to stand down and nothing of ours above
+       * it. R5's fix stays where it belongs, on `ResponsiveDialog`, for every other caller that
+       * puts something over a sheet.
+       */
+      modal
+    >
+      <>
         <>
           <DialogHeaderBar>
             <h2 className="font-display text-xl font-semibold tracking-tight">Add a workspace</h2>
@@ -749,7 +483,7 @@ export function AddWorkspaceDialog({
                   void createFree();
                   return;
                 }
-                void pay();
+                goToCheckout();
               }}
             >
               {/*
@@ -770,7 +504,7 @@ export function AddWorkspaceDialog({
             </Button>
           </DialogFooterBar>
         </>
-      )}
+      </>
     </ResponsiveDialog>
   );
 }

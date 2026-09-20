@@ -11,10 +11,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { InviteAccessMatrix } from "@/components/team/invite-access-matrix";
-import { getGrantableAccess, createTeamInvite } from "@/lib/api/team-api";
+import { getGrantableAccess, createTeamInvite, resendTeamInvite } from "@/lib/api/team-api";
+import { InviteDeliveryNotice } from "@/components/team/invite-delivery-notice";
+import type { InviteDeliveryIssue } from "@/lib/invite-delivery";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useApp } from "@/state/app-context";
 import { LIMITS, emailError } from "@/lib/validation";
@@ -46,6 +54,18 @@ function InvitePage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectedPolicies, setSelectedPolicies] = useState<Set<string>>(new Set());
 
+  /**
+   * The invite that was created but whose email did not go out. (R3b)
+   *
+   * Held here rather than navigated past, because it is the one outcome with something left to do.
+   */
+  const [undelivered, setUndelivered] = useState<{
+    inviteId: string;
+    email: string;
+    issue: InviteDeliveryIssue | null | undefined;
+  } | null>(null);
+  const [resent, setResent] = useState(false);
+
   const grantable = grantableQuery.data;
   const roles = grantable?.roles ?? [];
 
@@ -56,7 +76,7 @@ function InvitePage() {
 
   const roleGrantKeys = useMemo(
     () => new Set(roles.find((r) => r.key === roleKey)?.grantKeys ?? []),
-    [roles, roleKey]
+    [roles, roleKey],
   );
 
   // Whenever the role changes or customization is switched on, seed the matrix from the role's grants
@@ -95,17 +115,52 @@ function InvitePage() {
         policyKeys: customize ? [...selectedPolicies] : [],
         expiresInDays: 7,
       }),
-    onSuccess: () => {
-      toast.success("Invite sent");
+    /**
+     * 🔴 The invite existing and the email arriving are two different events. (R3b)
+     *
+     * This used to be `toast.success("Invite sent")` followed immediately by a navigation, whatever
+     * the API answered. So an owner whose email bounced off Brevo's IP allowlist was told it had
+     * been sent, taken away from the page, and left waiting for a reply that could never come. The
+     * API had been reporting `emailSent` the whole time and nothing read it.
+     */
+    onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ["team-invites", workspaceId] });
-      void navigate({ to: "/team" });
+      const invitedEmail = created.email || email.trim();
+
+      if (created.emailSent !== false) {
+        toast.success(`Invite created. The email is on its way to ${invitedEmail}.`);
+        void navigate({ to: "/team" });
+        return;
+      }
+
+      // Stay put. The notice below carries the reason and the Resend button.
+      setResent(false);
+      setUndelivered({ inviteId: created.id, email: invitedEmail, issue: created.deliveryIssue });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const resendMutation = useMutation({
+    mutationFn: (inviteId: string) => resendTeamInvite(workspaceId, inviteId),
+    /**
+     * A resend reports exactly the way the original invite did, from the same field. Pressing the
+     * button against a provider that is still refusing must not read as success. (R3b)
+     */
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ["team-invites", workspaceId] });
+      if (result.emailSent !== false) {
+        setResent(true);
+        return;
+      }
+      setUndelivered((prev) => (prev ? { ...prev, issue: result.deliveryIssue } : prev));
     },
     onError: (e) => toast.error((e as Error).message),
   });
 
   const error = email ? emailError(email) : null;
   const seats = grantable?.seats;
-  const seatFull = seats?.remaining !== null && seats?.remaining !== undefined && seats.remaining <= 0;
+  const seatFull =
+    seats?.remaining !== null && seats?.remaining !== undefined && seats.remaining <= 0;
 
   return (
     <TooltipProvider>
@@ -115,7 +170,12 @@ function InvitePage() {
           title="Invite member"
           description="Choose a role and, if you like, the exact access this person will have."
           actions={
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => void navigate({ to: "/team" })}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => void navigate({ to: "/team" })}
+            >
               <ArrowLeft className="h-4 w-4" />
               Back to team
             </Button>
@@ -131,10 +191,22 @@ function InvitePage() {
             </div>
           ) : (
             <>
+              {undelivered && (
+                <InviteDeliveryNotice
+                  email={undelivered.email}
+                  issue={undelivered.issue}
+                  resending={resendMutation.isPending}
+                  resent={resent}
+                  onResend={() => resendMutation.mutate(undelivered.inviteId)}
+                />
+              )}
+
               {seats && (
                 <div
                   className={`rounded-xl border px-4 py-3 text-sm ${
-                    seatFull ? "border-destructive/30 bg-destructive/10 text-destructive" : "bg-muted/40 text-muted-foreground"
+                    seatFull
+                      ? "border-destructive/30 bg-destructive/10 text-destructive"
+                      : "bg-muted/40 text-muted-foreground"
                   }`}
                 >
                   {/* "team members", never "seats". The API field keeps its name; the copy does not. */}

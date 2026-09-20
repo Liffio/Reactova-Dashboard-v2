@@ -332,23 +332,17 @@ export function AddWorkspaceDialog({
       onOpenChange={onOpenChange}
       title="Add a workspace"
       /**
-       * 🔴 Not modal while the gateway is up. (R5)
+       * Always modal. (R2)
        *
-       * `paying` is set immediately before `openRazorpaySubscriptionCheckout` and cleared in every
-       * branch of its `catch`, so it spans exactly the window in which Razorpay owns the screen.
+       * R5 made this conditional, because the gateway used to open over this sheet: a modal sheet
+       * sets `pointer-events: none` on `body` and paints a `fixed inset-0 z-50` overlay, and
+       * Razorpay's checkout is appended to `body` outside this React portal, so it inherited the
+       * dead pointer events and was painted over.
        *
-       * A modal sheet sets `pointer-events: none` on `body` and paints a `fixed inset-0 z-50`
-       * overlay. Razorpay's checkout is appended to `body` by third-party script, outside this
-       * React portal, so it inherited the dead pointer events and was painted over. The gateway was
-       * fully visible and completely unclickable. The sheet stays MOUNTED throughout either way,
-       * which is what FX7 and FX8 depend on.
-       */
-      /**
-       * Always modal now. (R2)
-       *
-       * R5 made this conditional because the gateway opened OVER this sheet. It no longer opens
-       * from here at all: it opens on `/checkout/review`, which is a page, not a dialog. The prop
-       * stays on `ResponsiveDialog`, where R5's fix lives.
+       * The gateway no longer opens from here at all. It opens on `/checkout/review`, which is a
+       * page rather than a dialog, so there is no modality to stand down and nothing of ours above
+       * it. R5's fix stays where it belongs, on `ResponsiveDialog`, for every other caller that
+       * puts something over a sheet.
        */
       modal
     >

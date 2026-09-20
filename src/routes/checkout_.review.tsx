@@ -20,11 +20,17 @@ import {
   getSellablePackages,
   saveBillingProfile,
   verifyRazorpayCheckout,
+  type FirstPaymentQuote,
 } from "@/lib/api/billing-api";
 import {
   openRazorpaySubscriptionCheckout,
   RazorpayCheckoutCancelled,
 } from "@/lib/razorpay-checkout";
+import {
+  getWorkspaceCheckoutQuote,
+  startWorkspaceCheckout,
+  verifyWorkspaceCheckout,
+} from "@/lib/api/workspace-checkout-api";
 import { cardPriceText, formatMinor } from "@/lib/billing/pricing";
 import {
   emptyBillingAddress,
@@ -33,6 +39,8 @@ import {
 } from "@/lib/billing/billing-address";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { useApp } from "@/state/app-context";
+import { useQueryClient } from "@tanstack/react-query";
+import { landInNewWorkspace as landInNewWorkspaceFlow } from "@/components/workspace-switcher/land-in-new-workspace";
 import { ApiError } from "@/lib/api/http";
 
 /**
@@ -63,7 +71,21 @@ type ReviewSearch = {
   packageId?: string;
   interval: Interval;
   /** Where to send the back link, so the buyer returns to the page they came from. */
-  from?: "billings" | "checkout";
+  from?: "billings" | "checkout" | "switcher";
+  /**
+   * 🔴 The name of a workspace that does NOT exist yet. Its presence is what makes this page a
+   * new-workspace purchase rather than an upgrade of the one the buyer is standing in. (R2)
+   *
+   * When it is set, this page uses the checkout-INTENT path: the purchase is carried by an intent,
+   * the current workspace id is never the subscription target, and the active workspace is not
+   * switched until the intent reads PAID. When it is absent, nothing about this page changes.
+   */
+  newWorkspace?: string;
+  /**
+   * The intent, once started, so a reload resumes the same purchase rather than starting a second.
+   * R2 requires the route to carry it.
+   */
+  intentId?: string;
 };
 
 export const Route = createFileRoute("/checkout_/review")({
@@ -71,7 +93,18 @@ export const Route = createFileRoute("/checkout_/review")({
     packageId: typeof search.packageId === "string" ? search.packageId : undefined,
     interval: search.interval === "yearly" ? "yearly" : "monthly",
     from:
-      search.from === "billings" ? "billings" : search.from === "checkout" ? "checkout" : undefined,
+      search.from === "billings"
+        ? "billings"
+        : search.from === "switcher"
+          ? "switcher"
+          : search.from === "checkout"
+            ? "checkout"
+            : undefined,
+    newWorkspace:
+      typeof search.newWorkspace === "string" && search.newWorkspace.trim()
+        ? search.newWorkspace
+        : undefined,
+    intentId: typeof search.intentId === "string" ? search.intentId : undefined,
   }),
   head: () => ({ meta: [{ title: "Billing details — Liffio" }] }),
   component: CheckoutReviewRoute,
@@ -87,11 +120,38 @@ function CheckoutReviewRoute() {
 
 function CheckoutReview() {
   const navigate = useNavigate();
-  const { packageId, interval, from } = Route.useSearch();
+  const { packageId, interval, from, newWorkspace, intentId } = Route.useSearch();
+  /** The whole of R2's branch, in one boolean. */
+  const buyingNewWorkspace = Boolean(newWorkspace);
   const workspaceId = useAuthState((s) => s.workspaceId) ?? "";
   const user = useAuthState((s) => s.user);
   const displayCurrency = useAuthState((s) => s.user?.displayCurrency) ?? null;
-  const { refreshAuth } = useApp();
+  const { refreshAuth, setCurrentId } = useApp();
+  const queryClient = useQueryClient();
+
+  /**
+   * The same landing flow the switcher uses, with the same injected collaborators. (FX8, R2)
+   *
+   * Reused rather than reimplemented: the ORDER is the requirement, and it already has a test that
+   * observes it. There is no panel to close from here, so that dependency is a no-op.
+   */
+  const landInNewWorkspace = (newId: string, groupId: string | null) =>
+    landInNewWorkspaceFlow(
+      {
+        refetchWorkspaces: () =>
+          Promise.all([
+            queryClient.refetchQueries({ queryKey: ["workspaces"] }),
+            queryClient.refetchQueries({ queryKey: ["workspace-switcher"] }),
+          ]),
+        setCurrentId,
+        refreshAuth,
+        rememberGroup: () => {},
+        closePanel: () => {},
+        navigateToDashboard: () => navigate({ to: "/dashboard", replace: true }),
+      },
+      newId,
+      groupId,
+    );
 
   const [address, setAddress] = useState<BillingAddressInput | null>(null);
   const [serverErrors, setServerErrors] = useState<BillingAddressErrors>({});
@@ -128,15 +188,62 @@ function CheckoutReview() {
   const [codeInput, setCodeInput] = useState("");
   const [appliedCode, setAppliedCode] = useState("");
 
+  /**
+   * The price, from the resolver that matches the purchase. (R2)
+   *
+   * Buying a NEW workspace quotes through `/workspaces/checkout/quote`, which takes no workspace id
+   * because there is no workspace yet. Upgrading quotes through the workspace-scoped endpoint, as
+   * before. Both return the same shape for everything this page renders, and both price the same
+   * discount code with the same rules, so the summary below does not care which ran.
+   */
   const quoteQuery = useQuery({
-    queryKey: ["billing-quote", workspaceId, packageId, interval, user?.country, appliedCode],
-    queryFn: () =>
-      getFirstPaymentQuote(workspaceId, {
+    queryKey: [
+      "billing-quote",
+      buyingNewWorkspace ? "new" : workspaceId,
+      packageId,
+      interval,
+      user?.country,
+      appliedCode,
+    ],
+    /**
+     * Normalised to one shape at the boundary.
+     *
+     * The two endpoints answer the same question and differ in two fields: the workspace quote has
+     * no itemised `lines`, and it reports the applied code as `discountApplied` rather than
+     * `codeApplied`. Reconciling that here means the summary below reads one object, instead of
+     * every line of it branching on which endpoint ran.
+     */
+    queryFn: async (): Promise<FirstPaymentQuote> => {
+      if (!buyingNewWorkspace) {
+        return getFirstPaymentQuote(workspaceId, {
+          packageId: packageId as string,
+          interval,
+          discountCode: appliedCode || undefined,
+        });
+      }
+      const q = await getWorkspaceCheckoutQuote({
         packageId: packageId as string,
         interval,
         discountCode: appliedCode || undefined,
-      }),
-    enabled: Boolean(workspaceId && packageId),
+      });
+      return {
+        packageId: q.packageId,
+        packageName: q.packageName,
+        interval: q.interval,
+        currency: q.currency,
+        listAmountMinor: q.listAmountMinor,
+        amountMinor: q.amountMinor,
+        // No itemised breakdown on this endpoint. The totals carry the same information.
+        lines: [],
+        introApplied: q.introApplied,
+        referralApplied: q.referralApplied,
+        codeApplied: q.discountApplied ? { codeId: "", code: q.discountApplied.code } : null,
+        discountRejection: q.discountRejection ?? null,
+        differsFromList: q.differsFromList,
+        firstPeriod: q.firstPeriod,
+      } as FirstPaymentQuote;
+    },
+    enabled: Boolean(packageId) && (buyingNewWorkspace || Boolean(workspaceId)),
     // A quote is a price. Re-fetch rather than serve a cached one across a country change.
     staleTime: 0,
   });
@@ -174,10 +281,19 @@ function CheckoutReview() {
     setAddress(emptyBillingAddress({ country: user?.country }));
   }, [profileQuery.data, address, user]);
 
-  const backTo = from === "billings" ? "/billings" : "/checkout";
+  /**
+   * Back goes where the buyer came from, and cancelling creates nothing. (R2)
+   *
+   * A purchase started from the switcher returns to the dashboard they were already standing in,
+   * not to the plan picker, because they never left a page they chose to be on.
+   */
+  const backTo =
+    from === "billings" ? "/billings" : from === "switcher" ? "/dashboard" : "/checkout";
 
   const handleSubmit = async () => {
-    if (!address || !workspaceId || !pkg) return;
+    // No workspace is needed to buy a new one. That is the whole point of the intent path. (R2)
+    if (!address || !pkg) return;
+    if (!buyingNewWorkspace && !workspaceId) return;
     if (dispatchingRef.current) {
       toast.info("A checkout is already in progress — please wait.");
       return;
@@ -193,8 +309,51 @@ function CheckoutReview() {
     setSubmitting(true);
     setServerErrors({});
     try {
+      if (buyingNewWorkspace) {
+        /**
+         * 🔴 Buying a workspace that does not exist yet. (R2, HARD RULE 5)
+         *
+         * Nothing here names the workspace the buyer is standing in. The address travels ON the
+         * intent, because `workspace_billing_profiles.workspace_id` is NOT NULL and there is no
+         * workspace to attach it to; settlement writes it to the new workspace once that exists.
+         * So there is deliberately no `saveBillingProfile` call on this branch: saving it against
+         * the CURRENT workspace would be the exact class of bug this item exists to remove.
+         *
+         * The active workspace is not switched here either. It changes once, below, and only after
+         * the intent reads PAID.
+         */
+        const started = await startWorkspaceCheckout({
+          name: newWorkspace as string,
+          packageId: pkg.id,
+          interval,
+          billingAddress: address,
+          discountCode: appliedCode || undefined,
+        });
+
+        // Carry the intent id in the URL, so a reload resumes this purchase rather than opening a
+        // second one. R2 requires the route to carry it.
+        void navigate({
+          to: "/checkout/review",
+          search: { packageId, interval, from, newWorkspace, intentId: started.intentId },
+          replace: true,
+        });
+
+        const payload = await openRazorpaySubscriptionCheckout({
+          keyId,
+          subscriptionId: started.subscriptionId,
+          email: user?.email ?? undefined,
+          description: `${pkg.name}, billed ${interval}`,
+        });
+
+        const settled = await verifyWorkspaceCheckout(started.intentId, payload);
+        toast.success(`${newWorkspace} is ready`);
+        // Only now, with the intent PAID, does the active workspace change. (FX8)
+        landInNewWorkspace(settled.workspaceId, settled.groupId);
+        return;
+      }
+
       /**
-       * Save first, then charge — never the other way round.
+       * Save first, then charge, never the other way round.
        *
        * The address is what makes the resulting charge invoiceable. Charging first would create
        * the one state `issueInvoiceForCharge` cannot resolve: money collected, no buyer on file,
@@ -221,15 +380,21 @@ function CheckoutReview() {
         keyId,
         subscriptionId: result.subscriptionId,
         email: user?.email ?? undefined,
-        description: `${pkg.name} — billed ${interval}`,
+        description: `${pkg.name}, billed ${interval}`,
       });
 
       await verifyRazorpayCheckout(workspaceId, payload);
-      toast.success("Payment successful — your plan is active");
+      toast.success("Payment successful, your plan is active");
       void navigate({ to: from === "billings" ? "/billings" : "/onboarding", replace: true });
     } catch (err) {
       if (err instanceof RazorpayCheckoutCancelled) {
-        toast.info("Payment cancelled — you can retry any time");
+        // R2: cancelling creates nothing, and says so, because "cancelled" alone leaves a buyer
+        // wondering whether a half-made workspace is now sitting somewhere.
+        toast.info(
+          buyingNewWorkspace
+            ? "Payment cancelled. No workspace was created and you were not charged."
+            : "Payment cancelled, you can retry any time",
+        );
       } else if (err instanceof ApiError && err.code === "BILLING_PROFILE_INVALID") {
         // Per-field, so the buyer sees which of eleven inputs is wrong rather than a banner.
         const body = err.body as { fieldErrors?: BillingAddressErrors } | undefined;
@@ -298,7 +463,9 @@ function CheckoutReview() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <Card>
           <CardHeader>
-            <CardTitle>Billing details</CardTitle>
+            <CardTitle>
+              {buyingNewWorkspace ? `Billing details for ${newWorkspace}` : "Billing details"}
+            </CardTitle>
             <p className="text-sm text-muted-foreground">
               These appear on your invoices. You can update them later.
             </p>

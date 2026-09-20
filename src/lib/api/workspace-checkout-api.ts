@@ -30,6 +30,10 @@ export type WorkspaceCheckoutQuote = {
   grantsGroup: boolean;
   /** How many workspaces that group gets. Never hardcode 20. */
   groupSlotLimit: number | null;
+  /** Which code applied, when one did. The deduction is `listAmountMinor` minus `amountMinor`. (R2) */
+  discountApplied: { code: string } | null;
+  /** Why a typed code was refused, so the box can say something useful. (R2) */
+  discountRejection: import("./billing-api").DiscountRejection | null;
 };
 
 export type CheckoutIntentStatus = "PENDING" | "PAID" | "FAILED" | "EXPIRED";
@@ -55,8 +59,15 @@ export type CheckoutIntent = {
 export function getWorkspaceCheckoutQuote(params: {
   packageId: string;
   interval: "monthly" | "yearly";
+  /** Priced, never consumed. Spending happens at settlement. (R2) */
+  discountCode?: string;
 }) {
-  const query = new URLSearchParams(params).toString();
+  // An empty box must not become `discountCode=`, which the server would read as a code to look up.
+  const query = new URLSearchParams({
+    packageId: params.packageId,
+    interval: params.interval,
+    ...(params.discountCode?.trim() ? { discountCode: params.discountCode.trim() } : {}),
+  }).toString();
   return apiRequest<WorkspaceCheckoutQuote>(`${apiUri.workspaceCheckout.quote}?${query}`);
 }
 
@@ -71,6 +82,8 @@ export function startWorkspaceCheckout(body: {
   packageId: string;
   interval: "monthly" | "yearly";
   billingAddress: BillingProfileInput;
+  /** Applies to the NEW workspace's purchase, never to any existing one. (R2) */
+  discountCode?: string;
 }) {
   return apiRequest<StartedCheckout>(apiUri.workspaceCheckout.start, { method: "POST", body });
 }

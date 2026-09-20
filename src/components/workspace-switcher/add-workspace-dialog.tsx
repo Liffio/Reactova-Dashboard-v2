@@ -479,7 +479,24 @@ export function AddWorkspaceDialog({
   };
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange} title="Add a workspace">
+    <ResponsiveDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Add a workspace"
+      /**
+       * 🔴 Not modal while the gateway is up. (R5)
+       *
+       * `paying` is set immediately before `openRazorpaySubscriptionCheckout` and cleared in every
+       * branch of its `catch`, so it spans exactly the window in which Razorpay owns the screen.
+       *
+       * A modal sheet sets `pointer-events: none` on `body` and paints a `fixed inset-0 z-50`
+       * overlay. Razorpay's checkout is appended to `body` by third-party script, outside this
+       * React portal, so it inherited the dead pointer events and was painted over. The gateway was
+       * fully visible and completely unclickable. The sheet stays MOUNTED throughout either way,
+       * which is what FX7 and FX8 depend on.
+       */
+      modal={step !== "paying"}
+    >
       {step === "address" ? (
         <>
           <DialogHeaderBar>

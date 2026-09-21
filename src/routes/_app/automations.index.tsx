@@ -321,7 +321,7 @@ function AutomationsPage() {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            DM sent counts are not updated automatically — click Sync to refresh them without
+            DM sent counts are not updated automatically. Click Sync to refresh them without
             reloading the page.
           </p>
 

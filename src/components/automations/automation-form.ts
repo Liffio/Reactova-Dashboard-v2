@@ -100,7 +100,15 @@ export function templateBuilderForm(template: {
 
 export const defaultForm: BuilderForm = {
   name: "New automation",
-  postScope: "any",
+  /**
+   * Pick a post is the default for new automations. (A1)
+   *
+   * Was `"any"`, which is the scope that is no longer offered, so a new builder opened straight on
+   * a choice the server now refuses. `"specific"` with a null `postId` puts it into the post picker,
+   * which is the same shape the template path at :81 already used and the one the create handler
+   * expects.
+   */
+  postScope: "specific",
   postId: null,
   anyComment: false,
   triggerBlocks: [

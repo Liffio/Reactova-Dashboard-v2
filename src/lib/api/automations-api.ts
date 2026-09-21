@@ -19,7 +19,18 @@ export type Automation = {
   keywords: string[];
   excludedKeywords: string[];
   anyComment: boolean;
-  postScope: "specific" | "any" | "next";
+  /**
+   * 🔴 The wire value is the stored ENUM, in upper case.
+   *
+   * This type has always said lower case and the list endpoint has always sent `SPECIFIC`, `NEXT`
+   * or `ANY`: `automationSearch` returns TypeORM entities straight from `getManyAndCount`, with no
+   * serializer in between. The type was aspirational, and anything comparing against it directly
+   * was quietly wrong.
+   *
+   * Read it through `postScopeLabel` or normalise it yourself. `automationToBuilderForm` already
+   * did the latter, which is why the builder was right and the list card was not.
+   */
+  postScope: "specific" | "any" | "next" | "SPECIFIC" | "ANY" | "NEXT";
   postId: string | null;
   dmMessage: string;
   dmButtonLabel: string | null;
@@ -87,6 +98,32 @@ export type AutomationWizardData = {
 };
 
 /** Tallies for the filter tabs, across the workspace rather than the current page. */
+/**
+ * What an automation's trigger is called on screen. (F1)
+ *
+ * The card at `automations.index.tsx` compared the wire value against the lower-case vocabulary, so
+ * neither `"specific"` nor `"next"` ever matched and **every** card fell through to "All posts".
+ * Nobody noticed while "All posts" was a real scope. It stopped being one in run 5, so every card
+ * in the product was advertising a trigger that can no longer be created.
+ *
+ * Normalises rather than switching the comparison to upper case, because both spellings are live:
+ * the list endpoint sends the enum, and a form-shaped object in the same app holds the lower-case
+ * one. A helper that accepts either is the only version that is right at both call sites.
+ *
+ * An unrecognised value reads as "All posts", which is the pre-existing fallback and the safe one:
+ * it is the widest scope, so it never understates what an automation does.
+ */
+export function postScopeLabel(scope: string | null | undefined): string {
+  switch (String(scope ?? "").toLowerCase()) {
+    case "specific":
+      return "Pick a post";
+    case "next":
+      return "Next post";
+    default:
+      return "All posts";
+  }
+}
+
 export function getAutomationStatusCounts(workspaceId: string) {
   return apiRequest<Record<AutomationStatus | "all", number>>(apiUri.automations.statusCounts, {
     workspaceId,

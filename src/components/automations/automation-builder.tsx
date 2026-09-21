@@ -12,9 +12,9 @@ import {
   Lock,
   MessageSquare,
   Plus,
+  RefreshCw,
   RotateCcw,
   Send,
-  ShieldCheck,
   Sparkles,
   Trash2,
 } from "lucide-react";
@@ -83,14 +83,9 @@ import {
   type PostScope,
   type TriggerBlock,
 } from "./automation-form";
-
-const DELAY_OPTIONS: Array<{ label: string; minutes: number }> = [
-  { label: "1 hour", minutes: 60 },
-  { label: "6 hours", minutes: 360 },
-  { label: "1 day", minutes: 1440 },
-  { label: "3 days", minutes: 4320 },
-  { label: "7 days", minutes: 10080 },
-];
+import { FollowBeforeDmSection } from "./sections/follow-before-dm-section";
+import { FollowUpSequenceSection } from "./sections/follow-up-sequence-section";
+import { DELAY_OPTIONS } from "./sections/follow-up-options";
 
 const MAX_TRIGGER_BLOCKS = 20;
 
@@ -213,6 +208,55 @@ export function AutomationBuilder({
     enabled: isWorkspaceReady(workspaceId),
     retry: false,
   });
+
+  /**
+   * The automation is one of the six created before "All posts" was retired. (A1)
+   *
+   * Read off the form rather than off `mode`, because a legacy automation is identified by what it
+   * IS, not by how the builder was opened. A new automation can never reach this: the scope is not
+   * offered, the default is `specific`, and the server refuses it on create.
+   */
+  const isLegacyAnyScope = form.postScope === "any";
+
+  /**
+   * 🔴 A legacy "All posts" automation is the one edit case whose target is NOT locked. (A1)
+   *
+   * `lockTarget` hides the picker entirely behind `LockedTarget`, because the post an automation
+   * runs on is fixed at creation. That is right for every automation bound to a post, and wrong for
+   * this one: A1 requires that an owner can move it to Pick a post or Next post, and the server now
+   * permits exactly those two transitions because an `ANY` automation has no binding to rewrite.
+   *
+   * Without this the retired label and its note render inside a branch that never runs in edit
+   * mode, which is to say they do not exist.
+   */
+  const targetLocked = lockTarget && !isLegacyAnyScope;
+
+  /**
+   * 🔴 Resync the account's posts, with a cooldown rather than a debounce. (A1)
+   *
+   * A trailing-edge debounce would protect the Instagram API just as well and tell the person
+   * nothing: they tap, nothing visibly happens, so they tap again. A cooldown is the same
+   * protection made visible: the button disables itself and says when it will be ready.
+   *
+   * `refetch` is the query's own, so this adds no endpoint and cannot drift from the initial load.
+   */
+  const SYNC_COOLDOWN_MS = 15_000;
+  const [syncCooldownUntil, setSyncCooldownUntil] = useState(0);
+  const [syncTick, setSyncTick] = useState(0);
+  const syncSecondsLeft = Math.max(0, Math.ceil((syncCooldownUntil - Date.now()) / 1000));
+
+  useEffect(() => {
+    if (syncCooldownUntil <= Date.now()) return;
+    // Re-renders once a second only while a cooldown is actually running.
+    const timer = setInterval(() => setSyncTick((n) => n + 1), 1000);
+    return () => clearInterval(timer);
+  }, [syncCooldownUntil, syncTick]);
+
+  const syncPosts = () => {
+    if (syncSecondsLeft > 0 || wizardData.isFetching) return;
+    setSyncCooldownUntil(Date.now() + SYNC_COOLDOWN_MS);
+    void wizardData.refetch();
+  };
 
   const update = (patch: Partial<BuilderForm>) => {
     firstChangeRef.current = true;
@@ -444,13 +488,31 @@ export function AutomationBuilder({
       /**
        * Three fields are deliberately dropped from an edit.
        *
-       * `postScope`/`postId` are immutable after creation — the API answers a change with a 400,
-       * and not sending them means an ordinary save never depends on the server judging them
-       * unchanged. `status` belongs to the list's pause/activate control; a save here must not
-       * quietly reactivate a paused automation.
+       * `postScope`/`postId` are immutable after creation: the API answers a change with a 400, and
+       * not sending them means an ordinary save never depends on the server judging them unchanged.
+       * `status` belongs to the list's pause/activate control; a save here must not quietly
+       * reactivate a paused automation.
+       *
+       * 🔴 With one exception, which is the whole of A1's migration path. An automation that was
+       * loaded as "All posts" may be narrowed to Pick a post or Next post, and the server permits
+       * exactly those two. Dropping the fields here would make the choice unsavable, so the switch
+       * would appear to work and silently do nothing.
+       *
+       * Keyed on what the automation was LOADED as, not on what the form says now: after the owner
+       * picks "Next post" the form no longer reads `any`, and testing the live value would drop the
+       * very change being made.
        */
+      const narrowingLegacyScope =
+        String(initialForm?.postScope ?? "").toLowerCase() === "any" && payload.postScope !== "any";
+
       const { postScope: _scope, postId: _post, status: _status, ...editable } = payload;
-      return updateAutomation(workspaceId, automationId, editable);
+      return updateAutomation(
+        workspaceId,
+        automationId,
+        narrowingLegacyScope
+          ? { ...editable, postScope: payload.postScope, postId: payload.postId }
+          : editable,
+      );
     },
     onSuccess: async (created, status) => {
       if (!isEdit) await autosave.clear();
@@ -607,7 +669,9 @@ export function AutomationBuilder({
   };
 
   useEffect(() => {
-    if (lockTarget) return;
+    // Not `targetLocked`: an ANY automation being narrowed to `specific` needs a postId chosen for
+    // it, exactly as a new one does, or the save is refused for the field that makes it valid.
+    if (lockTarget && !isLegacyAnyScope) return;
     if (form.postScope === "specific" && !form.postId && wizardData.data?.media?.length) {
       update({ postId: wizardData.data.media[0].id });
     }
@@ -871,7 +935,7 @@ export function AutomationBuilder({
               title="Trigger"
               subtitle="Which comments start this automation?"
             />
-            {lockTarget ? (
+            {targetLocked ? (
               <LockedTarget
                 scope={form.postScope}
                 postId={form.postId}
@@ -879,12 +943,20 @@ export function AutomationBuilder({
               />
             ) : (
               <>
+                {/*
+                  🔴 Pick a post first, then Next post. "All posts" is gone. (A1)
+
+                  The array order IS the on-screen order, and it used to open with "All posts",
+                  the scope the server now refuses on create. `isLegacyAnyScope` is the one way it
+                  still appears: an automation created before the retirement, shown so its owner can
+                  see what it is and move it somewhere that still exists. It is never selectable,
+                  so once switched it cannot be picked again, which is what A1 asks for.
+                */}
                 <div className="inline-flex w-full rounded-lg border bg-background p-1">
                   {(
                     [
-                      { v: "any", l: "All posts", allowed: features.post_scope_any },
-                      { v: "next", l: "Next post only", allowed: features.post_scope_next },
                       { v: "specific", l: "Pick a post", allowed: features.post_scope_specific },
+                      { v: "next", l: "Next post", allowed: features.post_scope_next },
                     ] as Array<{ v: PostScope; l: string; allowed: boolean }>
                   )
                     .filter((o) => o.allowed)
@@ -903,10 +975,61 @@ export function AutomationBuilder({
                         {o.l}
                       </button>
                     ))}
+                  {isLegacyAnyScope && (
+                    <span
+                      className="flex-1 cursor-not-allowed rounded-md bg-muted px-3 py-1.5 text-center text-xs font-medium text-muted-foreground"
+                      title="All posts is no longer offered for new automations."
+                    >
+                      All posts (no longer offered)
+                    </span>
+                  )}
                 </div>
+
+                {isLegacyAnyScope && (
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    This automation runs on comments from all of your posts. That option is no
+                    longer offered, but this one keeps working exactly as it does now. Switch it to
+                    Pick a post or Next post whenever you like, and it cannot be switched back.
+                  </p>
+                )}
 
                 {form.postScope === "specific" && (
                   <>
+                    {/*
+                      Sync, beside the picker it refreshes. (A1)
+
+                      A post published a minute ago is not in a list fetched five minutes ago, and
+                      before this the only way to see it was to leave and come back. The timestamp
+                      is the query's own `dataUpdatedAt`, so it describes the data on screen rather
+                      than when the button was last pressed.
+                    */}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[11px] text-muted-foreground">
+                        {wizardData.isFetching
+                          ? "Syncing your posts…"
+                          : wizardData.dataUpdatedAt
+                            ? `Synced ${relativeSyncLabel(wizardData.dataUpdatedAt)}`
+                            : "Not synced yet"}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1.5 px-2 text-xs"
+                        disabled={wizardData.isFetching || syncSecondsLeft > 0}
+                        onClick={syncPosts}
+                      >
+                        <RefreshCw
+                          aria-hidden
+                          className={cn("size-3.5", wizardData.isFetching && "animate-spin")}
+                        />
+                        {wizardData.isFetching
+                          ? "Syncing…"
+                          : syncSecondsLeft > 0
+                            ? `Sync in ${syncSecondsLeft}s`
+                            : "Sync"}
+                      </Button>
+                    </div>
                     {wizardData.isLoading && (
                       <p className="text-xs text-muted-foreground">Loading your Instagram posts…</p>
                     )}
@@ -919,7 +1042,9 @@ export function AutomationBuilder({
                     )}
                     {wizardData.isError && (
                       <p className="text-xs text-destructive">
-                        {(wizardData.error as Error).message}
+                        Could not refresh your posts from Instagram.{" "}
+                        {(wizardData.error as Error).message} The list below is the last one we
+                        loaded.
                       </p>
                     )}
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
@@ -1114,119 +1239,34 @@ export function AutomationBuilder({
           </section>
 
           {/* Follow gate + follow-ups */}
-          <section
-            className={cn(
-              "space-y-4 rounded-2xl border bg-card p-5 shadow-soft transition-shadow",
-              (highlightedFields.has("followBeforeDm") || highlightedFields.has("followUps")) &&
-                "ring-2 ring-primary/60 animate-pulse",
-            )}
-          >
-            <SectionTitle
-              icon={ShieldCheck}
-              title="Audience growth"
-              subtitle="Ask for a follow first, then re-engage automatically."
+          {/*
+            🔴 Two sections, not one. (A2)
+
+            These were one section called "Audience growth", holding the follow gate and the
+            follow-up sequence under a single heading vague enough to cover both. They share no
+            state, no validation and no submit path, so the grouping was doing nothing except
+            making one subtitle describe two features loosely.
+
+            Extracted as components rather than split inline, because A4 mounts these exact ones in
+            the post scheduler. Two surfaces that must not drift should not be two pieces of markup.
+
+            The ring used to key on `followBeforeDm` OR `followUps` for the whole block. Each
+            section now takes only its own key, which is strictly more precise: a validation pass
+            pointing at a follow-up no longer flashes the follow gate too.
+          */}
+          {features.follow_before_dm && (
+            <FollowBeforeDmSection
+              value={form.followBeforeDm}
+              onChange={(v) => update({ followBeforeDm: v })}
+              highlighted={highlightedFields.has("followBeforeDm")}
             />
-            {features.follow_before_dm && (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Ask to follow before DM</p>
-                    <p className="text-xs text-muted-foreground">
-                      The link is delivered after they follow your account.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={form.followBeforeDm}
-                    onCheckedChange={(v) => update({ followBeforeDm: v })}
-                  />
-                </div>
+          )}
 
-                <Separator />
-              </>
-            )}
-
-            <div>
-              <p className="text-sm font-medium">Follow-up sequence</p>
-              <p className="text-xs text-muted-foreground">
-                Up to 10 timed follow-up DMs after the first message.
-              </p>
-            </div>
-            <div className="space-y-3">
-              {form.followUps.map((f, i) => (
-                <div key={f.id} className="rounded-xl border bg-background p-3.5">
-                  <div className="mb-2.5 flex items-center gap-2">
-                    <Badge
-                      variant="outline"
-                      className="border-primary/30 bg-primary/10 text-primary"
-                    >
-                      Step {i + 1}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">Wait</span>
-                    <Select
-                      value={String(f.delayMinutes)}
-                      onValueChange={(v) => {
-                        const next = form.followUps.map((x) =>
-                          x.id === f.id ? { ...x, delayMinutes: Number(v) } : x,
-                        );
-                        update({ followUps: next });
-                      }}
-                    >
-                      <SelectTrigger className="h-7 w-32 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DELAY_OPTIONS.map((d) => (
-                          <SelectItem key={d.minutes} value={String(d.minutes)}>
-                            {d.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        update({ followUps: form.followUps.filter((x) => x.id !== f.id) })
-                      }
-                      className="ml-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <Textarea
-                    value={f.message}
-                    onChange={(e) => {
-                      const next = form.followUps.map((x) =>
-                        x.id === f.id
-                          ? { ...x, message: e.target.value.slice(0, LIMITS.followUpMessage.max) }
-                          : x,
-                      );
-                      update({ followUps: next });
-                    }}
-                    maxLength={LIMITS.followUpMessage.max}
-                    rows={2}
-                    placeholder="Type your follow-up message…"
-                  />
-                </div>
-              ))}
-              {form.followUps.length < 10 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full border-dashed"
-                  onClick={() =>
-                    update({
-                      followUps: [
-                        ...form.followUps,
-                        { id: `f${Date.now()}`, delayMinutes: 1440, message: "" },
-                      ],
-                    })
-                  }
-                >
-                  <Plus className="h-4 w-4" /> Add follow-up step
-                </Button>
-              )}
-            </div>
-          </section>
+          <FollowUpSequenceSection
+            value={form.followUps}
+            onChange={(next) => update({ followUps: next })}
+            highlighted={highlightedFields.has("followUps")}
+          />
 
           {/*
             Below `lg`, where the aside is not sticky and the header no longer carries these.
@@ -1259,6 +1299,22 @@ export function AutomationBuilder({
       </div>
     </div>
   );
+}
+
+/**
+ * "Synced just now" and what comes after it. (A1)
+ *
+ * Coarse on purpose: the exact second is noise, and the only questions a person asks here are "is
+ * this current" and "did my tap do anything". Minutes answer both.
+ */
+function relativeSyncLabel(updatedAt: number): string {
+  const seconds = Math.max(0, Math.round((Date.now() - updatedAt) / 1000));
+  if (seconds < 45) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  return "a while ago";
 }
 
 function TimelineStep({

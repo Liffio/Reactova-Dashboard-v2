@@ -138,6 +138,10 @@ import {
 import { useLyraInsights } from "@/hooks/use-lyra-insights";
 import { bareHandle, formatHandle } from "@/lib/format";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
+import { FollowBeforeDmSection } from "@/components/automations/sections/follow-before-dm-section";
+import { FollowUpSequenceSection } from "@/components/automations/sections/follow-up-sequence-section";
+import type { FollowUpDraft } from "@/components/automations/automation-form";
+import { useAutomationFeatures } from "@/hooks/use-features";
 
 export const Route = createFileRoute("/_app/scheduler")({
   head: () => ({ meta: [{ title: "Scheduler — Liffio" }] }),
@@ -1267,6 +1271,18 @@ type FormState = {
   automationButtonUrl: string;
   automationAutoReply: boolean;
   automationReplyMessages: string[];
+  /**
+   * The four the builder had and this form did not. (A4)
+   *
+   * Kept in the scheduler's own flat `automation*` style rather than switching this form to the
+   * builder's `BuilderForm` shape. The brief asks the SECTIONS not to drift, not the form models,
+   * and this object holds roughly twenty other fields that post scheduling depends on.
+   */
+  automationExcludedKeywords: string[];
+  automationExcludedKeywordDraft: string;
+  automationFollowBeforeDm: boolean;
+  automationFollowUps: FollowUpDraft[];
+  automationBrandingEnabled: boolean;
   shareToFeed: boolean;
 };
 
@@ -1297,6 +1313,18 @@ const FORM_DEFAULTS: FormState = {
   automationButtonUrl: "",
   automationAutoReply: false,
   automationReplyMessages: ["Sent! Check your DMs 💌"],
+  automationExcludedKeywords: [],
+  automationExcludedKeywordDraft: "",
+  automationFollowBeforeDm: false,
+  automationFollowUps: [],
+  /**
+   * Branding starts ON here, and the builder starts it OFF for a workspace that can control it.
+   *
+   * Not an inconsistency: the value is overwritten on mount from the capability, the same way the
+   * builder does it, because this default is evaluated once at module load where no capability is
+   * in scope. `true` is the safe direction for a default that might not be corrected.
+   */
+  automationBrandingEnabled: true,
   shareToFeed: false,
 };
 
@@ -2345,6 +2373,43 @@ function SchedulerPage() {
     }));
   };
 
+  /**
+   * The same capability flags the automation builder reads. (A4)
+   *
+   * Backend-resolved, never a plan check here. Every control below is gated on exactly the key the
+   * builder gates it on, so the two surfaces offer the same set to the same workspace.
+   */
+  const automationFeatures = useAutomationFeatures();
+
+  /**
+   * Branding follows the capability, matching the builder.
+   *
+   * On a cold load `permissions` is empty when the form's initial state is built, so this corrects
+   * it once the capability arrives and stops as soon as the person touches the switch, exactly as
+   * `automation-builder.tsx` does. Without it a paying workspace would have to turn the watermark
+   * off on every scheduled post.
+   */
+  const brandingTouchedRef = useRef(false);
+  useEffect(() => {
+    if (brandingTouchedRef.current) return;
+    const wanted = !automationFeatures.branding_control;
+    setForm((f) =>
+      f.automationBrandingEnabled === wanted ? f : { ...f, automationBrandingEnabled: wanted },
+    );
+  }, [automationFeatures.branding_control]);
+
+  const addExcludedKeyword = () => {
+    const keyword = form.automationExcludedKeywordDraft.trim();
+    if (!keyword) return;
+    setForm((f) => ({
+      ...f,
+      automationExcludedKeywords: [
+        ...new Set([...f.automationExcludedKeywords, keyword.toUpperCase()]),
+      ],
+      automationExcludedKeywordDraft: "",
+    }));
+  };
+
   const setReplyMessage = (index: number, value: string) => {
     setForm((f) => {
       const next = [...f.automationReplyMessages];
@@ -2418,6 +2483,18 @@ function SchedulerPage() {
     if (form.automationEnabled) {
       const keywords = form.automationKeywords.map((k) => k.trim()).filter(Boolean);
       const replyMessages = form.automationReplyMessages.map((m) => m.trim()).filter(Boolean);
+      /**
+       * A step with no message is a step that would send an empty DM, so it is dropped rather than
+       * rejected: the builder lets you add a row and fill it later, and the same should be true
+       * here. `delayMinutes` and `message` are the shape the automations API already takes.
+       */
+      const followUps = form.automationFollowUps
+        .filter((f) => f.message.trim().length > 0)
+        .map((f, index) => ({
+          delayMinutes: f.delayMinutes,
+          message: f.message.trim(),
+          order: index,
+        }));
       if (!form.automationAnyComment && keywords.length === 0) {
         toast.error("Add at least one trigger word, or enable any-comment trigger.");
         return;
@@ -2438,6 +2515,20 @@ function SchedulerPage() {
           ? form.automationButtonLabel.trim() || undefined
           : undefined,
         dmButtonUrl: form.automationButtonUrl.trim() || undefined,
+        /**
+         * The four A4 adds, sent in the same shape the builder sends them. (A4)
+         *
+         * `followBeforeDm` and `brandingEnabled` go every time, because both are booleans with a
+         * meaningful `false`. `excludedKeywords` and `followUps` are omitted when empty rather than
+         * sent as `[]`, which keeps the body byte-identical to a pre-A4 one for anybody who does
+         * not use them.
+         */
+        followBeforeDm: form.automationFollowBeforeDm,
+        brandingEnabled: form.automationBrandingEnabled,
+        ...(form.automationExcludedKeywords.length > 0
+          ? { excludedKeywords: form.automationExcludedKeywords }
+          : {}),
+        ...(followUps.length > 0 ? { followUps } : {}),
       };
     }
 
@@ -4156,7 +4247,112 @@ function SchedulerPage() {
                         </div>
                       )}
                     </div>
+
+                    {/*
+                      🔴 The four the builder had and this form did not. (A4)
+
+                      Excluded keywords, the follow gate, the follow-up sequence and branding
+                      control. The middle two are the SAME components the builder mounts, not
+                      copies, which is what stops the two surfaces drifting again. There is no
+                      trigger picker: the scheduled post IS the target.
+                    */}
+                    {automationFeatures.excluded_keywords && (
+                      <div className="space-y-2">
+                        <Label>Excluded keywords</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Comments containing any of these never trigger the DM.
+                        </p>
+                        <div className="flex gap-2">
+                          <Input
+                            value={form.automationExcludedKeywordDraft}
+                            disabled={form.automationAnyComment}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                automationExcludedKeywordDraft: e.target.value.slice(
+                                  0,
+                                  LIMITS.keyword.max,
+                                ),
+                              }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                addExcludedKeyword();
+                              }
+                            }}
+                            placeholder="e.g. PRICE"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={form.automationAnyComment}
+                            onClick={addExcludedKeyword}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {form.automationExcludedKeywords.map((keyword) => (
+                            <Badge key={keyword} variant="outline" className="gap-1">
+                              {keyword}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setForm((f) => ({
+                                    ...f,
+                                    automationExcludedKeywords: f.automationExcludedKeywords.filter(
+                                      (k) => k !== keyword,
+                                    ),
+                                  }))
+                                }
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Branding, following the same capability rule as the builder. */}
+                    <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2.5">
+                      <div>
+                        <p className="text-sm font-medium">Liffio branding / watermark</p>
+                        <p className="text-xs text-muted-foreground">
+                          {automationFeatures.branding_control
+                            ? "A short Liffio line in this automation's DM and its follow-up."
+                            : "Free automations always include a short Liffio line."}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={
+                          automationFeatures.branding_control
+                            ? form.automationBrandingEnabled
+                            : true
+                        }
+                        disabled={!automationFeatures.branding_control}
+                        onCheckedChange={(checked) => {
+                          brandingTouchedRef.current = true;
+                          setForm((f) => ({ ...f, automationBrandingEnabled: checked }));
+                        }}
+                      />
+                    </div>
                   </div>
+                )}
+
+                {form.automationEnabled && automationFeatures.follow_before_dm && (
+                  <FollowBeforeDmSection
+                    value={form.automationFollowBeforeDm}
+                    onChange={(v) => setForm((f) => ({ ...f, automationFollowBeforeDm: v }))}
+                  />
+                )}
+
+                {form.automationEnabled && (
+                  <FollowUpSequenceSection
+                    value={form.automationFollowUps}
+                    onChange={(next) => setForm((f) => ({ ...f, automationFollowUps: next }))}
+                  />
                 )}
               </div>
 

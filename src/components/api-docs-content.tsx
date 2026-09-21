@@ -147,8 +147,16 @@ Content-Type: application/json`}</Code>
     "caption": "Scheduled via API",
     "scheduledLocal": "2026-05-20T14:30",
     "timezone": "America/New_York",
-    "primaryMediaUrl": "https://example.com/image.jpg"
+    "primaryMediaUrl": "${baseUrl}/api/v1/public/scheduler-media/USER_ID/WORKSPACE_ID/MEDIA_ID.jpg"
   }'`}</Code>
+        <p className="text-sm text-muted-foreground">
+          That <code className="text-foreground">primaryMediaUrl</code> is what the upload endpoint
+          below returns. A URL on your own domain will not work — see{" "}
+          <a href="#media-uploads" className="text-primary underline">
+            Uploading media
+          </a>
+          .
+        </p>
         <p className="text-sm text-muted-foreground">
           <code className="text-foreground">type</code>: FEED, REEL, CAROUSEL, or STORY. Use{" "}
           <code className="text-foreground">scheduledLocal</code> +{" "}
@@ -161,7 +169,7 @@ Content-Type: application/json`}</Code>
         </p>
         <Code>{`{
   "type": "REEL",
-  "primaryMediaUrl": "https://example.com/reel.mp4",
+  "primaryMediaUrl": "${baseUrl}/api/v1/public/scheduler-media/USER_ID/WORKSPACE_ID/MEDIA_ID.mp4",
   "scheduledLocal": "2026-05-20T14:30",
   "timezone": "America/New_York",
   "igMusicId": "487118580328718",
@@ -188,14 +196,22 @@ Content-Type: application/json`}</Code>
         <p className="text-sm text-muted-foreground leading-relaxed">
           <strong className="text-foreground">URLs must be on our allowlist</strong> (Instagram CDN,
           Cloudflare R2 public domains, and media we host for you). A URL on your own CDN is rejected
-          with a 400 when the post is created. If your media lives anywhere else, send us the bytes —
-          we store it and hand Instagram a URL on your behalf.
+          with a 400 once the post is — or becomes — <code className="text-foreground">SCHEDULED</code>;
+          carousels are checked at create time regardless of status. If your media lives anywhere
+          else, send us the bytes and we will host it for you.
         </p>
         <p className="text-sm text-muted-foreground leading-relaxed">
           Limits: <code className="text-foreground">15 MB</code> for images,{" "}
-          <code className="text-foreground">100 MB</code> for video. We convert PNG, WebP and GIF to
-          JPEG, pad the aspect ratio into Instagram&apos;s accepted range, and extract a real cover
-          frame for reels — you do not need to pre-process anything.
+          <code className="text-foreground">100 MB</code> for video. Over-limit returns{" "}
+          <code className="text-foreground">413</code> when the file rides along with a post, and{" "}
+          <code className="text-foreground">400</code> on the standalone upload endpoint. Media
+          uploads have no separate daily quota — they draw on the same budget as post creates, so an
+          exhausted budget blocks them too.
+        </p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          We convert PNG, WebP and GIF to JPEG, pad the aspect ratio into Instagram&apos;s accepted
+          range, and extract a real cover frame for reels — you do not need to pre-process anything.
+          None of this applies to media you reference by URL; we only process bytes you send us.
         </p>
 
         <p className="text-sm font-semibold pt-1">Option 1 — upload once, reference the URL</p>
@@ -240,14 +256,19 @@ Content-Type: application/json`}</Code>
         <p className="text-sm text-muted-foreground">
           Post fields travel in the query string, the body is the file. Defaults to{" "}
           <code className="text-foreground">primaryMediaUrl</code>; add{" "}
-          <code className="text-foreground">X-Media-Field: thumbnailUrl</code> to target another
-          field. On <code className="text-foreground">PATCH</code> the header is{" "}
+          <code className="text-foreground">X-Media-Field</code> to target another — it accepts{" "}
+          <code className="text-foreground">primaryMediaUrl</code>,{" "}
+          <code className="text-foreground">thumbnailUrl</code> or{" "}
+          <code className="text-foreground">carouselMediaUrls</code>. On{" "}
+          <code className="text-foreground">PATCH</code> the header is{" "}
           <strong className="text-foreground">required</strong> — a post has several media fields and
           we will not guess which one you meant to replace.
         </p>
         <p className="text-sm text-muted-foreground">
-          <code className="text-foreground">coverImageUrl</code> is not a field on this API; naming it
-          returns a 400 before anything is stored.
+          <code className="text-foreground">coverImageUrl</code> is not a field on this API. Sent as a
+          multipart part or via <code className="text-foreground">X-Media-Field</code> it returns a
+          400 before anything is stored; sent as a plain JSON value it is silently ignored and the
+          request still succeeds — so omit it rather than relying on an error.
         </p>
       </Section>
 
@@ -349,6 +370,7 @@ Content-Type: application/json`}</Code>
                 ["401", "Invalid or expired API key"],
                 ["400", "Validation error or missing x-workspace-id"],
                 ["404", "Workspace not found or not accessible"],
+                ["413", "Uploaded file exceeds the size limit for its type"],
                 ["429", "Daily plan limit reached"],
               ].map(([code, meaning]) => (
                 <tr key={code} className="hover:bg-muted/30 transition-colors">

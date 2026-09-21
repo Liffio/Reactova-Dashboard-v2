@@ -12,6 +12,7 @@ import {
   Lock,
   MessageSquare,
   Plus,
+  RefreshCw,
   RotateCcw,
   Send,
   ShieldCheck,
@@ -213,6 +214,42 @@ export function AutomationBuilder({
     enabled: isWorkspaceReady(workspaceId),
     retry: false,
   });
+
+  /**
+   * The automation is one of the six created before "All posts" was retired. (A1)
+   *
+   * Read off the form rather than off `mode`, because a legacy automation is identified by what it
+   * IS, not by how the builder was opened. A new automation can never reach this: the scope is not
+   * offered, the default is `specific`, and the server refuses it on create.
+   */
+  const isLegacyAnyScope = form.postScope === "any";
+
+  /**
+   * 🔴 Resync the account's posts, with a cooldown rather than a debounce. (A1)
+   *
+   * A trailing-edge debounce would protect the Instagram API just as well and tell the person
+   * nothing: they tap, nothing visibly happens, so they tap again. A cooldown is the same
+   * protection made visible: the button disables itself and says when it will be ready.
+   *
+   * `refetch` is the query's own, so this adds no endpoint and cannot drift from the initial load.
+   */
+  const SYNC_COOLDOWN_MS = 15_000;
+  const [syncCooldownUntil, setSyncCooldownUntil] = useState(0);
+  const [syncTick, setSyncTick] = useState(0);
+  const syncSecondsLeft = Math.max(0, Math.ceil((syncCooldownUntil - Date.now()) / 1000));
+
+  useEffect(() => {
+    if (syncCooldownUntil <= Date.now()) return;
+    // Re-renders once a second only while a cooldown is actually running.
+    const timer = setInterval(() => setSyncTick((n) => n + 1), 1000);
+    return () => clearInterval(timer);
+  }, [syncCooldownUntil, syncTick]);
+
+  const syncPosts = () => {
+    if (syncSecondsLeft > 0 || wizardData.isFetching) return;
+    setSyncCooldownUntil(Date.now() + SYNC_COOLDOWN_MS);
+    void wizardData.refetch();
+  };
 
   const update = (patch: Partial<BuilderForm>) => {
     firstChangeRef.current = true;
@@ -879,12 +916,20 @@ export function AutomationBuilder({
               />
             ) : (
               <>
+                {/*
+                  🔴 Pick a post first, then Next post. "All posts" is gone. (A1)
+
+                  The array order IS the on-screen order, and it used to open with "All posts",
+                  the scope the server now refuses on create. `isLegacyAnyScope` is the one way it
+                  still appears: an automation created before the retirement, shown so its owner can
+                  see what it is and move it somewhere that still exists. It is never selectable,
+                  so once switched it cannot be picked again, which is what A1 asks for.
+                */}
                 <div className="inline-flex w-full rounded-lg border bg-background p-1">
                   {(
                     [
-                      { v: "any", l: "All posts", allowed: features.post_scope_any },
-                      { v: "next", l: "Next post only", allowed: features.post_scope_next },
                       { v: "specific", l: "Pick a post", allowed: features.post_scope_specific },
+                      { v: "next", l: "Next post", allowed: features.post_scope_next },
                     ] as Array<{ v: PostScope; l: string; allowed: boolean }>
                   )
                     .filter((o) => o.allowed)
@@ -903,10 +948,61 @@ export function AutomationBuilder({
                         {o.l}
                       </button>
                     ))}
+                  {isLegacyAnyScope && (
+                    <span
+                      className="flex-1 cursor-not-allowed rounded-md bg-muted px-3 py-1.5 text-center text-xs font-medium text-muted-foreground"
+                      title="All posts is no longer offered for new automations."
+                    >
+                      All posts (no longer offered)
+                    </span>
+                  )}
                 </div>
+
+                {isLegacyAnyScope && (
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    This automation runs on comments from all of your posts. That option is no
+                    longer offered, but this one keeps working exactly as it does now. Switch it to
+                    Pick a post or Next post whenever you like, and it cannot be switched back.
+                  </p>
+                )}
 
                 {form.postScope === "specific" && (
                   <>
+                    {/*
+                      Sync, beside the picker it refreshes. (A1)
+
+                      A post published a minute ago is not in a list fetched five minutes ago, and
+                      before this the only way to see it was to leave and come back. The timestamp
+                      is the query's own `dataUpdatedAt`, so it describes the data on screen rather
+                      than when the button was last pressed.
+                    */}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[11px] text-muted-foreground">
+                        {wizardData.isFetching
+                          ? "Syncing your posts…"
+                          : wizardData.dataUpdatedAt
+                            ? `Synced ${relativeSyncLabel(wizardData.dataUpdatedAt)}`
+                            : "Not synced yet"}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1.5 px-2 text-xs"
+                        disabled={wizardData.isFetching || syncSecondsLeft > 0}
+                        onClick={syncPosts}
+                      >
+                        <RefreshCw
+                          aria-hidden
+                          className={cn("size-3.5", wizardData.isFetching && "animate-spin")}
+                        />
+                        {wizardData.isFetching
+                          ? "Syncing…"
+                          : syncSecondsLeft > 0
+                            ? `Sync in ${syncSecondsLeft}s`
+                            : "Sync"}
+                      </Button>
+                    </div>
                     {wizardData.isLoading && (
                       <p className="text-xs text-muted-foreground">Loading your Instagram posts…</p>
                     )}
@@ -919,7 +1015,9 @@ export function AutomationBuilder({
                     )}
                     {wizardData.isError && (
                       <p className="text-xs text-destructive">
-                        {(wizardData.error as Error).message}
+                        Could not refresh your posts from Instagram.{" "}
+                        {(wizardData.error as Error).message} The list below is the last one we
+                        loaded.
                       </p>
                     )}
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
@@ -1259,6 +1357,22 @@ export function AutomationBuilder({
       </div>
     </div>
   );
+}
+
+/**
+ * "Synced just now" and what comes after it. (A1)
+ *
+ * Coarse on purpose: the exact second is noise, and the only questions a person asks here are "is
+ * this current" and "did my tap do anything". Minutes answer both.
+ */
+function relativeSyncLabel(updatedAt: number): string {
+  const seconds = Math.max(0, Math.round((Date.now() - updatedAt) / 1000));
+  if (seconds < 45) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  return "a while ago";
 }
 
 function TimelineStep({

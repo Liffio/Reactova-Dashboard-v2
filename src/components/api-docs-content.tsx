@@ -195,10 +195,11 @@ Content-Type: application/json`}</Code>
         </p>
         <p className="text-sm text-muted-foreground leading-relaxed">
           <strong className="text-foreground">URLs must be on our allowlist</strong> (Instagram CDN,
-          Cloudflare R2 public domains, and media we host for you). A URL on your own CDN is rejected
-          with a 400 once the post is — or becomes — <code className="text-foreground">SCHEDULED</code>;
-          carousels are checked at create time regardless of status. If your media lives anywhere
-          else, send us the bytes and we will host it for you.
+          Cloudflare R2 public domains, and media we host for you). A URL on your own CDN is
+          rejected with a 400 once the post is — or becomes —{" "}
+          <code className="text-foreground">SCHEDULED</code>; carousels are checked at create time
+          regardless of status. If your media lives anywhere else, send us the bytes and we will
+          host it for you.
         </p>
         <p className="text-sm text-muted-foreground leading-relaxed">
           Limits: <code className="text-foreground">15 MB</code> for images,{" "}
@@ -261,13 +262,13 @@ Content-Type: application/json`}</Code>
           <code className="text-foreground">thumbnailUrl</code> or{" "}
           <code className="text-foreground">carouselMediaUrls</code>. On{" "}
           <code className="text-foreground">PATCH</code> the header is{" "}
-          <strong className="text-foreground">required</strong> — a post has several media fields and
-          we will not guess which one you meant to replace.
+          <strong className="text-foreground">required</strong> — a post has several media fields
+          and we will not guess which one you meant to replace.
         </p>
         <p className="text-sm text-muted-foreground">
-          <code className="text-foreground">coverImageUrl</code> is not a field on this API. Sent as a
-          multipart part or via <code className="text-foreground">X-Media-Field</code> it returns a
-          400 before anything is stored; sent as a plain JSON value it is silently ignored and the
+          <code className="text-foreground">coverImageUrl</code> is not a field on this API. Sent as
+          a multipart part or via <code className="text-foreground">X-Media-Field</code> it returns
+          a 400 before anything is stored; sent as a plain JSON value it is silently ignored and the
           request still succeeds — so omit it rather than relying on an error.
         </p>
       </Section>
@@ -327,6 +328,22 @@ Content-Type: application/json`}</Code>
           <code className="text-foreground">specific</code>,{" "}
           <code className="text-foreground">any</code>, or{" "}
           <code className="text-foreground">next</code>.
+        </p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          The public comment reply is{" "}
+          <strong className="text-foreground">off unless you ask for it</strong>: send{" "}
+          <code className="text-foreground">autoReply: true</code> together with a non-empty{" "}
+          <code className="text-foreground">replyMessages</code>. Omit either and the automation
+          sends the DM only — no reply is posted, and the response is still a 201.
+        </p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          <code className="text-foreground">followUps</code> (max 10) queues follow-up DMs after the
+          first, each with <code className="text-foreground">message</code> plus one of{" "}
+          <code className="text-foreground">delaySeconds</code>,{" "}
+          <code className="text-foreground">delayMinutes</code> or{" "}
+          <code className="text-foreground">delay</code>. Your plan’s follow-up cap applies.{" "}
+          <code className="text-foreground">brandingEnabled: false</code> removes Liffio branding
+          from the DM on paid plans.
         </p>
       </Section>
 

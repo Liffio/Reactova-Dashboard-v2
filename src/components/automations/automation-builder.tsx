@@ -15,7 +15,6 @@ import {
   RefreshCw,
   RotateCcw,
   Send,
-  ShieldCheck,
   Sparkles,
   Trash2,
 } from "lucide-react";
@@ -84,14 +83,9 @@ import {
   type PostScope,
   type TriggerBlock,
 } from "./automation-form";
-
-const DELAY_OPTIONS: Array<{ label: string; minutes: number }> = [
-  { label: "1 hour", minutes: 60 },
-  { label: "6 hours", minutes: 360 },
-  { label: "1 day", minutes: 1440 },
-  { label: "3 days", minutes: 4320 },
-  { label: "7 days", minutes: 10080 },
-];
+import { FollowBeforeDmSection } from "./sections/follow-before-dm-section";
+import { FollowUpSequenceSection } from "./sections/follow-up-sequence-section";
+import { DELAY_OPTIONS } from "./sections/follow-up-options";
 
 const MAX_TRIGGER_BLOCKS = 20;
 
@@ -1212,119 +1206,34 @@ export function AutomationBuilder({
           </section>
 
           {/* Follow gate + follow-ups */}
-          <section
-            className={cn(
-              "space-y-4 rounded-2xl border bg-card p-5 shadow-soft transition-shadow",
-              (highlightedFields.has("followBeforeDm") || highlightedFields.has("followUps")) &&
-                "ring-2 ring-primary/60 animate-pulse",
-            )}
-          >
-            <SectionTitle
-              icon={ShieldCheck}
-              title="Audience growth"
-              subtitle="Ask for a follow first, then re-engage automatically."
+          {/*
+            🔴 Two sections, not one. (A2)
+
+            These were one section called "Audience growth", holding the follow gate and the
+            follow-up sequence under a single heading vague enough to cover both. They share no
+            state, no validation and no submit path, so the grouping was doing nothing except
+            making one subtitle describe two features loosely.
+
+            Extracted as components rather than split inline, because A4 mounts these exact ones in
+            the post scheduler. Two surfaces that must not drift should not be two pieces of markup.
+
+            The ring used to key on `followBeforeDm` OR `followUps` for the whole block. Each
+            section now takes only its own key, which is strictly more precise: a validation pass
+            pointing at a follow-up no longer flashes the follow gate too.
+          */}
+          {features.follow_before_dm && (
+            <FollowBeforeDmSection
+              value={form.followBeforeDm}
+              onChange={(v) => update({ followBeforeDm: v })}
+              highlighted={highlightedFields.has("followBeforeDm")}
             />
-            {features.follow_before_dm && (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Ask to follow before DM</p>
-                    <p className="text-xs text-muted-foreground">
-                      The link is delivered after they follow your account.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={form.followBeforeDm}
-                    onCheckedChange={(v) => update({ followBeforeDm: v })}
-                  />
-                </div>
+          )}
 
-                <Separator />
-              </>
-            )}
-
-            <div>
-              <p className="text-sm font-medium">Follow-up sequence</p>
-              <p className="text-xs text-muted-foreground">
-                Up to 10 timed follow-up DMs after the first message.
-              </p>
-            </div>
-            <div className="space-y-3">
-              {form.followUps.map((f, i) => (
-                <div key={f.id} className="rounded-xl border bg-background p-3.5">
-                  <div className="mb-2.5 flex items-center gap-2">
-                    <Badge
-                      variant="outline"
-                      className="border-primary/30 bg-primary/10 text-primary"
-                    >
-                      Step {i + 1}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">Wait</span>
-                    <Select
-                      value={String(f.delayMinutes)}
-                      onValueChange={(v) => {
-                        const next = form.followUps.map((x) =>
-                          x.id === f.id ? { ...x, delayMinutes: Number(v) } : x,
-                        );
-                        update({ followUps: next });
-                      }}
-                    >
-                      <SelectTrigger className="h-7 w-32 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DELAY_OPTIONS.map((d) => (
-                          <SelectItem key={d.minutes} value={String(d.minutes)}>
-                            {d.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        update({ followUps: form.followUps.filter((x) => x.id !== f.id) })
-                      }
-                      className="ml-auto rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <Textarea
-                    value={f.message}
-                    onChange={(e) => {
-                      const next = form.followUps.map((x) =>
-                        x.id === f.id
-                          ? { ...x, message: e.target.value.slice(0, LIMITS.followUpMessage.max) }
-                          : x,
-                      );
-                      update({ followUps: next });
-                    }}
-                    maxLength={LIMITS.followUpMessage.max}
-                    rows={2}
-                    placeholder="Type your follow-up message…"
-                  />
-                </div>
-              ))}
-              {form.followUps.length < 10 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full border-dashed"
-                  onClick={() =>
-                    update({
-                      followUps: [
-                        ...form.followUps,
-                        { id: `f${Date.now()}`, delayMinutes: 1440, message: "" },
-                      ],
-                    })
-                  }
-                >
-                  <Plus className="h-4 w-4" /> Add follow-up step
-                </Button>
-              )}
-            </div>
-          </section>
+          <FollowUpSequenceSection
+            value={form.followUps}
+            onChange={(next) => update({ followUps: next })}
+            highlighted={highlightedFields.has("followUps")}
+          />
 
           {/*
             Below `lg`, where the aside is not sticky and the header no longer carries these.

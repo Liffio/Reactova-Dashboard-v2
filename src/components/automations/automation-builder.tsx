@@ -1417,6 +1417,10 @@ function TriggerBlockFields({
               className="resize-none"
               placeholder="Sent! Check your DMs 💌"
             />
+            <p className="text-[11px] text-muted-foreground">
+              Use <code className="rounded bg-muted px-1">{"{name}"}</code> for the commenter's
+              handle. Posted 5 to 20 seconds after the DM goes out, and only if it does.
+            </p>
           </div>
         )}
         <div className="space-y-1">

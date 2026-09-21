@@ -158,7 +158,34 @@ export function AutomationBuilder({
   const { data: usage } = useWorkspaceUsage(isWorkspaceReady(workspaceId) ? workspaceId : null);
   const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set());
 
-  const [form, setForm] = useState<BuilderForm>(initialForm ?? defaultForm);
+  /**
+   * A NEW automation starts unbranded when the workspace has paid to control branding.
+   *
+   * `defaultForm.brandingEnabled` is a constant `true`, which is right for a workspace that cannot
+   * turn the watermark off and wrong for one that can: it made every new automation on every plan
+   * start branded, so a paying customer had to turn it off again every single time. The server
+   * applies the same rule for an omitted field (`services/brandingControl.ts`), so the two agree
+   * whether or not this component sends the field.
+   */
+  const [form, setForm] = useState<BuilderForm>(
+    initialForm ?? { ...defaultForm, brandingEnabled: !features.branding_control },
+  );
+
+  /**
+   * Whether the person has touched the branding switch themselves.
+   *
+   * The initial state above is computed on first render, and on a cold load `permissions` is still
+   * empty then, so `branding_control` reads false and the form starts branded. The effect below
+   * corrects that once the capability arrives — but only while the switch is untouched, so it can
+   * never argue with a deliberate choice.
+   */
+  const brandingTouchedRef = useRef(false);
+  useEffect(() => {
+    if (initialForm || brandingTouchedRef.current) return;
+    const wanted = !features.branding_control;
+    setForm((f) => (f.brandingEnabled === wanted ? f : { ...f, brandingEnabled: wanted }));
+  }, [features.branding_control, initialForm]);
+
   const [expandedBlockIds, setExpandedBlockIds] = useState<string[]>(
     (initialForm ?? defaultForm).triggerBlocks.map((b) => b.id),
   );
@@ -1076,7 +1103,11 @@ export function AutomationBuilder({
                 <Switch
                   checked={features.branding_control ? form.brandingEnabled : true}
                   disabled={!features.branding_control}
-                  onCheckedChange={(v) => update({ brandingEnabled: v })}
+                  onCheckedChange={(v) => {
+                    // From here on the person's choice wins over the capability-derived default.
+                    brandingTouchedRef.current = true;
+                    update({ brandingEnabled: v });
+                  }}
                 />
               </div>
             </div>

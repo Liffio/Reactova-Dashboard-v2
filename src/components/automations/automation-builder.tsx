@@ -219,6 +219,19 @@ export function AutomationBuilder({
   const isLegacyAnyScope = form.postScope === "any";
 
   /**
+   * 🔴 A legacy "All posts" automation is the one edit case whose target is NOT locked. (A1)
+   *
+   * `lockTarget` hides the picker entirely behind `LockedTarget`, because the post an automation
+   * runs on is fixed at creation. That is right for every automation bound to a post, and wrong for
+   * this one: A1 requires that an owner can move it to Pick a post or Next post, and the server now
+   * permits exactly those two transitions because an `ANY` automation has no binding to rewrite.
+   *
+   * Without this the retired label and its note render inside a branch that never runs in edit
+   * mode, which is to say they do not exist.
+   */
+  const targetLocked = lockTarget && !isLegacyAnyScope;
+
+  /**
    * 🔴 Resync the account's posts, with a cooldown rather than a debounce. (A1)
    *
    * A trailing-edge debounce would protect the Instagram API just as well and tell the person
@@ -475,13 +488,31 @@ export function AutomationBuilder({
       /**
        * Three fields are deliberately dropped from an edit.
        *
-       * `postScope`/`postId` are immutable after creation — the API answers a change with a 400,
-       * and not sending them means an ordinary save never depends on the server judging them
-       * unchanged. `status` belongs to the list's pause/activate control; a save here must not
-       * quietly reactivate a paused automation.
+       * `postScope`/`postId` are immutable after creation: the API answers a change with a 400, and
+       * not sending them means an ordinary save never depends on the server judging them unchanged.
+       * `status` belongs to the list's pause/activate control; a save here must not quietly
+       * reactivate a paused automation.
+       *
+       * 🔴 With one exception, which is the whole of A1's migration path. An automation that was
+       * loaded as "All posts" may be narrowed to Pick a post or Next post, and the server permits
+       * exactly those two. Dropping the fields here would make the choice unsavable, so the switch
+       * would appear to work and silently do nothing.
+       *
+       * Keyed on what the automation was LOADED as, not on what the form says now: after the owner
+       * picks "Next post" the form no longer reads `any`, and testing the live value would drop the
+       * very change being made.
        */
+      const narrowingLegacyScope =
+        String(initialForm?.postScope ?? "").toLowerCase() === "any" && payload.postScope !== "any";
+
       const { postScope: _scope, postId: _post, status: _status, ...editable } = payload;
-      return updateAutomation(workspaceId, automationId, editable);
+      return updateAutomation(
+        workspaceId,
+        automationId,
+        narrowingLegacyScope
+          ? { ...editable, postScope: payload.postScope, postId: payload.postId }
+          : editable,
+      );
     },
     onSuccess: async (created, status) => {
       if (!isEdit) await autosave.clear();
@@ -638,7 +669,9 @@ export function AutomationBuilder({
   };
 
   useEffect(() => {
-    if (lockTarget) return;
+    // Not `targetLocked`: an ANY automation being narrowed to `specific` needs a postId chosen for
+    // it, exactly as a new one does, or the save is refused for the field that makes it valid.
+    if (lockTarget && !isLegacyAnyScope) return;
     if (form.postScope === "specific" && !form.postId && wizardData.data?.media?.length) {
       update({ postId: wizardData.data.media[0].id });
     }
@@ -902,7 +935,7 @@ export function AutomationBuilder({
               title="Trigger"
               subtitle="Which comments start this automation?"
             />
-            {lockTarget ? (
+            {targetLocked ? (
               <LockedTarget
                 scope={form.postScope}
                 postId={form.postId}

@@ -273,6 +273,92 @@ Content-Type: application/json`}</Code>
         </p>
       </Section>
 
+      <Section id="scheduler-automation" title="Attaching an automation to a scheduled post">
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Send an <code className="text-foreground">automation</code> object with the post and it is
+          created alongside it, then goes live bound to that post the moment the post publishes.
+          There is no <code className="text-foreground">postScope</code> here: the scheduled post is
+          the target.
+        </p>
+        <Code>{`curl -X POST "${baseUrl}/api/v1/external/scheduler/posts" \
+  -H "Authorization: Bearer rv_live_YOUR_KEY" \
+  -H "x-workspace-id: YOUR_WORKSPACE_ID" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "FEED",
+    "caption": "Link in comments",
+    "scheduledLocal": "2026-05-20T14:30",
+    "timezone": "America/New_York",
+    "primaryMediaUrl": "${baseUrl}/api/v1/public/scheduler-media/USER_ID/WORKSPACE_ID/MEDIA_ID.jpg",
+    "automation": {
+      "enabled": true,
+      "name": "Launch DM",
+      "keywords": ["GUIDE"],
+      "excludedKeywords": ["PRICE"],
+      "anyComment": false,
+      "dmMessage": "Here is the link you asked for",
+      "dmButtonLabel": "Open",
+      "dmButtonUrl": "https://example.com/guide",
+      "autoReply": true,
+      "replyMessages": ["Sent! Check your DMs"],
+      "followBeforeDm": true,
+      "brandingEnabled": false,
+      "followUps": [
+        { "delayMinutes": 1440, "message": "Still interested?" },
+        { "delayMinutes": 4320, "message": "Last nudge" }
+      ]
+    }
+  }'`}</Code>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          <code className="text-foreground">excludedKeywords</code>,{" "}
+          <code className="text-foreground">followUps</code> (max 10) and{" "}
+          <code className="text-foreground">brandingEnabled</code> are new and all optional, so a
+          request that worked before still works and behaves identically.{" "}
+          <code className="text-foreground">followBeforeDm</code> is now a field of its own as well
+          as being inferred from a trigger block.
+        </p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          <code className="text-foreground">brandingEnabled: false</code> needs the{" "}
+          <code className="text-foreground">automation:branding_control</code> capability. Without
+          it the request is refused with <code className="text-foreground">403</code> and{" "}
+          <code className="text-foreground">code: &quot;BRANDING_CONTROL_REQUIRED&quot;</code>,
+          rather than being saved as <code className="text-foreground">true</code> behind your back.
+          Omit the field and it follows your package.
+        </p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          <code className="text-foreground">GET /scheduler/posts/:id</code> returns the linked
+          automation beside the post, under the same field names you sent:
+        </p>
+        <Code>{`{
+  "post": { "id": "...", "status": "SCHEDULED", "automationId": "..." },
+  "automation": {
+    "id": "...",
+    "name": "Launch DM",
+    "status": "DRAFT",
+    "keywords": ["GUIDE"],
+    "excludedKeywords": ["PRICE"],
+    "anyComment": false,
+    "dmMessage": "Here is the link you asked for",
+    "dmButtonLabel": "Open",
+    "dmButtonUrl": "https://example.com/guide",
+    "autoReply": true,
+    "replyMessages": ["Sent! Check your DMs"],
+    "followBeforeDm": true,
+    "brandingEnabled": false,
+    "followUps": [
+      { "delayMinutes": 1440, "message": "Still interested?", "order": 0 },
+      { "delayMinutes": 4320, "message": "Last nudge", "order": 1 }
+    ]
+  }
+}`}</Code>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          <code className="text-foreground">automation</code> is{" "}
+          <code className="text-foreground">null</code> when the post has none. The automation is
+          created as a <code className="text-foreground">DRAFT</code> and activates when the post
+          publishes.
+        </p>
+      </Section>
+
       <Section id="scheduler-crud" title="Scheduled posts (read & update)">
         <p className="text-sm text-muted-foreground leading-relaxed">
           List, fetch, update, or cancel scheduled posts. Read endpoints do not count toward daily
@@ -325,9 +411,33 @@ Content-Type: application/json`}</Code>
         <p className="text-sm text-muted-foreground">
           Use <code className="text-foreground">triggerBlocks</code> for per-keyword DM flows.{" "}
           <code className="text-foreground">postScope</code>:{" "}
-          <code className="text-foreground">specific</code>,{" "}
-          <code className="text-foreground">any</code>, or{" "}
+          <code className="text-foreground">specific</code> (with a{" "}
+          <code className="text-foreground">postId</code>) or{" "}
           <code className="text-foreground">next</code>.
+        </p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          <strong className="text-foreground">
+            <code className="text-foreground">postScope: &quot;any&quot;</code> is no longer
+            accepted on create.
+          </strong>{" "}
+          It returns <code className="text-foreground">400</code> with{" "}
+          <code className="text-foreground">
+            code: &quot;POST_SCOPE_ANY_NO_LONGER_OFFERED&quot;
+          </code>
+          . Omitting <code className="text-foreground">postScope</code> without a{" "}
+          <code className="text-foreground">postId</code> resolved to{" "}
+          <code className="text-foreground">any</code> and is refused the same way, so send{" "}
+          <code className="text-foreground">next</code>, or{" "}
+          <code className="text-foreground">specific</code> with a{" "}
+          <code className="text-foreground">postId</code>.
+        </p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Automations created before this keep running unchanged, and a{" "}
+          <code className="text-foreground">PATCH</code> may narrow one from{" "}
+          <code className="text-foreground">any</code> to{" "}
+          <code className="text-foreground">specific</code> or{" "}
+          <code className="text-foreground">next</code>. Nothing can move back to{" "}
+          <code className="text-foreground">any</code>.
         </p>
         <p className="text-sm text-muted-foreground leading-relaxed">
           The public comment reply is{" "}

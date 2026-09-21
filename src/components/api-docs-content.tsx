@@ -177,6 +177,80 @@ Content-Type: application/json`}</Code>
 }`}</Code>
       </Section>
 
+      <Section id="media-uploads" title="Uploading media">
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Every media field takes one of three things: a{" "}
+          <strong className="text-foreground">URL</strong>, a{" "}
+          <strong className="text-foreground">file</strong> (multipart), or{" "}
+          <strong className="text-foreground">raw bytes</strong>. Supply the same field two ways in
+          one request and you get a 400 — we will not guess which you meant.
+        </p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          <strong className="text-foreground">URLs must be on our allowlist</strong> (Instagram CDN,
+          Cloudflare R2 public domains, and media we host for you). A URL on your own CDN is rejected
+          with a 400 when the post is created. If your media lives anywhere else, send us the bytes —
+          we store it and hand Instagram a URL on your behalf.
+        </p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Limits: <code className="text-foreground">15 MB</code> for images,{" "}
+          <code className="text-foreground">100 MB</code> for video. We convert PNG, WebP and GIF to
+          JPEG, pad the aspect ratio into Instagram&apos;s accepted range, and extract a real cover
+          frame for reels — you do not need to pre-process anything.
+        </p>
+
+        <p className="text-sm font-semibold pt-1">Option 1 — upload once, reference the URL</p>
+        <p className="text-sm">
+          <span className="font-mono text-xs bg-primary/15 text-primary px-2 py-0.5 rounded-md">
+            POST
+          </span>
+          <span className="font-mono ml-2">/api/v1/external/scheduler/media</span>
+        </p>
+        <Code>{`curl -X POST "${baseUrl}/api/v1/external/scheduler/media?postType=REEL" \\
+  -H "Authorization: Bearer rv_live_YOUR_KEY" \\
+  -H "x-workspace-id: YOUR_WORKSPACE_ID" \\
+  -F "file=@clip.mp4"
+
+# → { "url": "...", "primaryMediaUrl": "...", "thumbnailUrl": "...",
+#     "filename": "...", "sizeBytes": 4900000, "maxBytes": 104857600 }`}</Code>
+        <p className="text-sm text-muted-foreground">
+          Use the returned <code className="text-foreground">primaryMediaUrl</code> (and{" "}
+          <code className="text-foreground">thumbnailUrl</code> for reels) when you create the post.
+        </p>
+
+        <p className="text-sm font-semibold pt-1">Option 2 — send the file with the post</p>
+        <Code>{`curl -X POST "${baseUrl}/api/v1/external/scheduler/posts" \\
+  -H "Authorization: Bearer rv_live_YOUR_KEY" \\
+  -H "x-workspace-id: YOUR_WORKSPACE_ID" \\
+  -F 'payload={"type":"REEL","scheduledLocal":"2026-05-20T14:30","timezone":"America/New_York","caption":"Hello"}' \\
+  -F "primaryMediaUrl=@clip.mp4"`}</Code>
+        <p className="text-sm text-muted-foreground">
+          The <code className="text-foreground">payload</code> part carries every non-media field as
+          JSON. File parts are named for the field they fill:{" "}
+          <code className="text-foreground">primaryMediaUrl</code>,{" "}
+          <code className="text-foreground">thumbnailUrl</code>, or{" "}
+          <code className="text-foreground">carouselMedia</code> (up to 10 for a carousel).
+        </p>
+
+        <p className="text-sm font-semibold pt-1">Option 3 — post raw bytes</p>
+        <Code>{`curl -X POST "${baseUrl}/api/v1/external/scheduler/posts?type=REEL&scheduledLocal=2026-05-20T14:30&timezone=America/New_York" \\
+  -H "Authorization: Bearer rv_live_YOUR_KEY" \\
+  -H "x-workspace-id: YOUR_WORKSPACE_ID" \\
+  -H "Content-Type: video/mp4" \\
+  --data-binary @clip.mp4`}</Code>
+        <p className="text-sm text-muted-foreground">
+          Post fields travel in the query string, the body is the file. Defaults to{" "}
+          <code className="text-foreground">primaryMediaUrl</code>; add{" "}
+          <code className="text-foreground">X-Media-Field: thumbnailUrl</code> to target another
+          field. On <code className="text-foreground">PATCH</code> the header is{" "}
+          <strong className="text-foreground">required</strong> — a post has several media fields and
+          we will not guess which one you meant to replace.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          <code className="text-foreground">coverImageUrl</code> is not a field on this API; naming it
+          returns a 400 before anything is stored.
+        </p>
+      </Section>
+
       <Section id="scheduler-crud" title="Scheduled posts (read & update)">
         <p className="text-sm text-muted-foreground leading-relaxed">
           List, fetch, update, or cancel scheduled posts. Read endpoints do not count toward daily

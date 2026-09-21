@@ -51,6 +51,7 @@ import {
   updateAutomation,
   type Automation,
   type AutomationStatus,
+  postScopeLabel,
 } from "@/lib/api/automations-api";
 import { apiUri } from "@/lib/api/apiUri";
 import { useServerList } from "@/hooks/use-server-list";
@@ -449,12 +450,11 @@ function AutomationsPage() {
                   </div>
                   <h3 className="font-display text-base font-semibold leading-snug">{a.name}</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {a.postScope === "specific"
-                      ? "Specific post"
-                      : a.postScope === "next"
-                        ? "Next post"
-                        : "All posts"}{" "}
-                    · {a.anyComment ? "any comment" : "keyword match"}
+                    {/*
+                      The wire value is the stored enum in upper case, so comparing it against the
+                      lower-case vocabulary matched nothing and every card read "All posts". (F1)
+                    */}
+                    {postScopeLabel(a.postScope)} · {a.anyComment ? "any comment" : "keyword match"}
                   </p>
                   {a.keywords.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">

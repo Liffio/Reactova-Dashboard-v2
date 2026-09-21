@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package as PackageIcon, Zap } from "lucide-react";
+import { Package as PackageIcon, TriangleAlert, Zap } from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -38,6 +38,7 @@ import {
   getPackageAudit,
   setPackageFeatures,
   ladderViolationsFrom,
+  getUnreachableCapabilities,
   type LadderViolation,
   setPackageLimits,
   updatePackage,
@@ -118,6 +119,19 @@ function PackageDetailLoader() {
 }
 
 function PackageForm({ pkg }: { pkg: PackageDetail }) {
+  /**
+   * What this package sells that nobody can currently use. (F-4)
+   *
+   * Queried on open rather than only returned from a save, because the state it catches is almost
+   * always inherited: `automation:branding_control` was on five paid packages and zero roles on
+   * production, and nobody editing a package would have pressed save to find out.
+   */
+  const unreachableQuery = useQuery({
+    queryKey: ["package-unreachable", pkg.id],
+    queryFn: () => getUnreachableCapabilities(pkg.id),
+  });
+  const unreachable = unreachableQuery.data?.unreachableCapabilities ?? [];
+
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -303,6 +317,8 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
       void queryClient.invalidateQueries({ queryKey: ["package-ladder"] });
       void queryClient.invalidateQueries({ queryKey: ["packages"] });
       void queryClient.invalidateQueries({ queryKey: ["package-detail", pkg.id] });
+      // The features just saved may have added a capability no role holds. (F-4)
+      void queryClient.invalidateQueries({ queryKey: ["package-unreachable", pkg.id] });
       // So the publish diff below reflects the prices just saved, not the ones it loaded with.
       void queryClient.invalidateQueries({ queryKey: ["package-publish-status", pkg.id] });
     },
@@ -410,6 +426,49 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
         }
       />
 
+      {/*
+        🔴 Sold, and unusable. (F-4)
+
+        A capability reaches a user only when it is in BOTH `role_child_modules` and
+        `package_features`. Those are edited in different places and nothing compared them, so this
+        package can advertise a feature that no role can hold and every screen will look correct.
+        Deliberately loud and above the fold: the whole failure mode is that it looks like nothing
+        is wrong.
+      */}
+      {unreachable.length > 0 && (
+        <div className="mx-4 mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3.5 sm:mx-6 md:mx-10">
+          <div className="flex items-start gap-2.5">
+            <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            <div className="min-w-0 space-y-1.5">
+              <p className="text-sm font-medium">
+                {unreachable.length === 1
+                  ? "This package includes a capability nobody can use."
+                  : `This package includes ${unreachable.length} capabilities nobody can use.`}
+              </p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                A capability only works when a role holds it as well as a package selling it.
+                Customers on this package will not get these, and nothing else on this screen will
+                say so.
+              </p>
+              <ul className="space-y-1 pt-0.5">
+                {unreachable.map((cap) => (
+                  <li key={cap.key} className="text-xs">
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+                      {cap.key}
+                    </code>{" "}
+                    <span className="text-muted-foreground">
+                      {cap.reason === "no_role"
+                        ? "— no role holds it. Grant it to a role."
+                        : `— its module (${cap.moduleKey}) is switched off. Re-enable it.`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ConfirmCodeDialog
         open={confirmApplyLive}
         onOpenChange={(next) => !next && closeApplyLive()}
@@ -439,7 +498,11 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
       <div className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6 md:p-10">
         <FormSection title="Details">
           <div className="space-y-4">
-            <Field label="Name" required error={touched.visible("name") ? (nameErr ?? undefined) : undefined}>
+            <Field
+              label="Name"
+              required
+              error={touched.visible("name") ? (nameErr ?? undefined) : undefined}
+            >
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -454,7 +517,10 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
                 placeholder="Who this package is for."
               />
             </Field>
-            <Field label="Badge" error={touched.visible("badge") ? (badgeErr ?? undefined) : undefined}>
+            <Field
+              label="Badge"
+              error={touched.visible("badge") ? (badgeErr ?? undefined) : undefined}
+            >
               <Input
                 value={badge}
                 onChange={(e) => setBadge(e.target.value)}
@@ -470,7 +536,10 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
           description="Entered in whole currency; stored in minor units."
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Monthly (USD)" error={touched.visible("usd") ? (usdErr ?? undefined) : undefined}>
+            <Field
+              label="Monthly (USD)"
+              error={touched.visible("usd") ? (usdErr ?? undefined) : undefined}
+            >
               <Input
                 type="number"
                 min={0}
@@ -481,7 +550,10 @@ function PackageForm({ pkg }: { pkg: PackageDetail }) {
                 placeholder="49.00"
               />
             </Field>
-            <Field label="Monthly (INR)" error={touched.visible("inr") ? (inrErr ?? undefined) : undefined}>
+            <Field
+              label="Monthly (INR)"
+              error={touched.visible("inr") ? (inrErr ?? undefined) : undefined}
+            >
               <Input
                 type="number"
                 min={0}

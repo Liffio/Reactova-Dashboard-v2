@@ -313,6 +313,29 @@ export const setPackageFeatures = (
     },
   );
 
+/* ── Capabilities nobody can use (F-4) ───────────────────────────────────────────────────────── */
+
+/**
+ * A capability a package sells that cannot currently reach anyone.
+ *
+ * A capability is live only when it is in BOTH `role_child_modules` and `package_features`. The two
+ * are edited in different places and nothing compared them, so `automation:branding_control` sat on
+ * five paid packages and zero roles on production until somebody noticed the switch never unlocked.
+ */
+export type UnreachableCapability = {
+  key: string;
+  label: string;
+  moduleKey: string;
+  /** `no_role` — grant it to a role. `module_disabled` — re-enable the parent module. */
+  reason: "no_role" | "module_disabled";
+};
+
+/** What this package sells that nobody can use. Available before a save as well as after one. */
+export const getUnreachableCapabilities = (id: string) =>
+  apiRequest<{ unreachableCapabilities: UnreachableCapability[] }>(
+    apiUri.admin.packages.unreachableCapabilities(id),
+  );
+
 // ── Gating map ────────────────────────────────────────────────────────────────────────────────
 
 /** One capability, with every plane that decides whether it is usable. Mirrors the server type. */

@@ -646,6 +646,9 @@ export const apiUri = {
       /** The sellable ladder with per-tier deltas and current violations. Reports, never refuses. */
       ladder: `${V1}/admin/packages/ladder`,
       features: (id: string) => `${V1}/admin/packages/${id}/features`,
+      /** What this package sells that no role can hold. (F-4) */
+      unreachableCapabilities: (id: string) =>
+        `${V1}/admin/packages/${id}/unreachable-capabilities`,
       limits: (id: string) => `${V1}/admin/packages/${id}/limits`,
       publishStatus: (id: string) => `${V1}/admin/packages/${id}/publish-status`,
       publish: (id: string) => `${V1}/admin/packages/${id}/publish`,

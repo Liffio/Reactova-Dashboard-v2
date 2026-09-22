@@ -1156,15 +1156,25 @@ function SchedulerPostDetailFields({
       {dp.primaryMediaUrl && (
         <div>
           <span className="text-xs text-muted-foreground block mb-1">Media URL</span>
-          <a
-            href={dp.primaryMediaUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-primary text-xs break-all inline-flex items-start gap-1"
-          >
-            <ExternalLink className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            {dp.primaryMediaUrl}
-          </a>
+          {dp.mediaPurgedAt ? (
+            // Rendered as text, not a disabled-looking link: after the purge this URL 404s, and a
+            // link that looks clickable and answers "Not found" is worse than no link. The preview
+            // above is unaffected — it comes from the thumbnail, which the purge deliberately keeps.
+            <span className="text-xs text-muted-foreground">
+              Original removed {format(new Date(dp.mediaPurgedAt), "MMM d, yyyy")} after publishing.
+              Instagram serves the published copy; the preview above is kept.
+            </span>
+          ) : (
+            <a
+              href={dp.primaryMediaUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary text-xs break-all inline-flex items-start gap-1"
+            >
+              <ExternalLink className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              {dp.primaryMediaUrl}
+            </a>
+          )}
         </div>
       )}
       {dp.type === "CAROUSEL" && dp.carouselMediaUrls.length > 0 && (

@@ -104,6 +104,9 @@ export type ScheduledPost = {
   publishedAt: string | null;
   thumbnailUrl: string | null;
   primaryMediaUrl: string | null;
+  /** Set once the post-publish purge has reclaimed the video. `primaryMediaUrl` no longer resolves
+   *  after this; `thumbnailUrl` still does. */
+  mediaPurgedAt: string | null;
   carouselMediaUrls: string[];
   igMediaId: string | null;
   igPermalink: string | null;

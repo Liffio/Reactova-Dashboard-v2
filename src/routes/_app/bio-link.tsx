@@ -75,6 +75,7 @@ import { getCreatorStatus } from "@/lib/api/creator-eligibility-api";
 import { BioTextAssist } from "@/components/lyra/bio-text-assist";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useCan } from "@/hooks/use-auth";
+import { useUpgradeMessage } from "@/hooks/use-capability-plan";
 
 export const Route = createFileRoute("/_app/bio-link")({
   head: () => ({ meta: [{ title: "Bio Link — Liffio" }] }),
@@ -641,6 +642,7 @@ function BioLinkPage() {
   // Click stats are `biolink:click_tracking`; without it the server refuses the analytics route and
   // sends `totalClicks: null`, so the query is not fired and the cards say why instead of "0".
   const canSeeClicks = useCan("biolink", "click_tracking");
+  const clicksLocked = useUpgradeMessage("biolink:click_tracking");
   const analyticsQuery = useQuery({
     queryKey: ["biolink-analytics", workspaceId],
     queryFn: () => getBioLinkAnalytics(workspaceId),
@@ -778,7 +780,7 @@ function BioLinkPage() {
                 canSeeClicks ? String(analytics?.totalClicks ?? profile.totalClicks ?? 0) : "—"
               }
               icon={MousePointerClick}
-              hint={canSeeClicks ? "all time" : "Click tracking isn't in your plan"}
+              hint={canSeeClicks ? "all time" : clicksLocked}
             />
             {/* Was "Links = links.length" — a count of the list rendered directly beneath it.
                 A 30-day click figure beside the all-time total actually says something. */}

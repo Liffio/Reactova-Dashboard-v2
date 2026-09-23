@@ -71,6 +71,7 @@ import { useTouched } from "@/hooks/use-touched";
 import { formatHandle } from "@/lib/format";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useCan } from "@/hooks/use-auth";
+import { FeatureGate } from "@/components/access/feature-gate";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings — Liffio" }] }),
@@ -506,8 +507,6 @@ function ApiCredentialsSettings() {
   const apiAvailable = credsQuery.data
     ? (credsQuery.data.capabilities?.createKeys ?? credsQuery.data.planMeetsMinimum)
     : true;
-  const apiUnavailableReason =
-    "API access isn't included in your plan. Upgrade to create API keys.";
 
   return (
     <div className="space-y-4">
@@ -519,19 +518,21 @@ function ApiCredentialsSettings() {
               Use API keys to integrate with external tools via our REST API.
             </p>
           </div>
-          {apiAvailable && (
+          {apiAvailable ? (
             <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
               New key
             </Button>
+          ) : (
+            // Shown locked; the tooltip names the plan that includes API access.
+            <FeatureGate module="api" action="create_keys">
+              <Button size="sm" className="gap-1.5">
+                <Plus className="h-4 w-4" />
+                New key
+              </Button>
+            </FeatureGate>
           )}
         </div>
-
-        {!apiAvailable && (
-          <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-xs text-warning">
-            {apiUnavailableReason}
-          </div>
-        )}
 
         {credsQuery.isLoading ? (
           <div className="space-y-2">

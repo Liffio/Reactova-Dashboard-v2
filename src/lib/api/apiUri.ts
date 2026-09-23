@@ -273,6 +273,8 @@ export const apiUri = {
     checkout: `${V1}/billing/checkout`,
     /** The sellable-package list (S4.7). Non-public/inactive are excluded server-side. */
     packages: `${V1}/billing/packages`,
+    /** capability key → cheapest package on sale that includes it ("Available on Growth"). */
+    capabilityPlans: `${V1}/billing/packages/capability-plans`,
     /** The PACKAGE path (S5.2). Sells a `packageId`, not a `Plan` — which is how Growth is sold. */
     packageCheckout: `${V1}/billing/package-checkout`,
     sync: `${V1}/billing/sync`,

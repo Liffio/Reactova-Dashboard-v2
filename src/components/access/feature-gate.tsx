@@ -4,6 +4,7 @@ import { Lock } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCan } from "@/hooks/use-auth";
+import { useUpgradeMessage } from "@/hooks/use-capability-plan";
 
 /**
  * Walls a feature by the workspace's package entitlement.
@@ -32,13 +33,15 @@ export function FeatureGate({
   module: string;
   action: string;
   children: ReactNode;
-  /** Overrides the default "not in your plan" copy. */
+  /** Overrides the default "Available on the <plan> plan." copy. */
   message?: string;
   className?: string;
   /** Use a block-level wrapper for a whole section; the default inline wrapper suits a single control. */
   block?: boolean;
 }) {
   const allowed = useCan(module, action);
+  // Names the cheapest package on sale that unlocks this, e.g. "Available on the Growth plan."
+  const upgradeMessage = useUpgradeMessage(`${module}:${action}`);
   if (allowed) return <>{children}</>;
 
   const Wrapper = block ? "div" : "span";
@@ -46,8 +49,9 @@ export function FeatureGate({
     <Tooltip>
       <TooltipTrigger asChild>
         <Wrapper className={`relative ${block ? "block" : "inline-flex"} ${className ?? ""}`}>
-          {/* The real control, shown but inert — the operator sees what they'd get by upgrading. */}
-          <span className="pointer-events-none block select-none opacity-40" aria-hidden>
+          {/* The real control, shown but inert — the user sees what they'd get by upgrading.
+              `inert` also keeps it out of the tab order, which pointer-events alone does not. */}
+          <span className="pointer-events-none block select-none opacity-40" aria-hidden inert>
             {children}
           </span>
           <span className="absolute inset-0 flex items-center justify-center">
@@ -57,7 +61,7 @@ export function FeatureGate({
       </TooltipTrigger>
       <TooltipContent side="top">
         <p className="max-w-[220px] text-xs leading-relaxed">
-          {message ?? "This feature isn't included in your current plan."}{" "}
+          {message ?? upgradeMessage}{" "}
           <Link to="/billings" className="font-medium underline underline-offset-2">
             Upgrade
           </Link>

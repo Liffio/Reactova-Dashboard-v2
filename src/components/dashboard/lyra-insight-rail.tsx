@@ -1,3 +1,4 @@
+import { FeatureGate } from "@/components/access/feature-gate";
 import { InsightsCard } from "@/components/lyra/insights-card";
 import { useLyraInsights } from "@/hooks/use-lyra-insights";
 import { cn } from "@/lib/utils";
@@ -53,54 +54,55 @@ export function LyraInsightRail({
     queryKeyExtra: ["dashboard"],
   });
 
-  if (insights.notIncluded) return null;
-
+  // Without `dashboard:ai_insights` the card is shown locked (no request is made) rather than hidden.
   return (
-    <InsightsCard
-      variant="rail"
-      title="Lyra insight"
-      data={insights.data}
-      isLoading={insights.isLoading}
-      isRefreshing={insights.isRefreshing}
-      isResyncing={insights.isResyncing}
-      refreshError={insights.refreshError}
-      resyncError={insights.resyncError}
-      refreshCooldownUntil={insights.refreshCooldownUntil}
-      resyncCooldownUntil={insights.resyncCooldownUntil}
-      lastUpdatedAt={insights.lastUpdatedAt}
-      loadingStartedAt={insights.loadingStartedAt}
-      resyncStartedAt={insights.resyncStartedAt}
-      onRefresh={() => void insights.refresh()}
-      onResync={() => void insights.resync()}
-      onCancelRefresh={insights.cancelRefresh}
-      onCancelResync={insights.cancelResync}
-      className="shadow-soft"
-      renderBody={(data) => (
-        <>
-          <p className="text-[13px] leading-[1.62]">{data.summary}</p>
+    <FeatureGate module="dashboard" action="ai_insights" block>
+      <InsightsCard
+        variant="rail"
+        title="Lyra insight"
+        data={insights.data}
+        isLoading={insights.isLoading}
+        isRefreshing={insights.isRefreshing}
+        isResyncing={insights.isResyncing}
+        refreshError={insights.refreshError}
+        resyncError={insights.resyncError}
+        refreshCooldownUntil={insights.refreshCooldownUntil}
+        resyncCooldownUntil={insights.resyncCooldownUntil}
+        lastUpdatedAt={insights.lastUpdatedAt}
+        loadingStartedAt={insights.loadingStartedAt}
+        resyncStartedAt={insights.resyncStartedAt}
+        onRefresh={() => void insights.refresh()}
+        onResync={() => void insights.resync()}
+        onCancelRefresh={insights.cancelRefresh}
+        onCancelResync={insights.cancelResync}
+        className="shadow-soft"
+        renderBody={(data) => (
+          <>
+            <p className="text-[13px] leading-[1.62]">{data.summary}</p>
 
-          {(data.insights.length > 0 || data.recommendations.length > 0) && (
-            <ul className="flex flex-col gap-2.5 pt-1">
-              {data.insights.map((item, i) => (
-                <Bullet key={`i-${i}`} tone="insight">
-                  {item.finding}
-                  {/* The metric is the evidence for the finding, so it sits with it rather than in
+            {(data.insights.length > 0 || data.recommendations.length > 0) && (
+              <ul className="flex flex-col gap-2.5 pt-1">
+                {data.insights.map((item, i) => (
+                  <Bullet key={`i-${i}`} tone="insight">
+                    {item.finding}
+                    {/* The metric is the evidence for the finding, so it sits with it rather than in
                       a badge the eye has to travel to. */}
-                  {item.metric ? (
-                    <span className="text-foreground/70"> · {item.metric}</span>
-                  ) : null}
-                </Bullet>
-              ))}
-              {data.recommendations.map((item, i) => (
-                <Bullet key={`r-${i}`} tone="action">
-                  <span className="text-foreground">{item.action}</span>
-                  {item.expectedImpact ? ` — ${item.expectedImpact}` : null}
-                </Bullet>
-              ))}
-            </ul>
-          )}
-        </>
-      )}
-    />
+                    {item.metric ? (
+                      <span className="text-foreground/70"> · {item.metric}</span>
+                    ) : null}
+                  </Bullet>
+                ))}
+                {data.recommendations.map((item, i) => (
+                  <Bullet key={`r-${i}`} tone="action">
+                    <span className="text-foreground">{item.action}</span>
+                    {item.expectedImpact ? ` — ${item.expectedImpact}` : null}
+                  </Bullet>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      />
+    </FeatureGate>
   );
 }

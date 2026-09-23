@@ -18,7 +18,7 @@ import { useApp } from "@/state/app-context";
 import { LIMITS } from "@/lib/validation";
 import { bareHandle, formatHandle } from "@/lib/format";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
-import { useCan } from "@/hooks/use-auth";
+import { FeatureGate } from "@/components/access/feature-gate";
 
 export const Route = createFileRoute("/_app/leads-captured")({
   head: () => ({ meta: [{ title: "Leads Captured — Liffio" }] }),
@@ -39,7 +39,6 @@ function LeadsPage() {
   const { current } = useApp();
   const workspaceId = current.id;
   const [exporting, setExporting] = useState(false);
-  const canExport = useCan("lead", "export_data");
 
   /**
    * Moved onto the shared contract from a hand-rolled `limit`/`offset` query.
@@ -98,8 +97,8 @@ function LeadsPage() {
         title="Leads Captured"
         description={`${total.toLocaleString()} lead${total === 1 ? "" : "s"} captured across your automations.`}
         actions={
-          // `lead:export_data` — hidden rather than shown and refused (hard rule: no broken states).
-          canExport ? (
+          // `lead:export_data` — shown locked (with the plan that has it) rather than hidden.
+          <FeatureGate module="lead" action="export_data">
             <Button
               size="sm"
               variant="outline"
@@ -110,7 +109,7 @@ function LeadsPage() {
               <Download className="h-4 w-4" />
               {exporting ? "Exporting…" : "Export CSV"}
             </Button>
-          ) : undefined
+          </FeatureGate>
         }
       />
 

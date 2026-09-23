@@ -300,6 +300,14 @@ export type SellablePackage = {
   yearlyPriceInrPaise: number | null;
 };
 
+/** The cheapest package on sale that includes a capability — what a locked control names. */
+export type CapabilityPlan = { packageKey: string; packageName: string };
+
+/** `capability key → CapabilityPlan`. A key no package on sale includes is absent. */
+export function getCapabilityPlans() {
+  return apiRequest<{ plans: Record<string, CapabilityPlan> }>(apiUri.billing.capabilityPlans);
+}
+
 export function getSellablePackages() {
   return apiRequest<{ packages: SellablePackage[] }>(apiUri.billing.packages);
 }

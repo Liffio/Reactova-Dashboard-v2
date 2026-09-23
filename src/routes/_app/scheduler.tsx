@@ -72,6 +72,7 @@ import {
 } from "@/components/ui/select";
 import { LIMITS, urlError } from "@/lib/validation";
 import { FeatureGate, useFeatureGate } from "@/components/access/feature-gate";
+import { useCapabilityPlans } from "@/hooks/use-capability-plan";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -189,10 +190,15 @@ function GatedPostTypeItem({
   label: string;
 }) {
   const { allowed } = useFeatureGate("scheduler", action);
+  const plan = useCapabilityPlans().data?.[`scheduler:${action}`];
   return (
     <SelectItem value={value} disabled={!allowed}>
       {label}
-      {!allowed && <span className="ml-1 text-muted-foreground">— not in your plan</span>}
+      {!allowed && (
+        <span className="ml-1 text-muted-foreground">
+          — {plan ? `${plan.packageName} plan` : "not in your plan"}
+        </span>
+      )}
     </SelectItem>
   );
 }
@@ -1407,6 +1413,7 @@ function typeSpecificPayload(form: FormState): Record<string, unknown> {
 }
 
 function SchedulerPage() {
+  const { allowed: canUseTimezones } = useFeatureGate("scheduler", "timezone_scheduling");
   const { current, user } = useApp();
   const workspaceId = current.id;
   const queryClient = useQueryClient();
@@ -2480,7 +2487,9 @@ function SchedulerPage() {
     const body: Record<string, unknown> = {
       type: form.type,
       caption: form.caption.trim() || undefined,
-      timezone: form.timezone,
+      // Without `scheduler:timezone_scheduling` the picker is locked; schedule in UTC, which is
+      // always allowed, rather than send a timezone the server will refuse.
+      timezone: canUseTimezones ? form.timezone : "UTC",
       primaryMediaUrl: primaryMediaUrl || undefined,
       thumbnailUrl: previewThumbnailUrl(form),
       firstComment: firstComment || undefined,
@@ -2905,7 +2914,8 @@ function SchedulerPage() {
               )}
             </div>
 
-            {!insights.notIncluded && (
+            {/* Without `dashboard:ai_insights` the card is shown locked; no request is made. */}
+            <FeatureGate module="dashboard" action="ai_insights" block>
               <InsightsCard
                 title="AI Insights"
                 data={insights.data}
@@ -2952,7 +2962,7 @@ function SchedulerPage() {
                   </>
                 )}
               />
-            )}
+            </FeatureGate>
 
             {overviewQuery.isLoading ? (
               <div className="flex justify-center py-16 text-muted-foreground">
@@ -3630,90 +3640,96 @@ function SchedulerPage() {
               </div>
 
               {/* First comment */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between gap-2">
-                  <Label>First comment</Label>
-                  <span className="text-[11px] text-muted-foreground">optional</span>
-                </div>
-                <textarea
-                  className="w-full min-h-20 max-h-52 resize-y rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  value={form.firstComment}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      firstComment: e.target.value.slice(0, FIRST_COMMENT_MAX),
-                    }))
-                  }
-                  maxLength={FIRST_COMMENT_MAX}
-                  placeholder="Posted as a comment right after publishing — a good home for extra hashtags."
-                />
-                {/* The hashtag budget is shared with the caption, so the count shown here is the
+              <FeatureGate module="scheduler" action="first_comment" block>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>First comment</Label>
+                    <span className="text-[11px] text-muted-foreground">optional</span>
+                  </div>
+                  <textarea
+                    className="w-full min-h-20 max-h-52 resize-y rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={form.firstComment}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        firstComment: e.target.value.slice(0, FIRST_COMMENT_MAX),
+                      }))
+                    }
+                    maxLength={FIRST_COMMENT_MAX}
+                    placeholder="Posted as a comment right after publishing — a good home for extra hashtags."
+                  />
+                  {/* The hashtag budget is shared with the caption, so the count shown here is the
                     combined one — and both sides are named, because the caption is usually what
                     pushes it over and the user is looking at this field, not that one. The
                     per-comment cap keeps its own friendlier message for the common case of a wall
                     of tags pasted into the comment alone. */}
-                <div className="flex items-start justify-between gap-2 text-xs text-muted-foreground">
-                  <span>
-                    {overPerCommentHashtags ? (
-                      <span className="text-destructive">
-                        {firstCommentHashtagCount} hashtags here — Instagram rejects more than{" "}
-                        {FIRST_COMMENT_HASHTAG_MAX} in one comment
-                      </span>
-                    ) : overCombinedHashtags ? (
-                      <span className="text-destructive">
-                        {combinedHashtagCount} hashtags ({captionHashtagCount} in caption,{" "}
-                        {firstCommentHashtagCount} here) — Instagram's limit is{" "}
-                        {CAPTION_PLUS_COMMENT_HASHTAG_MAX} combined
-                      </span>
-                    ) : hasFirstComment ? (
-                      `${combinedHashtagCount}/${CAPTION_PLUS_COMMENT_HASHTAG_MAX} hashtags combined (${captionHashtagCount} in caption, ${firstCommentHashtagCount} here)`
-                    ) : (
-                      ""
-                    )}
-                  </span>
-                  <span className="shrink-0">
-                    {form.firstComment.length}/{FIRST_COMMENT_MAX}
-                  </span>
+                  <div className="flex items-start justify-between gap-2 text-xs text-muted-foreground">
+                    <span>
+                      {overPerCommentHashtags ? (
+                        <span className="text-destructive">
+                          {firstCommentHashtagCount} hashtags here — Instagram rejects more than{" "}
+                          {FIRST_COMMENT_HASHTAG_MAX} in one comment
+                        </span>
+                      ) : overCombinedHashtags ? (
+                        <span className="text-destructive">
+                          {combinedHashtagCount} hashtags ({captionHashtagCount} in caption,{" "}
+                          {firstCommentHashtagCount} here) — Instagram's limit is{" "}
+                          {CAPTION_PLUS_COMMENT_HASHTAG_MAX} combined
+                        </span>
+                      ) : hasFirstComment ? (
+                        `${combinedHashtagCount}/${CAPTION_PLUS_COMMENT_HASHTAG_MAX} hashtags combined (${captionHashtagCount} in caption, ${firstCommentHashtagCount} here)`
+                      ) : (
+                        ""
+                      )}
+                    </span>
+                    <span className="shrink-0">
+                      {form.firstComment.length}/{FIRST_COMMENT_MAX}
+                    </span>
+                  </div>
+                  {/* Instagram has no way to pin a comment through the API, so there is no toggle. */}
                 </div>
-                {/* Instagram has no way to pin a comment through the API, so there is no toggle. */}
-              </div>
 
-              {/* Comments — a tri-state, not a checkbox. Leaving it alone means no API call. */}
-              <div className="space-y-1">
-                <Label>Comments</Label>
-                <Select
-                  value={
-                    form.commentsEnabled === null ? "default" : form.commentsEnabled ? "on" : "off"
-                  }
-                  onValueChange={(v) =>
-                    setForm((f) => ({
-                      ...f,
-                      commentsEnabled: v === "default" ? null : v === "on",
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Leave as-is (no change)</SelectItem>
-                    <SelectItem value="on">Turn comments on</SelectItem>
-                    <SelectItem value="off">Turn comments off</SelectItem>
-                  </SelectContent>
-                </Select>
-                {form.commentsEnabled === null ? (
-                  <p className="text-xs text-muted-foreground">
-                    Liffio won't touch this post's comment setting.
-                  </p>
-                ) : null}
-                {form.commentsEnabled === false && form.firstComment.trim() ? (
-                  <p className="flex items-start gap-1.5 text-xs text-warning">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    Your first comment will still be posted, but nobody can see it while comments
-                    are off.
-                  </p>
-                ) : null}
-              </div>
+                {/* Comments — a tri-state, not a checkbox. Leaving it alone means no API call. */}
+                <div className="space-y-1">
+                  <Label>Comments</Label>
+                  <Select
+                    value={
+                      form.commentsEnabled === null
+                        ? "default"
+                        : form.commentsEnabled
+                          ? "on"
+                          : "off"
+                    }
+                    onValueChange={(v) =>
+                      setForm((f) => ({
+                        ...f,
+                        commentsEnabled: v === "default" ? null : v === "on",
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Leave as-is (no change)</SelectItem>
+                      <SelectItem value="on">Turn comments on</SelectItem>
+                      <SelectItem value="off">Turn comments off</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {form.commentsEnabled === null ? (
+                    <p className="text-xs text-muted-foreground">
+                      Liffio won't touch this post's comment setting.
+                    </p>
+                  ) : null}
+                  {form.commentsEnabled === false && form.firstComment.trim() ? (
+                    <p className="flex items-start gap-1.5 text-xs text-warning">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      Your first comment will still be posted, but nobody can see it while comments
+                      are off.
+                    </p>
+                  ) : null}
+                </div>
+              </FeatureGate>
 
               {/* Alt text — FEED only. Meta hard-errors `alt_text` on a REEL container, and
                   carousels use per-item alt text instead, so this control only exists for FEED. */}
@@ -3741,98 +3757,102 @@ function SchedulerPage() {
                   rather than under Music (now removed): it is a Reels-level setting. */}
               {form.type === "REEL" && (
                 <div className="rounded-xl border p-3 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <ImagePlus className="h-4 w-4 text-muted-foreground" />
-                    <Label>Reel cover</Label>
-                  </div>
-
-                  {form.coverImageUrl ? (
-                    <div className="flex items-start gap-3">
-                      <div className="w-20 shrink-0 overflow-hidden rounded-md border bg-muted">
-                        <img
-                          src={form.coverImageUrl}
-                          alt="Reel cover"
-                          className="aspect-[9/16] w-full object-cover"
-                        />
+                  <FeatureGate module="scheduler" action="cover_selection" block>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <ImagePlus className="h-4 w-4 text-muted-foreground" />
+                        <Label>Reel cover</Label>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground"
-                        onClick={() => setForm((f) => ({ ...f, coverImageUrl: "" }))}
-                      >
-                        <X className="mr-1 h-3.5 w-3.5" />
-                        Remove cover
-                      </Button>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Without a cover, Instagram picks a frame for you.
-                    </p>
-                  )}
 
-                  <div className="space-y-1">
-                    <Label className="text-xs">Upload a cover image</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="file"
-                        accept={SCHEDULER_MEDIA_ACCEPT_FEED}
-                        className="cursor-pointer"
-                        disabled={uploadingCover}
-                        onChange={(e) => void onPickCoverFile(e)}
-                      />
-                      {uploadingCover && (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      {form.coverImageUrl ? (
+                        <div className="flex items-start gap-3">
+                          <div className="w-20 shrink-0 overflow-hidden rounded-md border bg-muted">
+                            <img
+                              src={form.coverImageUrl}
+                              alt="Reel cover"
+                              className="aspect-[9/16] w-full object-cover"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground"
+                            onClick={() => setForm((f) => ({ ...f, coverImageUrl: "" }))}
+                          >
+                            <X className="mr-1 h-3.5 w-3.5" />
+                            Remove cover
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Without a cover, Instagram picks a frame for you.
+                        </p>
                       )}
-                    </div>
-                  </div>
 
-                  {canScrubCoverFrame ? (
-                    <div className="space-y-2 rounded-lg border p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label className="text-xs">Or pick a frame from your video</Label>
-                        <span className="font-mono text-[11px] text-muted-foreground">
-                          {coverFrameSeconds.toFixed(1)}s
-                        </span>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Upload a cover image</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="file"
+                            accept={SCHEDULER_MEDIA_ACCEPT_FEED}
+                            className="cursor-pointer"
+                            disabled={uploadingCover}
+                            onChange={(e) => void onPickCoverFile(e)}
+                          />
+                          {uploadingCover && (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          )}
+                        </div>
                       </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={Math.max(videoDurationSeconds ?? 60, 1)}
-                        step={0.1}
-                        value={coverFrameSeconds}
-                        disabled={extractingFrame}
-                        onChange={(e) => setCoverFrameSeconds(Number(e.target.value))}
-                        className="w-full accent-[var(--primary)]"
-                        aria-label="Cover frame timestamp in seconds"
-                      />
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={extractingFrame}
-                          onClick={() => void onExtractCoverFrame()}
-                        >
-                          {extractingFrame ? (
-                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                          ) : null}
-                          Use this frame
-                        </Button>
-                        <span className="text-[11px] text-muted-foreground">
-                          {videoDurationSeconds != null
-                            ? `Video is ${videoDurationSeconds.toFixed(1)}s`
-                            : "Drag, then capture — the real length is read on the server."}
-                        </span>
-                      </div>
+
+                      {canScrubCoverFrame ? (
+                        <div className="space-y-2 rounded-lg border p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <Label className="text-xs">Or pick a frame from your video</Label>
+                            <span className="font-mono text-[11px] text-muted-foreground">
+                              {coverFrameSeconds.toFixed(1)}s
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={Math.max(videoDurationSeconds ?? 60, 1)}
+                            step={0.1}
+                            value={coverFrameSeconds}
+                            disabled={extractingFrame}
+                            onChange={(e) => setCoverFrameSeconds(Number(e.target.value))}
+                            className="w-full accent-[var(--primary)]"
+                            aria-label="Cover frame timestamp in seconds"
+                          />
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={extractingFrame}
+                              onClick={() => void onExtractCoverFrame()}
+                            >
+                              {extractingFrame ? (
+                                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                              ) : null}
+                              Use this frame
+                            </Button>
+                            <span className="text-[11px] text-muted-foreground">
+                              {videoDurationSeconds != null
+                                ? `Video is ${videoDurationSeconds.toFixed(1)}s`
+                                : "Drag, then capture — the real length is read on the server."}
+                            </span>
+                          </div>
+                        </div>
+                      ) : form.primaryMediaUrl.trim() && isLikelyVideoUrl(form.primaryMediaUrl) ? (
+                        <p className="text-xs text-muted-foreground">
+                          Frame capture only works on videos uploaded to Liffio in this workspace.
+                          This one is an external URL — upload a cover image instead.
+                        </p>
+                      ) : null}
                     </div>
-                  ) : form.primaryMediaUrl.trim() && isLikelyVideoUrl(form.primaryMediaUrl) ? (
-                    <p className="text-xs text-muted-foreground">
-                      Frame capture only works on videos uploaded to Liffio in this workspace. This
-                      one is an external URL — upload a cover image instead.
-                    </p>
-                  ) : null}
+                  </FeatureGate>
 
                   <div className="border-t pt-3 space-y-3">
                     {/* Trial reels — eligibility is probed on click, never on open. */}
@@ -3917,23 +3937,25 @@ function SchedulerPage() {
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <Label className="text-sm">Share to feed</Label>
-                        {form.trialEnabled && (
-                          <p className="text-xs text-muted-foreground">
-                            Forced off while Trial is on.
-                          </p>
-                        )}
+                    <FeatureGate module="scheduler" action="share_to_feed" block>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <Label className="text-sm">Share to feed</Label>
+                          {form.trialEnabled && (
+                            <p className="text-xs text-muted-foreground">
+                              Forced off while Trial is on.
+                            </p>
+                          )}
+                        </div>
+                        <Switch
+                          checked={form.trialEnabled ? false : form.shareToFeed}
+                          disabled={form.trialEnabled}
+                          onCheckedChange={(checked) =>
+                            setForm((f) => ({ ...f, shareToFeed: checked }))
+                          }
+                        />
                       </div>
-                      <Switch
-                        checked={form.trialEnabled ? false : form.shareToFeed}
-                        disabled={form.trialEnabled}
-                        onCheckedChange={(checked) =>
-                          setForm((f) => ({ ...f, shareToFeed: checked }))
-                        }
-                      />
-                    </div>
+                    </FeatureGate>
                   </div>
                 </div>
               )}
@@ -4268,7 +4290,7 @@ function SchedulerPage() {
                       copies, which is what stops the two surfaces drifting again. There is no
                       trigger picker: the scheduled post IS the target.
                     */}
-                    {automationFeatures.excluded_keywords && (
+                    <FeatureGate module="automation" action="excluded_keywords" block>
                       <div className="space-y-2">
                         <Label>Excluded keywords</Label>
                         <p className="text-xs text-muted-foreground">
@@ -4325,7 +4347,7 @@ function SchedulerPage() {
                           ))}
                         </div>
                       </div>
-                    )}
+                    </FeatureGate>
 
                     {/* Branding, following the same capability rule as the builder. */}
                     <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2.5">
@@ -4353,11 +4375,13 @@ function SchedulerPage() {
                   </div>
                 )}
 
-                {form.automationEnabled && automationFeatures.follow_before_dm && (
-                  <FollowBeforeDmSection
-                    value={form.automationFollowBeforeDm}
-                    onChange={(v) => setForm((f) => ({ ...f, automationFollowBeforeDm: v }))}
-                  />
+                {form.automationEnabled && (
+                  <FeatureGate module="automation" action="follow_before_dm" block>
+                    <FollowBeforeDmSection
+                      value={form.automationFollowBeforeDm}
+                      onChange={(v) => setForm((f) => ({ ...f, automationFollowBeforeDm: v }))}
+                    />
+                  </FeatureGate>
                 )}
 
                 {form.automationEnabled && (
@@ -4452,29 +4476,31 @@ function SchedulerPage() {
                   </div>
                 )}
               </div>
-              <div className="space-y-1">
-                <Label>Timezone</Label>
-                <Select
-                  value={form.timezone}
-                  onValueChange={(tz) => setForm((f) => ({ ...f, timezone: tz }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* A Lyra handoff carries the user's real browser timezone, which may
+              <FeatureGate module="scheduler" action="timezone_scheduling" block>
+                <div className="space-y-1">
+                  <Label>Timezone</Label>
+                  <Select
+                    value={form.timezone}
+                    onValueChange={(tz) => setForm((f) => ({ ...f, timezone: tz }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* A Lyra handoff carries the user's real browser timezone, which may
                         not be in the curated list — include it so the select can show it. */}
-                    {(TIMEZONES.includes(form.timezone)
-                      ? TIMEZONES
-                      : [form.timezone, ...TIMEZONES]
-                    ).map((tz) => (
-                      <SelectItem key={tz} value={tz}>
-                        {tz}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                      {(TIMEZONES.includes(form.timezone)
+                        ? TIMEZONES
+                        : [form.timezone, ...TIMEZONES]
+                      ).map((tz) => (
+                        <SelectItem key={tz} value={tz}>
+                          {tz}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </FeatureGate>
             </div>
           </div>
 

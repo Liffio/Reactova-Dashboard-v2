@@ -29,12 +29,14 @@ import {
 import { formatDate, formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 import { InsightsCard } from "@/components/lyra/insights-card";
+import { FeatureGate } from "@/components/access/feature-gate";
 import {
   InsightSummary,
   InsightPointList,
   AnalyticsHighlight,
 } from "@/components/lyra/insight-content";
 import { useLyraInsights } from "@/hooks/use-lyra-insights";
+import { useUpgradeMessage } from "@/hooks/use-capability-plan";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 
 export const Route = createFileRoute("/_app/analytics")({
@@ -55,9 +57,6 @@ const roiStyles: Record<string, string> = {
   medium: "border-warning/30 bg-warning/10 text-warning",
   low: "border-border bg-muted text-muted-foreground",
 };
-
-/** Shown where the package leaves a metric out (server `redacted`), instead of a misleading 0. */
-const NOT_IN_PLAN = "Not included in your plan";
 
 function AnalyticsPage() {
   const { current, user } = useApp();
@@ -88,6 +87,10 @@ function AnalyticsPage() {
   const noSeries = redacted.has("analytics:time_series");
   const noAttribution = redacted.has("analytics:automation_attribution");
   const rate = (value: number | null | undefined) => (value == null ? null : value.toFixed(1));
+  // What to say instead of a misleading 0: the plan that includes each view.
+  const ratesLocked = useUpgradeMessage("analytics:conversion_rate");
+  const trendsLocked = useUpgradeMessage("analytics:time_series");
+  const attributionLocked = useUpgradeMessage("analytics:automation_attribution");
 
   const series = (data?.lineSeries ?? []).map((point, i) => ({
     day: point.day,
@@ -134,7 +137,8 @@ function AnalyticsPage() {
           </div>
         )}
 
-        {!insights.notIncluded && (
+        {/* Without `dashboard:ai_insights` the card is shown locked; no request is made. */}
+        <FeatureGate module="dashboard" action="ai_insights" block>
           <InsightsCard
             title="AI Insights"
             data={insights.data}
@@ -169,7 +173,7 @@ function AnalyticsPage() {
               </>
             )}
           />
-        )}
+        </FeatureGate>
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {analyticsQuery.isLoading ? (
@@ -192,7 +196,7 @@ function AnalyticsPage() {
                    leads-that-clicked / DMs sent, which counted leads, not clicks. */
                 hint={
                   noRates
-                    ? NOT_IN_PLAN
+                    ? ratesLocked
                     : `${rate(data?.rates.linkClicksPerDmRate) ?? "0.0"} clicks per 100 DMs sent`
                 }
               />
@@ -200,7 +204,7 @@ function AnalyticsPage() {
                 label="Leads captured"
                 value={formatNum(data?.summary.leadsCaptured ?? 0)}
                 icon={UserPlus}
-                hint={noRates ? NOT_IN_PLAN : `${rate(data?.rates.leadRate) ?? "0.0"}% of DMs sent`}
+                hint={noRates ? ratesLocked : `${rate(data?.rates.leadRate) ?? "0.0"}% of DMs sent`}
               />
               <StatCard
                 label="Lead → click rate"
@@ -211,7 +215,7 @@ function AnalyticsPage() {
                    denominator it never used and overstated conversion by the DM-to-lead ratio.
                    It is also NOT the same "conversion" as the per-automation column below, which
                    is why neither is called that any more. */
-                hint={noRates ? NOT_IN_PLAN : "of leads captured, share that clicked"}
+                hint={noRates ? ratesLocked : "of leads captured, share that clicked"}
               />
             </>
           )}
@@ -246,9 +250,7 @@ function AnalyticsPage() {
                 <Skeleton className="h-full w-full rounded-xl" />
               ) : noSeries ? (
                 <div className="flex h-full items-center justify-center rounded-xl border border-dashed text-center text-sm text-muted-foreground">
-                  <p className="max-w-xs px-4">
-                    Daily trends aren't included in your plan. Upgrade to see them.
-                  </p>
+                  <p className="max-w-xs px-4">Daily trends — {trendsLocked}</p>
                 </div>
               ) : (
                 <ResponsiveContainer>
@@ -442,7 +444,7 @@ function AnalyticsPage() {
                       className="px-6 py-10 text-center text-sm text-muted-foreground"
                     >
                       {noAttribution
-                        ? "Per-automation performance isn't included in your plan. Upgrade to see it."
+                        ? `Per-automation performance — ${attributionLocked}`
                         : "No automation activity in this range yet."}
                     </td>
                   </tr>

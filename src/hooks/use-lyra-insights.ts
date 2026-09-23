@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { callLyra, type LyraError, type LyraTaskMap } from "@/lib/api/lyra-api";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
+import { useCan } from "@/hooks/use-auth";
 import { lyraStorageKey, readLyraPersisted, writeLyraPersisted } from "@/lib/lyra-persist";
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
@@ -34,6 +35,9 @@ export function useLyraInsights<K extends InsightsTask>({
   queryKeyExtra?: unknown[];
 }) {
   const queryClient = useQueryClient();
+  // `dashboard:ai_insights` (role ∩ package). Without it the server refuses the task, so nothing is
+  // requested and callers hide the card via `notIncluded`.
+  const included = useCan("dashboard", "ai_insights");
   const queryKeyExtraJson = JSON.stringify(queryKeyExtra);
   const queryKey = useMemo(
     () => ["lyra-insights", task, workspaceId, ...queryKeyExtra],
@@ -52,7 +56,7 @@ export function useLyraInsights<K extends InsightsTask>({
       const result = await callLyra({ task, input, workspaceId, signal });
       return result.content;
     },
-    enabled: isWorkspaceReady(workspaceId),
+    enabled: isWorkspaceReady(workspaceId) && included,
     staleTime: Infinity,
     // Default gcTime (5 min) was evicting this query's cache entry whenever the
     // card unmounted for more than 5 min (route navigation away and back) —
@@ -149,6 +153,8 @@ export function useLyraInsights<K extends InsightsTask>({
   }, []);
 
   return {
+    /** The package or role leaves AI insights out — render nothing rather than a failing card. */
+    notIncluded: !included,
     data: query.data ?? null,
     isLoading: query.isLoading,
     isRefreshing: query.isFetching && !query.isLoading,

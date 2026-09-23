@@ -73,7 +73,12 @@ const STATE_FILTERS: Array<{ value: StateFilter; label: string }> = [
   { value: "ENFORCED", label: "Enforced" },
   { value: "DECLARED", label: "Declared, not enforced" },
   { value: "UNMAPPED", label: "Unmapped" },
+  { value: "BASE", label: "Always included" },
+  { value: "NOT_BUILT", label: "Not built yet" },
 ];
+
+/** Sellable = could be switched on or off by a package. BASE and NOT_BUILT are neither. */
+const isSellable = (state: ModuleEnforcementState) => state !== "BASE" && state !== "NOT_BUILT";
 
 function ErrorPanel({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   const requestId = error instanceof ApiError ? error.requestId : undefined;
@@ -126,7 +131,7 @@ function SummaryCard({
 
 function ChildStateExplainer() {
   return (
-    <div className="grid gap-3 rounded-2xl border bg-card p-4 shadow-soft sm:grid-cols-3 sm:p-5">
+    <div className="grid gap-3 rounded-2xl border bg-card p-4 shadow-soft sm:grid-cols-2 lg:grid-cols-3 sm:p-5">
       <div className="flex items-start gap-2">
         <EnforcementBadge state="ENFORCED" />
         <p className="text-xs text-muted-foreground">
@@ -147,6 +152,20 @@ function ChildStateExplainer() {
         <p className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">Unmapped</span> — no permission backs this
           module/action at all. There's no enforcement point to toggle.
+        </p>
+      </div>
+      <div className="flex items-start gap-2">
+        <EnforcementBadge state="BASE" />
+        <p className="text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">Always included</span> — never gated by a
+          package on purpose (billing, security, per-user programmes). Not counted as sellable.
+        </p>
+      </div>
+      <div className="flex items-start gap-2">
+        <EnforcementBadge state="NOT_BUILT" />
+        <p className="text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">Not built yet</span> — the feature has no
+          server surface, so there is nothing to enforce. Hidden from the package editor.
         </p>
       </div>
     </div>
@@ -170,6 +189,7 @@ function ChildModuleRow({ child }: { child: CapabilityChildModule }) {
 
 function ParentModuleCard({ parent }: { parent: CapabilityParentModule }) {
   const enforcedCount = parent.children.filter((c) => c.enforcementState === "ENFORCED").length;
+  const sellableCount = parent.children.filter((c) => isSellable(c.enforcementState)).length;
   return (
     <div className="rounded-2xl border bg-card p-4 shadow-soft sm:p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -184,7 +204,7 @@ function ParentModuleCard({ parent }: { parent: CapabilityParentModule }) {
             </Badge>
           )}
           <Badge variant="outline" className="text-[10px] tabular-nums">
-            {enforcedCount}/{parent.children.length} enforced
+            {enforcedCount}/{sellableCount} enforced
           </Badge>
         </div>
       </div>
@@ -210,17 +230,27 @@ function CapabilityCoveragePanel() {
   const modules = useMemo(() => coverageQuery.data?.modules ?? [], [coverageQuery.data]);
 
   const totals = useMemo(() => {
-    let enforced = 0;
-    let declared = 0;
-    let unmapped = 0;
+    const count: Record<ModuleEnforcementState, number> = {
+      ENFORCED: 0,
+      DECLARED: 0,
+      UNMAPPED: 0,
+      BASE: 0,
+      NOT_BUILT: 0,
+    };
     for (const parent of modules) {
-      for (const child of parent.children) {
-        if (child.enforcementState === "ENFORCED") enforced++;
-        else if (child.enforcementState === "DECLARED") declared++;
-        else unmapped++;
-      }
+      for (const child of parent.children)
+        count[child.enforcementState] = (count[child.enforcementState] ?? 0) + 1;
     }
-    return { enforced, declared, unmapped, total: enforced + declared + unmapped };
+    const sellable = count.ENFORCED + count.DECLARED + count.UNMAPPED;
+    return {
+      enforced: count.ENFORCED,
+      declared: count.DECLARED,
+      unmapped: count.UNMAPPED,
+      base: count.BASE,
+      notBuilt: count.NOT_BUILT,
+      sellable,
+      total: sellable + count.BASE + count.NOT_BUILT,
+    };
   }, [modules]);
 
   const filteredModules = useMemo(() => {
@@ -245,8 +275,8 @@ function CapabilityCoveragePanel() {
   if (coverageQuery.isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-20 rounded-2xl" />
           ))}
         </div>
@@ -261,9 +291,9 @@ function CapabilityCoveragePanel() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <SummaryCard
-          label={`${totals.enforced}/${totals.total} enforced`}
+          label={`${totals.enforced}/${totals.sellable} sellable enforced`}
           value={totals.enforced}
           active={stateFilter === "ENFORCED"}
           onClick={() => setStateFilter(stateFilter === "ENFORCED" ? "ALL" : "ENFORCED")}
@@ -282,6 +312,20 @@ function CapabilityCoveragePanel() {
           active={stateFilter === "UNMAPPED"}
           onClick={() => setStateFilter(stateFilter === "UNMAPPED" ? "ALL" : "UNMAPPED")}
           toneClassName="text-warning"
+        />
+        <SummaryCard
+          label="Always included"
+          value={totals.base}
+          active={stateFilter === "BASE"}
+          onClick={() => setStateFilter(stateFilter === "BASE" ? "ALL" : "BASE")}
+          toneClassName="text-muted-foreground"
+        />
+        <SummaryCard
+          label="Not built yet"
+          value={totals.notBuilt}
+          active={stateFilter === "NOT_BUILT"}
+          onClick={() => setStateFilter(stateFilter === "NOT_BUILT" ? "ALL" : "NOT_BUILT")}
+          toneClassName="text-muted-foreground"
         />
         <SummaryCard
           label="Total capabilities"

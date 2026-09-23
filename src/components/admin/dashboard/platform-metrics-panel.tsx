@@ -761,7 +761,7 @@ export function PlatformMetricsPanel() {
             <Link to="/admin/capabilities" className="block">
               <ControlPlaneTile
                 label="Capability coverage"
-                value={`${formatNum(tiles.capabilityCoverage.enforced)}/${formatNum(tiles.capabilityCoverage.total)}`}
+                value={`${formatNum(tiles.capabilityCoverage.enforced)}/${formatNum(tiles.capabilityCoverage.enforced + tiles.capabilityCoverage.declared + tiles.capabilityCoverage.unmapped)}`}
                 icon={ListChecks}
                 hint={`${formatNum(tiles.capabilityCoverage.declared)} declared · ${formatNum(tiles.capabilityCoverage.unmapped)} unmapped`}
               />

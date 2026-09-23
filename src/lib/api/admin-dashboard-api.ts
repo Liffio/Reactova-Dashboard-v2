@@ -115,7 +115,16 @@ export type AdminWorkspaceStatus =
   | "INSTAGRAM_DISCONNECTED";
 
 export type AdminDashboardTiles = {
-  capabilityCoverage: { enforced: number; declared: number; unmapped: number; total: number };
+  capabilityCoverage: {
+    enforced: number;
+    declared: number;
+    unmapped: number;
+    /** Always granted, not sellable. Absent from servers older than the capability-enforcement work. */
+    base?: number;
+    /** No server surface yet. */
+    notBuilt?: number;
+    total: number;
+  };
   activeImpersonationSessions: number;
   entitlementDrift: number;
   workspacesByStatus: Array<{ status: AdminWorkspaceStatus; count: number }>;

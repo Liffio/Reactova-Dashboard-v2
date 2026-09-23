@@ -46,7 +46,8 @@ export type BioLinkProfile = {
   links: BioLinkItem[];
   socials: BioLinkSocialItem[];
   publicUrl: string;
-  totalClicks: number;
+  /** `null` when the package does not include `biolink:click_tracking`. */
+  totalClicks: number | null;
 };
 
 export type BioLinkAnalyticsLink = {

@@ -18,6 +18,7 @@ import { useApp } from "@/state/app-context";
 import { LIMITS } from "@/lib/validation";
 import { bareHandle, formatHandle } from "@/lib/format";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
+import { useCan } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_app/leads-captured")({
   head: () => ({ meta: [{ title: "Leads Captured — Liffio" }] }),
@@ -38,6 +39,7 @@ function LeadsPage() {
   const { current } = useApp();
   const workspaceId = current.id;
   const [exporting, setExporting] = useState(false);
+  const canExport = useCan("lead", "export_data");
 
   /**
    * Moved onto the shared contract from a hand-rolled `limit`/`offset` query.
@@ -46,7 +48,7 @@ function LeadsPage() {
    * every keystroke — typing "welcome" cost seven round trips, each running an unescaped `ILIKE`.
    * The hook debounces, and the server escapes.
    */
-  const list = useServerList<Lead, { emailRedacted?: boolean }>({
+  const list = useServerList<Lead, { emailRedacted?: boolean; redactedFields?: string[] }>({
     path: apiUri.leads.search,
     queryKey: "leads",
     workspaceId,
@@ -64,6 +66,9 @@ function LeadsPage() {
    * neither would be stated.
    */
   const emailRedacted = list.extra?.emailRedacted === true;
+  // The same, for every other field a package can withhold (identity, keyword, source, click state).
+  const redacted = new Set(list.extra?.redactedFields ?? []);
+  const identityRedacted = redacted.has("igUsername");
   // The hook is 1-based, matching PaginationBar and every other list.
   const rangeStart = total === 0 ? 0 : (list.page - 1) * list.limit + 1;
   const rangeEnd = Math.min(list.page * list.limit, total);
@@ -93,16 +98,19 @@ function LeadsPage() {
         title="Leads Captured"
         description={`${total.toLocaleString()} lead${total === 1 ? "" : "s"} captured across your automations.`}
         actions={
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            disabled={exporting || leads.length === 0}
-            onClick={handleExport}
-          >
-            <Download className="h-4 w-4" />
-            {exporting ? "Exporting…" : "Export CSV"}
-          </Button>
+          // `lead:export_data` — hidden rather than shown and refused (hard rule: no broken states).
+          canExport ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={exporting || leads.length === 0}
+              onClick={handleExport}
+            >
+              <Download className="h-4 w-4" />
+              {exporting ? "Exporting…" : "Export CSV"}
+            </Button>
+          ) : undefined
         }
       />
 
@@ -158,8 +166,10 @@ function LeadsPage() {
                 </thead>
                 <tbody>
                   {leads.map((lead) => {
-                    const display = lead.igUsername ?? lead.displayName ?? lead.igUserId;
-                    const initials = (bareHandle(display) ?? display).slice(0, 2).toUpperCase();
+                    // Every identity field is null when the package hides lead identity.
+                    const display = lead.igUsername ?? lead.displayName ?? lead.igUserId ?? "";
+                    const initials =
+                      (bareHandle(display) ?? display).slice(0, 2).toUpperCase() || "?";
                     return (
                       <tr key={lead.id} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-6 py-3.5">
@@ -172,7 +182,9 @@ function LeadsPage() {
                             </Avatar>
                             <div className="min-w-0">
                               <p className="truncate font-medium">
-                                {formatHandle(lead.igUsername) ?? lead.displayName ?? "—"}
+                                {formatHandle(lead.igUsername) ??
+                                  lead.displayName ??
+                                  (identityRedacted ? "Hidden on your plan" : "—")}
                               </p>
                               {lead.email && (
                                 <p className="truncate text-xs text-muted-foreground">
@@ -207,16 +219,21 @@ function LeadsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3.5">
-                          <Badge
-                            variant="outline"
-                            className={
-                              lead.linkClicked
-                                ? "border-success/30 bg-success/10 text-success"
-                                : "border-border bg-muted text-muted-foreground"
-                            }
-                          >
-                            {lead.linkClicked ? "Yes" : "No"}
-                          </Badge>
+                          {lead.linkClicked === null ? (
+                            // Hidden by the package — not "No", which would state a fact we withheld.
+                            <span className="text-xs text-muted-foreground">—</span>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className={
+                                lead.linkClicked
+                                  ? "border-success/30 bg-success/10 text-success"
+                                  : "border-border bg-muted text-muted-foreground"
+                              }
+                            >
+                              {lead.linkClicked ? "Yes" : "No"}
+                            </Badge>
+                          )}
                         </td>
                         <td className="px-6 py-3.5 text-xs text-muted-foreground whitespace-nowrap">
                           {new Date(lead.capturedAt).toLocaleDateString()}

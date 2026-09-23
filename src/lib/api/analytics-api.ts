@@ -123,9 +123,10 @@ export type AnalyticsPageResponse = {
     totalLinkClicks: number;
     /**
      * Lead -> click: of the leads captured in the window, the share that clicked.
-     * NOT DM -> click. Same value as `rates.leadClickRate`.
+     * NOT DM -> click. Same value as `rates.leadClickRate`. `null` when the package does not
+     * include `analytics:conversion_rate` — see `redacted`.
      */
-    conversionRate: number;
+    conversionRate: number | null;
     leadsCaptured: number;
     bioLinkClicks: number;
     dmsQueued: number;
@@ -159,26 +160,33 @@ export type AnalyticsPageResponse = {
     dmsSent: number;
     linkClicks: number;
     leadsCaptured: number;
-    /** Attributed link clicks per DM sent, as a percentage. Legacy name. */
-    conversionRate: number;
+    /** Attributed link clicks per DM sent, as a percentage. Legacy name. `null` without conversion_rate. */
+    conversionRate: number | null;
     /** Same number as `conversionRate`, named for what it measures. */
-    clickThroughRate?: number;
+    clickThroughRate?: number | null;
     /** Band of the click-through rate. Named `roiBand` for compatibility; it is not an ROI. */
-    roiBand: "high" | "medium" | "low";
+    roiBand: "high" | "medium" | "low" | null;
   }>;
+  /** Every rate is `null` when the package does not include `analytics:conversion_rate`. */
   rates: {
     /**
      * Leads that clicked, per DM sent. The numerator counts LEADS, not clicks, despite the
      * name. Superseded by `linkClicksPerDmRate`; kept only for compatibility.
      */
-    clickRate: number;
+    clickRate: number | null;
     /** Leads captured per DM sent. */
-    leadRate: number;
+    leadRate: number | null;
     /** Short-link clicks per DM sent — clicks in the numerator, as the name implies. */
-    linkClicksPerDmRate?: number;
+    linkClicksPerDmRate?: number | null;
     /** Of the leads captured, the share that clicked. */
-    leadClickRate?: number;
+    leadClickRate?: number | null;
   };
+  /**
+   * Paid views the workspace's package does not include, emptied by the server:
+   * `analytics:automation_attribution` (automationPerformance = []), `analytics:conversion_rate`
+   * (rates null), `analytics:time_series` (line series = []). Absent on older servers.
+   */
+  redacted?: string[];
   channels: {
     shortLinks: {
       totalClicks: number;

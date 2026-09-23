@@ -7,7 +7,8 @@ export type Lead = {
   workspaceId: string;
   automationId: string;
   automationName: string;
-  igUserId: string;
+  /** Identity, keyword, source and click fields are `null` when the package withholds them. */
+  igUserId: string | null;
   igUsername: string | null;
   displayName: string | null;
   email: string | null;
@@ -17,7 +18,7 @@ export type Lead = {
   sourceMediaType: string | null;
   profilePicUrl: string | null;
   isFollowing: boolean | null;
-  linkClicked: boolean;
+  linkClicked: boolean | null;
   metadata: Record<string, unknown> | null;
   capturedAt: string;
   lastInteractionAt: string;

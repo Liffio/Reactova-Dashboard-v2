@@ -70,6 +70,7 @@ import { LIMITS, emailError, lengthError, duplicateAliasError } from "@/lib/vali
 import { useTouched } from "@/hooks/use-touched";
 import { formatHandle } from "@/lib/format";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
+import { useCan } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings — Liffio" }] }),
@@ -85,6 +86,7 @@ function SettingsRoute() {
 }
 
 function SettingsPage() {
+  const canViewMembers = useCan("team", "view_members");
   return (
     <div>
       <PageHeader
@@ -113,7 +115,15 @@ function SettingsPage() {
             <NotificationsSettings />
           </TabsContent>
           <TabsContent value="team">
-            <TeamSettings />
+            {canViewMembers ? (
+              <TeamSettings />
+            ) : (
+              // `team:view_members` is role ∩ package; without it the member list is refused, so
+              // the panel says so rather than rendering an empty team.
+              <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground shadow-soft">
+                Your role or plan doesn't include viewing team members. Ask a workspace owner.
+              </div>
+            )}
           </TabsContent>
           <TabsContent value="security">
             <SecuritySettings />
@@ -458,7 +468,12 @@ function ApiCredentialsSettings() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (name: string) => createApiCredential(workspaceId, { name, neverExpires: true }),
+    // A key that never expires is `api:key_expiry`; without it the server issues the default TTL.
+    mutationFn: (name: string) =>
+      createApiCredential(workspaceId, {
+        name,
+        neverExpires: credsQuery.data?.capabilities?.keyExpiry ?? false,
+      }),
     onSuccess: (data) => {
       toast.success(`API key created — copy your secret key now:\n${data.secretKey}`);
       setCreateOpen(false);
@@ -481,20 +496,18 @@ function ApiCredentialsSettings() {
   const creds = credsQuery.data?.credentials ?? [];
 
   /**
-   * Whether this workspace can actually create a key.
-   *
-   * The server refuses when the plan catalogue does not enable the external API, and it currently
-   * does not enable it on ANY tier. Rendering an enabled "New key" button regardless produced the
-   * broken state the hard rules forbid: click, then an error toast. Gate on the server's own
-   * answer rather than on a plan name.
+   * Whether this workspace can actually create a key — the package's `api:create_keys`, as the
+   * server resolved it for this user and workspace. Gated on the server's answer rather than a plan
+   * name, so the button never leads to an error toast. `planMeetsMinimum` is the pre-D3 alias of the
+   * same value, read only when talking to an older server.
    *
    * `undefined` while loading is treated as allowed, so the button does not flicker disabled.
    */
-  const apiAvailable = credsQuery.data ? credsQuery.data.planMeetsMinimum : true;
-  const minimumPlanForApi = credsQuery.data?.minimumPlanForApi ?? null;
-  const apiUnavailableReason = minimumPlanForApi
-    ? `The API is available from the ${minimumPlanForApi} plan.`
-    : "The API is not available on any plan yet — we will announce it when it is.";
+  const apiAvailable = credsQuery.data
+    ? (credsQuery.data.capabilities?.createKeys ?? credsQuery.data.planMeetsMinimum)
+    : true;
+  const apiUnavailableReason =
+    "API access isn't included in your plan. Upgrade to create API keys.";
 
   return (
     <div className="space-y-4">

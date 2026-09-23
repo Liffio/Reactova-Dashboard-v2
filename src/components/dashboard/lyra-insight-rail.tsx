@@ -53,6 +53,8 @@ export function LyraInsightRail({
     queryKeyExtra: ["dashboard"],
   });
 
+  if (insights.notIncluded) return null;
+
   return (
     <InsightsCard
       variant="rail"

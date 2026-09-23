@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronRight, Lock, Search } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/admin/form-page";
-import { getRegistryTree } from "@/lib/api/registry-api";
+import { getRegistryTree, type ChildModule } from "@/lib/api/registry-api";
 import type { FeatureSelection } from "@/hooks/use-package-features";
+
+/** BASE capabilities are always granted by the server, so the box is shown ticked and locked. */
+const isLocked = (child: Pick<ChildModule, "enforcementState">) =>
+  child.enforcementState === "BASE";
 
 /**
  * The package contents picker: modules as sections, sub-functions as checkboxes.
@@ -46,9 +50,25 @@ export function PackageFeaturePicker({
 
   // Only enabled modules can be sold — offering a disabled one would promise something the API
   // masks to 404 the moment a customer touches it.
-  const tree = useMemo(
+  const fullTree = useMemo(
     () => (treeQuery.data?.modules ?? []).filter((m) => m.isEnabled),
     [treeQuery.data],
+  );
+
+  /**
+   * What the operator is offered. NOT_BUILT capabilities have no feature behind them, so a box for
+   * one would sell nothing; they are hidden. A module left with nothing to tick (every capability
+   * unbuilt) goes with them. See `config/capabilityEnforcement.ts` on the server.
+   */
+  const tree = useMemo(
+    () =>
+      fullTree.flatMap((parent) => {
+        const offered = parent.children.filter((c) => c.enforcementState !== "NOT_BUILT");
+        // Keep a module that still has boxes, or that never had any (a plain on/off page).
+        if (offered.length === 0 && parent.children.length > 0) return [];
+        return [{ ...parent, children: offered }];
+      }),
+    [fullTree],
   );
 
   const visible = useMemo(() => {
@@ -70,8 +90,11 @@ export function PackageFeaturePicker({
 
   const selection = useMemo(() => {
     const out: FeatureSelection[] = [];
-    for (const parent of tree) {
-      const picked = parent.children.filter((c) => children.has(c.key));
+    // Walks the FULL tree, not the offered one: a NOT_BUILT capability a package already holds is
+    // kept rather than silently dropped on the next save. BASE capabilities are always written —
+    // the server grants them regardless, and the row keeps their module in the package.
+    for (const parent of fullTree) {
+      const picked = parent.children.filter((c) => children.has(c.key) || isLocked(c));
       if (picked.length > 0) {
         picked.forEach((c) => out.push({ parentKey: parent.key, childKey: c.key }));
       } else if (parents.has(parent.key)) {
@@ -80,7 +103,7 @@ export function PackageFeaturePicker({
       }
     }
     return out;
-  }, [tree, parents, children]);
+  }, [fullTree, parents, children]);
 
   // Report upward so the parent form can save without re-deriving the tree it does not hold.
   // Keyed on the serialised selection rather than the array, which is a fresh object every render
@@ -138,6 +161,7 @@ export function PackageFeaturePicker({
     setChildren(new Set(tree.flatMap((p) => p.children.map((c) => c.key))));
   };
 
+  // BASE capabilities survive "Clear" — they are written on every save regardless (see `selection`).
   const clearAll = () => {
     setParents(new Set());
     setChildren(new Set());
@@ -178,10 +202,14 @@ export function PackageFeaturePicker({
       ) : (
         <div className="space-y-2">
           {visible.map((parent) => {
-            const childKeys = parent.children.map((c) => c.key);
-            const on = childKeys.filter((k) => children.has(k)).length;
+            // Locked (BASE) boxes are always on and are not toggled by the module checkbox.
+            const childKeys = parent.children.filter((c) => !isLocked(c)).map((c) => c.key);
+            const lockedCount = parent.children.length - childKeys.length;
+            const on = childKeys.filter((k) => children.has(k)).length + lockedCount;
+            const total = parent.children.length;
             const state: boolean | "indeterminate" =
-              on === 0 ? parents.has(parent.key) : on === childKeys.length ? true : "indeterminate";
+              on === 0 ? parents.has(parent.key) : on === total ? true : "indeterminate";
+            const allLocked = total > 0 && childKeys.length === 0;
             // A filter match opens the section — hiding the row that matched would be perverse.
             const isOpen = expanded.has(parent.key) || filter.trim().length > 0;
 
@@ -190,6 +218,7 @@ export function PackageFeaturePicker({
                 <div className="flex items-center gap-2 p-3">
                   <Checkbox
                     checked={state}
+                    disabled={allLocked}
                     onCheckedChange={() => toggleParent(parent.key, childKeys)}
                     aria-label={parent.name}
                   />
@@ -210,34 +239,63 @@ export function PackageFeaturePicker({
                     />
                     <span className="truncate text-sm font-medium">{parent.name}</span>
                     <Badge variant="outline" className="ml-1 shrink-0 font-normal">
-                      {on}/{childKeys.length}
+                      {on}/{total}
                     </Badge>
+                    {allLocked && (
+                      <Badge variant="secondary" className="shrink-0 gap-1 font-normal">
+                        <Lock className="h-3 w-3" />
+                        Always included
+                      </Badge>
+                    )}
                   </button>
                 </div>
 
-                {isOpen && childKeys.length > 0 && (
+                {isOpen && total > 0 && (
                   <div className="grid gap-1.5 border-t bg-muted/20 p-3 sm:grid-cols-2">
-                    {parent.children.map((child) => (
-                      <label
-                        key={child.key}
-                        className="flex cursor-pointer items-start gap-2 rounded-lg bg-card p-2 text-sm hover:bg-muted/50"
-                      >
-                        <Checkbox
-                          className="mt-0.5"
-                          checked={children.has(child.key)}
-                          onCheckedChange={() => toggleChild(parent.key, child.key)}
-                          aria-label={child.name}
-                        />
-                        <span className="min-w-0">
-                          <span className="block truncate font-medium">{child.name}</span>
-                          {child.description && (
-                            <span className="block text-xs text-muted-foreground">
-                              {child.description}
+                    {parent.children.map((child) => {
+                      const locked = isLocked(child);
+                      return (
+                        <label
+                          key={child.key}
+                          className={`flex items-start gap-2 rounded-lg bg-card p-2 text-sm ${
+                            locked
+                              ? "cursor-default opacity-80"
+                              : "cursor-pointer hover:bg-muted/50"
+                          }`}
+                        >
+                          <Checkbox
+                            className="mt-0.5"
+                            checked={locked || children.has(child.key)}
+                            disabled={locked}
+                            onCheckedChange={() => toggleChild(parent.key, child.key)}
+                            aria-label={child.name}
+                          />
+                          <span className="min-w-0">
+                            <span className="flex items-center gap-1.5">
+                              <span className="truncate font-medium">{child.name}</span>
+                              {locked && (
+                                <Lock
+                                  className="h-3 w-3 shrink-0 text-muted-foreground"
+                                  aria-label="Always included"
+                                />
+                              )}
                             </span>
-                          )}
-                        </span>
-                      </label>
-                    ))}
+                            {locked ? (
+                              <span className="block text-xs text-muted-foreground">
+                                Always included — billing, security and per-user programmes are
+                                never gated by a package.
+                              </span>
+                            ) : (
+                              child.description && (
+                                <span className="block text-xs text-muted-foreground">
+                                  {child.description}
+                                </span>
+                              )
+                            )}
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
                 )}
               </div>

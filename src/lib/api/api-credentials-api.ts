@@ -17,6 +17,12 @@ export type ApiCredentialItem = {
 export type ApiCredentialsResponse = {
   credentials: ApiCredentialItem[];
   plan: string;
+  /**
+   * What this user may do with keys in this workspace — role ∩ package, resolved by the server
+   * (`api:view_keys` / `api:create_keys` / `api:key_expiry`). Absent on servers before D3.
+   */
+  capabilities?: { viewKeys: boolean; createKeys: boolean; keyExpiry: boolean };
+  /** @deprecated Same as `capabilities.createKeys`. */
   apiEnabled: boolean;
   limits: {
     maxApiCredentials: number;
@@ -24,14 +30,9 @@ export type ApiCredentialsResponse = {
     schedulerPostsPerDay: number;
     automationsPerDay: number;
   } | null;
-  /**
-   * The cheapest plan whose catalogue entry actually enables the external API, or `null` when NO
-   * plan does. It used to be the literal "STARTER" while every tier had `apiEnabled: false`, so a
-   * Business customer was told they qualified and the create call refused them.
-   * `null` means "not available on any plan yet" — never render a plan name for it.
-   */
+  /** @deprecated Always `null`: API access is decided by the package, not a plan. */
   minimumPlanForApi: string | null;
-  /** False on every plan while no plan enables the API. Gate the create action on this. */
+  /** @deprecated Same as `capabilities.createKeys`; read that. */
   planMeetsMinimum: boolean;
 };
 

@@ -56,6 +56,9 @@ const roiStyles: Record<string, string> = {
   low: "border-border bg-muted text-muted-foreground",
 };
 
+/** Shown where the package leaves a metric out (server `redacted`), instead of a misleading 0. */
+const NOT_IN_PLAN = "Not included in your plan";
+
 function AnalyticsPage() {
   const { current, user } = useApp();
   const workspaceId = current.id;
@@ -77,6 +80,14 @@ function AnalyticsPage() {
   });
 
   const data = analyticsQuery.data;
+
+  // Views the workspace's package leaves out come back emptied, and `redacted` says which. They
+  // are labelled as not included rather than drawn as zeros, which would read as "no activity".
+  const redacted = new Set(data?.redacted ?? []);
+  const noRates = redacted.has("analytics:conversion_rate");
+  const noSeries = redacted.has("analytics:time_series");
+  const noAttribution = redacted.has("analytics:automation_attribution");
+  const rate = (value: number | null | undefined) => (value == null ? null : value.toFixed(1));
 
   const series = (data?.lineSeries ?? []).map((point, i) => ({
     day: point.day,
@@ -123,40 +134,42 @@ function AnalyticsPage() {
           </div>
         )}
 
-        <InsightsCard
-          title="AI Insights"
-          data={insights.data}
-          isLoading={insights.isLoading}
-          isRefreshing={insights.isRefreshing}
-          isResyncing={insights.isResyncing}
-          refreshError={insights.refreshError}
-          resyncError={insights.resyncError}
-          refreshCooldownUntil={insights.refreshCooldownUntil}
-          resyncCooldownUntil={insights.resyncCooldownUntil}
-          lastUpdatedAt={insights.lastUpdatedAt}
-          loadingStartedAt={insights.loadingStartedAt}
-          resyncStartedAt={insights.resyncStartedAt}
-          onRefresh={() => void insights.refresh()}
-          onResync={() => void insights.resync()}
-          onCancelRefresh={insights.cancelRefresh}
-          onCancelResync={insights.cancelResync}
-          renderBody={(data) => (
-            <>
-              <InsightSummary text={data.summary} />
-              <InsightPointList
-                tone="highlight"
-                items={data.highlights}
-                renderItem={(item) => (
-                  <AnalyticsHighlight
-                    finding={item.finding}
-                    metric={item.metric}
-                    severity={item.severity}
-                  />
-                )}
-              />
-            </>
-          )}
-        />
+        {!insights.notIncluded && (
+          <InsightsCard
+            title="AI Insights"
+            data={insights.data}
+            isLoading={insights.isLoading}
+            isRefreshing={insights.isRefreshing}
+            isResyncing={insights.isResyncing}
+            refreshError={insights.refreshError}
+            resyncError={insights.resyncError}
+            refreshCooldownUntil={insights.refreshCooldownUntil}
+            resyncCooldownUntil={insights.resyncCooldownUntil}
+            lastUpdatedAt={insights.lastUpdatedAt}
+            loadingStartedAt={insights.loadingStartedAt}
+            resyncStartedAt={insights.resyncStartedAt}
+            onRefresh={() => void insights.refresh()}
+            onResync={() => void insights.resync()}
+            onCancelRefresh={insights.cancelRefresh}
+            onCancelResync={insights.cancelResync}
+            renderBody={(data) => (
+              <>
+                <InsightSummary text={data.summary} />
+                <InsightPointList
+                  tone="highlight"
+                  items={data.highlights}
+                  renderItem={(item) => (
+                    <AnalyticsHighlight
+                      finding={item.finding}
+                      metric={item.metric}
+                      severity={item.severity}
+                    />
+                  )}
+                />
+              </>
+            )}
+          />
+        )}
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {analyticsQuery.isLoading ? (
@@ -177,24 +190,28 @@ function AnalyticsPage() {
                 icon={MousePointerClick}
                 /* Clicks in the numerator. The old hint read "click rate" over
                    leads-that-clicked / DMs sent, which counted leads, not clicks. */
-                hint={`${(data?.rates.linkClicksPerDmRate ?? 0).toFixed(1)} clicks per 100 DMs sent`}
+                hint={
+                  noRates
+                    ? NOT_IN_PLAN
+                    : `${rate(data?.rates.linkClicksPerDmRate) ?? "0.0"} clicks per 100 DMs sent`
+                }
               />
               <StatCard
                 label="Leads captured"
                 value={formatNum(data?.summary.leadsCaptured ?? 0)}
                 icon={UserPlus}
-                hint={`${(data?.rates.leadRate ?? 0).toFixed(1)}% of DMs sent`}
+                hint={noRates ? NOT_IN_PLAN : `${rate(data?.rates.leadRate) ?? "0.0"}% of DMs sent`}
               />
               <StatCard
                 label="Lead → click rate"
-                value={`${(data?.summary.conversionRate ?? 0).toFixed(1)}%`}
+                value={noRates ? "—" : `${rate(data?.summary.conversionRate) ?? "0.0"}%`}
                 icon={TrendingUp}
                 /* The formula has always been leads-that-clicked / leads-captured. The card used
                    to be titled "Conversion rate" and hinted "DM → click", which named a
                    denominator it never used and overstated conversion by the DM-to-lead ratio.
                    It is also NOT the same "conversion" as the per-automation column below, which
                    is why neither is called that any more. */
-                hint="of leads captured, share that clicked"
+                hint={noRates ? NOT_IN_PLAN : "of leads captured, share that clicked"}
               />
             </>
           )}
@@ -227,6 +244,12 @@ function AnalyticsPage() {
             <div className="h-[260px] w-full">
               {analyticsQuery.isLoading ? (
                 <Skeleton className="h-full w-full rounded-xl" />
+              ) : noSeries ? (
+                <div className="flex h-full items-center justify-center rounded-xl border border-dashed text-center text-sm text-muted-foreground">
+                  <p className="max-w-xs px-4">
+                    Daily trends aren't included in your plan. Upgrade to see them.
+                  </p>
+                </div>
               ) : (
                 <ResponsiveContainer>
                   <AreaChart data={series} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -399,12 +422,16 @@ function AnalyticsPage() {
                       {formatNum(row.leadsCaptured)}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
-                      {row.conversionRate.toFixed(1)}%
+                      {row.conversionRate == null ? "—" : `${row.conversionRate.toFixed(1)}%`}
                     </td>
                     <td className="px-6 py-3 text-right">
-                      <Badge variant="outline" className={roiStyles[row.roiBand]}>
-                        {row.roiBand}
-                      </Badge>
+                      {row.roiBand ? (
+                        <Badge variant="outline" className={roiStyles[row.roiBand]}>
+                          {row.roiBand}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -414,7 +441,9 @@ function AnalyticsPage() {
                       colSpan={7}
                       className="px-6 py-10 text-center text-sm text-muted-foreground"
                     >
-                      No automation activity in this range yet.
+                      {noAttribution
+                        ? "Per-automation performance isn't included in your plan. Upgrade to see it."
+                        : "No automation activity in this range yet."}
                     </td>
                   </tr>
                 )}

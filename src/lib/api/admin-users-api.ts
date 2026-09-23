@@ -335,7 +335,14 @@ export type EffectiveAccessTraceEntry = {
  *  `UNMAPPED` both render as "NOT ENFORCED" (amber) per the brief — the tooltip is what tells
  *  them apart, since the distinction matters to an operator deciding whether flipping this
  *  module actually changes anything today. */
-export type ModuleEnforcementState = "ENFORCED" | "DECLARED" | "UNMAPPED";
+export type ModuleEnforcementState =
+  | "ENFORCED"
+  | "DECLARED"
+  | "UNMAPPED"
+  /** Never gated by design — always granted regardless of package (billing, 2FA, …). */
+  | "BASE"
+  /** No server surface yet — nothing for a package to switch on or off. */
+  | "NOT_BUILT";
 
 export type EffectiveAccessChild = {
   key: string;

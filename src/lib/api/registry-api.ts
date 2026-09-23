@@ -1,6 +1,6 @@
 import { apiUri } from "./apiUri";
 import { apiRequest } from "./http";
-import type { AdminUserAuditResponse } from "./admin-users-api";
+import type { AdminUserAuditResponse, ModuleEnforcementState } from "./admin-users-api";
 
 /**
  * Module registry + package builder.
@@ -46,6 +46,8 @@ export type ChildModule = {
   name: string;
   description: string | null;
   isEnabled: boolean;
+  /** Present on `GET /admin/registry/tree`. BASE = always included; NOT_BUILT = nothing to sell yet. */
+  enforcementState?: ModuleEnforcementState;
 };
 
 export type RegistryTreeNode = ParentModule & { children: ChildModule[] };

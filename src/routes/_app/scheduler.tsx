@@ -2905,52 +2905,54 @@ function SchedulerPage() {
               )}
             </div>
 
-            <InsightsCard
-              title="AI Insights"
-              data={insights.data}
-              isLoading={insights.isLoading}
-              isRefreshing={insights.isRefreshing}
-              isResyncing={insights.isResyncing}
-              refreshError={insights.refreshError}
-              resyncError={insights.resyncError}
-              refreshCooldownUntil={insights.refreshCooldownUntil}
-              resyncCooldownUntil={insights.resyncCooldownUntil}
-              lastUpdatedAt={insights.lastUpdatedAt}
-              loadingStartedAt={insights.loadingStartedAt}
-              resyncStartedAt={insights.resyncStartedAt}
-              onRefresh={() => void insights.refresh()}
-              onResync={() => void insights.resync()}
-              onCancelRefresh={insights.cancelRefresh}
-              onCancelResync={insights.cancelResync}
-              renderBody={(data) => (
-                <>
-                  <InsightSummary text={data.summary} />
-                  <InsightPointList
-                    tone="insight"
-                    items={data.insights}
-                    renderItem={(item) => (
-                      <AnalyticsHighlight
-                        finding={item.finding}
-                        metric={item.metric}
-                        severity={item.severity}
-                      />
-                    )}
-                  />
-                  <InsightPointList
-                    tone="recommendation"
-                    items={data.recommendations}
-                    renderItem={(item) => (
-                      <RecommendationItem
-                        action={item.action}
-                        rationale={item.rationale}
-                        priority={item.priority}
-                        expectedImpact={item.expectedImpact}
-                      />
-                    )}
-                  />
-                </>
-              )}
-            />
+            {!insights.notIncluded && (
+              <InsightsCard
+                title="AI Insights"
+                data={insights.data}
+                isLoading={insights.isLoading}
+                isRefreshing={insights.isRefreshing}
+                isResyncing={insights.isResyncing}
+                refreshError={insights.refreshError}
+                resyncError={insights.resyncError}
+                refreshCooldownUntil={insights.refreshCooldownUntil}
+                resyncCooldownUntil={insights.resyncCooldownUntil}
+                lastUpdatedAt={insights.lastUpdatedAt}
+                loadingStartedAt={insights.loadingStartedAt}
+                resyncStartedAt={insights.resyncStartedAt}
+                onRefresh={() => void insights.refresh()}
+                onResync={() => void insights.resync()}
+                onCancelRefresh={insights.cancelRefresh}
+                onCancelResync={insights.cancelResync}
+                renderBody={(data) => (
+                  <>
+                    <InsightSummary text={data.summary} />
+                    <InsightPointList
+                      tone="insight"
+                      items={data.insights}
+                      renderItem={(item) => (
+                        <AnalyticsHighlight
+                          finding={item.finding}
+                          metric={item.metric}
+                          severity={item.severity}
+                        />
+                      )}
+                    />
+                    <InsightPointList
+                      tone="recommendation"
+                      items={data.recommendations}
+                      renderItem={(item) => (
+                        <RecommendationItem
+                          action={item.action}
+                          rationale={item.rationale}
+                          priority={item.priority}
+                          expectedImpact={item.expectedImpact}
+                        />
+                      )}
+                    />
+                  </>
+                )}
+              />
+            )}
 
             {overviewQuery.isLoading ? (
               <div className="flex justify-center py-16 text-muted-foreground">

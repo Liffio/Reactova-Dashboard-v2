@@ -235,11 +235,11 @@ export function createScheduledPost(workspaceId: string, body: Record<string, un
 }
 
 /**
- * NOTE — no UI calls this yet; the composer is create-only. When an edit flow is wired, its
- * `thumbnailUrl` must come from the upload response's extracted JPEG (`thumbnailUrl`, not
- * `primaryMediaUrl`) and must never be a video URL: the backend rejects a video there and stores
- * null, which is what left every reel row's preview blank. The create path derives it in
- * `previewThumbnailUrl` in scheduler.tsx — reuse that rule rather than restating it.
+ * Save an edited post — `PUT`, carrying the whole composer form (the same body shape as create).
+ *
+ * `thumbnailUrl` must be the upload response's extracted JPEG, never a video URL: the backend
+ * rejects a video there and stores null. The composer derives it with `previewThumbnailUrl` for
+ * create and edit alike.
  */
 export function updateScheduledPost(
   workspaceId: string,
@@ -247,14 +247,23 @@ export function updateScheduledPost(
   body: Record<string, unknown>,
 ) {
   return apiRequest<{ post: ScheduledPost }>(apiUri.scheduler.post(postId), {
-    method: "PATCH",
+    method: "PUT",
     workspaceId,
     body,
   });
 }
 
+/** Stop a post from publishing but keep it, so it can be edited and rescheduled. */
 export function cancelScheduledPost(workspaceId: string, postId: string) {
-  return apiRequest<{ post: ScheduledPost }>(apiUri.scheduler.post(postId), {
+  return apiRequest<{ post: ScheduledPost }>(apiUri.scheduler.cancelPost(postId), {
+    method: "POST",
+    workspaceId,
+  });
+}
+
+/** Permanently remove a post from Liffio. A published post stays on Instagram. */
+export function deleteScheduledPost(workspaceId: string, postId: string) {
+  return apiRequest<void>(apiUri.scheduler.post(postId), {
     method: "DELETE",
     workspaceId,
   });

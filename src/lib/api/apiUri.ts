@@ -177,6 +177,8 @@ export const apiUri = {
     post: (postId: string) => `${V1}/scheduler/posts/${postId}`,
     postsCalendar: `${V1}/scheduler/posts/calendar`,
     publishNow: (postId: string) => `${V1}/scheduler/posts/${postId}/publish-now`,
+    /** Stop a post publishing but keep it (status CANCELLED). `DELETE post(id)` removes it. */
+    cancelPost: (postId: string) => `${V1}/scheduler/posts/${postId}/cancel`,
     /** Re-runs the post-publish actions (first comment + comments toggle) for a published post. */
     retryPostPublish: (postId: string) => `${V1}/scheduler/posts/${postId}/retry-post-publish`,
     analyticsOverview: `${V1}/scheduler/analytics/overview`,

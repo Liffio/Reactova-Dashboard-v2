@@ -89,6 +89,7 @@ import {
   countHashtags,
   createScheduledPost,
   createSchedulerCoverFromFrame,
+  deleteScheduledPost,
   getScheduledPost,
   getSchedulerAnalyticsOverview,
   getSchedulerAnalyticsPosts,
@@ -99,6 +100,7 @@ import {
   publishPostNow,
   retryPostPublishActions,
   syncSchedulerAnalytics,
+  updateScheduledPost,
   uploadSchedulerCover,
   uploadSchedulerMedia,
   validateCollaborator,
@@ -117,6 +119,16 @@ import {
   type TrialGraduationStrategy,
 } from "@/lib/api/scheduler-api";
 import { ApiError } from "@/lib/api/http";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { apiUri } from "@/lib/api/apiUri";
 import { useServerList } from "@/hooks/use-server-list";
@@ -1344,6 +1356,86 @@ const FORM_DEFAULTS: FormState = {
   shareToFeed: false,
 };
 
+/** Anything not yet on Instagram can be edited. PUBLISHING/PUBLISHED are refused by the server. */
+const EDITABLE_STATUSES = new Set([
+  "DRAFT",
+  "SCHEDULED",
+  "FAILED",
+  "PENDING_APPROVAL",
+  "CANCELLED",
+]);
+
+/** `YYYY-MM-DDTHH:mm` — the wall time of a UTC instant in `timeZone`, for the datetime input. */
+function utcToWallTime(iso: string, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(iso));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
+
+/**
+ * The composer form for an existing post, so Edit opens with everything it holds.
+ *
+ * The post's auto-DM is not loaded: it is a separate automation, managed from Automations once it
+ * exists, and the update route does not accept one — so the section stays off while editing.
+ */
+function formFromPost(post: ScheduledPost): FormState {
+  const timezone = post.timezone || "UTC";
+  return {
+    ...FORM_DEFAULTS,
+    type: post.type,
+    caption: post.caption ?? "",
+    primaryMediaUrl: post.primaryMediaUrl ?? "",
+    uploadedThumbnailUrl: post.thumbnailUrl ?? "",
+    carouselMediaUrls: post.carouselMediaUrls ?? [],
+    carouselAltTexts: post.carouselAltTexts ?? [],
+    altText: post.altText ?? "",
+    coverImageUrl: post.coverImageUrl ?? "",
+    firstComment: post.firstComment ?? "",
+    commentsEnabled: post.commentsEnabled,
+    // Already accepted when the post was saved; re-validating on open would cost a Graph call each.
+    collaborators: post.collaborators.map((username) => ({ username, status: "valid" as const })),
+    trialEnabled: post.trialEnabled,
+    trialGraduationStrategy: post.trialGraduationStrategy ?? "MANUAL",
+    scheduleLocal: post.scheduledAt ? utcToWallTime(post.scheduledAt, timezone) : "",
+    timezone,
+    shareToFeed: post.shareToFeed,
+  };
+}
+
+/**
+ * The create payload, reshaped for `PUT /scheduler/posts/:id`.
+ *
+ * PUT replaces, so a field the user cleared must be sent as `null` / `[]` — omitting it keeps
+ * the stored value. `type` and `automation` are not editable here. Status follows the schedule:
+ * a time means SCHEDULED, none means DRAFT (which is also how a cancelled or failed post is
+ * revived). A post awaiting approval keeps its status — scheduling it is the approver's call.
+ */
+function toEditBody(body: Record<string, unknown>, form: FormState, currentStatus: string) {
+  const { type: _type, automation: _automation, ...rest } = body;
+  const edit: Record<string, unknown> = {
+    ...rest,
+    caption: rest.caption ?? null,
+    firstComment: rest.firstComment ?? null,
+    scheduledLocal: rest.scheduledLocal ?? null,
+  };
+  if (form.type !== "STORY") edit.collaborators = rest.collaborators ?? [];
+  if (form.type === "FEED") edit.altText = rest.altText ?? null;
+  if (form.type === "REEL") edit.coverImageUrl = rest.coverImageUrl ?? null;
+  if (form.type === "CAROUSEL") edit.carouselAltTexts = rest.carouselAltTexts ?? [];
+  if (currentStatus !== "PENDING_APPROVAL") {
+    edit.status = edit.scheduledLocal ? "SCHEDULED" : "DRAFT";
+  }
+  return edit;
+}
+
 /**
  * The per-type slice of the create payload.
  *
@@ -1429,6 +1521,10 @@ function SchedulerPage() {
   const [detailPostId, setDetailPostId] = useState<string | null>(null);
 
   const [form, setForm] = useState<FormState>(FORM_DEFAULTS);
+  /** The post the composer is editing, or null when it is creating a new one. */
+  const [editingPost, setEditingPost] = useState<ScheduledPost | null>(null);
+  /** The post awaiting "Delete permanently?" confirmation. */
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [carouselUrlDraft, setCarouselUrlDraft] = useState("");
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
@@ -1845,6 +1941,39 @@ function SchedulerPage() {
     },
     onError: (e) => toast.error((e as Error).message),
   });
+
+  const updateMutation = useMutation({
+    mutationFn: (input: { postId: string; body: Record<string, unknown> }) =>
+      updateScheduledPost(workspaceId, input.postId, input.body),
+    onSuccess: () => {
+      toast.success("Post updated");
+      setComposeOpen(false);
+      setEditingPost(null);
+      setForm(FORM_DEFAULTS);
+      invalidateSchedulerViews();
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (postId: string) => deleteScheduledPost(workspaceId, postId),
+    onSuccess: () => {
+      toast.success("Post deleted");
+      setConfirmDeleteId(null);
+      setDetailOpen(false);
+      setDetailPostId(null);
+      invalidateSchedulerViews({ analytics: true });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  /** Opens the composer on an existing post. */
+  const startEdit = (post: ScheduledPost) => {
+    setEditingPost(post);
+    setForm(formFromPost(post));
+    setDetailOpen(false);
+    setComposeOpen(true);
+  };
 
   const publishNowMutation = useMutation({
     mutationFn: (postId: string) => publishPostNow(workspaceId, postId),
@@ -2559,6 +2688,13 @@ function SchedulerPage() {
       body.scheduledLocal = local;
     }
 
+    if (editingPost) {
+      updateMutation.mutate({
+        postId: editingPost.id,
+        body: toEditBody(body, form, editingPost.status),
+      });
+      return;
+    }
     createMutation.mutate(body);
   };
 
@@ -3288,11 +3424,16 @@ function SchedulerPage() {
           setComposeOpen(open);
           // Closing the composer mid-review retires the handoff toast too.
           if (!open) theater.dismiss();
+          // An abandoned edit must not leave the next "New post" pre-filled with that post.
+          if (!open && editingPost) {
+            setEditingPost(null);
+            setForm(FORM_DEFAULTS);
+          }
         }}
       >
         <DialogContent className="w-full max-w-[min(100vw-1.5rem,56rem)] max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New scheduled post</DialogTitle>
+            <DialogTitle>{editingPost ? "Edit post" : "New scheduled post"}</DialogTitle>
           </DialogHeader>
 
           <div className="grid gap-6 py-2 lg:grid-cols-[minmax(0,1fr)_min(100%,400px)] lg:items-start">
@@ -3320,6 +3461,8 @@ function SchedulerPage() {
                 <Select
                   value={form.type}
                   onValueChange={(v) => onChangePostType(v as ScheduledPostType)}
+                  // A post's type is fixed once saved — the server keeps the stored one.
+                  disabled={Boolean(editingPost)}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -4093,11 +4236,19 @@ function SchedulerPage() {
                   </div>
                   <Switch
                     checked={form.automationEnabled}
+                    disabled={Boolean(editingPost)}
                     onCheckedChange={(checked) =>
                       setForm((f) => ({ ...f, automationEnabled: checked }))
                     }
                   />
                 </div>
+                {editingPost && (
+                  <p className="text-xs text-muted-foreground">
+                    {editingPost.automationId
+                      ? "This post's auto DM is edited from Automations."
+                      : "Auto DM can only be added when a post is created."}
+                  </p>
+                )}
 
                 {form.automationEnabled && (
                   <div className="space-y-3">
@@ -4511,6 +4662,7 @@ function SchedulerPage() {
             <Button
               disabled={
                 createMutation.isPending ||
+                updateMutation.isPending ||
                 uploadingMedia ||
                 // A rejected collaborator would fail the entire container at publish.
                 hasInvalidCollaborator ||
@@ -4518,7 +4670,13 @@ function SchedulerPage() {
               }
               onClick={() => void onCreate()}
             >
-              {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+              {createMutation.isPending || updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : editingPost ? (
+                "Save changes"
+              ) : (
+                "Save"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -4603,12 +4761,59 @@ function SchedulerPage() {
                   Cancel post
                 </Button>
               )}
+            {detailQuery.data?.post && EDITABLE_STATUSES.has(detailQuery.data.post.status) && (
+              <Button variant="outline" onClick={() => startEdit(detailQuery.data!.post!)}>
+                Edit
+              </Button>
+            )}
+            {/* Anything but a post mid-publish can be deleted; the server refuses PUBLISHING too. */}
+            {detailQuery.data?.post && detailQuery.data.post.status !== "PUBLISHING" && (
+              <Button
+                variant="destructive"
+                disabled={deleteMutation.isPending}
+                onClick={() => setConfirmDeleteId(detailQuery.data!.post!.id)}
+              >
+                Delete
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setDetailOpen(false)}>
               Close
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={confirmDeleteId !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDeleteId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this post permanently?</AlertDialogTitle>
+            <AlertDialogDescription>
+              It will be removed from Liffio and will not publish. If it is already on Instagram, it
+              stays there — only Liffio's copy is deleted. To keep it and stop it publishing, use
+              Cancel post instead.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Keep post</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+              onClick={(e) => {
+                // Stay open until the delete settles; onSuccess closes it.
+                e.preventDefault();
+                if (confirmDeleteId) deleteMutation.mutate(confirmDeleteId);
+              }}
+            >
+              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

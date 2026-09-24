@@ -228,13 +228,14 @@ function AffiliatePage() {
           ) : (
             <div className="space-y-3">
               {[
-                { label: "Referral link · sign-up page", url: links?.randomLink },
+                // Homepage first (the default to share), then the direct-to-sign-up variant.
                 { label: "Referral link · homepage", url: links?.homeRandomLink },
-                ...(links?.customLink
-                  ? [{ label: "Custom link · sign-up page", url: links.customLink }]
-                  : []),
+                { label: "Referral link · sign-up page", url: links?.randomLink },
                 ...(links?.homeCustomLink
                   ? [{ label: "Custom link · homepage", url: links.homeCustomLink }]
+                  : []),
+                ...(links?.customLink
+                  ? [{ label: "Custom link · sign-up page", url: links.customLink }]
                   : []),
               ].map(({ label, url }) =>
                 url ? (

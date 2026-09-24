@@ -26,6 +26,7 @@ import {
   Images,
   List,
   Loader2,
+  Lock,
   MessageCircle,
   MoreHorizontal,
   Pause,
@@ -72,6 +73,7 @@ import {
 } from "@/components/ui/select";
 import { LIMITS, urlError } from "@/lib/validation";
 import { FeatureGate, useFeatureGate } from "@/components/access/feature-gate";
+import { LockedNote } from "@/components/access/locked-note";
 import { useCapabilityPlans } from "@/hooks/use-capability-plan";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -207,8 +209,9 @@ function GatedPostTypeItem({
     <SelectItem value={value} disabled={!allowed}>
       {label}
       {!allowed && (
-        <span className="ml-1 text-muted-foreground">
-          — {plan ? `${plan.packageName} plan` : "not in your plan"}
+        <span className="ml-1 inline-flex items-center gap-1 text-muted-foreground">
+          <Lock className="h-3 w-3 text-primary" aria-hidden />
+          {plan ? `${plan.packageName} plan` : "not in your plan"}
         </span>
       )}
     </SelectItem>
@@ -3051,7 +3054,7 @@ function SchedulerPage() {
             </div>
 
             {/* Without `dashboard:ai_insights` the card is shown locked; no request is made. */}
-            <FeatureGate module="dashboard" action="ai_insights" block>
+            <FeatureGate module="dashboard" action="ai_insights" feature="AI insights" block>
               <InsightsCard
                 title="AI Insights"
                 data={insights.data}
@@ -3783,7 +3786,7 @@ function SchedulerPage() {
               </div>
 
               {/* First comment */}
-              <FeatureGate module="scheduler" action="first_comment" block>
+              <FeatureGate module="scheduler" action="first_comment" feature="First comment" block>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <Label>First comment</Label>
@@ -3877,7 +3880,7 @@ function SchedulerPage() {
               {/* Alt text — FEED only. Meta hard-errors `alt_text` on a REEL container, and
                   carousels use per-item alt text instead, so this control only exists for FEED. */}
               {form.type === "FEED" && (
-                <FeatureGate module="scheduler" action="alt_text" block>
+                <FeatureGate module="scheduler" action="alt_text" feature="Alt text" block>
                   <div className="space-y-1">
                     <Label>Alt text</Label>
                     <textarea
@@ -3900,7 +3903,12 @@ function SchedulerPage() {
                   rather than under Music (now removed): it is a Reels-level setting. */}
               {form.type === "REEL" && (
                 <div className="rounded-xl border p-3 space-y-4">
-                  <FeatureGate module="scheduler" action="cover_selection" block>
+                  <FeatureGate
+                    module="scheduler"
+                    action="cover_selection"
+                    feature="Cover selection"
+                    block
+                  >
                     <div className="space-y-4">
                       <div className="flex items-center gap-2">
                         <ImagePlus className="h-4 w-4 text-muted-foreground" />
@@ -4080,7 +4088,12 @@ function SchedulerPage() {
                       </div>
                     )}
 
-                    <FeatureGate module="scheduler" action="share_to_feed" block>
+                    <FeatureGate
+                      module="scheduler"
+                      action="share_to_feed"
+                      feature="Share to feed"
+                      block
+                    >
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <Label className="text-sm">Share to feed</Label>
@@ -4441,7 +4454,12 @@ function SchedulerPage() {
                       copies, which is what stops the two surfaces drifting again. There is no
                       trigger picker: the scheduled post IS the target.
                     */}
-                    <FeatureGate module="automation" action="excluded_keywords" block>
+                    <FeatureGate
+                      module="automation"
+                      action="excluded_keywords"
+                      feature="Excluded keywords"
+                      block
+                    >
                       <div className="space-y-2">
                         <Label>Excluded keywords</Label>
                         <p className="text-xs text-muted-foreground">
@@ -4523,11 +4541,23 @@ function SchedulerPage() {
                         }}
                       />
                     </div>
+                    {!automationFeatures.branding_control && (
+                      <LockedNote
+                        capability="automation:branding_control"
+                        feature="Removing the Liffio branding"
+                        compact
+                      />
+                    )}
                   </div>
                 )}
 
                 {form.automationEnabled && (
-                  <FeatureGate module="automation" action="follow_before_dm" block>
+                  <FeatureGate
+                    module="automation"
+                    action="follow_before_dm"
+                    feature="Follow before DM"
+                    block
+                  >
                     <FollowBeforeDmSection
                       value={form.automationFollowBeforeDm}
                       onChange={(v) => setForm((f) => ({ ...f, automationFollowBeforeDm: v }))}
@@ -4627,7 +4657,12 @@ function SchedulerPage() {
                   </div>
                 )}
               </div>
-              <FeatureGate module="scheduler" action="timezone_scheduling" block>
+              <FeatureGate
+                module="scheduler"
+                action="timezone_scheduling"
+                feature="Timezone scheduling"
+                block
+              >
                 <div className="space-y-1">
                   <Label>Timezone</Label>
                   <Select

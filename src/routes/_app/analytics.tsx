@@ -30,6 +30,7 @@ import { formatDate, formatNum } from "@/lib/format";
 import { useApp } from "@/state/app-context";
 import { InsightsCard } from "@/components/lyra/insights-card";
 import { FeatureGate } from "@/components/access/feature-gate";
+import { LockedNote } from "@/components/access/locked-note";
 import {
   InsightSummary,
   InsightPointList,
@@ -89,8 +90,6 @@ function AnalyticsPage() {
   const rate = (value: number | null | undefined) => (value == null ? null : value.toFixed(1));
   // What to say instead of a misleading 0: the plan that includes each view.
   const ratesLocked = useUpgradeMessage("analytics:conversion_rate");
-  const trendsLocked = useUpgradeMessage("analytics:time_series");
-  const attributionLocked = useUpgradeMessage("analytics:automation_attribution");
 
   const series = (data?.lineSeries ?? []).map((point, i) => ({
     day: point.day,
@@ -138,7 +137,7 @@ function AnalyticsPage() {
         )}
 
         {/* Without `dashboard:ai_insights` the card is shown locked; no request is made. */}
-        <FeatureGate module="dashboard" action="ai_insights" block>
+        <FeatureGate module="dashboard" action="ai_insights" feature="AI insights" block>
           <InsightsCard
             title="AI Insights"
             data={insights.data}
@@ -250,7 +249,11 @@ function AnalyticsPage() {
                 <Skeleton className="h-full w-full rounded-xl" />
               ) : noSeries ? (
                 <div className="flex h-full items-center justify-center rounded-xl border border-dashed text-center text-sm text-muted-foreground">
-                  <p className="max-w-xs px-4">Daily trends — {trendsLocked}</p>
+                  <LockedNote
+                    capability="analytics:time_series"
+                    feature="Daily trends"
+                    className="mx-4 max-w-sm"
+                  />
                 </div>
               ) : (
                 <ResponsiveContainer>
@@ -443,9 +446,15 @@ function AnalyticsPage() {
                       colSpan={7}
                       className="px-6 py-10 text-center text-sm text-muted-foreground"
                     >
-                      {noAttribution
-                        ? `Per-automation performance — ${attributionLocked}`
-                        : "No automation activity in this range yet."}
+                      {noAttribution ? (
+                        <LockedNote
+                          capability="analytics:automation_attribution"
+                          feature="Per-automation performance"
+                          className="mx-auto max-w-sm"
+                        />
+                      ) : (
+                        "No automation activity in this range yet."
+                      )}
                     </td>
                   </tr>
                 )}

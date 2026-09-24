@@ -25,9 +25,29 @@ export function useCapabilityPlans() {
  * package on sale includes it (or the map has not loaded yet).
  */
 export function useUpgradeMessage(capability: string): string {
+  return useUpgradeInfo(capability).message;
+}
+
+/**
+ * Everything a locked control needs: the one-line reason, the plan that unlocks it, and the
+ * billing search that highlights that plan's card (`/billings?highlight=growth`).
+ */
+export function useUpgradeInfo(capability: string): {
+  message: string;
+  planName: string | null;
+  billingSearch: { highlight?: string };
+} {
   const { data } = useCapabilityPlans();
   const plan = data?.[capability];
   return plan
-    ? `Available on the ${plan.packageName} plan.`
-    : "This feature isn't included in your current plan.";
+    ? {
+        message: `Available on the ${plan.packageName} plan.`,
+        planName: plan.packageName,
+        billingSearch: { highlight: plan.packageKey },
+      }
+    : {
+        message: "This feature isn't included in your current plan.",
+        planName: null,
+        billingSearch: {},
+      };
 }

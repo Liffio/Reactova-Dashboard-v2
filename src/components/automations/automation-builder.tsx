@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { FeatureGate } from "@/components/access/feature-gate";
+import { LockedNote } from "@/components/access/locked-note";
 import {
   createAutomation,
   getAutomationWizardData,
@@ -1105,7 +1106,12 @@ export function AutomationBuilder({
               </>
             )}
 
-            <FeatureGate module="automation" action="any_comment" block>
+            <FeatureGate
+              module="automation"
+              action="any_comment"
+              feature="Trigger on any comment"
+              block
+            >
               <>
                 <Separator />
 
@@ -1139,21 +1145,6 @@ export function AutomationBuilder({
                     : "Each keyword gets its own reply, DM message, and button."
                 }
               />
-              {/* Adding a second keyword is what makes an automation multi-response, so the
-                  control belongs to the trigger-blocks capability rather than to keywords. */}
-              {!form.anyComment && (
-                <FeatureGate module="automation" action="trigger_blocks">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="shrink-0 border-dashed"
-                    onClick={addTriggerBlock}
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add keyword
-                  </Button>
-                </FeatureGate>
-              )}
             </div>
 
             {form.anyComment ? (
@@ -1215,6 +1206,22 @@ export function AutomationBuilder({
                 ))}
               </Accordion>
             )}
+
+            {/* Below the list, so a new trigger lands directly under the last one and the button
+                stays at the bottom. Adding a second trigger is what makes an automation
+                multi-response, so it belongs to the trigger-blocks capability. */}
+            {!form.anyComment && (
+              <FeatureGate module="automation" action="trigger_blocks" className="w-full">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-dashed"
+                  onClick={addTriggerBlock}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add new trigger
+                </Button>
+              </FeatureGate>
+            )}
           </section>
 
           {/*
@@ -1239,7 +1246,7 @@ export function AutomationBuilder({
               <div className="flex shrink-0 items-center gap-2">
                 {!features.branding_control && (
                   <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
-                    <Lock className="mr-1 h-3 w-3" /> Upgrade to turn off
+                    <Lock className="mr-1 h-3 w-3 text-primary" /> Upgrade to turn off
                   </Badge>
                 )}
                 <Switch
@@ -1253,6 +1260,13 @@ export function AutomationBuilder({
                 />
               </div>
             </div>
+            {!features.branding_control && (
+              <LockedNote
+                capability="automation:branding_control"
+                feature="Removing the Liffio branding"
+                compact
+              />
+            )}
           </section>
 
           {/* Follow gate + follow-ups */}
@@ -1271,7 +1285,12 @@ export function AutomationBuilder({
             section now takes only its own key, which is strictly more precise: a validation pass
             pointing at a follow-up no longer flashes the follow gate too.
           */}
-          <FeatureGate module="automation" action="follow_before_dm" block>
+          <FeatureGate
+            module="automation"
+            action="follow_before_dm"
+            feature="Follow before DM"
+            block
+          >
             <FollowBeforeDmSection
               value={form.followBeforeDm}
               onChange={(v) => update({ followBeforeDm: v })}
@@ -1414,7 +1433,12 @@ function TriggerBlockFields({
             <Switch checked={block.autoReply} onCheckedChange={(v) => onChange({ autoReply: v })} />
           </div>
         ) : (
-          <FeatureGate module="automation" action="public_auto_reply" block>
+          <FeatureGate
+            module="automation"
+            action="public_auto_reply"
+            feature="Public auto-reply"
+            block
+          >
             <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
               <span className="text-xs font-medium">Public auto-reply on the comment</span>
               <Switch checked={false} />
@@ -1478,7 +1502,7 @@ function TriggerBlockFields({
 
       {!(features.block_button || features.dm_button) ? (
         <TimelineStep index={buttonStepIndex} title="Button (optional)" last>
-          <FeatureGate module="automation" action="dm_button" block>
+          <FeatureGate module="automation" action="dm_button" feature="The DM button" block>
             <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
               <span className="text-xs font-medium">Attach a tappable button under the DM</span>
               <Switch checked={false} />
@@ -1736,7 +1760,7 @@ function LockedTarget({
   return (
     <div className="space-y-3 rounded-xl border border-dashed bg-muted/30 p-4">
       <div className="flex items-center gap-2">
-        <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+        <Lock className="h-3.5 w-3.5 text-primary" />
         <span className="text-sm font-medium">{scopeLabel}</span>
         <Badge variant="secondary" className="ml-auto text-[10px] uppercase tracking-wide">
           Locked

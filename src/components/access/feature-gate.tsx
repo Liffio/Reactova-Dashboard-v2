@@ -4,7 +4,8 @@ import { Lock } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCan } from "@/hooks/use-auth";
-import { useUpgradeMessage } from "@/hooks/use-capability-plan";
+import { useUpgradeInfo } from "@/hooks/use-capability-plan";
+import { LockedNote } from "@/components/access/locked-note";
 
 /**
  * Walls a feature by the workspace's package entitlement.
@@ -27,42 +28,66 @@ export function FeatureGate({
   action,
   children,
   message,
+  feature,
   className,
   block = false,
 }: {
   module: string;
   action: string;
   children: ReactNode;
-  /** Overrides the default "Available on the <plan> plan." copy. */
+  /** Overrides the default "Available on the <plan> plan." copy in the inline tooltip. */
   message?: string;
+  /** Human name for the locked-section note, e.g. "Follow before DM". Block gates only. */
+  feature?: string;
   className?: string;
   /** Use a block-level wrapper for a whole section; the default inline wrapper suits a single control. */
   block?: boolean;
 }) {
   const allowed = useCan(module, action);
   // Names the cheapest package on sale that unlocks this, e.g. "Available on the Growth plan."
-  const upgradeMessage = useUpgradeMessage(`${module}:${action}`);
+  const upgrade = useUpgradeInfo(`${module}:${action}`);
   if (allowed) return <>{children}</>;
 
-  const Wrapper = block ? "div" : "span";
+  if (block) {
+    // A whole section: the note (why + how to unlock + billing link) sits above the dimmed preview.
+    // Stacked rather than overlaid, because some gated sections are a single short row that an
+    // overlay would spill out of.
+    return (
+      <div className={`space-y-2 ${className ?? ""}`}>
+        <LockedNote capability={`${module}:${action}`} feature={feature} compact />
+        {/* The real control, shown but inert — the user sees what they'd get by upgrading.
+            `inert` also keeps it out of the tab order, which pointer-events alone does not. */}
+        <div className="pointer-events-none select-none opacity-40" aria-hidden inert>
+          {children}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Wrapper className={`relative ${block ? "block" : "inline-flex"} ${className ?? ""}`}>
-          {/* The real control, shown but inert — the user sees what they'd get by upgrading.
-              `inert` also keeps it out of the tab order, which pointer-events alone does not. */}
-          <span className="pointer-events-none block select-none opacity-40" aria-hidden inert>
+        <span className={`relative inline-flex ${className ?? ""}`}>
+          <span
+            className="pointer-events-none block flex-1 select-none opacity-40"
+            aria-hidden
+            inert
+          >
             {children}
           </span>
           <span className="absolute inset-0 flex items-center justify-center">
-            <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+            <Lock className="h-3.5 w-3.5 text-primary" />
           </span>
-        </Wrapper>
+        </span>
       </TooltipTrigger>
       <TooltipContent side="top">
         <p className="max-w-[220px] text-xs leading-relaxed">
-          {message ?? upgradeMessage}{" "}
-          <Link to="/billings" className="font-medium underline underline-offset-2">
+          {message ?? upgrade.message}{" "}
+          <Link
+            to="/billings"
+            search={upgrade.billingSearch}
+            className="font-medium underline underline-offset-2"
+          >
             Upgrade
           </Link>
         </p>

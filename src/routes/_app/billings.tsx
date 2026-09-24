@@ -2,7 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Country } from "country-state-city";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CreditCard, Download, ExternalLink, IndianRupee, Loader2, RefreshCw, Zap } from "lucide-react";
+import {
+  CreditCard,
+  Download,
+  ExternalLink,
+  IndianRupee,
+  Loader2,
+  RefreshCw,
+  Zap,
+} from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -86,11 +94,16 @@ import { isWorkspaceReady } from "@/lib/api/active-workspace";
 /** Razorpay only — Stripe was removed from the product in full. */
 type Gateway = "razorpay";
 
-type BillingSearch = { status?: string };
+/**
+ * `highlight` is a package key (`growth`), set by a locked feature's "View plans" link so the plan
+ * that unlocks it is marked on arrival.
+ */
+type BillingSearch = { status?: string; highlight?: string };
 
 export const Route = createFileRoute("/_app/billings")({
   validateSearch: (search: Record<string, unknown>): BillingSearch => ({
     status: typeof search.status === "string" ? search.status : undefined,
+    highlight: typeof search.highlight === "string" ? search.highlight : undefined,
   }),
   head: () => ({ meta: [{ title: "Billing — Liffio" }] }),
   component: BillingRoute,
@@ -137,7 +150,16 @@ function BillingPage() {
   const workspaceId = current.id;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { status: checkoutStatus } = Route.useSearch();
+  const { status: checkoutStatus, highlight: highlightPlan } = Route.useSearch();
+  const isHighlightedPlan = (planKey: string) =>
+    Boolean(highlightPlan) && planKey.toUpperCase() === highlightPlan!.toUpperCase();
+  // Scroll the highlighted card into view once, not on every re-render of the grid.
+  const highlightScrolledRef = useRef(false);
+  const scrollToHighlighted = (el: HTMLDivElement | null) => {
+    if (!el || highlightScrolledRef.current) return;
+    highlightScrolledRef.current = true;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
   const [interval, setInterval] = useState<"monthly" | "yearly">("monthly");
   const [cancelOpen, setCancelOpen] = useState(false);
   // 🔴 `gatewayChoice` is gone with the payment-type dialog — see `handleUpgradeClick`.
@@ -644,7 +666,9 @@ function BillingPage() {
                   {group ? (
                     <Badge
                       variant="outline"
-                      className={group.readOnly ? (statusStyles.EXPIRED ?? "") : (statusStyles.ACTIVE ?? "")}
+                      className={
+                        group.readOnly ? (statusStyles.EXPIRED ?? "") : (statusStyles.ACTIVE ?? "")
+                      }
                     >
                       {group.readOnly ? "expired" : "active"}
                     </Badge>
@@ -783,18 +807,27 @@ function BillingPage() {
                   planUsd: price,
                   interval,
                 });
+                const highlighted = isHighlightedPlan(plan.plan);
                 return (
                   <div
                     key={plan.plan}
+                    ref={highlighted ? scrollToHighlighted : undefined}
                     className={`relative flex flex-col rounded-2xl border p-5 shadow-soft transition-all ${
-                      isCurrent
-                        ? "border-primary/40 bg-primary/5 ring-1 ring-primary/20"
-                        : "bg-card hover:-translate-y-0.5"
+                      highlighted
+                        ? "border-primary bg-primary/5 ring-2 ring-primary shadow-glow"
+                        : isCurrent
+                          ? "border-primary/40 bg-primary/5 ring-1 ring-primary/20"
+                          : "bg-card hover:-translate-y-0.5"
                     }`}
                   >
                     {isCurrent && (
                       <span className="absolute -top-2.5 left-4 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
                         Current
+                      </span>
+                    )}
+                    {highlighted && !isCurrent && (
+                      <span className="absolute -top-2.5 left-4 inline-flex items-center gap-1 rounded-full bg-brand-gradient px-2.5 py-0.5 text-[10px] font-semibold text-primary-foreground shadow-glow">
+                        <Lock aria-hidden className="size-2.5" /> Unlocks this feature
                       </span>
                     )}
                     <div className="mb-1 flex items-center gap-1.5">
@@ -979,12 +1012,12 @@ function BillingPage() {
                             !canDownloadInvoices
                               ? "Invoice downloads are turned off for you. Ask the owner if you need them."
                               : inv.hasPdf
-                              ? "Download this invoice as a PDF"
-                              : inv.canRenderPdf
-                                ? "Prepare this invoice as a PDF and download it"
-                                : inv.hasDocument
-                                  ? "This invoice was issued before PDF support. Use View to open it."
-                                  : "This payment was not issued as an invoice, so there is no document"
+                                ? "Download this invoice as a PDF"
+                                : inv.canRenderPdf
+                                  ? "Prepare this invoice as a PDF and download it"
+                                  : inv.hasDocument
+                                    ? "This invoice was issued before PDF support. Use View to open it."
+                                    : "This payment was not issued as an invoice, so there is no document"
                           }
                         >
                           {downloadingId === inv.id ? (

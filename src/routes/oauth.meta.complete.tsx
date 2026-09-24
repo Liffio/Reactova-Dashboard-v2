@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Instagram } from "lucide-react";
+import { CheckCircle2, Instagram, XCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
 
 import {
@@ -28,6 +29,12 @@ type MetaCompleteSearch = {
   hasMessagingPermission?: string;
   hasCommentPermission?: string;
   permissionsVerified?: string;
+  /**
+   * "1" when this page is running inside the OAuth popup. Set by the API's `/popup-complete` hop,
+   * which only the popup exit passes through. It has to be explicit: Instagram's COOP header severs
+   * `window.opener`, so the popup cannot be detected from the window itself.
+   */
+  popup?: string;
 };
 
 /** `undefined` when the param is absent — an unknown, which must not collapse to `false`. */
@@ -50,6 +57,8 @@ export const Route = createFileRoute("/oauth/meta/complete")({
       typeof search.hasCommentPermission === "string" ? search.hasCommentPermission : undefined,
     permissionsVerified:
       typeof search.permissionsVerified === "string" ? search.permissionsVerified : undefined,
+    // TanStack's search parser turns `popup=1` into the number 1.
+    popup: search.popup != null ? String(search.popup) : undefined,
   }),
   head: () => ({ meta: [{ title: "Connecting Instagram — Liffio" }] }),
   component: MetaOAuthComplete,
@@ -70,6 +79,13 @@ function MetaOAuthComplete() {
   const search = Route.useSearch();
   const queryClient = useQueryClient();
   const { setCurrentId, refreshAuth } = useApp();
+  /**
+   * Set when this popup tried to close itself and the browser refused. The app window already got
+   * the result over the BroadcastChannel, so the popup offers a manual close rather than loading
+   * the whole app inside itself (the reported bug).
+   */
+  const [closeRefused, setCloseRefused] = useState<null | MetaOAuthResult["meta"]>(null);
+  const [continueHere, setContinueHere] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -132,6 +148,21 @@ function MetaOAuthComplete() {
         }
       } catch (e) {
         warn("BroadcastChannel broadcast failed:", e);
+      }
+
+      // --- PATH 2b: we ARE the popup — close ourselves. ---
+      // The opener cannot do it: after the COOP swap its `popup` handle is dead, so its
+      // `popup.close()` is a no-op. A short beat first so the broadcast is delivered.
+      if (search.popup === "1" && !continueHere) {
+        log("running inside the OAuth popup — closing self");
+        await new Promise((resolve) => window.setTimeout(resolve, 150));
+        window.close();
+        await new Promise((resolve) => window.setTimeout(resolve, 400));
+        if (cancelled) return;
+        // Still here: the browser refused to script-close this window.
+        warn("window.close() was refused — asking the user to close the popup");
+        setCloseRefused(enriched.meta);
+        return;
       }
 
       // --- PATH 3: no-popup fallback (direct navigation in same tab) ---
@@ -203,7 +234,33 @@ function MetaOAuthComplete() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [continueHere]);
+
+  if (closeRefused && !continueHere) {
+    const ok = closeRefused === "connected";
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6 text-center">
+        {ok ? (
+          <CheckCircle2 className="h-9 w-9 text-primary" />
+        ) : (
+          <XCircle className="h-9 w-9 text-destructive" />
+        )}
+        <p className="max-w-xs text-sm text-muted-foreground">
+          {ok
+            ? "Instagram is connected. You can close this window and return to Liffio."
+            : "The connection didn't complete. Close this window and try again in Liffio."}
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <Button size="sm" onClick={() => window.close()}>
+            Close window
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setContinueHere(true)}>
+            Continue in this window
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background p-6">

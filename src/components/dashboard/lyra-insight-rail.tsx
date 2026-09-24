@@ -56,7 +56,7 @@ export function LyraInsightRail({
 
   // Without `dashboard:ai_insights` the card is shown locked (no request is made) rather than hidden.
   return (
-    <FeatureGate module="dashboard" action="ai_insights" block>
+    <FeatureGate module="dashboard" action="ai_insights" feature="AI insights" block>
       <InsightsCard
         variant="rail"
         title="Lyra insight"

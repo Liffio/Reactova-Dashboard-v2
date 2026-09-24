@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileText, ScrollText, ShieldCheck, Sparkles } from "lucide-react";
+import { ExternalLink, ShieldCheck } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
   Dialog,
@@ -28,6 +28,54 @@ type AffiliateConsentDialogProps = {
   onOpenChange: (open: boolean) => void;
   onAccepted: () => void;
 };
+
+/** Public policy pages on the marketing site: liffio.com/{slug}. Every slug here is live. */
+const POLICY_LINKS = [
+  { slug: "affiliate-policy", label: "Affiliate Policy" },
+  { slug: "terms-of-service", label: "Terms of Service" },
+  { slug: "privacy-policy", label: "Privacy Policy" },
+  { slug: "acceptable-use-policy", label: "Acceptable Use Policy" },
+  { slug: "refund-policy", label: "Refund Policy" },
+  { slug: "cookie-policy", label: "Cookie Policy" },
+] as const;
+
+const policyUrl = (slug: string) => `https://liffio.com/${slug}`;
+
+/**
+ * Phrases in the agreement text that name a policy, and the page each links to. Longest first,
+ * so "Affiliate Program Terms" wins over "Affiliate Terms" at the same position.
+ */
+const POLICY_PHRASES: ReadonlyArray<readonly [phrase: string, slug: string]> = [
+  ["Affiliate Program Terms", "affiliate-policy"],
+  ["Affiliate Terms", "affiliate-policy"],
+  ["Terms of Service", "terms-of-service"],
+  ["Privacy Policy", "privacy-policy"],
+];
+
+const POLICY_PATTERN = new RegExp(`(${POLICY_PHRASES.map(([phrase]) => phrase).join("|")})`, "g");
+
+/** Turns every policy name in `text` into a link to its page; everything else stays text. */
+function linkifyPolicies(text: string): ReactNode {
+  const parts = text.split(POLICY_PATTERN);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) => {
+    const slug = POLICY_PHRASES.find(([phrase]) => phrase === part)?.[1];
+    if (!slug) return part;
+    return (
+      <a
+        key={`${part}-${i}`}
+        href={policyUrl(slug)}
+        target="_blank"
+        rel="noopener noreferrer"
+        // Inside a <label>: clicking the link must open the page, not toggle the checkbox.
+        onClick={(e) => e.stopPropagation()}
+        className="font-medium text-primary underline underline-offset-2"
+      >
+        {part}
+      </a>
+    );
+  });
+}
 
 export function AffiliateConsentDialog({
   open,
@@ -96,8 +144,9 @@ export function AffiliateConsentDialog({
       id: "affiliate-terms",
       checked: acceptedTerms,
       onChange: setAcceptedTerms,
-      label:
+      label: linkifyPolicies(
         "I have read and agree to the Affiliate Program Terms, Liffio Terms of Service, and Privacy Policy.",
+      ),
     },
     {
       id: "affiliate-commission",
@@ -113,6 +162,8 @@ export function AffiliateConsentDialog({
     },
   ] as const;
 
+  const progressPct = Math.max(scrollProgress * 100, scrolledToEnd ? 100 : 2);
+
   return (
     <Dialog
       open={open}
@@ -121,79 +172,94 @@ export function AffiliateConsentDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className="max-w-2xl w-[calc(100vw-1.5rem)] sm:max-w-3xl p-0 gap-0 overflow-hidden max-h-[min(92vh,900px)] flex flex-col bg-background shadow-2xl [&>button]:text-white [&>button]:opacity-90 [&>button:hover]:opacity-100">
-        <DialogHeader className="shrink-0 text-left border-0 pb-0 space-y-0">
-          <div className="relative overflow-hidden px-5 sm:px-6 pt-5 sm:pt-6 pb-5 bg-brand-gradient opacity-95 border-b">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="relative flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/25">
-                <ShieldCheck className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white mb-2">
-                  <Sparkles className="h-3 w-3" />
-                  One quick step
-                </div>
-                <DialogTitle className="font-display text-lg sm:text-xl font-bold text-white pr-8">
-                  Affiliate program agreement
-                </DialogTitle>
-                <DialogDescription className="text-left text-sm mt-1.5 text-white/85 leading-relaxed">
-                  Scroll through the terms below, then confirm each item to unlock your referral
-                  dashboard. Recorded once per account (v{AFFILIATE_CONSENT_VERSION}).
-                </DialogDescription>
-              </div>
+      {/* Fixed height, so the agreement body — not the chrome around it — gets the space. */}
+      <DialogContent className="flex h-[min(90vh,860px)] w-[calc(100vw-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+        <DialogHeader className="shrink-0 space-y-0 border-b px-5 pb-4 pt-5 text-left sm:px-6">
+          <div className="flex items-start gap-3 pr-8">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-muted/40">
+              <ShieldCheck className="h-4 w-4 text-primary" />
             </div>
-            <div className="relative mt-4 h-1.5 w-full rounded-full bg-white/25 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-white transition-all duration-150"
-                style={{ width: `${Math.max(scrollProgress * 100, scrolledToEnd ? 100 : 8)}%` }}
-              />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <DialogTitle className="font-display text-lg font-semibold">
+                  Affiliate Program Agreement
+                </DialogTitle>
+                <span className="rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  Version {AFFILIATE_CONSENT_VERSION}
+                </span>
+              </div>
+              <DialogDescription className="mt-1 text-left text-sm leading-relaxed text-muted-foreground">
+                Please read the agreement in full. The confirmations below unlock once you reach the
+                end.
+              </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
+        {/* Reading progress — a thin rule in the theme colour, not a banner. */}
+        <div className="h-0.5 w-full shrink-0 bg-muted" aria-hidden>
+          <div
+            className="h-full bg-primary transition-[width] duration-150"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4 space-y-6 bg-muted/30"
+          className="min-h-0 flex-1 overflow-y-auto bg-background px-5 py-5 sm:px-8"
         >
-          <p className="text-xs text-muted-foreground flex items-center gap-2 rounded-lg bg-background/80 border px-3 py-2.5">
-            <ScrollText className="h-4 w-4 shrink-0 text-primary" />
+          <nav
+            aria-label="Related policies"
+            className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border bg-muted/30 px-3.5 py-2.5 text-xs"
+          >
+            <span className="font-medium text-foreground">Related policies:</span>
+            {POLICY_LINKS.map((policy) => (
+              <a
+                key={policy.slug}
+                href={policyUrl(policy.slug)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline"
+              >
+                {policy.label}
+                <ExternalLink className="h-3 w-3" aria-hidden />
+              </a>
+            ))}
+          </nav>
+
+          <ol className="space-y-6">
+            {AFFILIATE_PROGRAM_TERMS_SECTIONS.map((section, index) => (
+              <li key={section.id} className="space-y-2">
+                <h4 className="text-sm font-semibold text-foreground">
+                  {index + 1}. {section.title}
+                </h4>
+                {section.paragraphs.map((paragraph) => (
+                  <p
+                    key={paragraph.slice(0, 40)}
+                    className="text-sm leading-relaxed text-muted-foreground"
+                  >
+                    {linkifyPolicies(paragraph)}
+                  </p>
+                ))}
+              </li>
+            ))}
+          </ol>
+
+          <p className="mt-8 border-t pt-4 text-xs text-muted-foreground">
+            End of agreement.{" "}
             {scrolledToEnd
-              ? "You've reached the end — confirm the items below to continue."
-              : "Scroll to the bottom of the agreement to enable the confirmation checkboxes."}
+              ? "You can now confirm the items below."
+              : "Scroll to here to enable the confirmations."}
           </p>
-          {AFFILIATE_PROGRAM_TERMS_SECTIONS.map((section) => (
-            <article
-              key={section.id}
-              className="rounded-xl border bg-card px-4 py-3.5 shadow-sm space-y-2"
-            >
-              <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
-                {section.title}
-              </h4>
-              {section.paragraphs.map((paragraph) => (
-                <p
-                  key={paragraph.slice(0, 40)}
-                  className="text-xs sm:text-sm text-muted-foreground leading-relaxed pl-5 sm:pl-6"
-                >
-                  {paragraph}
-                </p>
-              ))}
-            </article>
-          ))}
         </div>
 
-        <div className="shrink-0 border-t px-5 sm:px-6 py-4 space-y-4 bg-muted/20">
-          <div className="space-y-2.5">
+        <div className="shrink-0 space-y-3 border-t bg-muted/20 px-5 py-4 sm:px-6">
+          <div className="space-y-2">
             {consentItems.map((item) => (
               <div
                 key={item.id}
-                className={cn(
-                  "flex items-start gap-3 rounded-xl border px-3.5 py-3 transition-colors",
-                  item.checked ? "border-primary/35 bg-primary/5" : "bg-card",
-                  !scrolledToEnd && "opacity-60",
-                )}
+                className={cn("flex items-start gap-2.5", !scrolledToEnd && "opacity-50")}
               >
                 <Checkbox
                   id={item.id}
@@ -204,7 +270,7 @@ export function AffiliateConsentDialog({
                 />
                 <Label
                   htmlFor={item.id}
-                  className="text-sm leading-snug cursor-pointer font-normal"
+                  className="cursor-pointer text-xs font-normal leading-snug sm:text-sm"
                 >
                   {item.label}
                 </Label>
@@ -212,16 +278,11 @@ export function AffiliateConsentDialog({
             ))}
           </div>
 
-          <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:justify-between sm:items-center pt-1">
+          <DialogFooter className="flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Not now
             </Button>
-            <Button
-              type="button"
-              disabled={!canSubmit}
-              onClick={handleAccept}
-              className="bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
-            >
+            <Button type="button" disabled={!canSubmit} onClick={handleAccept}>
               {acceptConsent.isPending ? "Saving…" : "I agree & join program"}
             </Button>
           </DialogFooter>

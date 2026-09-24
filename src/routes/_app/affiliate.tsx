@@ -228,24 +228,33 @@ function AffiliatePage() {
           ) : (
             <div className="space-y-3">
               {[
-                { label: "Referral link", url: links?.randomLink },
-                ...(links?.customLink ? [{ label: "Custom link", url: links.customLink }] : []),
+                { label: "Referral link · sign-up page", url: links?.randomLink },
+                { label: "Referral link · homepage", url: links?.homeRandomLink },
+                ...(links?.customLink
+                  ? [{ label: "Custom link · sign-up page", url: links.customLink }]
+                  : []),
+                ...(links?.homeCustomLink
+                  ? [{ label: "Custom link · homepage", url: links.homeCustomLink }]
+                  : []),
               ].map(({ label, url }) =>
                 url ? (
-                  <div key={label} className="flex items-center gap-2">
-                    <div className="flex-1 rounded-lg border bg-muted/50 px-3 py-2 font-mono text-xs truncate">
-                      {url}
+                  <div key={label} className="space-y-1">
+                    <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 rounded-lg border bg-muted/50 px-3 py-2 font-mono text-xs truncate">
+                        {url}
+                      </div>
+                      <button
+                        className="rounded-md border p-2 hover:bg-muted"
+                        title="Copy"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(url);
+                          toast.success(`${label} copied!`);
+                        }}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                    <button
-                      className="rounded-md border p-2 hover:bg-muted"
-                      title="Copy"
-                      onClick={() => {
-                        void navigator.clipboard.writeText(url);
-                        toast.success(`${label} copied!`);
-                      }}
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </button>
                   </div>
                 ) : null,
               )}
@@ -340,10 +349,7 @@ function AffiliatePage() {
                           ${c.amount.toFixed(2)}
                         </td>
                         <td className="px-4 py-3.5">
-                          <Badge
-                            variant="outline"
-                            className={commissionStatusStyle(c.status)}
-                          >
+                          <Badge variant="outline" className={commissionStatusStyle(c.status)}>
                             {humanizeStatus(c.status)}
                           </Badge>
                         </td>
@@ -390,10 +396,7 @@ function AffiliatePage() {
                           {p.method.replace(/_/g, " ").toLowerCase()}
                         </td>
                         <td className="px-4 py-3.5">
-                          <Badge
-                            variant="outline"
-                            className={commissionStatusStyle(p.status)}
-                          >
+                          <Badge variant="outline" className={commissionStatusStyle(p.status)}>
                             {p.status.toLowerCase()}
                           </Badge>
                         </td>
@@ -501,9 +504,7 @@ function PayoutDialog({
             />
             <p className="text-xs text-muted-foreground">
               Available: ${availableBalance.toFixed(2)}
-              {minPayoutUsd === undefined
-                ? null
-                : ` · Minimum payout: $${minPayoutUsd.toFixed(2)}`}
+              {minPayoutUsd === undefined ? null : ` · Minimum payout: $${minPayoutUsd.toFixed(2)}`}
             </p>
           </div>
           <div className="space-y-2">

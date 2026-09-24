@@ -85,8 +85,12 @@ export type AffiliateDashboard = {
 };
 
 export type AffiliateLinks = {
+  /** Sign-up page: liffio.com/register/?ref=CODE */
   randomLink: string;
   customLink: string | null;
+  /** Homepage: liffio.com/?ref=CODE — same attribution, lands on the marketing page. */
+  homeRandomLink: string;
+  homeCustomLink: string | null;
   shortRandomLink: string;
   shortCustomLink: string | null;
 };

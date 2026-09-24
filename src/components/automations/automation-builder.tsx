@@ -1212,10 +1212,13 @@ export function AutomationBuilder({
                 multi-response, so it belongs to the trigger-blocks capability. */}
             {!form.anyComment && (
               <FeatureGate module="automation" action="trigger_blocks" className="w-full">
+                {/* Plain muted text, not a filled/outlined button. The colour is explicit: the
+                    outline variant only set one on hover, so the label was invisible until then. */}
                 <Button
                   type="button"
-                  variant="outline"
-                  className="w-full border-dashed"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-muted-foreground hover:bg-transparent hover:text-foreground"
                   onClick={addTriggerBlock}
                 >
                   <Plus className="h-3.5 w-3.5" /> Add new trigger

@@ -36,7 +36,12 @@ export type BioLinkProfile = {
   cardColor: string;
   cardOpacity: number;
   fontFamily: "inter" | "poppins" | "space-grotesk" | "playfair";
+  /** The custom avatar URL. `null` when `avatarSource` is "instagram". */
   avatarUrl: string | null;
+  /** "instagram" = the public page shows the connected account's live profile picture. */
+  avatarSource: "instagram" | "custom";
+  /** API path that serves the live Instagram picture once "instagram" is saved. */
+  instagramAvatarUrl: string;
   buttonTextColor: string;
   buttonRadius: number;
   buttonBorderWidth: number;
@@ -73,7 +78,10 @@ export type BioLinkAnalytics = {
 };
 
 export type UpdateBioLinkInput = Partial<
-  Omit<BioLinkProfile, "id" | "workspaceId" | "links" | "socials" | "publicUrl" | "totalClicks">
+  Omit<
+    BioLinkProfile,
+    "id" | "workspaceId" | "links" | "socials" | "publicUrl" | "totalClicks" | "instagramAvatarUrl"
+  >
 > & { displayName: string };
 
 export type PublicBioLinkPayload = {

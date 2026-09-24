@@ -70,6 +70,7 @@ import {
   type BioLinkSocialItem,
 } from "@/lib/api/biolink-api";
 import { useApp } from "@/state/app-context";
+import { cn } from "@/lib/utils";
 import { LIMITS, lengthError, urlError } from "@/lib/validation";
 import { getCreatorStatus } from "@/lib/api/creator-eligibility-api";
 import { BioTextAssist } from "@/components/lyra/bio-text-assist";
@@ -109,6 +110,7 @@ type FullDraft = {
   bio: string;
   slug: string;
   avatarUrl: string;
+  avatarSource: "instagram" | "custom";
   accentColor: string;
   buttonStyle: "filled" | "outlined" | "soft";
   backgroundType: "solid" | "gradient";
@@ -247,7 +249,7 @@ function SocialIcon({
 
 type TemplateStyle = Omit<
   FullDraft,
-  "displayName" | "bio" | "slug" | "avatarUrl" | "backgroundPattern"
+  "displayName" | "bio" | "slug" | "avatarUrl" | "avatarSource" | "backgroundPattern"
 >;
 
 const bioTemplates: Array<{ id: string; name: string; style: TemplateStyle }> = [
@@ -605,6 +607,7 @@ function initDraft(profile: BioLinkProfile, workspaceId: string): FullDraft {
     bio: profile.bio ?? "",
     slug: profile.slug,
     avatarUrl: profile.avatarUrl ?? "",
+    avatarSource: profile.avatarSource ?? "custom",
     accentColor: profile.accentColor,
     buttonStyle: profile.buttonStyle,
     backgroundType: profile.backgroundType,
@@ -691,7 +694,8 @@ function BioLinkPage() {
         displayName: draft.displayName || (profile?.displayName ?? ""),
         bio: draft.bio || null,
         slug: draft.slug || workspaceId,
-        avatarUrl: draft.avatarUrl || undefined,
+        avatarSource: draft.avatarSource,
+        avatarUrl: draft.avatarSource === "custom" ? draft.avatarUrl || undefined : undefined,
         accentColor: draft.accentColor,
         buttonStyle: draft.buttonStyle,
         backgroundType: draft.backgroundType,
@@ -972,6 +976,18 @@ function SectionCard({
   );
 }
 
+/**
+ * What the avatar should show for the current draft.
+ *
+ * "instagram" previews the connected account's picture straight from the app context, not the
+ * API proxy: the proxy only answers once the choice is SAVED, so it would 404 in an unsaved draft.
+ */
+function useDraftAvatarSrc(draft: FullDraft): string | null {
+  const { current } = useApp();
+  if (draft.avatarSource === "instagram") return current.profilePictureUrl ?? null;
+  return draft.avatarUrl && isValidUrl(draft.avatarUrl) ? draft.avatarUrl : null;
+}
+
 // ── Phone Preview ─────────────────────────────────────────────────────────────
 
 function PhonePreview({
@@ -983,6 +999,7 @@ function PhonePreview({
   links: DraftLink[];
   socials: DraftSocial[];
 }) {
+  const avatarSrc = useDraftAvatarSrc(draft);
   const bgStyle = useMemo(
     (): React.CSSProperties =>
       draft.backgroundType === "gradient"
@@ -1100,9 +1117,9 @@ function PhonePreview({
             >
               {/* Avatar */}
               <div className="mt-2 mb-2.5">
-                {draft.avatarUrl && isValidUrl(draft.avatarUrl) ? (
+                {avatarSrc ? (
                   <img
-                    src={draft.avatarUrl}
+                    src={avatarSrc}
                     alt=""
                     className="w-[60px] h-[60px] rounded-full object-cover"
                     style={{ border: `2.5px solid ${draft.accentColor}` }}
@@ -1206,6 +1223,8 @@ function ProfileSection({
   draft: FullDraft;
   set: <K extends keyof FullDraft>(k: K, v: FullDraft[K]) => void;
 }) {
+  const { current } = useApp();
+  const avatarSrc = useDraftAvatarSrc(draft);
   const publicUrl = useMemo(
     () => `https://bio.liffio.com/${draft.slug || "your-slug"}`,
     [draft.slug],
@@ -1224,24 +1243,72 @@ function ProfileSection({
         />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Avatar URL</Label>
-        <div className="flex items-center gap-2">
-          <Input
-            type="url"
-            placeholder="https://…/avatar.jpg"
-            value={draft.avatarUrl}
-            onChange={(e) => set("avatarUrl", e.target.value.slice(0, LIMITS.url.max))}
-            maxLength={LIMITS.url.max}
-            className="h-9"
-          />
-          {draft.avatarUrl && isValidUrl(draft.avatarUrl) && (
-            <img
-              src={draft.avatarUrl}
-              alt=""
-              className="h-8 w-8 rounded-full object-cover border shrink-0"
-            />
-          )}
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-xs">Avatar</Label>
+          <div className="inline-flex rounded-md border p-0.5 text-[11px]">
+            {(
+              [
+                ["instagram", "Instagram photo"],
+                ["custom", "Custom URL"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                disabled={value === "instagram" && !current.instagramConnected}
+                onClick={() => set("avatarSource", value)}
+                className={cn(
+                  "rounded px-2 py-0.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                  draft.avatarSource === value
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
+        {draft.avatarSource === "instagram" ? (
+          <div className="flex h-9 items-center gap-2 rounded-md border bg-muted/30 px-2.5">
+            {avatarSrc ? (
+              <img
+                src={avatarSrc}
+                alt=""
+                className="h-6 w-6 shrink-0 rounded-full border object-cover"
+              />
+            ) : (
+              <Instagram className="h-4 w-4 shrink-0 text-primary" />
+            )}
+            <span className="truncate text-xs text-muted-foreground">
+              {current.igHandle ? `@${current.igHandle}` : "Your Instagram"} profile picture ·
+              updates automatically
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Input
+              type="url"
+              placeholder="https://…/avatar.jpg"
+              value={draft.avatarUrl}
+              onChange={(e) => set("avatarUrl", e.target.value.slice(0, LIMITS.url.max))}
+              maxLength={LIMITS.url.max}
+              className="h-9"
+            />
+            {avatarSrc && (
+              <img
+                src={avatarSrc}
+                alt=""
+                className="h-8 w-8 rounded-full object-cover border shrink-0"
+              />
+            )}
+          </div>
+        )}
+        {!current.instagramConnected && (
+          <p className="text-[11px] text-muted-foreground">
+            Connect Instagram to use your profile picture.
+          </p>
+        )}
       </div>
       <div className="space-y-1.5 sm:col-span-2">
         <Label className="text-xs flex items-center justify-between">

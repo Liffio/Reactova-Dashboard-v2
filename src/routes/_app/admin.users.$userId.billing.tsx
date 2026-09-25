@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Download,
   Eye,
+  FileCheck,
   Loader2,
   Send,
 } from "lucide-react";
@@ -73,6 +74,7 @@ import {
   fetchInvoicePdfAdmin,
   fetchInvoiceViewAdmin,
   resendInvoiceAdmin,
+  reissueInvoiceAdmin,
   setWorkspaceCancelAtPeriodEnd,
   syncWorkspaceSubscriptionAdmin,
   type AdminBillingPlan,
@@ -632,12 +634,20 @@ function InvoiceRow({
   workspaceId,
   canManage,
   onResend,
+  onReissue,
 }: {
   invoice: BillingInvoiceRow;
   workspaceId: string;
   canManage: boolean;
   onResend: (invoice: BillingInvoiceRow) => void;
+  onReissue: (invoice: BillingInvoiceRow) => void;
 }) {
+  /**
+   * A captured charge with no invoice number is an amount-only fallback row: issuance failed when
+   * it was paid, so the customer has nothing to download. The only row shape the reissue route
+   * accepts, so the only one offered the control.
+   */
+  const needsIssuing = !invoice.invoiceNumber && invoice.status?.toLowerCase() === "captured";
   const [busy, setBusy] = useState<"view" | "pdf" | null>(null);
 
   const openDocument = async () => {
@@ -722,6 +732,22 @@ function InvoiceRow({
               <Download className="h-3.5 w-3.5" />
             )}
           </Button>
+          {needsIssuing ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={!canManage}
+              onClick={() => onReissue(invoice)}
+              title={
+                canManage
+                  ? "No invoice was issued for this payment. Issue it now"
+                  : "You cannot issue invoices"
+              }
+            >
+              <FileCheck className="h-3.5 w-3.5" />
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="ghost"
@@ -837,10 +863,92 @@ function ResendInvoiceDialog({
   );
 }
 
+/**
+ * Issue the missing tax invoice for a payment that only has an amount-only row.
+ *
+ * The server gives the row a number, dated at the original payment, and renders its PDF. It does
+ * NOT email the customer: support looks at the document first and sends it with Resend. The copy
+ * says both, so nobody expects the customer to have received anything yet.
+ */
+function ReissueInvoiceDialog({
+  invoice,
+  workspaceId,
+  onClose,
+}: {
+  invoice: BillingInvoiceRow | null;
+  workspaceId: string;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [reason, setReason] = useState("");
+
+  const reissue = useMutation({
+    mutationFn: () => reissueInvoiceAdmin(workspaceId, invoice!.id, { reason: reason.trim() }),
+    onSuccess: (result) => {
+      toast.success(`Issued ${result.invoiceNumber}. Check it, then use Resend to email it.`);
+      setReason("");
+      void queryClient.invalidateQueries({
+        queryKey: ["admin-workspace", workspaceId, "billing", "invoices"],
+      });
+      onClose();
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : "Could not issue this invoice");
+    },
+  });
+
+  return (
+    <Dialog open={invoice !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Issue invoice</DialogTitle>
+          <DialogDescription>
+            This payment
+            {invoice
+              ? ` of ${formatMoneyCents(invoice.amountCents, invoice.currency.toUpperCase())}`
+              : ""}
+            {invoice?.paidAt ? ` on ${formatDate(invoice.paidAt)}` : ""} has no invoice number, so
+            the customer has nothing to download. Issuing it assigns the next number, dates it at
+            the payment and prepares the PDF. The customer is not emailed. Use Resend once you have
+            checked it.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="reissue-reason">Reason</Label>
+          <Textarea
+            id="reissue-reason"
+            rows={2}
+            placeholder="Why is this invoice being issued now?"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={reason.trim().length === 0 || reissue.isPending}
+            onClick={() => reissue.mutate()}
+          >
+            {reissue.isPending ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
+            Issue invoice
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function InvoicesTable({ workspaceId }: { workspaceId: string }) {
   const [page, setPage] = useState(1);
   /** The invoice whose resend dialog is open, or null. */
   const [resendTarget, setResendTarget] = useState<BillingInvoiceRow | null>(null);
+  /** The fallback row whose issue dialog is open, or null. */
+  const [reissueTarget, setReissueTarget] = useState<BillingInvoiceRow | null>(null);
   const canManage = usePlatformCan(BILLING_MANAGE);
   const invoicesQuery = useQuery({
     queryKey: ["admin-workspace", workspaceId, "billing", "invoices", page],
@@ -891,6 +999,7 @@ function InvoicesTable({ workspaceId }: { workspaceId: string }) {
                     workspaceId={workspaceId}
                     canManage={canManage}
                     onResend={setResendTarget}
+                    onReissue={setReissueTarget}
                   />
                 ))}
               </TableBody>
@@ -913,6 +1022,11 @@ function InvoicesTable({ workspaceId }: { workspaceId: string }) {
         invoice={resendTarget}
         workspaceId={workspaceId}
         onClose={() => setResendTarget(null)}
+      />
+      <ReissueInvoiceDialog
+        invoice={reissueTarget}
+        workspaceId={workspaceId}
+        onClose={() => setReissueTarget(null)}
       />
     </FormSection>
   );

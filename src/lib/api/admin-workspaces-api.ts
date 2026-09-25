@@ -536,3 +536,28 @@ export function resendInvoiceAdmin(
     { method: "POST", body },
   );
 }
+
+export type ReissueInvoiceResponse = {
+  ok: true;
+  invoiceId: string;
+  /** The number the charge now carries. */
+  invoiceNumber: string;
+};
+
+/**
+ * Issue the real tax invoice for a charge that only has an amount-only row (no invoice number).
+ *
+ * The server upgrades that row in place, dated at the original payment, and renders the PDF. It
+ * emails nobody — the admin checks the document and then uses Resend. Refused (400) when the row
+ * already has a number or issuance itself fails, with the server's reason as the message.
+ */
+export function reissueInvoiceAdmin(
+  workspaceId: string,
+  invoiceId: string,
+  body: { reason: string },
+) {
+  return apiRequest<ReissueInvoiceResponse>(
+    apiUri.admin.workspaces.invoiceReissue(workspaceId, invoiceId),
+    { method: "POST", body },
+  );
+}

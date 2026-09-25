@@ -577,6 +577,8 @@ export const apiUri = {
         `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/invoices/${encodeURIComponent(invoiceId)}/pdf`,
       invoiceResend: (workspaceId: string, invoiceId: string) =>
         `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/invoices/${encodeURIComponent(invoiceId)}/resend`,
+      invoiceReissue: (workspaceId: string, invoiceId: string) =>
+        `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/invoices/${encodeURIComponent(invoiceId)}/reissue`,
       subscriptionComp: (workspaceId: string) =>
         `${V1}/admin/workspaces/${encodeURIComponent(workspaceId)}/subscription/comp`,
       subscriptionCancelAtPeriodEnd: (workspaceId: string) =>

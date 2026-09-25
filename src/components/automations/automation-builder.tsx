@@ -1010,8 +1010,15 @@ export function AutomationBuilder({
         </div>
       )}
 
-      <div className="grid gap-6 p-4 sm:p-6 md:p-10 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-6">
+      {/*
+        🔴 `minmax(0, 1fr)` and `min-w-0`, not `1fr`. A `1fr` track and a grid item both default to
+        a minimum of their min-content width, and the selected-post caption is `truncate`
+        (nowrap), so its min-content is the WHOLE caption. A long caption on an older post widened
+        this column past the viewport, and the 6-column picker grid stretched with it, which read
+        as zoomed-in thumbnails. The zero minimum lets `truncate` actually truncate.
+      */}
+      <div className="grid gap-6 p-4 sm:p-6 md:p-10 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0 space-y-6">
           <AutomationCopilotPanel
             workspaceId={workspaceId}
             userId={user?.id}

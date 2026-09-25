@@ -166,6 +166,15 @@ export const apiUri = {
     create: `${V1}/automations`,
     byId: (automationId: string) => `${V1}/automations/${automationId}`,
     wizardData: `${V1}/automations/wizard-data`,
+    /** One page of the post picker. The cursor is Graph's own; neither means page 1. */
+    mediaPage: (cursor?: { after?: string; before?: string }) => {
+      const qs = new URLSearchParams();
+      if (cursor?.after) qs.set("after", cursor.after);
+      else if (cursor?.before) qs.set("before", cursor.before);
+      const query = qs.toString();
+      return `${V1}/automations/media${query ? `?${query}` : ""}`;
+    },
+    mediaById: (mediaId: string) => `${V1}/automations/media/${encodeURIComponent(mediaId)}`,
   },
 
   scheduler: {

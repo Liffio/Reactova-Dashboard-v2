@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
+  ChevronLeft,
+  ChevronRight,
   CloudOff,
   Cloudy,
   Hash,
@@ -47,9 +50,11 @@ import { LockedNote } from "@/components/access/locked-note";
 import {
   createAutomation,
   getAutomationWizardData,
+  getPickerMediaPage,
+  getPickerSelectedMedia,
   updateAutomation,
-  type AutomationWizardData,
   type CreateAutomationInput,
+  type PickerMedia,
 } from "@/lib/api/automations-api";
 import { useAutosave } from "@/hooks/use-autosave";
 import { useApp } from "@/state/app-context";
@@ -132,6 +137,20 @@ export type AutomationBuilderProps = {
    */
   onSkip?: () => void;
 };
+
+/** A Graph cursor for the post picker: `after` pages forward, `before` pages back. */
+type PickerCursor = { after?: string; before?: string };
+
+/** The server caches each page for ten minutes, so there is nothing fresher to gain sooner. */
+const PICKER_PAGE_STALE_MS = 5 * 60_000;
+
+/** What the "currently selected" card shows. `unavailable` is Instagram's 100/33: deleted or gone. */
+type SelectedPostState =
+  | { kind: "none" }
+  | { kind: "loading"; mediaId: string }
+  | { kind: "ok"; item: PickerMedia }
+  | { kind: "unavailable"; mediaId: string }
+  | { kind: "error"; mediaId: string };
 
 export function AutomationBuilder({
   mode = "create",
@@ -257,7 +276,103 @@ export function AutomationBuilder({
   const syncPosts = () => {
     if (syncSecondsLeft > 0 || wizardData.isFetching) return;
     setSyncCooldownUntil(Date.now() + SYNC_COOLDOWN_MS);
+    // New posts land on page 1, so a sync goes back there rather than refreshing a later page.
+    setPickerCursor(null);
+    setPickerPageError(null);
     void wizardData.refetch();
+  };
+
+  /**
+   * 🔴 The picker pages by Graph cursor, 24 at a time, replacing the grid. (post picker pagination)
+   *
+   * It used to show the first 24 posts and nothing else, so an older post could not be picked at
+   * all. Cursors, not offsets: there is no "page 3 of 12", only Next and Back.
+   *
+   * Page 1 is `wizardData` itself (so Sync keeps refreshing what is on screen). Later pages are
+   * fetched BEFORE the cursor is committed, so a failed fetch leaves the current page visible with
+   * the error beside it, rather than an empty grid.
+   */
+  const [pickerCursor, setPickerCursor] = useState<PickerCursor | null>(null);
+  const [pickerPageLoading, setPickerPageLoading] = useState(false);
+  const [pickerPageError, setPickerPageError] = useState<string | null>(null);
+
+  const pickerPageQuery = (cursor: PickerCursor) => ({
+    queryKey: ["automation-picker-media", workspaceId, cursor] as const,
+    queryFn: () => getPickerMediaPage(workspaceId, cursor),
+    staleTime: PICKER_PAGE_STALE_MS,
+  });
+
+  const committedPage = useQuery({
+    ...pickerPageQuery(pickerCursor ?? {}),
+    enabled: isWorkspaceReady(workspaceId) && pickerCursor !== null,
+    retry: false,
+  });
+
+  const pickerItems: PickerMedia[] =
+    pickerCursor === null ? (wizardData.data?.media ?? []) : (committedPage.data?.items ?? []);
+  const pickerNextCursor =
+    pickerCursor === null
+      ? (wizardData.data?.mediaPaging?.nextCursor ?? null)
+      : (committedPage.data?.nextCursor ?? null);
+  const pickerPrevCursor = pickerCursor === null ? null : (committedPage.data?.prevCursor ?? null);
+
+  const goToPickerPage = async (cursor: PickerCursor) => {
+    if (pickerPageLoading) return;
+    setPickerPageLoading(true);
+    setPickerPageError(null);
+    try {
+      await queryClient.fetchQuery(pickerPageQuery(cursor));
+      setPickerCursor(cursor);
+    } catch (error) {
+      setPickerPageError(error instanceof Error ? error.message : "Could not load that page.");
+    } finally {
+      setPickerPageLoading(false);
+    }
+  };
+
+  /**
+   * The post the form points at, shown as its own card above the grid.
+   *
+   * Found in what is already loaded when it can be — the post just clicked, or one on the page on
+   * screen or page 1. Otherwise fetched ONCE by id. Paging the grid until the post turns up would
+   * be many Graph calls every time the editor opens on an account with hundreds of posts.
+   */
+  const [pickedMedia, setPickedMedia] = useState<PickerMedia | null>(null);
+  const selectedFromLoaded = form.postId
+    ? ((pickedMedia?.id === form.postId ? pickedMedia : undefined) ??
+      pickerItems.find((m) => m.id === form.postId) ??
+      wizardData.data?.media?.find((m) => m.id === form.postId))
+    : undefined;
+
+  const selectedMediaQuery = useQuery({
+    queryKey: ["automation-picker-selected", workspaceId, form.postId],
+    queryFn: () => getPickerSelectedMedia(workspaceId, form.postId!),
+    enabled:
+      isWorkspaceReady(workspaceId) &&
+      form.postScope === "specific" &&
+      Boolean(form.postId) &&
+      // Wait for page 1, which usually has it, before spending a request on it.
+      wizardData.isFetched &&
+      !selectedFromLoaded,
+    staleTime: PICKER_PAGE_STALE_MS,
+    retry: false,
+  });
+
+  const selectedPost: SelectedPostState = !form.postId
+    ? { kind: "none" }
+    : selectedFromLoaded
+      ? { kind: "ok", item: selectedFromLoaded }
+      : selectedMediaQuery.data
+        ? selectedMediaQuery.data.available
+          ? { kind: "ok", item: selectedMediaQuery.data.item }
+          : { kind: "unavailable", mediaId: form.postId }
+        : selectedMediaQuery.isError
+          ? { kind: "error", mediaId: form.postId }
+          : { kind: "loading", mediaId: form.postId };
+
+  const pickPost = (item: PickerMedia) => {
+    setPickedMedia(item);
+    update({ postId: item.id });
   };
 
   const update = (patch: Partial<BuilderForm>) => {
@@ -938,11 +1053,7 @@ export function AutomationBuilder({
               subtitle="Which comments start this automation?"
             />
             {targetLocked ? (
-              <LockedTarget
-                scope={form.postScope}
-                postId={form.postId}
-                media={wizardData.data?.media ?? []}
-              />
+              <LockedTarget scope={form.postScope} postId={form.postId} selected={selectedPost} />
             ) : (
               <>
                 {/*
@@ -1063,12 +1174,30 @@ export function AutomationBuilder({
                         loaded.
                       </p>
                     )}
-                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-                      {(wizardData.data?.media ?? []).map((item) => (
+                    {selectedPost.kind !== "none" && <SelectedPostCard selected={selectedPost} />}
+                    {pickerPageError && (
+                      <p className="text-xs text-destructive">
+                        Could not load that page of posts. {pickerPageError} The posts below are the
+                        page you were already on.
+                      </p>
+                    )}
+                    <div
+                      aria-busy={pickerPageLoading}
+                      className={cn(
+                        "relative grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6",
+                        pickerPageLoading && "pointer-events-none opacity-60",
+                      )}
+                    >
+                      {pickerPageLoading && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center">
+                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                      {pickerItems.map((item) => (
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => update({ postId: item.id })}
+                          onClick={() => pickPost(item)}
                           className={cn(
                             "relative aspect-square overflow-hidden rounded-lg border-2 bg-muted transition-all",
                             form.postId === item.id
@@ -1100,6 +1229,36 @@ export function AutomationBuilder({
                           )}
                         </button>
                       ))}
+                    </div>
+                    {/* Disabled, never hidden, so the grid does not jump when a page is the
+                        first or the last. No page numbers: Graph pages by cursor. */}
+                    <div className="flex items-center justify-between gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1 px-2.5 text-xs"
+                        disabled={pickerPageLoading || !pickerPrevCursor}
+                        onClick={() =>
+                          pickerPrevCursor && void goToPickerPage({ before: pickerPrevCursor })
+                        }
+                      >
+                        <ChevronLeft aria-hidden className="size-3.5" />
+                        Back
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1 px-2.5 text-xs"
+                        disabled={pickerPageLoading || !pickerNextCursor}
+                        onClick={() =>
+                          pickerNextCursor && void goToPickerPage({ after: pickerNextCursor })
+                        }
+                      >
+                        Next
+                        <ChevronRight aria-hidden className="size-3.5" />
+                      </Button>
                     </div>
                   </>
                 )}
@@ -1750,13 +1909,12 @@ function Bubble({ children }: { children: React.ReactNode }) {
 function LockedTarget({
   scope,
   postId,
-  media,
+  selected,
 }: {
   scope: PostScope;
   postId: string | null;
-  media: AutomationWizardData["media"];
+  selected: SelectedPostState;
 }) {
-  const selected = postId ? media.find((m) => m.id === postId) : undefined;
   const scopeLabel =
     scope === "any" ? "Every post" : scope === "next" ? "Your next post" : "One specific post";
 
@@ -1771,45 +1929,117 @@ function LockedTarget({
       </div>
 
       {scope === "specific" && (
-        <div className="flex items-center gap-3">
-          <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border bg-muted">
-            {selected?.thumbnailUrl ? (
-              <img
-                src={selected.thumbnailUrl}
-                alt={selected.caption || "Instagram media"}
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-            ) : (
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10" />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            {/*
-              `media` only carries recent posts, so an automation on an older one finds nothing to
-              match. That is not an error worth surfacing — the id is still the honest answer, and
-              the automation keeps working either way.
-            */}
-            <p className="truncate text-sm">
-              {selected?.caption?.trim() || (selected ? "Untitled post" : `Post ${postId ?? "—"}`)}
-            </p>
-            {selected?.permalink && (
-              <a
-                href={selected.permalink}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-              >
-                View on Instagram
-              </a>
-            )}
-          </div>
-        </div>
+        <SelectedPostRow
+          selected={selected.kind === "none" ? { kind: "error", mediaId: postId ?? "—" } : selected}
+          // The target is fixed once an automation exists (the API refuses a change), so the way
+          // off a deleted post is a new automation, not the picker.
+          unavailableHint="Create a new automation to target a different post."
+        />
       )}
 
       <p className="text-xs text-muted-foreground">
         The post an automation runs on is fixed once it exists — its leads and DMs are counted
         against it. Create a new automation to target a different post.
       </p>
+    </div>
+  );
+}
+
+/** The post the form points at, above the picker grid, whichever page the grid is on. */
+function SelectedPostCard({
+  selected,
+}: {
+  selected: Exclude<SelectedPostState, { kind: "none" }>;
+}) {
+  return (
+    <div
+      className={cn(
+        "space-y-2 rounded-xl border p-3",
+        selected.kind === "unavailable" ? "border-destructive/50 bg-destructive/5" : "bg-muted/30",
+      )}
+    >
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        Currently selected post
+      </p>
+      <SelectedPostRow
+        selected={selected}
+        unavailableHint="Pick another post from the grid below."
+      />
+    </div>
+  );
+}
+
+function SelectedPostRow({
+  selected,
+  unavailableHint,
+}: {
+  selected: Exclude<SelectedPostState, { kind: "none" }>;
+  unavailableHint: string;
+}) {
+  if (selected.kind === "unavailable") {
+    return (
+      <div className="flex items-start gap-3">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border bg-muted">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-destructive">
+            This post is no longer available on Instagram
+          </p>
+          <p className="text-xs text-muted-foreground">
+            It was deleted or can no longer be reached, so this automation will not run on it.{" "}
+            {unavailableHint}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const item = selected.kind === "ok" ? selected.item : undefined;
+  const fallbackLabel =
+    selected.kind === "loading"
+      ? "Loading post…"
+      : selected.kind === "error"
+        ? `Post ${selected.mediaId}`
+        : "";
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border bg-muted">
+        {item?.thumbnailUrl ? (
+          <img
+            src={item.thumbnailUrl}
+            alt={item.caption || "Instagram media"}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10" />
+        )}
+        {selected.kind === "loading" && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        {/*
+          Fetched by id rather than found on a page, so an older post shows its caption too. A
+          failed fetch (not a deleted post) falls back to the id: the automation keeps working
+          either way, and "deleted" is only ever said when Instagram said it.
+        */}
+        <p className="truncate text-sm">
+          {item ? item.caption?.trim() || "Untitled post" : fallbackLabel}
+        </p>
+        {item?.permalink && (
+          <a
+            href={item.permalink}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+          >
+            View on Instagram
+          </a>
+        )}
+      </div>
     </div>
   );
 }

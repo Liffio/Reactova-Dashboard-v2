@@ -95,7 +95,28 @@ export type AutomationWizardData = {
      */
     commentsCount: number | null;
   }>;
+  /** Cursors for the page after / before `media`. `null` means that page does not exist. */
+  mediaPaging?: { nextCursor: string | null; prevCursor: string | null };
 };
+
+export type PickerMedia = AutomationWizardData["media"][number];
+
+/** One page of the post picker. Cursors are Graph's own; `null` means there is no such page. */
+export type PickerMediaPage = {
+  items: PickerMedia[];
+  nextCursor: string | null;
+  prevCursor: string | null;
+};
+
+/**
+ * The post an automation is bound to, fetched by id.
+ *
+ * `available: false` is Instagram saying the post was deleted or can no longer be reached. It is
+ * an answer, not a failure, and the builder shows it rather than an error.
+ */
+export type PickerSelectedMedia =
+  | { available: true; item: PickerMedia }
+  | { available: false; mediaId: string };
 
 /** Tallies for the filter tabs, across the workspace rather than the current page. */
 /**
@@ -141,6 +162,17 @@ export function getAutomation(workspaceId: string, automationId: string) {
 
 export function getAutomationWizardData(workspaceId: string) {
   return apiRequest<AutomationWizardData>(apiUri.automations.wizardData, { workspaceId });
+}
+
+export function getPickerMediaPage(
+  workspaceId: string,
+  cursor: { after?: string; before?: string },
+) {
+  return apiRequest<PickerMediaPage>(apiUri.automations.mediaPage(cursor), { workspaceId });
+}
+
+export function getPickerSelectedMedia(workspaceId: string, mediaId: string) {
+  return apiRequest<PickerSelectedMedia>(apiUri.automations.mediaById(mediaId), { workspaceId });
 }
 
 export function createAutomation(workspaceId: string, body: CreateAutomationInput) {

@@ -3,6 +3,7 @@ import { SnackbarProvider, enqueueSnackbar, closeSnackbar, type SnackbarKey } fr
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { X } from "lucide-react";
 import { useTheme } from "@/state/theme-store";
+import { isTechnicalMessage, toUserMessage } from "@/lib/user-facing-error";
 
 /**
  * Notifications, on MUI snackbars.
@@ -75,7 +76,17 @@ function actionNode(key: SnackbarKey, opts?: ToastOptions): ReactNode {
   );
 }
 
-function show(variant: Variant, message: string, opts?: ToastOptions): void {
+function show(variant: Variant, rawMessage: string, rawOpts?: ToastOptions): void {
+  // The last line of defence: whatever a screen built its message from (`err.message`, a raw
+  // response body), raw transport/runtime text never reaches a customer. See `user-facing-error.ts`.
+  const message = variant === "error" ? toUserMessage(rawMessage) : rawMessage;
+  const opts =
+    rawOpts?.description && variant === "error"
+      ? {
+          ...rawOpts,
+          description: isTechnicalMessage(rawOpts.description) ? undefined : rawOpts.description,
+        }
+      : rawOpts;
   enqueueSnackbar(content(message, opts), {
     variant,
     // Errors linger; everything else is a quick confirmation.

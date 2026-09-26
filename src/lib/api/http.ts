@@ -8,6 +8,7 @@ import { IMPERSONATION_ENDED_EVENT, SESSION_EXPIRED_EVENT } from "@/lib/session-
 import { getActiveWorkspaceId } from "./active-workspace";
 import { notifyDeliveryHeaders } from "@/lib/notify-delivery-store";
 import { clearImpersonationToken, getImpersonationToken } from "./impersonation";
+import { toUserMessage } from "@/lib/user-facing-error";
 
 export const API_BASE: string =
   import.meta.env.VITE_API_URL ||
@@ -49,8 +50,16 @@ export class ApiError extends Error {
    * Not present for errors raised before a response exists (e.g. a network failure).
    */
   readonly requestId?: string;
+  /**
+   * The message before `toUserMessage` replaced it, for the console and support — never render it.
+   * `message` itself is always safe to show: a 5xx or raw transport text ("Request failed with
+   * status code 400") becomes the generic message here, so no screen can leak it.
+   */
+  readonly rawMessage: string;
   constructor(message: string, code?: string, status?: number, body?: unknown, requestId?: string) {
-    super(message);
+    // Our own offline copy is already customer-facing, whatever status carried it.
+    super(message === NETWORK_ERROR_MESSAGE ? message : toUserMessage(message, status));
+    this.rawMessage = message;
     this.name = "ApiError";
     this.code = code;
     this.status = status;

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { getUserErrorMessage } from "@/lib/user-facing-error";
 
 type Props = {
   children: ReactNode;
@@ -45,9 +46,12 @@ export class PageErrorBoundary extends Component<Props, State> {
             Something went wrong
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            {error.message || "An unexpected error occurred while rendering this page."}
+            {/* Raw message + stack are for developers; production shows only customer-safe text. */}
+            {import.meta.env.DEV
+              ? error.message || "An unexpected error occurred while rendering this page."
+              : getUserErrorMessage(error)}
           </p>
-          {error.stack && (
+          {import.meta.env.DEV && error.stack && (
             <pre className="mt-4 max-h-64 overflow-auto rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
               {error.stack}
             </pre>

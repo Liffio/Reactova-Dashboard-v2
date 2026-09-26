@@ -16,7 +16,8 @@ import { toast } from "@/lib/toast";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { getSwitcher } from "@/lib/api/workspace-switcher-api";
 import { SlotBar } from "@/components/workspace-switcher/slot-bar";
-import { Building2, ShieldCheck, Lock } from "lucide-react";
+import { Building2, ShieldCheck, Lock, LifeBuoy } from "lucide-react";
+import { getUserErrorMessage } from "@/lib/user-facing-error";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { BillingAddressDialog } from "@/components/billing/billing-address-dialog";
 import { Button } from "@/components/ui/button";
@@ -565,12 +566,44 @@ function BillingPage() {
   const cancelMutation = useMutation({
     mutationFn: () => cancelBillingSubscription(workspaceId),
     onSuccess: () => {
-      toast.success("Subscription cancelled");
+      toast.success("Subscription cancelled", {
+        description: "We've emailed you a confirmation.",
+      });
       setCancelOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["billing-subscription", workspaceId] });
     },
-    onError: (e) => toast.error((e as Error).message),
+    onError: (e) =>
+      toast.error(
+        getUserErrorMessage(
+          e,
+          "We couldn't cancel your subscription right now. Please try again later.",
+        ),
+      ),
   });
+
+  /**
+   * Unlocking a cancelled or expired workspace goes through a human. (plan/subscription-cancel.md)
+   *
+   * Carries the workspace id and plan so support can act without a round trip, the same way
+   * `handleDowngradeRequest` does.
+   */
+  const handleContactSupport = () => {
+    const subject = `Unlock request: workspace ${workspaceId}`;
+    const body = [
+      "I would like to unlock / reactivate this workspace.",
+      "",
+      `Workspace: ${workspaceId}`,
+      `Plan: ${sub?.plan ?? "unknown"}`,
+      sub?.billingCycleEnd
+        ? `Access until: ${new Date(sub.billingCycleEnd).toLocaleDateString()}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    window.location.href = `mailto:support@liffio.com?subject=${encodeURIComponent(
+      subject,
+    )}&body=${encodeURIComponent(body)}`;
+  };
 
   const sub = subQuery.data;
   // Retired tiers are dropped, not merely disabled: a card nobody may buy is noise on a pricing
@@ -606,6 +639,13 @@ function BillingPage() {
   const isOwner = group
     ? group.isOwner
     : (switcherQuery.data?.workspaces.find((w) => w.id === workspaceId)?.isOwner ?? true);
+  /** A standalone workspace's own cancellation; an agency's lives on the group. */
+  const subscriptionCancelled = !group && !!sub?.cancelAtPeriodEnd;
+  const workspaceLocked = group
+    ? group.readOnly
+    : subscriptionCancelled &&
+      !!sub?.billingCycleEnd &&
+      new Date(sub.billingCycleEnd).getTime() <= Date.now();
   const groupRenews = group?.renewsAt
     ? new Date(group.renewsAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })
     : null;
@@ -711,18 +751,47 @@ function BillingPage() {
                 </p>
               ) : null}
             </div>
-            {/* Billing actions are the owner's. A member sees the plan read-only. (spec 2.7) */}
-            {isOwner && sub?.hasActiveSubscription && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-destructive hover:text-destructive"
-                onClick={() => setCancelOpen(true)}
-              >
-                Cancel subscription
-              </Button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {(subscriptionCancelled || workspaceLocked) && (
+                <Button variant="outline" size="sm" onClick={handleContactSupport}>
+                  <LifeBuoy aria-hidden className="size-4" />
+                  Contact support
+                </Button>
+              )}
+              {/* Billing actions are the owner's. A member sees the plan read-only. (spec 2.7) */}
+              {isOwner && sub?.hasActiveSubscription && !subscriptionCancelled && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => setCancelOpen(true)}
+                >
+                  Cancel subscription
+                </Button>
+              )}
+            </div>
           </div>
+
+          {workspaceLocked ? (
+            <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">
+              <Lock aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
+              <span>
+                This workspace is locked because its subscription has ended. Contact support to
+                unlock it.
+              </span>
+            </div>
+          ) : subscriptionCancelled ? (
+            <div className="mt-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+              <Lock aria-hidden className="mt-0.5 size-4 shrink-0" />
+              <span>
+                Your subscription is cancelled.
+                {sub?.billingCycleEnd
+                  ? ` All features stay available until ${new Date(sub.billingCycleEnd).toLocaleDateString()}, then this workspace is locked.`
+                  : " This workspace will be locked when the current period ends."}{" "}
+                Contact support to unlock it.
+              </span>
+            </div>
+          ) : null}
 
           {group && isOwner && group.slotsUsed !== null && group.slotLimit !== null ? (
             <SlotBar used={group.slotsUsed} limit={group.slotLimit} size="lg" className="mt-4" />
@@ -1054,8 +1123,7 @@ function BillingPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel subscription?</AlertDialogTitle>
             <AlertDialogDescription>
-              You'll keep access to your current plan until the billing period ends. After that,
-              your workspace will revert to Free.
+              You'll keep access to your current plan until the billing period ends.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

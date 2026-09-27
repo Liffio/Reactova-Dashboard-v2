@@ -43,6 +43,7 @@ import { Route as AppAccessManagementRouteImport } from './routes/_app/access-ma
 import { Route as AppTeamIndexRouteImport } from './routes/_app/team.index'
 import { Route as AppPackagesIndexRouteImport } from './routes/_app/packages.index'
 import { Route as AppModuleRegistryIndexRouteImport } from './routes/_app/module-registry.index'
+import { Route as AppChatbotIndexRouteImport } from './routes/_app/chatbot.index'
 import { Route as AppAutomationsIndexRouteImport } from './routes/_app/automations.index'
 import { Route as OauthMetaCompleteRouteImport } from './routes/oauth.meta.complete'
 import { Route as AuthGoogleCompleteRouteImport } from './routes/auth.google.complete'
@@ -55,6 +56,8 @@ import { Route as AppModuleRegistryNewRouteImport } from './routes/_app/module-r
 import { Route as AppModuleRegistryDocsRouteImport } from './routes/_app/module-registry.docs'
 import { Route as AppModuleRegistryArrangeRouteImport } from './routes/_app/module-registry.arrange'
 import { Route as AppModuleRegistryParentIdRouteImport } from './routes/_app/module-registry.$parentId'
+import { Route as AppChatbotContactsRouteImport } from './routes/_app/chatbot.contacts'
+import { Route as AppChatbotChatbotIdRouteImport } from './routes/_app/chatbot.$chatbotId'
 import { Route as AppAutomationsNewRouteImport } from './routes/_app/automations.new'
 import { Route as AppAdminUsersRouteImport } from './routes/_app/admin.users'
 import { Route as AppAdminPluginsRouteImport } from './routes/_app/admin.plugins'
@@ -67,6 +70,7 @@ import { Route as AppAdminCapabilitiesRouteImport } from './routes/_app/admin.ca
 import { Route as AppAdminBrandingLinksRouteImport } from './routes/_app/admin.branding-links'
 import { Route as AppAdminAffiliatesRouteImport } from './routes/_app/admin.affiliates'
 import { Route as AppAdminUsersIndexRouteImport } from './routes/_app/admin.users.index'
+import { Route as AppChatbotChatbotIdAnalyticsRouteImport } from './routes/_app/chatbot.$chatbotId_.analytics'
 import { Route as AppAutomationsAutomationIdLiveRouteImport } from './routes/_app/automations.$automationId.live'
 import { Route as AppAutomationsAutomationIdEditRouteImport } from './routes/_app/automations.$automationId.edit'
 import { Route as AppAdminUsersUserIdRouteImport } from './routes/_app/admin.users.$userId'
@@ -254,6 +258,11 @@ const AppModuleRegistryIndexRoute = AppModuleRegistryIndexRouteImport.update({
   path: '/module-registry/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppChatbotIndexRoute = AppChatbotIndexRouteImport.update({
+  id: '/chatbot/',
+  path: '/chatbot/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAutomationsIndexRoute = AppAutomationsIndexRouteImport.update({
   id: '/automations/',
   path: '/automations/',
@@ -316,6 +325,16 @@ const AppModuleRegistryParentIdRoute =
     path: '/module-registry/$parentId',
     getParentRoute: () => AppRoute,
   } as any)
+const AppChatbotContactsRoute = AppChatbotContactsRouteImport.update({
+  id: '/chatbot/contacts',
+  path: '/chatbot/contacts',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppChatbotChatbotIdRoute = AppChatbotChatbotIdRouteImport.update({
+  id: '/chatbot/$chatbotId',
+  path: '/chatbot/$chatbotId',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAutomationsNewRoute = AppAutomationsNewRouteImport.update({
   id: '/automations/new',
   path: '/automations/new',
@@ -377,6 +396,12 @@ const AppAdminUsersIndexRoute = AppAdminUsersIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppAdminUsersRoute,
 } as any)
+const AppChatbotChatbotIdAnalyticsRoute =
+  AppChatbotChatbotIdAnalyticsRouteImport.update({
+    id: '/chatbot/$chatbotId_/analytics',
+    path: '/chatbot/$chatbotId/analytics',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppAutomationsAutomationIdLiveRoute =
   AppAutomationsAutomationIdLiveRouteImport.update({
     id: '/automations/$automationId/live',
@@ -520,6 +545,8 @@ export interface FileRoutesByFullPath {
   '/admin/plugins': typeof AppAdminPluginsRoute
   '/admin/users': typeof AppAdminUsersRouteWithChildren
   '/automations/new': typeof AppAutomationsNewRoute
+  '/chatbot/$chatbotId': typeof AppChatbotChatbotIdRoute
+  '/chatbot/contacts': typeof AppChatbotContactsRoute
   '/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
   '/module-registry/arrange': typeof AppModuleRegistryArrangeRoute
   '/module-registry/docs': typeof AppModuleRegistryDocsRoute
@@ -532,6 +559,7 @@ export interface FileRoutesByFullPath {
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
   '/automations/': typeof AppAutomationsIndexRoute
+  '/chatbot/': typeof AppChatbotIndexRoute
   '/module-registry/': typeof AppModuleRegistryIndexRoute
   '/packages/': typeof AppPackagesIndexRoute
   '/team/': typeof AppTeamIndexRoute
@@ -543,6 +571,7 @@ export interface FileRoutesByFullPath {
   '/admin/users/$userId': typeof AppAdminUsersUserIdRouteWithChildren
   '/automations/$automationId/edit': typeof AppAutomationsAutomationIdEditRoute
   '/automations/$automationId/live': typeof AppAutomationsAutomationIdLiveRoute
+  '/chatbot/$chatbotId/analytics': typeof AppChatbotChatbotIdAnalyticsRoute
   '/admin/users/': typeof AppAdminUsersIndexRoute
   '/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
   '/admin/users/$userId/ai-api': typeof AppAdminUsersUserIdAiApiRoute
@@ -595,6 +624,8 @@ export interface FileRoutesByTo {
   '/admin/impersonation': typeof AppAdminImpersonationRoute
   '/admin/plugins': typeof AppAdminPluginsRoute
   '/automations/new': typeof AppAutomationsNewRoute
+  '/chatbot/$chatbotId': typeof AppChatbotChatbotIdRoute
+  '/chatbot/contacts': typeof AppChatbotContactsRoute
   '/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
   '/module-registry/arrange': typeof AppModuleRegistryArrangeRoute
   '/module-registry/docs': typeof AppModuleRegistryDocsRoute
@@ -607,6 +638,7 @@ export interface FileRoutesByTo {
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
   '/automations': typeof AppAutomationsIndexRoute
+  '/chatbot': typeof AppChatbotIndexRoute
   '/module-registry': typeof AppModuleRegistryIndexRoute
   '/packages': typeof AppPackagesIndexRoute
   '/team': typeof AppTeamIndexRoute
@@ -617,6 +649,7 @@ export interface FileRoutesByTo {
   '/admin/plugins/signing-keys': typeof AppAdminPluginsSigningKeysRoute
   '/automations/$automationId/edit': typeof AppAutomationsAutomationIdEditRoute
   '/automations/$automationId/live': typeof AppAutomationsAutomationIdLiveRoute
+  '/chatbot/$chatbotId/analytics': typeof AppChatbotChatbotIdAnalyticsRoute
   '/admin/users': typeof AppAdminUsersIndexRoute
   '/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
   '/admin/users/$userId/ai-api': typeof AppAdminUsersUserIdAiApiRoute
@@ -672,6 +705,8 @@ export interface FileRoutesById {
   '/_app/admin/plugins': typeof AppAdminPluginsRoute
   '/_app/admin/users': typeof AppAdminUsersRouteWithChildren
   '/_app/automations/new': typeof AppAutomationsNewRoute
+  '/_app/chatbot/$chatbotId': typeof AppChatbotChatbotIdRoute
+  '/_app/chatbot/contacts': typeof AppChatbotContactsRoute
   '/_app/module-registry/$parentId': typeof AppModuleRegistryParentIdRoute
   '/_app/module-registry/arrange': typeof AppModuleRegistryArrangeRoute
   '/_app/module-registry/docs': typeof AppModuleRegistryDocsRoute
@@ -684,6 +719,7 @@ export interface FileRoutesById {
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
   '/_app/automations/': typeof AppAutomationsIndexRoute
+  '/_app/chatbot/': typeof AppChatbotIndexRoute
   '/_app/module-registry/': typeof AppModuleRegistryIndexRoute
   '/_app/packages/': typeof AppPackagesIndexRoute
   '/_app/team/': typeof AppTeamIndexRoute
@@ -695,6 +731,7 @@ export interface FileRoutesById {
   '/_app/admin/users/$userId': typeof AppAdminUsersUserIdRouteWithChildren
   '/_app/automations/$automationId/edit': typeof AppAutomationsAutomationIdEditRoute
   '/_app/automations/$automationId/live': typeof AppAutomationsAutomationIdLiveRoute
+  '/_app/chatbot/$chatbotId_/analytics': typeof AppChatbotChatbotIdAnalyticsRoute
   '/_app/admin/users/': typeof AppAdminUsersIndexRoute
   '/_app/admin/users/$userId/activity': typeof AppAdminUsersUserIdActivityRoute
   '/_app/admin/users/$userId/ai-api': typeof AppAdminUsersUserIdAiApiRoute
@@ -750,6 +787,8 @@ export interface FileRouteTypes {
     | '/admin/plugins'
     | '/admin/users'
     | '/automations/new'
+    | '/chatbot/$chatbotId'
+    | '/chatbot/contacts'
     | '/module-registry/$parentId'
     | '/module-registry/arrange'
     | '/module-registry/docs'
@@ -762,6 +801,7 @@ export interface FileRouteTypes {
     | '/auth/google/complete'
     | '/oauth/meta/complete'
     | '/automations/'
+    | '/chatbot/'
     | '/module-registry/'
     | '/packages/'
     | '/team/'
@@ -773,6 +813,7 @@ export interface FileRouteTypes {
     | '/admin/users/$userId'
     | '/automations/$automationId/edit'
     | '/automations/$automationId/live'
+    | '/chatbot/$chatbotId/analytics'
     | '/admin/users/'
     | '/admin/users/$userId/activity'
     | '/admin/users/$userId/ai-api'
@@ -825,6 +866,8 @@ export interface FileRouteTypes {
     | '/admin/impersonation'
     | '/admin/plugins'
     | '/automations/new'
+    | '/chatbot/$chatbotId'
+    | '/chatbot/contacts'
     | '/module-registry/$parentId'
     | '/module-registry/arrange'
     | '/module-registry/docs'
@@ -837,6 +880,7 @@ export interface FileRouteTypes {
     | '/auth/google/complete'
     | '/oauth/meta/complete'
     | '/automations'
+    | '/chatbot'
     | '/module-registry'
     | '/packages'
     | '/team'
@@ -847,6 +891,7 @@ export interface FileRouteTypes {
     | '/admin/plugins/signing-keys'
     | '/automations/$automationId/edit'
     | '/automations/$automationId/live'
+    | '/chatbot/$chatbotId/analytics'
     | '/admin/users'
     | '/admin/users/$userId/activity'
     | '/admin/users/$userId/ai-api'
@@ -901,6 +946,8 @@ export interface FileRouteTypes {
     | '/_app/admin/plugins'
     | '/_app/admin/users'
     | '/_app/automations/new'
+    | '/_app/chatbot/$chatbotId'
+    | '/_app/chatbot/contacts'
     | '/_app/module-registry/$parentId'
     | '/_app/module-registry/arrange'
     | '/_app/module-registry/docs'
@@ -913,6 +960,7 @@ export interface FileRouteTypes {
     | '/auth/google/complete'
     | '/oauth/meta/complete'
     | '/_app/automations/'
+    | '/_app/chatbot/'
     | '/_app/module-registry/'
     | '/_app/packages/'
     | '/_app/team/'
@@ -924,6 +972,7 @@ export interface FileRouteTypes {
     | '/_app/admin/users/$userId'
     | '/_app/automations/$automationId/edit'
     | '/_app/automations/$automationId/live'
+    | '/_app/chatbot/$chatbotId_/analytics'
     | '/_app/admin/users/'
     | '/_app/admin/users/$userId/activity'
     | '/_app/admin/users/$userId/ai-api'
@@ -1193,6 +1242,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppModuleRegistryIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/chatbot/': {
+      id: '/_app/chatbot/'
+      path: '/chatbot'
+      fullPath: '/chatbot/'
+      preLoaderRoute: typeof AppChatbotIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/automations/': {
       id: '/_app/automations/'
       path: '/automations'
@@ -1275,6 +1331,20 @@ declare module '@tanstack/react-router' {
       path: '/module-registry/$parentId'
       fullPath: '/module-registry/$parentId'
       preLoaderRoute: typeof AppModuleRegistryParentIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/chatbot/contacts': {
+      id: '/_app/chatbot/contacts'
+      path: '/chatbot/contacts'
+      fullPath: '/chatbot/contacts'
+      preLoaderRoute: typeof AppChatbotContactsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/chatbot/$chatbotId': {
+      id: '/_app/chatbot/$chatbotId'
+      path: '/chatbot/$chatbotId'
+      fullPath: '/chatbot/$chatbotId'
+      preLoaderRoute: typeof AppChatbotChatbotIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/automations/new': {
@@ -1360,6 +1430,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/users/'
       preLoaderRoute: typeof AppAdminUsersIndexRouteImport
       parentRoute: typeof AppAdminUsersRoute
+    }
+    '/_app/chatbot/$chatbotId_/analytics': {
+      id: '/_app/chatbot/$chatbotId_/analytics'
+      path: '/chatbot/$chatbotId/analytics'
+      fullPath: '/chatbot/$chatbotId/analytics'
+      preLoaderRoute: typeof AppChatbotChatbotIdAnalyticsRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/automations/$automationId/live': {
       id: '/_app/automations/$automationId/live'
@@ -1582,6 +1659,8 @@ interface AppRouteChildren {
   AppAdminPluginsRoute: typeof AppAdminPluginsRoute
   AppAdminUsersRoute: typeof AppAdminUsersRouteWithChildren
   AppAutomationsNewRoute: typeof AppAutomationsNewRoute
+  AppChatbotChatbotIdRoute: typeof AppChatbotChatbotIdRoute
+  AppChatbotContactsRoute: typeof AppChatbotContactsRoute
   AppModuleRegistryParentIdRoute: typeof AppModuleRegistryParentIdRoute
   AppModuleRegistryArrangeRoute: typeof AppModuleRegistryArrangeRoute
   AppModuleRegistryDocsRoute: typeof AppModuleRegistryDocsRoute
@@ -1592,6 +1671,7 @@ interface AppRouteChildren {
   AppPluginsKeyRoute: typeof AppPluginsKeyRoute
   AppTeamInviteRoute: typeof AppTeamInviteRoute
   AppAutomationsIndexRoute: typeof AppAutomationsIndexRoute
+  AppChatbotIndexRoute: typeof AppChatbotIndexRoute
   AppModuleRegistryIndexRoute: typeof AppModuleRegistryIndexRoute
   AppPackagesIndexRoute: typeof AppPackagesIndexRoute
   AppTeamIndexRoute: typeof AppTeamIndexRoute
@@ -1600,6 +1680,7 @@ interface AppRouteChildren {
   AppAdminPluginsSigningKeysRoute: typeof AppAdminPluginsSigningKeysRoute
   AppAutomationsAutomationIdEditRoute: typeof AppAutomationsAutomationIdEditRoute
   AppAutomationsAutomationIdLiveRoute: typeof AppAutomationsAutomationIdLiveRoute
+  AppChatbotChatbotIdAnalyticsRoute: typeof AppChatbotChatbotIdAnalyticsRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -1633,6 +1714,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdminPluginsRoute: AppAdminPluginsRoute,
   AppAdminUsersRoute: AppAdminUsersRouteWithChildren,
   AppAutomationsNewRoute: AppAutomationsNewRoute,
+  AppChatbotChatbotIdRoute: AppChatbotChatbotIdRoute,
+  AppChatbotContactsRoute: AppChatbotContactsRoute,
   AppModuleRegistryParentIdRoute: AppModuleRegistryParentIdRoute,
   AppModuleRegistryArrangeRoute: AppModuleRegistryArrangeRoute,
   AppModuleRegistryDocsRoute: AppModuleRegistryDocsRoute,
@@ -1643,6 +1726,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppPluginsKeyRoute: AppPluginsKeyRoute,
   AppTeamInviteRoute: AppTeamInviteRoute,
   AppAutomationsIndexRoute: AppAutomationsIndexRoute,
+  AppChatbotIndexRoute: AppChatbotIndexRoute,
   AppModuleRegistryIndexRoute: AppModuleRegistryIndexRoute,
   AppPackagesIndexRoute: AppPackagesIndexRoute,
   AppTeamIndexRoute: AppTeamIndexRoute,
@@ -1651,6 +1735,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdminPluginsSigningKeysRoute: AppAdminPluginsSigningKeysRoute,
   AppAutomationsAutomationIdEditRoute: AppAutomationsAutomationIdEditRoute,
   AppAutomationsAutomationIdLiveRoute: AppAutomationsAutomationIdLiveRoute,
+  AppChatbotChatbotIdAnalyticsRoute: AppChatbotChatbotIdAnalyticsRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

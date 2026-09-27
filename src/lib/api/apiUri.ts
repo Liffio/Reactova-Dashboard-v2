@@ -158,6 +158,26 @@ export const apiUri = {
     set: `${V1}/send-rate`,
   },
 
+  /** Instagram DM chatbots (server `api/routes/chatbots.ts`). Every response is `{ data }`. */
+  chatbots: {
+    list: `${V1}/chatbots`,
+    byId: (id: string) => `${V1}/chatbots/${id}`,
+    graph: (id: string) => `${V1}/chatbots/${id}/graph`,
+    duplicate: (id: string) => `${V1}/chatbots/${id}/duplicate`,
+    publish: (id: string) => `${V1}/chatbots/${id}/publish`,
+    pause: (id: string) => `${V1}/chatbots/${id}/pause`,
+    resume: (id: string) => `${V1}/chatbots/${id}/resume`,
+    triggers: (id: string) => `${V1}/chatbots/${id}/triggers`,
+    trigger: (id: string, triggerId: string) => `${V1}/chatbots/${id}/triggers/${triggerId}`,
+    analytics: (id: string, days: number) => `${V1}/chatbots/${id}/analytics?days=${days}`,
+    test: (id: string) => `${V1}/chatbots/${id}/test`,
+    iceBreakers: `${V1}/chatbots/ice-breakers`,
+    contacts: (qs: string) => `${V1}/chatbots/contacts${qs ? `?${qs}` : ""}`,
+    contact: (contactId: string) => `${V1}/chatbots/contacts/${contactId}`,
+    contactPause: (contactId: string) => `${V1}/chatbots/contacts/${contactId}/pause`,
+    contactResume: (contactId: string) => `${V1}/chatbots/contacts/${contactId}/resume`,
+  },
+
   automations: {
     /** Paginated list. POST because the query travels as a body — it reads, despite the verb. */
     search: `${V1}/automations/search`,

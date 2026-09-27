@@ -39,6 +39,9 @@ const QUERY_KEY_FOR: Record<string, string> = {
   automation: "automations",
   scheduled_post: "scheduler-posts",
   dm: "dashboard",
+  // Chatbot runs and contact pauses: the Contacts view and the chatbot list's chat counts.
+  chatbot_session: "chatbot-contacts",
+  chatbot_contact: "chatbot-contacts",
 };
 
 export function useWorkspaceEvents(workspaceId: string | null | undefined): void {

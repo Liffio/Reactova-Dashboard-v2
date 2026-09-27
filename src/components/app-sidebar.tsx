@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
+  Bot,
   LayoutDashboard,
   Zap,
   Users,
@@ -151,6 +152,7 @@ const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   UserCog,
   ListChecks,
   ScrollText,
+  Bot,
 };
 
 const resolveNavIcon = (name: string | null): typeof LayoutDashboard =>

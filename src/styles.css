@@ -74,6 +74,17 @@
   --color-sidebar-hover: var(--sidebar-hover);
   --color-sidebar-active: var(--sidebar-active);
 
+  /* Chatbot builder (plan/chatbot-module.md F3). Step-type pills — Message blue, Condition
+     purple — and the Instagram-style phone preview. Tuned per theme below. */
+  --color-msg: var(--msg-bg);
+  --color-msg-foreground: var(--msg-fg);
+  --color-cond: var(--cond-bg);
+  --color-cond-foreground: var(--cond-fg);
+  --color-phone: var(--phone-bg);
+  --color-phone-frame: var(--phone-frame);
+  --color-bubble-in: var(--bubble-in);
+  --color-bubble-in-foreground: var(--bubble-in-fg);
+
   /* Brand gradient stays the same in both modes */
   --gradient-brand: linear-gradient(
     135deg,
@@ -161,6 +172,17 @@
     0 0 0 1px oklch(0.62 0.24 18 / 0.14), 0 4px 16px -4px oklch(0.62 0.24 18 / 0.28),
     0 12px 40px -8px oklch(0.62 0.24 18 / 0.18);
   --shadow-card: 0 1px 3px oklch(0.15 0.02 30 / 0.06), 0 6px 16px -6px oklch(0.15 0.02 30 / 0.09);
+
+  /* Chatbot builder */
+  --msg-bg: oklch(0.945 0.028 255);
+  --msg-fg: oklch(0.42 0.14 260);
+  --cond-bg: oklch(0.93 0.04 295);
+  --cond-fg: oklch(0.4 0.17 290);
+  --phone-bg: oklch(1 0 0);
+  --phone-frame: oklch(0.21 0.006 250);
+  --bubble-in: oklch(0.95 0 0);
+  --bubble-in-fg: oklch(0.2 0 0);
+  --bubble-out: linear-gradient(135deg, oklch(0.55 0.23 290) 0%, oklch(0.6 0.23 320) 100%);
 }
 
 /* ─── Dark mode ───────────────────────────────────────────── */
@@ -174,6 +196,17 @@
 */
 .dark {
   color-scheme: dark;
+
+  /* Chatbot builder */
+  --msg-bg: oklch(0.26 0.06 255);
+  --msg-fg: oklch(0.8 0.09 255);
+  --cond-bg: oklch(0.25 0.06 295);
+  --cond-fg: oklch(0.8 0.1 295);
+  --phone-bg: oklch(0 0 0);
+  --phone-frame: oklch(0.21 0.006 250);
+  --bubble-in: oklch(0.27 0 0);
+  --bubble-in-fg: oklch(0.96 0 0);
+  --bubble-out: linear-gradient(135deg, oklch(0.55 0.23 290) 0%, oklch(0.6 0.23 320) 100%);
 
   /* Backgrounds — zinc 950 / 900 / 850 in oklch */
   --background: oklch(0.108 0.006 252); /* zinc-950: near-black with cool hue */
@@ -326,6 +359,10 @@
 }
 @utility bg-brand-gradient {
   background-image: var(--gradient-brand);
+}
+/* The outgoing DM bubble in the chatbot phone preview. */
+@utility bg-bubble-out {
+  background-image: var(--bubble-out);
 }
 @utility bg-soft-gradient {
   background-image: var(--gradient-soft);

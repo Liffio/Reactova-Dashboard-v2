@@ -1,7 +1,17 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUpDown, BookOpen, Boxes, ChevronRight, Code2, Copy, Plus, Search } from "lucide-react";
+import {
+  ArrowUpDown,
+  BookOpen,
+  Boxes,
+  ChevronRight,
+  Code2,
+  Copy,
+  Plus,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -13,10 +23,12 @@ import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { CopyableKey, EmptyState } from "@/components/admin/form-page";
+import { ConfirmCodeDialog, useConfirmCode } from "@/components/admin/confirm-code";
 import { useDebounced } from "@/hooks/use-debounced";
 import {
   getModuleConstants,
   listParentModules,
+  refreshAccessCaches,
   updateParentModule,
   type ParentModule,
 } from "@/lib/api/registry-api";
@@ -67,6 +79,28 @@ function ModuleRegistryPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  /**
+   * Hand-applied grants and package edits made outside a deploy otherwise wait out the cache TTLs
+   * (an hour for a role's permissions). Deploys already refresh on boot, so this is for the gap.
+   */
+  const [confirmRefresh, setConfirmRefresh] = useState(false);
+  const refreshCode = useConfirmCode();
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const closeRefresh = () => {
+    setConfirmRefresh(false);
+    setRefreshError(null);
+    refreshCode.reset();
+  };
+  const refreshCaches = useMutation({
+    mutationFn: (confirmCode: string) => refreshAccessCaches(confirmCode),
+    onSuccess: () => {
+      toast.success("Access caches refreshed");
+      closeRefresh();
+      void queryClient.invalidateQueries({ queryKey: ["navigation"] });
+    },
+    onError: (err) => setRefreshError(refreshCode.applyError(err)),
+  });
+
   const data = parentsQuery.data;
 
   return (
@@ -100,6 +134,15 @@ function ModuleRegistryPage() {
             </Button>
             <Button
               size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => setConfirmRefresh(true)}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh access caches
+            </Button>
+            <Button
+              size="sm"
               asChild
               className="gap-1.5 bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
             >
@@ -109,6 +152,25 @@ function ModuleRegistryPage() {
               </Link>
             </Button>
           </div>
+        }
+      />
+
+      <ConfirmCodeDialog
+        open={confirmRefresh}
+        onOpenChange={(next) => !next && closeRefresh()}
+        title="Refresh access caches?"
+        confirmLabel="Refresh"
+        pendingLabel="Refreshing…"
+        pending={refreshCaches.isPending}
+        state={refreshCode}
+        formError={refreshError}
+        onConfirm={() => refreshCaches.mutate(refreshCode.code)}
+        description={
+          <p>
+            Every user's permissions are re-read from the database on their next request, so role
+            grants and package changes made outside a deploy apply now instead of within the hour.
+            Nothing is changed or revoked.
+          </p>
         }
       />
 

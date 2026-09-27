@@ -640,6 +640,8 @@ export const apiUri = {
      */
     registry: {
       tree: `${V1}/admin/registry/tree`,
+      /** Clears every cached permission set (roles, users, package ceilings). TOTP step-up. */
+      refreshAccessCaches: `${V1}/admin/registry/capabilities/refresh-roles`,
       /** Read-only gating map: registry x packages x roles x route gates. */
       gatingMap: `${V1}/admin/registry/gating-map`,
       parents: (p: { page?: number; limit?: number; q?: string } = {}) =>

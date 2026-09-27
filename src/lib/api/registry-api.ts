@@ -150,6 +150,17 @@ export const unmapChildFromParent = (parentModuleId: string, childModuleId: stri
 export const getModuleConstants = (parentKey?: string) =>
   apiRequest<string>(apiUri.admin.registry.codegen(parentKey));
 
+/**
+ * Makes a hand-applied grant or package change live now instead of after the cache TTLs (a role's
+ * permissions are cached for an hour). The API also does this on every boot, so it is only needed
+ * for changes made outside a deploy.
+ */
+export const refreshAccessCaches = (confirmCode: string) =>
+  apiRequest<{ ok: boolean; refreshed: string }>(apiUri.admin.registry.refreshAccessCaches, {
+    method: "POST",
+    body: { confirmCode },
+  });
+
 // ── Packages ──────────────────────────────────────────────────────────────────────────────────
 
 export const listPackages = (params: ListQuery = {}) =>

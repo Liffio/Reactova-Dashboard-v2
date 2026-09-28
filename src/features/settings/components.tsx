@@ -20,8 +20,14 @@ import { cn } from "@/lib/utils";
 const CARD_SHADOW = "shadow-[0_1px_2px_rgba(22,10,8,0.04),0_8px_24px_-12px_rgba(22,10,8,0.08)]";
 
 /** A settings panel: the stack of cards under one tab. */
-export function SettingsPanel({ children }: { children: ReactNode }) {
-  return <div className="flex flex-col gap-[22px]">{children}</div>;
+export function SettingsPanel({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return <div className={cn("flex flex-col gap-[22px]", className)}>{children}</div>;
 }
 
 export function SettingsCard({

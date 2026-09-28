@@ -131,7 +131,9 @@ export function NotificationsTab() {
   };
 
   return (
-    <SettingsPanel>
+    // A three-column toggle grid gets hard to scan when it stretches edge to edge, so this one tab
+    // stays at a readable width while the rest of Settings runs full width.
+    <SettingsPanel className="w-full max-w-[880px]">
       <SettingsCard
         title="What you hear about"
         description={`Per workspace. You're editing ${workspaceName}.`}

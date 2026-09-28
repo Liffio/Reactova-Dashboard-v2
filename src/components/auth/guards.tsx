@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NotifyDeliveryBar } from "@/components/admin/notify-delivery-controls";
 import { useAuthState } from "@/lib/auth/auth-store";
+import { getImpersonationToken } from "@/lib/api/impersonation";
 import { usePlatformAuthz } from "@/hooks/use-platform-authz";
 import { useNeedsNewOnboarding } from "@/hooks/use-onboarding";
 import {
@@ -123,9 +124,10 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
     return <FullPageSpinner />;
   }
 
-  // Signup order is consent → verify → onboarding. A Google signup that never agreed to the Terms
-  // (or confirmed its country) goes back to liffio.com's consent screen before anything else.
-  if (!termsAccepted) {
+  // Terms / Privacy acceptance comes before anything else, for every account. An impersonating
+  // superadmin is exempt: they must never accept on the customer's behalf (the server forbids it),
+  // and the server's Terms gate exempts impersonation for the same reason.
+  if (!termsAccepted && !getImpersonationToken()) {
     window.location.href = completeSignupUrl(token, returnTo !== "/" ? returnTo : undefined);
     return <FullPageSpinner />;
   }
@@ -196,7 +198,7 @@ export function VerifiedRoute({ children }: { children: ReactNode }) {
     return <FullPageSpinner />;
   }
   if (!user) return <FullPageSpinner />;
-  if (!termsAccepted) {
+  if (!termsAccepted && !getImpersonationToken()) {
     window.location.href = completeSignupUrl(token);
     return <FullPageSpinner />;
   }

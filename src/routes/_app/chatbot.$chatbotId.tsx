@@ -325,6 +325,35 @@ function BuilderPage() {
                 Pause chatbot
               </DropdownMenuItem>
             )}
+            {canUpdate && (
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  if (!features.branding_control) {
+                    openUpgrade({
+                      capability: "chatbot:branding_control",
+                      feature: "Removing Liffio branding",
+                    });
+                    return;
+                  }
+                  void chatbotApi
+                    .updateMeta(ws, bot.id, { brandingEnabled: !bot.brandingEnabled })
+                    .then(editor.absorb)
+                    .catch((err) =>
+                      toast.error(getUserErrorMessage(err, "Couldn't change branding.")),
+                    );
+                }}
+              >
+                <span className="flex-1">Liffio branding</span>
+                {features.branding_control ? (
+                  <span className="text-xs text-muted-foreground">
+                    {bot.brandingEnabled ? "On" : "Off"}
+                  </span>
+                ) : (
+                  <PlanChip capability="chatbot:branding_control" />
+                )}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs text-muted-foreground">Theme</DropdownMenuLabel>
             <div className="px-2 pb-1.5">

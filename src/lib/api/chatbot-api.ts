@@ -301,6 +301,24 @@ export const chatbotApi = {
     unwrap(
       apiRequest<{ data: Chatbot }>(apiUri.chatbots.list, { method: "POST", workspaceId, body }),
     ),
+  updateMeta: (
+    workspaceId: string,
+    id: string,
+    patch: Partial<{
+      name: string;
+      icon: string;
+      handoverMessage: string;
+      fallbackMessage: string;
+      brandingEnabled: boolean;
+    }>,
+  ) =>
+    unwrap(
+      apiRequest<{ data: Chatbot }>(apiUri.chatbots.byId(id), {
+        method: "PATCH",
+        workspaceId,
+        body: patch,
+      }),
+    ),
   saveGraph: (workspaceId: string, id: string, graph: GraphInput) =>
     unwrap(
       apiRequest<{ data: Chatbot }>(apiUri.chatbots.graph(id), {

@@ -10,6 +10,7 @@ import { MAX_QUICK_REPLIES, type ChatbotButton, type ChatbotStep } from "@/lib/a
 import { cn } from "@/lib/utils";
 import { STEP_LABEL, cfgStr, formatDelay, stepSummary } from "./model";
 import { LockedRow } from "./upgrade";
+import { MergeFieldPicker } from "./merge-fields";
 import {
   ButtonList,
   ConditionEditor,
@@ -40,6 +41,8 @@ interface Props {
   chatbots: ChatbotRef[];
   /** `useModuleFeatures("chatbot")`: a missing capability locks its row, never hides it. */
   features: Record<string, boolean>;
+  /** Answer keys saved by this chatbot's Question steps, for merge fields. */
+  answerKeys: string[];
   onToggle: () => void;
   onChange: (step: ChatbotStep) => void;
   onAction: (a: StepAction) => void;
@@ -178,6 +181,7 @@ export function StepCard({
   steps,
   chatbots,
   features,
+  answerKeys,
   onToggle,
   onChange,
   onAction,
@@ -339,6 +343,19 @@ export function StepCard({
                 aria-label="Message"
                 onChange={(e) => onChange({ ...step, body: e.target.value })}
               />
+              <div className="mt-1">
+                <MergeFieldPicker
+                  enabled={features.personalization}
+                  answerKeys={answerKeys}
+                  onInsert={(token) => {
+                    const body = step.body ?? "";
+                    onChange({
+                      ...step,
+                      body: body && !body.endsWith(" ") ? `${body} ${token}` : `${body}${token}`,
+                    });
+                  }}
+                />
+              </div>
               {step.type === "HANDOVER" && (
                 <p className="mt-1 text-xs text-muted-foreground">
                   Then the bot goes quiet for 24 hours and your team is notified.

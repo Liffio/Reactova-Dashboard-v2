@@ -188,6 +188,10 @@ function BuilderPage() {
   }
 
   const stepRefs = bot.steps.map((s, index) => ({ id: s.id, name: s.name, index }));
+  const answerKeys = bot.steps
+    .filter((s) => s.type === "QUESTION")
+    .map((s) => (typeof s.config.answerKey === "string" ? s.config.answerKey.trim() : ""))
+    .filter(Boolean);
   const setSteps = editor.updateSteps;
   const addStep = (type: StepType) => {
     const s = newStep(type, bot.steps.length);
@@ -402,6 +406,7 @@ function BuilderPage() {
                     steps={stepRefs}
                     chatbots={chatbots}
                     features={features}
+                    answerKeys={answerKeys}
                     onToggle={() => toggleOpen(s.id)}
                     onChange={(next) => setSteps((xs) => xs.map((x) => (x.id === s.id ? next : x)))}
                     onAction={(a) => onAction(s, i, a)}

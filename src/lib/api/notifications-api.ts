@@ -162,10 +162,18 @@ export function bulkNotificationAction(ids: string[], action: BulkNotificationAc
 
 /* ── Preferences (separate feature; kept here because it shares the resource) ── */
 
+export type NotificationChannel = "in_app" | "email";
+
 export type NotificationPreference = {
   type: string;
   label: string;
+  /** Catalog category key + label — the Settings tab groups by these (no client-side list). */
+  category?: string;
+  categoryLabel?: string;
   isEnabled: boolean;
+  /** Channels this type can be delivered on, and the ones left on. */
+  availableChannels?: NotificationChannel[];
+  channels?: NotificationChannel[];
 };
 
 export function getNotificationPreferences(workspaceId: string) {
@@ -176,7 +184,7 @@ export function getNotificationPreferences(workspaceId: string) {
 
 export function updateNotificationPreference(
   workspaceId: string,
-  body: { type: string; isEnabled: boolean },
+  body: { type: string; isEnabled?: boolean; channels?: NotificationChannel[] },
 ) {
   return apiRequest<void>(apiUri.notifications.preferences, {
     method: "PATCH",

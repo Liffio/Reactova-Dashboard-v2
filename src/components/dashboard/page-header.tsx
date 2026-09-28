@@ -1,5 +1,11 @@
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { motion } from "framer-motion";
+
+/**
+ * True when a full page is rendered inside a Settings tab (plan/settings-revamp.md). The tab bar
+ * already names the page, so the header collapses to its actions only — no second title band.
+ */
+export const EmbeddedPageContext = createContext(false);
 
 interface PageHeaderProps {
   /** Small label above the title. Accepts nodes so detail pages can put a back link here. */
@@ -10,6 +16,10 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ eyebrow, title, description, actions }: PageHeaderProps) {
+  const embedded = useContext(EmbeddedPageContext);
+  if (embedded) {
+    return actions ? <div className="flex flex-wrap justify-end gap-2 pb-4">{actions}</div> : null;
+  }
   return (
     <div className="flex flex-col gap-4 border-b bg-soft-gradient px-6 py-7 md:flex-row md:items-end md:justify-between md:px-10">
       <motion.div

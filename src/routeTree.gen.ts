@@ -41,6 +41,7 @@ import { Route as AppAgencyRouteImport } from './routes/_app/agency'
 import { Route as AppAffiliateRouteImport } from './routes/_app/affiliate'
 import { Route as AppAccessManagementRouteImport } from './routes/_app/access-management'
 import { Route as AppTeamIndexRouteImport } from './routes/_app/team.index'
+import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings.index'
 import { Route as AppPackagesIndexRouteImport } from './routes/_app/packages.index'
 import { Route as AppModuleRegistryIndexRouteImport } from './routes/_app/module-registry.index'
 import { Route as AppChatbotIndexRouteImport } from './routes/_app/chatbot.index'
@@ -48,6 +49,15 @@ import { Route as AppAutomationsIndexRouteImport } from './routes/_app/automatio
 import { Route as OauthMetaCompleteRouteImport } from './routes/oauth.meta.complete'
 import { Route as AuthGoogleCompleteRouteImport } from './routes/auth.google.complete'
 import { Route as AppTeamInviteRouteImport } from './routes/_app/team.invite'
+import { Route as AppSettingsTeamRouteImport } from './routes/_app/settings.team'
+import { Route as AppSettingsSecurityRouteImport } from './routes/_app/settings.security'
+import { Route as AppSettingsProfileRouteImport } from './routes/_app/settings.profile'
+import { Route as AppSettingsNotificationsRouteImport } from './routes/_app/settings.notifications'
+import { Route as AppSettingsInstagramRouteImport } from './routes/_app/settings.instagram'
+import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings.general'
+import { Route as AppSettingsDeveloperRouteImport } from './routes/_app/settings.developer'
+import { Route as AppSettingsDangerRouteImport } from './routes/_app/settings.danger'
+import { Route as AppSettingsBillingRouteImport } from './routes/_app/settings.billing'
 import { Route as AppPluginsKeyRouteImport } from './routes/_app/plugins.$key'
 import { Route as AppPackagesNewRouteImport } from './routes/_app/packages.new'
 import { Route as AppPackagesAssignRouteImport } from './routes/_app/packages.assign'
@@ -248,6 +258,11 @@ const AppTeamIndexRoute = AppTeamIndexRouteImport.update({
   path: '/team/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppPackagesIndexRoute = AppPackagesIndexRouteImport.update({
   id: '/packages/',
   path: '/packages/',
@@ -282,6 +297,52 @@ const AppTeamInviteRoute = AppTeamInviteRouteImport.update({
   id: '/team/invite',
   path: '/team/invite',
   getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsTeamRoute = AppSettingsTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsSecurityRoute = AppSettingsSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsProfileRoute = AppSettingsProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsNotificationsRoute =
+  AppSettingsNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsInstagramRoute = AppSettingsInstagramRouteImport.update({
+  id: '/instagram',
+  path: '/instagram',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
+  id: '/general',
+  path: '/general',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsDeveloperRoute = AppSettingsDeveloperRouteImport.update({
+  id: '/developer',
+  path: '/developer',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsDangerRoute = AppSettingsDangerRouteImport.update({
+  id: '/danger',
+  path: '/danger',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsBillingRoute = AppSettingsBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => AppSettingsRoute,
 } as any)
 const AppPluginsKeyRoute = AppPluginsKeyRouteImport.update({
   id: '/plugins/$key',
@@ -529,7 +590,7 @@ export interface FileRoutesByFullPath {
   '/platform-admins': typeof AppPlatformAdminsRoute
   '/rbac-master': typeof AppRbacMasterRoute
   '/scheduler': typeof AppSchedulerRoute
-  '/settings': typeof AppSettingsRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/short-links': typeof AppShortLinksRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/checkout/review': typeof CheckoutReviewRoute
@@ -555,6 +616,15 @@ export interface FileRoutesByFullPath {
   '/packages/assign': typeof AppPackagesAssignRoute
   '/packages/new': typeof AppPackagesNewRoute
   '/plugins/$key': typeof AppPluginsKeyRoute
+  '/settings/billing': typeof AppSettingsBillingRoute
+  '/settings/danger': typeof AppSettingsDangerRoute
+  '/settings/developer': typeof AppSettingsDeveloperRoute
+  '/settings/general': typeof AppSettingsGeneralRoute
+  '/settings/instagram': typeof AppSettingsInstagramRoute
+  '/settings/notifications': typeof AppSettingsNotificationsRoute
+  '/settings/profile': typeof AppSettingsProfileRoute
+  '/settings/security': typeof AppSettingsSecurityRoute
+  '/settings/team': typeof AppSettingsTeamRoute
   '/team/invite': typeof AppTeamInviteRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
@@ -562,6 +632,7 @@ export interface FileRoutesByFullPath {
   '/chatbot/': typeof AppChatbotIndexRoute
   '/module-registry/': typeof AppModuleRegistryIndexRoute
   '/packages/': typeof AppPackagesIndexRoute
+  '/settings/': typeof AppSettingsIndexRoute
   '/team/': typeof AppTeamIndexRoute
   '/admin/branding-links/$linkId': typeof AppAdminBrandingLinksLinkIdRoute
   '/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
@@ -609,7 +680,6 @@ export interface FileRoutesByTo {
   '/platform-admins': typeof AppPlatformAdminsRoute
   '/rbac-master': typeof AppRbacMasterRoute
   '/scheduler': typeof AppSchedulerRoute
-  '/settings': typeof AppSettingsRoute
   '/short-links': typeof AppShortLinksRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/checkout/review': typeof CheckoutReviewRoute
@@ -634,6 +704,15 @@ export interface FileRoutesByTo {
   '/packages/assign': typeof AppPackagesAssignRoute
   '/packages/new': typeof AppPackagesNewRoute
   '/plugins/$key': typeof AppPluginsKeyRoute
+  '/settings/billing': typeof AppSettingsBillingRoute
+  '/settings/danger': typeof AppSettingsDangerRoute
+  '/settings/developer': typeof AppSettingsDeveloperRoute
+  '/settings/general': typeof AppSettingsGeneralRoute
+  '/settings/instagram': typeof AppSettingsInstagramRoute
+  '/settings/notifications': typeof AppSettingsNotificationsRoute
+  '/settings/profile': typeof AppSettingsProfileRoute
+  '/settings/security': typeof AppSettingsSecurityRoute
+  '/settings/team': typeof AppSettingsTeamRoute
   '/team/invite': typeof AppTeamInviteRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
@@ -641,6 +720,7 @@ export interface FileRoutesByTo {
   '/chatbot': typeof AppChatbotIndexRoute
   '/module-registry': typeof AppModuleRegistryIndexRoute
   '/packages': typeof AppPackagesIndexRoute
+  '/settings': typeof AppSettingsIndexRoute
   '/team': typeof AppTeamIndexRoute
   '/admin/branding-links/$linkId': typeof AppAdminBrandingLinksLinkIdRoute
   '/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
@@ -689,7 +769,7 @@ export interface FileRoutesById {
   '/_app/platform-admins': typeof AppPlatformAdminsRoute
   '/_app/rbac-master': typeof AppRbacMasterRoute
   '/_app/scheduler': typeof AppSchedulerRoute
-  '/_app/settings': typeof AppSettingsRoute
+  '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/short-links': typeof AppShortLinksRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/checkout_/review': typeof CheckoutReviewRoute
@@ -715,6 +795,15 @@ export interface FileRoutesById {
   '/_app/packages/assign': typeof AppPackagesAssignRoute
   '/_app/packages/new': typeof AppPackagesNewRoute
   '/_app/plugins/$key': typeof AppPluginsKeyRoute
+  '/_app/settings/billing': typeof AppSettingsBillingRoute
+  '/_app/settings/danger': typeof AppSettingsDangerRoute
+  '/_app/settings/developer': typeof AppSettingsDeveloperRoute
+  '/_app/settings/general': typeof AppSettingsGeneralRoute
+  '/_app/settings/instagram': typeof AppSettingsInstagramRoute
+  '/_app/settings/notifications': typeof AppSettingsNotificationsRoute
+  '/_app/settings/profile': typeof AppSettingsProfileRoute
+  '/_app/settings/security': typeof AppSettingsSecurityRoute
+  '/_app/settings/team': typeof AppSettingsTeamRoute
   '/_app/team/invite': typeof AppTeamInviteRoute
   '/auth/google/complete': typeof AuthGoogleCompleteRoute
   '/oauth/meta/complete': typeof OauthMetaCompleteRoute
@@ -722,6 +811,7 @@ export interface FileRoutesById {
   '/_app/chatbot/': typeof AppChatbotIndexRoute
   '/_app/module-registry/': typeof AppModuleRegistryIndexRoute
   '/_app/packages/': typeof AppPackagesIndexRoute
+  '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/team/': typeof AppTeamIndexRoute
   '/_app/admin/branding-links_/$linkId': typeof AppAdminBrandingLinksLinkIdRoute
   '/_app/admin/creator-management/$profileId': typeof AppAdminCreatorManagementProfileIdRoute
@@ -797,6 +887,15 @@ export interface FileRouteTypes {
     | '/packages/assign'
     | '/packages/new'
     | '/plugins/$key'
+    | '/settings/billing'
+    | '/settings/danger'
+    | '/settings/developer'
+    | '/settings/general'
+    | '/settings/instagram'
+    | '/settings/notifications'
+    | '/settings/profile'
+    | '/settings/security'
+    | '/settings/team'
     | '/team/invite'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
@@ -804,6 +903,7 @@ export interface FileRouteTypes {
     | '/chatbot/'
     | '/module-registry/'
     | '/packages/'
+    | '/settings/'
     | '/team/'
     | '/admin/branding-links/$linkId'
     | '/admin/creator-management/$profileId'
@@ -851,7 +951,6 @@ export interface FileRouteTypes {
     | '/platform-admins'
     | '/rbac-master'
     | '/scheduler'
-    | '/settings'
     | '/short-links'
     | '/auth/handoff'
     | '/checkout/review'
@@ -876,6 +975,15 @@ export interface FileRouteTypes {
     | '/packages/assign'
     | '/packages/new'
     | '/plugins/$key'
+    | '/settings/billing'
+    | '/settings/danger'
+    | '/settings/developer'
+    | '/settings/general'
+    | '/settings/instagram'
+    | '/settings/notifications'
+    | '/settings/profile'
+    | '/settings/security'
+    | '/settings/team'
     | '/team/invite'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
@@ -883,6 +991,7 @@ export interface FileRouteTypes {
     | '/chatbot'
     | '/module-registry'
     | '/packages'
+    | '/settings'
     | '/team'
     | '/admin/branding-links/$linkId'
     | '/admin/creator-management/$profileId'
@@ -956,6 +1065,15 @@ export interface FileRouteTypes {
     | '/_app/packages/assign'
     | '/_app/packages/new'
     | '/_app/plugins/$key'
+    | '/_app/settings/billing'
+    | '/_app/settings/danger'
+    | '/_app/settings/developer'
+    | '/_app/settings/general'
+    | '/_app/settings/instagram'
+    | '/_app/settings/notifications'
+    | '/_app/settings/profile'
+    | '/_app/settings/security'
+    | '/_app/settings/team'
     | '/_app/team/invite'
     | '/auth/google/complete'
     | '/oauth/meta/complete'
@@ -963,6 +1081,7 @@ export interface FileRouteTypes {
     | '/_app/chatbot/'
     | '/_app/module-registry/'
     | '/_app/packages/'
+    | '/_app/settings/'
     | '/_app/team/'
     | '/_app/admin/branding-links_/$linkId'
     | '/_app/admin/creator-management/$profileId'
@@ -1228,6 +1347,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTeamIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/': {
+      id: '/_app/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/packages/': {
       id: '/_app/packages/'
       path: '/packages'
@@ -1276,6 +1402,69 @@ declare module '@tanstack/react-router' {
       fullPath: '/team/invite'
       preLoaderRoute: typeof AppTeamInviteRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/settings/team': {
+      id: '/_app/settings/team'
+      path: '/team'
+      fullPath: '/settings/team'
+      preLoaderRoute: typeof AppSettingsTeamRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/security': {
+      id: '/_app/settings/security'
+      path: '/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof AppSettingsSecurityRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/profile': {
+      id: '/_app/settings/profile'
+      path: '/profile'
+      fullPath: '/settings/profile'
+      preLoaderRoute: typeof AppSettingsProfileRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/notifications': {
+      id: '/_app/settings/notifications'
+      path: '/notifications'
+      fullPath: '/settings/notifications'
+      preLoaderRoute: typeof AppSettingsNotificationsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/instagram': {
+      id: '/_app/settings/instagram'
+      path: '/instagram'
+      fullPath: '/settings/instagram'
+      preLoaderRoute: typeof AppSettingsInstagramRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/general': {
+      id: '/_app/settings/general'
+      path: '/general'
+      fullPath: '/settings/general'
+      preLoaderRoute: typeof AppSettingsGeneralRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/developer': {
+      id: '/_app/settings/developer'
+      path: '/developer'
+      fullPath: '/settings/developer'
+      preLoaderRoute: typeof AppSettingsDeveloperRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/danger': {
+      id: '/_app/settings/danger'
+      path: '/danger'
+      fullPath: '/settings/danger'
+      preLoaderRoute: typeof AppSettingsDangerRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/billing': {
+      id: '/_app/settings/billing'
+      path: '/billing'
+      fullPath: '/settings/billing'
+      preLoaderRoute: typeof AppSettingsBillingRouteImport
+      parentRoute: typeof AppSettingsRoute
     }
     '/_app/plugins/$key': {
       id: '/_app/plugins/$key'
@@ -1560,6 +1749,36 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppSettingsRouteChildren {
+  AppSettingsBillingRoute: typeof AppSettingsBillingRoute
+  AppSettingsDangerRoute: typeof AppSettingsDangerRoute
+  AppSettingsDeveloperRoute: typeof AppSettingsDeveloperRoute
+  AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
+  AppSettingsInstagramRoute: typeof AppSettingsInstagramRoute
+  AppSettingsNotificationsRoute: typeof AppSettingsNotificationsRoute
+  AppSettingsProfileRoute: typeof AppSettingsProfileRoute
+  AppSettingsSecurityRoute: typeof AppSettingsSecurityRoute
+  AppSettingsTeamRoute: typeof AppSettingsTeamRoute
+  AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsBillingRoute: AppSettingsBillingRoute,
+  AppSettingsDangerRoute: AppSettingsDangerRoute,
+  AppSettingsDeveloperRoute: AppSettingsDeveloperRoute,
+  AppSettingsGeneralRoute: AppSettingsGeneralRoute,
+  AppSettingsInstagramRoute: AppSettingsInstagramRoute,
+  AppSettingsNotificationsRoute: AppSettingsNotificationsRoute,
+  AppSettingsProfileRoute: AppSettingsProfileRoute,
+  AppSettingsSecurityRoute: AppSettingsSecurityRoute,
+  AppSettingsTeamRoute: AppSettingsTeamRoute,
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
+
 interface AppAdminCreatorManagementRouteChildren {
   AppAdminCreatorManagementProfileIdRoute: typeof AppAdminCreatorManagementProfileIdRoute
 }
@@ -1646,7 +1865,7 @@ interface AppRouteChildren {
   AppPlatformAdminsRoute: typeof AppPlatformAdminsRoute
   AppRbacMasterRoute: typeof AppRbacMasterRoute
   AppSchedulerRoute: typeof AppSchedulerRoute
-  AppSettingsRoute: typeof AppSettingsRoute
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppShortLinksRoute: typeof AppShortLinksRoute
   AppAdminAffiliatesRoute: typeof AppAdminAffiliatesRoute
   AppAdminBrandingLinksRoute: typeof AppAdminBrandingLinksRoute
@@ -1701,7 +1920,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppPlatformAdminsRoute: AppPlatformAdminsRoute,
   AppRbacMasterRoute: AppRbacMasterRoute,
   AppSchedulerRoute: AppSchedulerRoute,
-  AppSettingsRoute: AppSettingsRoute,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppShortLinksRoute: AppShortLinksRoute,
   AppAdminAffiliatesRoute: AppAdminAffiliatesRoute,
   AppAdminBrandingLinksRoute: AppAdminBrandingLinksRoute,

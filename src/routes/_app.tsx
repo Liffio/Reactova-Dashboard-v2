@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LogOut, Settings, UserRound } from "lucide-react";
+import { Gift, LogOut, Settings, UserRound } from "lucide-react";
 
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import {
@@ -29,24 +29,18 @@ import { useWorkspaceEvents } from "@/hooks/use-workspace-events";
 import { loginPathWithRedirect } from "@/lib/auth/auth-navigation";
 import { useApp } from "@/state/app-context";
 import { CreatorAssistant } from "@/components/creator-assistant/creator-assistant";
+import { UserAvatar } from "@/components/user-avatar";
+import { ReauthDialog } from "@/components/settings/reauth-dialog";
+import { DeletionGraceScreen } from "@/components/settings/deletion-grace-screen";
+import { useAuthState } from "@/lib/auth/auth-store";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
 });
 
-function initials(name: string | undefined): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
-
 function TopBar() {
   const { user, current } = useApp();
+  const avatarUrl = useAuthState((s) => s.user?.avatarUrl ?? null);
   const navigate = useNavigate();
   const logoutMutation = useLogoutMutation();
 
@@ -91,9 +85,11 @@ function TopBar() {
             <button className="flex items-center gap-2.5 rounded-full border bg-card py-1 pl-1 pr-3 shadow-soft">
               {/* `shrink-0`: without it flexbox squeezes this 28px square against the name
                   block beside it and the "circle" renders as an oval. */}
-              <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-gradient text-xs font-semibold text-primary-foreground">
-                {initials(user?.name)}
-              </div>
+              {user ? (
+                <UserAvatar userId={user.id} name={user.name} avatarUrl={avatarUrl} size={28} />
+              ) : (
+                <div className="h-7 w-7 shrink-0 rounded-full bg-muted" />
+              )}
               <div className="hidden text-left leading-tight sm:block">
                 <div className="text-xs font-medium">{user?.name ?? "…"}</div>
                 <div className="max-w-36 truncate text-[10px] text-muted-foreground">
@@ -111,14 +107,20 @@ function TopBar() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild className="cursor-pointer">
-              <Link to="/settings">
+              <Link to="/settings/profile">
+                <UserRound className="mr-2 h-4 w-4" />
+                Profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link to="/settings/general">
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild className="cursor-pointer">
               <Link to="/affiliate">
-                <UserRound className="mr-2 h-4 w-4" />
+                <Gift className="mr-2 h-4 w-4" />
                 Affiliate program
               </Link>
             </DropdownMenuItem>
@@ -158,40 +160,50 @@ function AppLayout() {
    * twice, which is why this belongs to the layout rather than to any page that wants live data.
    */
   useWorkspaceEvents(current.id);
+  const deletionScheduledFor = useAuthState((s) => s.user?.deletionScheduledFor ?? null);
 
   return (
     <ProtectedRoute>
-      {/* Mounted once for the whole authenticated shell so an access change interrupts the user
+      {/* Global "Confirm it's you" prompt — any REAUTH_REQUIRED answer opens it. */}
+      <ReauthDialog />
+      {/* Deletion grace period: nothing else in the app is reachable, only cancel or log out. */}
+      {deletionScheduledFor ? (
+        <DeletionGraceScreen scheduledFor={deletionScheduledFor} />
+      ) : (
+        <>
+          {/* Mounted once for the whole authenticated shell so an access change interrupts the user
           wherever they are, not only on permission-related pages. */}
-      <AccessChangedModal />
-      {/* Separate from the modal on purpose: this keeps permissions true even when the operator
+          <AccessChangedModal />
+          {/* Separate from the modal on purpose: this keeps permissions true even when the operator
           suppressed the notice, which is the default for package edits. See the component. */}
-      <AccessRefreshListener />
-      <RegistryUpdatedListener />
-      {/* Mounted once, here, for the same reason `useWorkspaceEvents` is: both topbar triggers and
+          <AccessRefreshListener />
+          <RegistryUpdatedListener />
+          {/* Mounted once, here, for the same reason `useWorkspaceEvents` is: both topbar triggers and
           the ⌘K shortcut dispatch one DOM event, and a second listener would open two dialogs. */}
-      <GlobalSearchPalette />
-      <SidebarProvider>
-        <div className="flex min-h-screen w-full bg-background">
-          <AppSidebar />
-          <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-            <TopBar />
-            {/* 92px clears the tab bar plus its safe-area padding, so nothing at the end of a
+          <GlobalSearchPalette />
+          <SidebarProvider>
+            <div className="flex min-h-screen w-full bg-background">
+              <AppSidebar />
+              <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+                <TopBar />
+                {/* 92px clears the tab bar plus its safe-area padding, so nothing at the end of a
                 page ends up trapped underneath it. */}
-            <main className="flex flex-1 flex-col pb-[92px] md:pb-0">
-              {/* Above the page, not inside it: an expired plan is a property of the workspace, so
+                <main className="flex flex-1 flex-col pb-[92px] md:pb-0">
+                  {/* Above the page, not inside it: an expired plan is a property of the workspace, so
                   it has to be visible on every route rather than on whichever ones remembered.
                   Unwrapped, and it carries its own spacing — a wrapper here would add padding to
                   every page for every customer to serve the few whose plan has lapsed. */}
-              <WorkspaceReadOnlyBanner />
-              <PageTransition keyProp={pathname}>
-                <Outlet />
-              </PageTransition>
-            </main>
-          </div>
-          <MobileTabBar />
-        </div>
-      </SidebarProvider>
+                  <WorkspaceReadOnlyBanner />
+                  <PageTransition keyProp={pathname}>
+                    <Outlet />
+                  </PageTransition>
+                </main>
+              </div>
+              <MobileTabBar />
+            </div>
+          </SidebarProvider>
+        </>
+      )}
     </ProtectedRoute>
   );
 }

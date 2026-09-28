@@ -177,6 +177,8 @@ export type TeamOverviewMember = {
   userId: string;
   name: string | null;
   email: string;
+  /** Profile photo; null = Blobatar default (plan/settings-revamp.md). */
+  avatarUrl?: string | null;
   roleKey: string;
   roleName: string;
   isOwner: boolean;

@@ -49,7 +49,7 @@ function GoogleAuthComplete() {
       });
       const authMe = await getAuthMe({ token });
       authStore.setAuthMe(authMe);
-      // Go directly to dashboard (email verified via Google, onboarding handled by liffio.com)
+      // ProtectedRoute on the target decides what is still owed: consent → verify → onboarding.
       void navigate({ to: redirectTo as never, replace: true });
     };
 

@@ -79,6 +79,16 @@ export function registerUrl(redirect?: string): string {
  * nothing should be able to.
  */
 
+/**
+ * liffio.com's consent screen (Terms + country), passing the token the same way `confirmEmailUrl`
+ * does. A "Continue with Google" signup lands there first; the guards send any session the server
+ * reports as `termsAccepted: false` back to it (plan/google-signup-gates.md).
+ */
+export function completeSignupUrl(token: string, redirectPath?: string): string {
+  const base = `${LIFFIO_ORIGIN}/complete-signup?token=${encodeURIComponent(token)}`;
+  return redirectPath ? `${base}&redirect=${encodeURIComponent(redirectPath)}` : base;
+}
+
 /** Returns the liffio.com confirm-email URL, passing the token. */
 export function confirmEmailUrl(token: string, redirectPath?: string): string {
   const base = `${LIFFIO_ORIGIN}/confirm-email?token=${encodeURIComponent(token)}`;

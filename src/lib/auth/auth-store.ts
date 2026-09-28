@@ -38,6 +38,9 @@ export type AuthMePayload = {
   isPlatformSuperAdmin: boolean;
   isOnboarded: boolean;
   emailVerified: boolean;
+  /** Terms / Privacy agreed. A new Google signup is false until it passes liffio.com's consent
+   *  screen. Optional: an API without the field reads as agreed, never as a lockout. */
+  termsAccepted?: boolean;
   mfaEnabled: boolean;
   mfaEmailOtpEnabled: boolean;
   mfaSmsOtpEnabled: boolean;
@@ -58,6 +61,9 @@ export type AuthState = {
   isPlatformSuperAdmin: boolean;
   isOnboarded: boolean;
   emailVerified: boolean;
+  /** Only an explicit `false` from the server sends the guards to the consent screen, so this
+   *  starts `true`: an unknown answer must not bounce anyone. */
+  termsAccepted: boolean;
   mfaEnabled: boolean;
   mfaEmailOtpEnabled: boolean;
   mfaSmsOtpEnabled: boolean;
@@ -94,6 +100,7 @@ const initialState: AuthState = {
   isPlatformSuperAdmin: false,
   isOnboarded: false,
   emailVerified: false,
+  termsAccepted: true,
   mfaEnabled: false,
   mfaEmailOtpEnabled: true,
   mfaSmsOtpEnabled: false,
@@ -145,6 +152,7 @@ export const authStore = {
       isPlatformSuperAdmin: payload.isPlatformSuperAdmin,
       isOnboarded: payload.isOnboarded,
       emailVerified: payload.emailVerified,
+      termsAccepted: payload.termsAccepted !== false,
       mfaEnabled: payload.mfaEnabled,
       mfaEmailOtpEnabled: payload.mfaEmailOtpEnabled,
       mfaSmsOtpEnabled: payload.mfaSmsOtpEnabled,
@@ -164,6 +172,7 @@ export const authStore = {
       // Preserve the current value when the payload omits emailVerified
       // (e.g. workspace switch) instead of bouncing the user to confirm-email.
       emailVerified: payload?.emailVerified ?? state.emailVerified,
+      termsAccepted: payload?.termsAccepted ?? state.termsAccepted,
       mfaEnabled: payload?.mfaEnabled ?? state.mfaEnabled,
       mfaEmailOtpEnabled: payload?.mfaEmailOtpEnabled ?? state.mfaEmailOtpEnabled,
       mfaSmsOtpEnabled: payload?.mfaSmsOtpEnabled ?? state.mfaSmsOtpEnabled,

@@ -18,6 +18,7 @@ import {
   isAffiliateProgramRedirect,
   loginPathWithRedirect,
   confirmEmailUrl,
+  completeSignupUrl,
 } from "@/lib/auth/auth-navigation";
 
 export function useMounted(): boolean {
@@ -97,6 +98,7 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
   const user = useAuthState((s) => s.user);
   const permissions = useAuthState((s) => s.permissions);
   const emailVerified = useAuthState((s) => s.emailVerified);
+  const termsAccepted = useAuthState((s) => s.termsAccepted);
   const isOnboarded = useAuthState((s) => s.isOnboarded);
   // `isOnboarded` alone cannot answer this — liffio.com's own onboarding sets it before handing
   // the session over, so a brand-new account arrives here already flagged as done. See the hook.
@@ -118,6 +120,13 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
 
   if (!user) {
     // auth/me is still loading
+    return <FullPageSpinner />;
+  }
+
+  // Signup order is consent → verify → onboarding. A Google signup that never agreed to the Terms
+  // (or confirmed its country) goes back to liffio.com's consent screen before anything else.
+  if (!termsAccepted) {
+    window.location.href = completeSignupUrl(token, returnTo !== "/" ? returnTo : undefined);
     return <FullPageSpinner />;
   }
 
@@ -179,6 +188,7 @@ export function VerifiedRoute({ children }: { children: ReactNode }) {
   const token = useAuthState((s) => s.accessToken);
   const user = useAuthState((s) => s.user);
   const emailVerified = useAuthState((s) => s.emailVerified);
+  const termsAccepted = useAuthState((s) => s.termsAccepted);
 
   if (!mounted) return <FullPageSpinner />;
   if (!token) {
@@ -186,6 +196,10 @@ export function VerifiedRoute({ children }: { children: ReactNode }) {
     return <FullPageSpinner />;
   }
   if (!user) return <FullPageSpinner />;
+  if (!termsAccepted) {
+    window.location.href = completeSignupUrl(token);
+    return <FullPageSpinner />;
+  }
   if (!emailVerified) {
     window.location.href = confirmEmailUrl(token);
     return <FullPageSpinner />;

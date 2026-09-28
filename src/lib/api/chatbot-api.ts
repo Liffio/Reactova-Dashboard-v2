@@ -219,19 +219,47 @@ export interface ChatbotAnalytics {
 
 const unwrap = <T>(p: Promise<{ data: T }>) => p.then((r) => r.data);
 
+/** The plan's builder limits as the server resolves them. `null` is unlimited. */
+export interface ChatbotLimits {
+  stepsPerBot: number | null;
+  keywordsPerBot: number | null;
+  buttonsPerStep: number | null;
+  conditionRules: number | null;
+  followUpsPerStep: number | null;
+  conversationsPerMonth: number | null;
+}
+
+export interface ChatbotListResponse {
+  chatbots: ChatbotListItem[];
+  /** Live chatbots allowed at once (a large number when unlimited). */
+  limit: number;
+  live: number;
+  limits: ChatbotLimits;
+  usage: { conversationsThisMonth: number };
+}
+
+/** One ready-made flow from the server's library. `gated` ones need `chatbot:templates`. */
+export interface ChatbotTemplateSummary {
+  key: string;
+  icon: string;
+  name: string;
+  description: string;
+  stepCount: number;
+  gated: boolean;
+}
+
 export const chatbotApi = {
   list: (workspaceId: string) =>
+    unwrap(apiRequest<{ data: ChatbotListResponse }>(apiUri.chatbots.list, { workspaceId })),
+  templates: (workspaceId: string) =>
     unwrap(
-      apiRequest<{ data: { chatbots: ChatbotListItem[]; limit: number; live: number } }>(
-        apiUri.chatbots.list,
-        { workspaceId },
-      ),
+      apiRequest<{ data: ChatbotTemplateSummary[] }>(apiUri.chatbots.templates, { workspaceId }),
     ),
   get: (workspaceId: string, id: string) =>
     unwrap(apiRequest<{ data: Chatbot }>(apiUri.chatbots.byId(id), { workspaceId })),
   create: (
     workspaceId: string,
-    body: { name: string; icon?: string; graph?: Omit<GraphInput, "name"> },
+    body: { name: string; icon?: string; graph?: Omit<GraphInput, "name">; templateKey?: string },
   ) =>
     unwrap(
       apiRequest<{ data: Chatbot }>(apiUri.chatbots.list, { method: "POST", workspaceId, body }),
@@ -356,6 +384,7 @@ export const chatbotApi = {
 
 export const chatbotKeys = {
   list: (ws: string) => ["chatbots", ws] as const,
+  templates: (ws: string) => ["chatbot-templates", ws] as const,
   one: (ws: string, id: string) => ["chatbot", ws, id] as const,
   ice: (ws: string) => ["chatbot-ice-breakers", ws] as const,
   contacts: (ws: string) => ["chatbot-contacts", ws] as const,

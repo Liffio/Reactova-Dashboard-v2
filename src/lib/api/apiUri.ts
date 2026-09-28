@@ -161,6 +161,7 @@ export const apiUri = {
   /** Instagram DM chatbots (server `api/routes/chatbots.ts`). Every response is `{ data }`. */
   chatbots: {
     list: `${V1}/chatbots`,
+    templates: `${V1}/chatbots/templates`,
     byId: (id: string) => `${V1}/chatbots/${id}`,
     graph: (id: string) => `${V1}/chatbots/${id}/graph`,
     duplicate: (id: string) => `${V1}/chatbots/${id}/duplicate`,

@@ -794,7 +794,31 @@ export function BillingPage({ search = {} }: { search?: BillingSearch }) {
       {group || !isOwner ? (
         <div className="flex flex-col gap-3 rounded-[14px] border border-border bg-card px-5 py-4">
           {group && isOwner && group.slotsUsed !== null && group.slotLimit !== null ? (
-            <SlotBar used={group.slotsUsed} limit={group.slotLimit} size="lg" />
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-semibold text-foreground">
+                    Workspaces included in your agency plan
+                  </span>
+                  <span className="text-[13px] text-muted-foreground">
+                    Each filled bar is a workspace in {group.name}. The rest you can add at no extra
+                    cost.
+                  </span>
+                </div>
+                <span className="font-display text-[18px] font-bold text-foreground">
+                  {group.slotsUsed}
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {" "}
+                    / {group.slotLimit} used
+                  </span>
+                </span>
+              </div>
+              <SlotBar used={group.slotsUsed} limit={group.slotLimit} size="lg" />
+              <span className="text-xs text-muted-foreground">
+                {Math.max(group.slotLimit - group.slotsUsed, 0)} free workspace
+                {group.slotLimit - group.slotsUsed === 1 ? "" : "s"} left
+              </span>
+            </div>
           ) : null}
           <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
             <ShieldCheck aria-hidden className="size-3.5 shrink-0" />
@@ -987,6 +1011,22 @@ export function BillingPage({ search = {} }: { search?: BillingSearch }) {
           </div>
         ) : billingProfile ? (
           <>
+            <SettingRow label="Legal name" hint="Business or your own name. Printed on invoices.">
+              <TextField
+                readOnly
+                value={billingProfile.legalName ?? ""}
+                placeholder="Not set — invoices use your account name"
+                aria-label="Legal name"
+              />
+            </SettingRow>
+            <SettingRow label="Contact number" hint="Who we reach about billing.">
+              <TextField
+                readOnly
+                value={billingProfile.phone ?? ""}
+                placeholder="Not set"
+                aria-label="Contact number"
+              />
+            </SettingRow>
             <SettingRow label="Billing address" hint="Business or your own address.">
               <TextField
                 readOnly

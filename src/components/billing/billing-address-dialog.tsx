@@ -54,8 +54,10 @@ export function BillingAddressDialog({
             gstStateCode: profile.gstStateCode ?? null,
             postalCode: profile.postalCode,
             address: profile.address ?? null,
+            legalName: profile.legalName ?? null,
+            phone: profile.phone ?? null,
           }
-        : emptyBillingAddress({ country: null }),
+        : { ...emptyBillingAddress({ country: null }), legalName: null, phone: null },
     );
   }, [open, profile]);
 
@@ -75,9 +77,7 @@ export function BillingAddressDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Billing details</DialogTitle>
-          <DialogDescription>
-            These appear on every invoice for this workspace.
-          </DialogDescription>
+          <DialogDescription>These appear on every invoice for this workspace.</DialogDescription>
         </DialogHeader>
 
         {/*
@@ -87,6 +87,7 @@ export function BillingAddressDialog({
         <BillingAddressForm
           value={value}
           onChange={setValue}
+          showContact
           submitLabel={save.isPending ? "Saving…" : "Save details"}
           submitting={save.isPending}
           onSubmit={() => save.mutate()}

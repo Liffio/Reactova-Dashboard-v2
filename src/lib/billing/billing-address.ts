@@ -16,6 +16,12 @@ export type BillingAddressInput = {
   postalCode: string;
   /** Optional free text, one block — not parsed into line1 / line2 / city. */
   address: string | null;
+  /**
+   * Only sent by the Settings → Billing dialog. Checkout leaves them `undefined`, which the server
+   * reads as "not part of this form" and keeps the saved values.
+   */
+  legalName?: string | null;
+  phone?: string | null;
 };
 
 export type BillingAddressErrors = Partial<Record<keyof BillingAddressInput, string>>;
@@ -33,6 +39,15 @@ export function validateBillingAddress(input: BillingAddressInput): BillingAddre
   const country = trim(input.country).toUpperCase();
   const gstStateCode = trim(input.gstStateCode);
   const postalCode = trim(input.postalCode);
+  const phone = trim(input.phone);
+
+  if (trim(input.legalName).length > 200) errors.legalName = "Keep the name under 200 characters.";
+  if (phone) {
+    const digits = phone.replace(/\D/g, "").length;
+    if (!/^\+?[0-9 ()-]+$/.test(phone) || digits < 6 || digits > 15) {
+      errors.phone = "Enter a valid phone number.";
+    }
+  }
 
   if (country.length !== 2 || !/^[A-Z]{2}$/.test(country)) {
     errors.country = "Select your country.";

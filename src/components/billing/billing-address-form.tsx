@@ -53,6 +53,11 @@ export type BillingAddressFormProps = {
   submitting?: boolean;
   submitLabel?: string;
   onSubmit: () => void;
+  /**
+   * Show the optional legal name + contact phone. Settings → Billing only; checkout keeps the
+   * four-field form so the step before paying stays short.
+   */
+  showContact?: boolean;
 };
 
 const FieldError = ({ message }: { message?: string }) =>
@@ -66,6 +71,7 @@ export function BillingAddressForm({
   submitting = false,
   submitLabel = "Continue to payment",
   onSubmit,
+  showContact = false,
 }: BillingAddressFormProps) {
   /**
    * Errors appear only after a field has been touched or a submit attempted. A form that reddens
@@ -112,6 +118,43 @@ export function BillingAddressForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      {showContact && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="legalName">
+              Legal name <span className="text-muted-foreground">(optional)</span>
+            </Label>
+            <Input
+              id="legalName"
+              value={value.legalName ?? ""}
+              onChange={(e) => onChange({ ...value, legalName: e.target.value || null })}
+              onBlur={() => markTouched("legalName")}
+              placeholder="Business or your own name"
+              maxLength={200}
+              autoComplete="organization"
+            />
+            <FieldError message={errorFor("legalName")} />
+          </div>
+          <div>
+            <Label htmlFor="billingPhone">
+              Contact number <span className="text-muted-foreground">(optional)</span>
+            </Label>
+            <Input
+              id="billingPhone"
+              type="tel"
+              inputMode="tel"
+              value={value.phone ?? ""}
+              onChange={(e) => onChange({ ...value, phone: e.target.value || null })}
+              onBlur={() => markTouched("phone")}
+              placeholder="+91 98765 43210"
+              maxLength={32}
+              autoComplete="tel"
+            />
+            <FieldError message={errorFor("phone")} />
+          </div>
+        </div>
+      )}
+
       <div>
         <Label htmlFor="country">Country</Label>
         {countryLocked ? (

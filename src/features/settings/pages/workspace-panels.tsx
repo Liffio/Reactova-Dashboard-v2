@@ -8,9 +8,12 @@ import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   BookOpen,
+  Check,
   ChevronRight,
   Copy,
+  KeyRound,
   ExternalLink,
   Instagram,
   Plus,
@@ -41,6 +44,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -460,22 +464,6 @@ export function InstagramSettings() {
         </SettingsCard>
       )}
 
-      {current.instagramConnected && (
-        // No in-page route adds a workspace (that flow lives in the workspace switcher), so this is
-        // the reference's dashed hint without a link target.
-        <div className="flex items-center gap-4 rounded-[16px] border-[1.5px] border-dashed border-[#D3CBC3] bg-transparent px-6 py-5 text-foreground dark:border-border">
-          <IconTile tone="white">
-            <Plus />
-          </IconTile>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[15px] font-semibold">Connect another Instagram account</span>
-            <span className="text-[13px] text-muted-foreground">
-              Each workspace runs one account. Add a workspace from the switcher to run more.
-            </span>
-          </div>
-        </div>
-      )}
-
       <AlertDialog open={unlinkOpen} onOpenChange={setUnlinkOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -517,6 +505,23 @@ export function ApiCredentialsSettings({ docsHref }: { docsHref?: string } = {})
   const [createOpen, setCreateOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  /** The just-created key. Held only while its modal is open, then dropped from memory. */
+  const [createdKey, setCreatedKey] = useState<{
+    name: string;
+    secret: string;
+    copied: boolean;
+  } | null>(null);
+
+  const copyCreatedKey = async () => {
+    if (!createdKey) return;
+    try {
+      await navigator.clipboard.writeText(createdKey.secret);
+      setCreatedKey({ ...createdKey, copied: true });
+      toast.success("API key copied");
+    } catch {
+      toast.error("Couldn't copy. Select the key and copy it manually.");
+    }
+  };
 
   const credsQuery = useQuery({
     queryKey: ["api-credentials", workspaceId],
@@ -531,11 +536,20 @@ export function ApiCredentialsSettings({ docsHref }: { docsHref?: string } = {})
         name,
         neverExpires: credsQuery.data?.capabilities?.keyExpiry ?? false,
       }),
-    onSuccess: (data) => {
-      toast.success(`API key created — copy your secret key now:\n${data.secretKey}`);
+    onSuccess: async (data, name) => {
       setCreateOpen(false);
       setNewKeyName("");
       void queryClient.invalidateQueries({ queryKey: ["api-credentials", workspaceId] });
+      // Copy straight away — the key is shown once — and still open the modal with it, in case the
+      // browser refused clipboard access (it needs a focused, secure page).
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(data.secretKey);
+        copied = true;
+      } catch {
+        copied = false;
+      }
+      setCreatedKey({ name, secret: data.secretKey, copied });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -596,7 +610,9 @@ export function ApiCredentialsSettings({ docsHref }: { docsHref?: string } = {})
             <span className="text-[13px] text-muted-foreground">
               Endpoints, auth and examples
               {limits?.apiRequestsPerDay
-                ? ` · ${limits.apiRequestsPerDay.toLocaleString()} requests / day`
+                ? limits.apiRequestsPerDay < 0
+                  ? " · ∞ requests / day"
+                  : ` · ${limits.apiRequestsPerDay.toLocaleString()} requests / day`
                 : ""}
             </span>
           </div>
@@ -608,7 +624,7 @@ export function ApiCredentialsSettings({ docsHref }: { docsHref?: string } = {})
         title="API keys"
         description={
           limits
-            ? `${activeCount} of ${limits.maxApiCredentials} keys on ${credsQuery.data?.plan ?? "this plan"}. We only show a key once, right after you create it.`
+            ? `${activeCount} of ${limits.maxApiCredentials < 0 ? "∞" : limits.maxApiCredentials} keys on ${credsQuery.data?.plan ?? "this plan"}. We only show a key once, right after you create it.`
             : "We only show a key once, right after you create it."
         }
         actions={
@@ -711,6 +727,65 @@ export function ApiCredentialsSettings({ docsHref }: { docsHref?: string } = {})
               {createMutation.isPending ? "Creating…" : "Create key"}
             </SettingsButton>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(createdKey)} onOpenChange={(o) => !o && setCreatedKey(null)}>
+        <DialogContent className="max-w-[calc(100%-32px)] gap-0 overflow-hidden rounded-[20px] border-0 p-0 shadow-[0_30px_80px_-20px_rgba(22,10,8,0.5)] sm:max-w-[520px]">
+          <div className="h-1.5 bg-brand-gradient" />
+          {createdKey && (
+            <div className="flex flex-col gap-5 px-8 pb-7 pt-8">
+              <IconTile tone="green" className="size-[52px] rounded-[16px]">
+                <KeyRound />
+              </IconTile>
+              <DialogHeader className="gap-2 text-left">
+                <DialogTitle className="font-display text-2xl font-bold tracking-[-0.02em]">
+                  {createdKey.copied ? "Key created and copied" : "Your new API key"}
+                </DialogTitle>
+                <DialogDescription className="text-sm leading-[1.55] text-muted-foreground">
+                  {createdKey.copied
+                    ? `"${createdKey.name}" is on your clipboard. `
+                    : `Copy "${createdKey.name}" now. `}
+                  This is the only time we show it, so store it somewhere safe.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="flex flex-col gap-2">
+                <label htmlFor="created-api-key" className="text-[13px] font-semibold">
+                  Secret key
+                </label>
+                <TextField
+                  id="created-api-key"
+                  readOnly
+                  value={createdKey.secret}
+                  className="font-mono text-[13px]"
+                  onFocus={(e) => e.currentTarget.select()}
+                  trailing={
+                    <IconButton label="Copy API key" onClick={() => void copyCreatedKey()}>
+                      {createdKey.copied ? <Check className="text-[#03A14A]" /> : <Copy />}
+                    </IconButton>
+                  }
+                />
+                <StatusChip tone="warning" icon={<AlertTriangle />} className="self-start">
+                  You won't be able to see this key again
+                </StatusChip>
+              </div>
+
+              <div className="flex gap-2.5">
+                <SettingsButton className="h-11 flex-grow" onClick={() => void copyCreatedKey()}>
+                  {createdKey.copied ? <Check /> : <Copy />}
+                  <span>{createdKey.copied ? "Copied" : "Copy key"}</span>
+                </SettingsButton>
+                <SettingsButton
+                  variant="primary"
+                  className="h-11 flex-grow"
+                  onClick={() => setCreatedKey(null)}
+                >
+                  Done
+                </SettingsButton>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

@@ -187,7 +187,9 @@ export function TeamPage() {
   });
   const overview = overviewQuery.data ?? null;
   const teamMembers = overview?.members ?? [];
-  const atLimit = Boolean(overview && overview.used >= overview.limit);
+  // A negative limit is the catalogue's "no cap" sentinel — never "at the limit".
+  const seatsUnlimited = Boolean(overview && overview.limit < 0);
+  const atLimit = Boolean(overview && !seatsUnlimited && overview.used >= overview.limit);
   const seatPct =
     overview && overview.limit > 0
       ? Math.min(100, Math.round((overview.used / overview.limit) * 100))
@@ -250,7 +252,9 @@ export function TeamPage() {
         */
         description={
           overview
-            ? `${overview.used} of ${overview.limit} seats used${atLimit ? ". Limit reached" : ""}.`
+            ? seatsUnlimited
+              ? `${overview.used} seats used · ∞ on this plan.`
+              : `${overview.used} of ${overview.limit} seats used${atLimit ? ". Limit reached" : ""}.`
             : `${memberList.total} members in this workspace.`
         }
         actions={

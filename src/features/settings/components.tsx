@@ -5,7 +5,7 @@ import type {
   ReactNode,
   SelectHTMLAttributes,
 } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Infinity as InfinityIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -462,18 +462,27 @@ export function UsageTile({
   limit: number | null;
   unit?: ReactNode;
 }) {
-  const pct = limit && limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  // `null` and the catalogue's `-1` sentinel both mean "no cap".
+  const unlimited = limit === null || limit < 0;
+  const pct = !unlimited && limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   return (
     <div className="flex flex-col gap-2 rounded-[14px] border border-border bg-card p-[18px]">
       <div className="flex justify-between text-[13px] text-muted-foreground">
         <span>{label}</span>
-        <span>{limit ? `${pct}%` : "∞"}</span>
+        <span>{unlimited ? "Unlimited" : `${pct}%`}</span>
       </div>
-      <div className="font-display text-[22px] font-bold tracking-[-0.02em] text-foreground">
+      <div className="flex items-baseline font-display text-[22px] font-bold tracking-[-0.02em] text-foreground">
         {used.toLocaleString()}
-        <span className="text-sm font-medium text-muted-foreground">
-          {" "}
-          / {limit ? limit.toLocaleString() : "Unlimited"}
+        <span className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground">
+          &nbsp;/{" "}
+          {unlimited ? (
+            <>
+              <InfinityIcon aria-hidden className="size-4 stroke-[2.2]" />
+              <span className="sr-only">Unlimited</span>
+            </>
+          ) : (
+            limit.toLocaleString()
+          )}
           {unit}
         </span>
       </div>

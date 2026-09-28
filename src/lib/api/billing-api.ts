@@ -409,6 +409,10 @@ export type BillingProfile = {
   postalCode: string;
   /** Optional free text, one block — not parsed into line1 / line2 / city. */
   address: string | null;
+  /** "Billed to" name; null falls back to the owner's name on invoices. */
+  legalName?: string | null;
+  /** Billing contact phone. */
+  phone?: string | null;
 };
 
 /** A previous profile from another workspace the same user owns, offered to save retyping. */

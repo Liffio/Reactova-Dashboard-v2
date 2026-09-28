@@ -1181,6 +1181,7 @@ function AuthenticatorPanel({ variant, onBack }: { variant: "2fa" | "mfa"; onBac
             <div className="space-y-1.5">
               <Label>6-digit authenticator code</Label>
               <InputOTP
+                name="totp"
                 maxLength={6}
                 value={disableOtp}
                 onChange={(v) => setDisableOtp(v.replace(/\D/g, ""))}
@@ -1239,6 +1240,7 @@ function AuthenticatorPanel({ variant, onBack }: { variant: "2fa" | "mfa"; onBac
             <div className="space-y-1.5">
               <Label>6-digit code</Label>
               <InputOTP
+                name="totp"
                 maxLength={6}
                 value={otpSetup}
                 onChange={(v) => setOtpSetup(v.replace(/\D/g, ""))}
@@ -1421,6 +1423,7 @@ function DeleteAuthenticator({ onBack }: { onBack: () => void }) {
             <div className="space-y-1.5">
               <Label>6-digit code from authenticator</Label>
               <InputOTP
+                name="totp"
                 maxLength={6}
                 value={disableOtp}
                 onChange={(v) => setDisableOtp(v.replace(/\D/g, ""))}

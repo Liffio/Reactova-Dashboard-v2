@@ -1336,7 +1336,12 @@ function SetPasswordDialog({ userId, open, onOpenChange }: KebabDialogProps) {
         ) : (
           <div className="space-y-2 text-left">
             <Label>Your authenticator code</Label>
-            <InputOTP maxLength={6} value={code} onChange={(v) => setCode(v.replace(/\D/g, ""))}>
+            <InputOTP
+              name="totp"
+              maxLength={6}
+              value={code}
+              onChange={(v) => setCode(v.replace(/\D/g, ""))}
+            >
               <InputOTPGroup>
                 {Array.from({ length: 6 }).map((_, i) => (
                   <InputOTPSlot key={i} index={i} />

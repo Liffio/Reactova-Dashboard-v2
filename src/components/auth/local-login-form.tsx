@@ -170,7 +170,12 @@ export function LocalLoginForm({
               )}
 
               <div className="flex items-center justify-center w-full pt-1">
-                <InputOTP maxLength={6} value={otp} onChange={(v) => setOtp(v.replace(/\D/g, ""))}>
+                <InputOTP
+                  name={mfaMethod === "authenticator" ? "totp" : "one-time-code"}
+                  maxLength={6}
+                  value={otp}
+                  onChange={(v) => setOtp(v.replace(/\D/g, ""))}
+                >
                   <InputOTPGroup>
                     {Array.from({ length: 6 }).map((_, i) => (
                       <InputOTPSlot key={i} index={i} />
@@ -224,10 +229,11 @@ export function LocalLoginForm({
                   <Label htmlFor="local-login-email">Email address</Label>
                   <Input
                     id="local-login-email"
+                    name="email"
                     type="email"
                     placeholder="you@brand.com"
                     required
-                    autoComplete="email"
+                    autoComplete="username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     onBlur={touched.onBlur("email")}
@@ -243,6 +249,7 @@ export function LocalLoginForm({
                   <div className="relative">
                     <Input
                       id="local-login-password"
+                      name="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
                       required

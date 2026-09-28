@@ -126,7 +126,7 @@ export function ConfirmCodeField({
         {label}
         <span className="ml-0.5 text-destructive">*</span>
       </Label>
-      <InputOTP maxLength={6} value={code} onChange={setCode} disabled={disabled}>
+      <InputOTP name="totp" maxLength={6} value={code} onChange={setCode} disabled={disabled}>
         <InputOTPGroup>
           {Array.from({ length: 6 }).map((_, i) => (
             <InputOTPSlot key={i} index={i} />

@@ -7,9 +7,13 @@ import { cn } from "@/lib/utils";
 const InputOTP = React.forwardRef<
   React.ElementRef<typeof OTPInput>,
   React.ComponentPropsWithoutRef<typeof OTPInput>
->(({ className, containerClassName, ...props }, ref) => (
+>(({ className, containerClassName, pasteTransformer, ...props }, ref) => (
   <OTPInput
     ref={ref}
+    // Codes are often copied or autofilled formatted ("123 456", "123-456"). Strip the separators
+    // BEFORE `maxLength` truncates, or a six-digit code pastes as five. `autoComplete` stays the
+    // library's `one-time-code`, which is what Bitwarden/1Password key their TOTP autofill on.
+    pasteTransformer={pasteTransformer ?? ((text) => text.replace(/[\s-]/g, ""))}
     containerClassName={cn(
       "flex items-center gap-2 has-[:disabled]:opacity-50",
       containerClassName,

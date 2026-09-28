@@ -219,13 +219,21 @@ export function ProfileTab() {
         </div>
         <div className="relative -mt-10 flex flex-col gap-5 px-5 pb-[22px] sm:px-[26px] lg:flex-row lg:items-end lg:justify-between">
           <div className="flex flex-col gap-[18px] sm:flex-row sm:items-end">
-            <div className="relative self-start rounded-[30px] bg-card p-1 shadow-[0_6px_20px_-8px_rgba(178,13,143,0.35)]">
+            <div
+              className={cn(
+                "relative self-start",
+                // A photo keeps the white frame; the bare blob stands on its own.
+                user.avatarUrl
+                  ? "rounded-[30px] bg-card p-1 shadow-[0_6px_20px_-8px_rgba(178,13,143,0.35)]"
+                  : "p-1",
+              )}
+            >
               <UserAvatar
                 userId={user.id}
                 name={user.name}
                 avatarUrl={user.avatarUrl}
-                size={88}
-                animate
+                size={104}
+                bare
               />
               <button
                 type="button"
@@ -299,7 +307,13 @@ export function ProfileTab() {
           hint="No photo? You get your own blob, and it never changes."
         >
           <div className="flex flex-wrap items-center gap-[18px]">
-            <UserAvatar userId={user.id} name={user.name} avatarUrl={user.avatarUrl} size={64} />
+            <UserAvatar
+              userId={user.id}
+              name={user.name}
+              avatarUrl={user.avatarUrl}
+              size={76}
+              bare
+            />
             <div className="flex flex-col gap-2.5">
               <div className="flex flex-wrap gap-2">
                 <SettingsButton disabled={avatarBusy} onClick={pickPhoto}>

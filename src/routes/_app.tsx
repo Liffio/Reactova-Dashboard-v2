@@ -86,7 +86,13 @@ function TopBar() {
               {/* `shrink-0`: without it flexbox squeezes this 28px square against the name
                   block beside it and the "circle" renders as an oval. */}
               {user ? (
-                <UserAvatar userId={user.id} name={user.name} avatarUrl={avatarUrl} size={28} />
+                <UserAvatar
+                  userId={user.id}
+                  name={user.name}
+                  avatarUrl={avatarUrl}
+                  size={30}
+                  bare
+                />
               ) : (
                 <div className="h-7 w-7 shrink-0 rounded-full bg-muted" />
               )}

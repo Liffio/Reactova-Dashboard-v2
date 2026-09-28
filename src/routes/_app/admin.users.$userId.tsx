@@ -24,7 +24,7 @@ import { PlatformPermissionRoute } from "@/components/auth/guards";
 import { PageErrorBoundary } from "@/components/error-boundary";
 import { CopyableKey } from "@/components/admin/form-page";
 import { ImpersonateDialog } from "@/components/admin/impersonate-dialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -131,18 +131,6 @@ function AdminUserDetailRoute() {
  *  self-contained formatting helper, matching this codebase's existing convention of per-file
  *  small helpers over a shared util for things this small (e.g. status-badge maps in
  *  `agency.tsx`/`billings.tsx`/`admin.users.tsx` are each local, not centralised). */
-function initialsFor(name: string | null, email: string): string {
-  const source = (name ?? email).trim();
-  const initials = source
-    .split(/\s+/)
-    .map((part) => part[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-  return initials || "?";
-}
-
 function AdminUserDetailPage() {
   const { userId } = Route.useParams();
 
@@ -290,12 +278,12 @@ function IdentityRail({ user }: { user: AdminUserDetail }) {
         )}
 
         <div className="flex flex-col items-center text-center">
-          <Avatar className="h-16 w-16">
-            {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
-            <AvatarFallback className="bg-brand-gradient text-lg font-semibold text-primary-foreground">
-              {initialsFor(user.name, user.email)}
-            </AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            userId={user.id}
+            name={user.name ?? user.email}
+            avatarUrl={user.avatarUrl}
+            size={64}
+          />
           <p className="mt-3 truncate text-sm font-semibold">{user.name || "—"}</p>
           <CopyableKey value={user.email} className="mt-1.5 max-w-full" />
           <CopyableKey value={user.id} className="mt-1.5 max-w-full" />

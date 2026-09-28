@@ -9,6 +9,7 @@ import { getActiveWorkspaceId } from "./active-workspace";
 import { notifyDeliveryHeaders } from "@/lib/notify-delivery-store";
 import { clearImpersonationToken, getImpersonationToken } from "./impersonation";
 import { toUserMessage } from "@/lib/user-facing-error";
+import { REAUTH_HEADER, clearReauthToken, getReauthToken, requestReauth } from "@/lib/auth/reauth";
 
 export const API_BASE: string =
   import.meta.env.VITE_API_URL ||
@@ -279,7 +280,29 @@ export type ApiRequestConfig = {
    * `ApiError`, and never triggers the session-expiry event.
    */
   signal?: AbortSignal;
+  /** Internal: set on the single retry after a "Confirm it's you" prompt, so it can't loop. */
+  reauthRetried?: boolean;
 };
+
+/** The step-up proof header, when one is held (see `lib/auth/reauth.ts`). */
+function reauthHeaders(): Record<string, string> {
+  const t = getReauthToken();
+  return t ? { [REAUTH_HEADER]: t } : {};
+}
+
+/**
+ * `403 REAUTH_REQUIRED` → open "Confirm it's you", then retry once. Returns true when the caller
+ * should retry. A stale held token is dropped first so the retry carries the fresh one.
+ */
+async function recoverFromReauth(
+  status: number,
+  code: string | undefined,
+  alreadyRetried: boolean,
+) {
+  if (status !== 403 || code !== "REAUTH_REQUIRED" || alreadyRetried) return false;
+  clearReauthToken();
+  return requestReauth();
+}
 
 /**
  * Which workspace this request is for.
@@ -348,6 +371,8 @@ export type ApiUploadConfig = {
   /** Same semantics as `ApiRequestConfig.workspaceId` — omit to use the active workspace. */
   workspaceId?: string | null;
   token?: string | null;
+  /** Defaults to POST. */
+  method?: "POST" | "PUT";
 };
 
 export async function apiRequest<T>(path: string, config: ApiRequestConfig = {}): Promise<T> {
@@ -372,6 +397,7 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
         ...(usesJsonBody ? { "Content-Type": "application/json" } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...resolveWorkspaceHeader(config, isAnonymousPublicRead),
+        ...(isAnonymousPublicRead ? {} : reauthHeaders()),
         /**
          * The operator's notification-channel choice, on every request.
          *
@@ -466,6 +492,9 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
     if (isAuthFailure && token) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
+    if (await recoverFromReauth(res.status, code, Boolean(config.reauthRetried))) {
+      return apiRequest<T>(path, { ...config, reauthRetried: true });
+    }
     throw new ApiError(formatApiErrorBody(payload), code, res.status, payload, getRequestId(res));
   }
 
@@ -487,13 +516,14 @@ export async function apiUploadRequest<T>(
   try {
     // Uploads aren't retried automatically (a partially-sent file isn't safe to resend blindly).
     res = await fetch(`${API_BASE}${path}`, {
-      method: "POST",
+      method: config.method ?? "POST",
       cache: "no-store",
       credentials: "include",
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...notifyDeliveryHeaders(),
         ...resolveWorkspaceHeader(config, false),
+        ...reauthHeaders(),
       },
       body: formData,
     });
@@ -512,13 +542,8 @@ export async function apiUploadRequest<T>(
       );
     }
     const payload = await res.json().catch(() => ({}));
-    throw new ApiError(
-      formatApiErrorBody(payload),
-      undefined,
-      undefined,
-      undefined,
-      getRequestId(res),
-    );
+    const code = (payload as { code?: string })?.code;
+    throw new ApiError(formatApiErrorBody(payload), code, res.status, payload, getRequestId(res));
   }
   return (await res.json()) as T;
 }

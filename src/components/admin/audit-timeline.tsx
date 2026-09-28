@@ -30,11 +30,12 @@ import {
   Unlink,
   User,
   UserCog,
+  Bot,
   UserMinus,
   X,
 } from "lucide-react";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -265,12 +266,6 @@ const ACTOR_LABEL: Record<AdminUserAuditActorType, string> = {
   api_key: "API key",
   system: "System",
 };
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const chars = parts.slice(0, 2).map((p) => p[0]);
-  return (chars.join("") || name[0] || "?").toUpperCase();
-}
 
 function shortId(id: string | null): string {
   return id ? id.slice(0, 8) : "—";
@@ -612,14 +607,15 @@ function AuditDetailSheet({
   );
 }
 
+/** A person gets their Blobatar (seeded by user id); a key or the system gets an icon, not a face. */
 function ActorAvatar({ entry }: { entry: AuditTimelineEntry }) {
-  const label = actorLabel(entry);
+  if (entry.actorUserId) {
+    return <UserAvatar userId={entry.actorUserId} name={actorLabel(entry)} size={20} />;
+  }
   return (
-    <Avatar className="h-5 w-5">
-      <AvatarFallback className="bg-brand-gradient text-[9px] font-semibold text-primary-foreground">
-        {initials(label)}
-      </AvatarFallback>
-    </Avatar>
+    <span className="grid h-5 w-5 place-items-center rounded-full bg-muted text-muted-foreground">
+      <Bot className="h-3 w-3" />
+    </span>
   );
 }
 

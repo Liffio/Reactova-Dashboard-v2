@@ -27,6 +27,18 @@ export type AuthUser = {
    * `CHECKOUT_COUNTRY_REQUIRED`, which is where the country prompt belongs.
    */
   displayCurrency?: "USD" | "INR" | null;
+  // ── Settings revamp (plan/settings-revamp.md). Optional: an older API simply omits them. ──
+  avatarUrl?: string | null;
+  timezone?: string | null;
+  phoneNumber?: string | null;
+  phoneVerified?: boolean;
+  /** A password is set (never the hash). False for Google-only signups. */
+  hasPassword?: boolean;
+  googleConnected?: boolean;
+  passwordChangedAt?: string | null;
+  pendingEmail?: string | null;
+  deletionScheduledFor?: string | null;
+  createdAt?: string;
 };
 
 export type AuthMePayload = {

@@ -31,7 +31,7 @@ import { PlatformPermissionRoute } from "@/components/auth/guards";
 import { PageErrorBoundary } from "@/components/error-boundary";
 import { EmptyState } from "@/components/admin/form-page";
 import { ImpersonateDialog } from "@/components/admin/impersonate-dialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -365,18 +365,6 @@ function SortableHeader({
   );
 }
 
-function initialsFor(name: string | null, email: string): string {
-  const source = (name ?? email).trim();
-  const initials = source
-    .split(/\s+/)
-    .map((part) => part[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-  return initials || "?";
-}
-
 const COLUMN_COUNT = 7;
 
 function ErrorPanel({ error, onRetry }: { error: unknown; onRetry: () => void }) {
@@ -450,12 +438,12 @@ function UserRow({
     >
       <TableCell>
         <div className="flex min-w-0 items-center gap-3">
-          <Avatar className="h-8 w-8 shrink-0">
-            {row.avatarUrl && <AvatarImage src={row.avatarUrl} alt="" />}
-            <AvatarFallback className="bg-brand-gradient text-[11px] font-semibold text-primary-foreground">
-              {initialsFor(row.name, row.email)}
-            </AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            userId={row.id}
+            name={row.name ?? row.email}
+            avatarUrl={row.avatarUrl}
+            size={32}
+          />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{row.name || "—"}</p>
             <p className="truncate text-xs text-muted-foreground">{row.email}</p>

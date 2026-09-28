@@ -111,7 +111,8 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
 
   const returnTo = `${location.pathname}${location.searchStr}`;
   const skipOnboardingForAffiliate = isAffiliateProgramRedirect(location.pathname);
-  const skipOnboardingForBilling = location.pathname === "/billings";
+  const skipOnboardingForBilling =
+    location.pathname === "/billings" || location.pathname === "/settings/billing";
 
   if (!token) {
     // Redirect to liffio.com/login with the return path

@@ -129,7 +129,7 @@ function InvitePage() {
 
       if (created.emailSent !== false) {
         toast.success(`Invite created. The email is on its way to ${invitedEmail}.`);
-        void navigate({ to: "/team" });
+        void navigate({ to: "/settings/team" });
         return;
       }
 
@@ -174,7 +174,7 @@ function InvitePage() {
               variant="outline"
               size="sm"
               className="gap-1.5"
-              onClick={() => void navigate({ to: "/team" })}
+              onClick={() => void navigate({ to: "/settings/team" })}
             >
               <ArrowLeft className="h-4 w-4" />
               Back to team
@@ -272,7 +272,7 @@ function InvitePage() {
               )}
 
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => void navigate({ to: "/team" })}>
+                <Button variant="outline" onClick={() => void navigate({ to: "/settings/team" })}>
                   Cancel
                 </Button>
                 <Button

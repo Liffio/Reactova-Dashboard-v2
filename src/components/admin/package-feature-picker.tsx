@@ -5,6 +5,7 @@ import { ChevronRight, Lock, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { groupChildren } from "@/lib/admin/capability-groups";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/admin/form-page";
@@ -156,6 +157,17 @@ export function PackageFeaturePicker({
     });
   };
 
+  /** A capability group's checkbox: all of its capabilities on, or all off. */
+  const toggleGroup = (parentKey: string, keys: string[]) => {
+    const allOn = keys.every((k) => children.has(k));
+    setChildren((prev) => {
+      const next = new Set(prev);
+      keys.forEach((k) => (allOn ? next.delete(k) : next.add(k)));
+      return next;
+    });
+    if (!allOn) setParents((p) => new Set(p).add(parentKey));
+  };
+
   const selectAll = () => {
     setParents(new Set(tree.map((p) => p.key)));
     setChildren(new Set(tree.flatMap((p) => p.children.map((c) => c.key))));
@@ -250,7 +262,63 @@ export function PackageFeaturePicker({
                   </button>
                 </div>
 
-                {isOpen && total > 0 && (
+                {isOpen && total > 0 && groupChildren(parent.key, parent.children) && (
+                  <div className="flex flex-col gap-3 border-t bg-muted/20 p-3">
+                    {groupChildren(parent.key, parent.children)!.map(
+                      ({ group, children: members }) => {
+                        const keys = members.filter((c) => !isLocked(c)).map((c) => c.key);
+                        const onCount = keys.filter((k) => children.has(k)).length;
+                        return (
+                          <div key={group.name} className="rounded-lg border bg-card">
+                            <label className="flex cursor-pointer items-center gap-2 border-b px-3 py-2">
+                              <Checkbox
+                                checked={
+                                  keys.length > 0 && onCount === keys.length
+                                    ? true
+                                    : onCount === 0
+                                      ? false
+                                      : "indeterminate"
+                                }
+                                disabled={keys.length === 0}
+                                onCheckedChange={() => toggleGroup(parent.key, keys)}
+                                aria-label={`${group.name}: all`}
+                              />
+                              <span className="text-sm font-semibold">{group.name}</span>
+                              <span className="text-xs text-muted-foreground">{group.sub}</span>
+                              <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                                {onCount} of {keys.length}
+                              </span>
+                            </label>
+                            <div className="grid gap-1 p-2 sm:grid-cols-2">
+                              {members.map((child) => (
+                                <label
+                                  key={child.key}
+                                  className="flex cursor-pointer items-start gap-2 rounded-md p-1.5 text-sm hover:bg-muted/50"
+                                >
+                                  <Checkbox
+                                    className="mt-0.5"
+                                    checked={isLocked(child) || children.has(child.key)}
+                                    disabled={isLocked(child)}
+                                    onCheckedChange={() => toggleChild(parent.key, child.key)}
+                                    aria-label={child.name}
+                                  />
+                                  <span className="min-w-0">
+                                    <span className="block truncate font-medium">{child.name}</span>
+                                    <span className="block truncate text-[11px] text-muted-foreground">
+                                      {child.key}
+                                    </span>
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      },
+                    )}
+                  </div>
+                )}
+
+                {isOpen && total > 0 && !groupChildren(parent.key, parent.children) && (
                   <div className="grid gap-1.5 border-t bg-muted/20 p-3 sm:grid-cols-2">
                     {parent.children.map((child) => {
                       const locked = isLocked(child);

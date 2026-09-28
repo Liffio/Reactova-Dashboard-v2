@@ -24,6 +24,7 @@ import {
   PackageCheck,
   Ticket,
   Mail,
+  MailX,
   Handshake,
   BookOpen,
   Sparkles,
@@ -232,6 +233,12 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
       },
       { title: "RBAC master", url: "/rbac-master", icon: ShieldCheck },
       { title: "Email templates", url: "/admin/email-templates", icon: Mail },
+      {
+        title: "Email unsubscribes",
+        url: "/admin/email-unsubscribes",
+        icon: MailX,
+        platformPermission: "platform:metrics_read",
+      },
       { title: "Affiliates", url: "/admin/affiliates", icon: Handshake },
       {
         title: "Branding links",

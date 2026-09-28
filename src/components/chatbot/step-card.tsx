@@ -1,4 +1,4 @@
-import { ChevronDown, Clock, MoreHorizontal, Repeat, Tag, UserPlus } from "lucide-react";
+import { ChevronDown, Clock, MoonStar, MoreHorizontal, Repeat, Tag, UserPlus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -195,6 +195,16 @@ export function StepCard({
     (step.type === "MESSAGE" && step.buttons.some((b) => b.action !== "LINK")) ||
     step.type === "QUESTION";
   const pick = { steps, chatbots, onNewStep, onJump };
+  // D4: what this step does outside the account's business hours.
+  const outside = (step.config.outsideHours ?? {}) as {
+    body?: string | null;
+    stepId?: string | null;
+  };
+  const setOutside = (next: { body?: string | null; stepId?: string | null }) => {
+    const merged = { ...outside, ...next };
+    const empty = !merged.body?.trim() && !merged.stepId;
+    onChange({ ...step, config: { ...step.config, outsideHours: empty ? undefined : merged } });
+  };
 
   return (
     <article
@@ -486,6 +496,52 @@ export function StepCard({
                     />
                   </SettingsRow>
                 ))}
+              {!features.business_hours ? (
+                <LockedRow
+                  capability="chatbot:business_hours"
+                  feature="Business hours"
+                  icon={<MoonStar className="h-4 w-4" />}
+                  label="Outside business hours"
+                />
+              ) : (
+                <SettingsRow
+                  tone="delay"
+                  icon={<MoonStar className="h-4 w-4" />}
+                  label="Outside business hours"
+                  value={
+                    outside.stepId
+                      ? "Go to another step"
+                      : outside.body?.trim()
+                        ? "Different reply"
+                        : "Same reply"
+                  }
+                  isSet={!!outside.stepId || !!outside.body?.trim()}
+                >
+                  <textarea
+                    className={fieldCls}
+                    rows={2}
+                    maxLength={1000}
+                    placeholder="Reply instead, e.g. We're closed right now, we'll reply at 9am"
+                    aria-label="Reply outside business hours"
+                    value={outside.body ?? ""}
+                    onChange={(e) => setOutside({ body: e.target.value || null })}
+                  />
+                  <div className="flex items-center gap-1.5">
+                    <span className="flex-1">Or go to</span>
+                    <TargetPicker
+                      value={{ kind: "step", id: outside.stepId ?? null }}
+                      onPick={(t) => setOutside({ stepId: t.kind === "step" ? t.id : null })}
+                      selfId={step.id}
+                      allowHuman={false}
+                      allowEnd
+                      {...pick}
+                    />
+                  </div>
+                  <span>
+                    Uses the hours set on your chatbots page. Inside those hours nothing changes.
+                  </span>
+                </SettingsRow>
+              )}
             </div>
           )}
         </div>

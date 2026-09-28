@@ -162,6 +162,7 @@ export const apiUri = {
   chatbots: {
     list: `${V1}/chatbots`,
     templates: `${V1}/chatbots/templates`,
+    businessHours: `${V1}/chatbots/business-hours`,
     byId: (id: string) => `${V1}/chatbots/${id}`,
     graph: (id: string) => `${V1}/chatbots/${id}/graph`,
     duplicate: (id: string) => `${V1}/chatbots/${id}/duplicate`,

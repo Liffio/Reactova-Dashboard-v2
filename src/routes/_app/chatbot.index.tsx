@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 import { IceBreakerBand, IceBreakerSheet } from "@/components/chatbot/ice-breakers";
 import { ThemeSwitcher } from "@/components/chatbot/theme-switcher";
 import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
+import { BusinessHoursBand } from "@/components/chatbot/business-hours";
 import { StatusPill, publishErrorMessage } from "@/components/chatbot/shared";
 
 export const Route = createFileRoute("/_app/chatbot/")({
@@ -338,6 +339,12 @@ function ChatbotListPage() {
               )}
             </div>
           </section>
+
+          <BusinessHoursBand
+            workspaceId={ws}
+            enabled={features.business_hours}
+            canEdit={canUpdate}
+          />
 
           {features.ice_breakers && (
             <IceBreakerBand

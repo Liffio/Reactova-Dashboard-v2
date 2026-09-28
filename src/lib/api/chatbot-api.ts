@@ -238,6 +238,21 @@ export interface ChatbotListResponse {
   usage: { conversationsThisMonth: number };
 }
 
+export const WEEK_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+export type WeekDay = (typeof WEEK_DAYS)[number];
+/** Per day, same-day intervals as 24-hour "HH:MM" pairs. An empty day is closed. */
+export type WeeklySchedule = Record<WeekDay, Array<[string, string]>>;
+export interface BusinessHours {
+  timezone: string;
+  schedule: WeeklySchedule;
+}
+export interface BusinessHoursState {
+  platformAccountId: string | null;
+  /** Null until hours are set: always open. */
+  hours: BusinessHours | null;
+  openNow: boolean | null;
+}
+
 /** One ready-made flow from the server's library. `gated` ones need `chatbot:templates`. */
 export interface ChatbotTemplateSummary {
   key: string;
@@ -316,13 +331,32 @@ export const chatbotApi = {
   test: (
     workspaceId: string,
     id: string,
-    body: { contact: TestResult["contact"]; actions: TestAction[] },
+    body: { contact: TestResult["contact"]; actions: TestAction[]; outsideHours?: boolean },
   ) =>
     unwrap(
       apiRequest<{ data: TestResult }>(apiUri.chatbots.test(id), {
         method: "POST",
         workspaceId,
         body,
+      }),
+    ),
+  businessHours: (workspaceId: string) =>
+    unwrap(
+      apiRequest<{ data: BusinessHoursState }>(apiUri.chatbots.businessHours, { workspaceId }),
+    ),
+  saveBusinessHours: (workspaceId: string, body: BusinessHours) =>
+    unwrap(
+      apiRequest<{ data: BusinessHoursState }>(apiUri.chatbots.businessHours, {
+        method: "PUT",
+        workspaceId,
+        body,
+      }),
+    ),
+  clearBusinessHours: (workspaceId: string) =>
+    unwrap(
+      apiRequest<{ data: BusinessHoursState }>(apiUri.chatbots.businessHours, {
+        method: "DELETE",
+        workspaceId,
       }),
     ),
   iceBreakers: (workspaceId: string) =>
@@ -385,6 +419,7 @@ export const chatbotApi = {
 export const chatbotKeys = {
   list: (ws: string) => ["chatbots", ws] as const,
   templates: (ws: string) => ["chatbot-templates", ws] as const,
+  businessHours: (ws: string) => ["chatbot-business-hours", ws] as const,
   one: (ws: string, id: string) => ["chatbot", ws, id] as const,
   ice: (ws: string) => ["chatbot-ice-breakers", ws] as const,
   contacts: (ws: string) => ["chatbot-contacts", ws] as const,

@@ -1,34 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { Country } from "country-state-city";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  CreditCard,
+  Building2,
+  Check,
   Download,
   ExternalLink,
-  IndianRupee,
+  LifeBuoy,
   Loader2,
+  Lock,
   RefreshCw,
-  Zap,
+  ShieldCheck,
+  X,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 
-import { PageHeader } from "@/components/dashboard/page-header";
 import { getSwitcher } from "@/lib/api/workspace-switcher-api";
 import { SlotBar } from "@/components/workspace-switcher/slot-bar";
-import { Building2, ShieldCheck, Lock, LifeBuoy } from "lucide-react";
 import { getUserErrorMessage } from "@/lib/user-facing-error";
 import { BillingAddressDialog } from "@/components/billing/billing-address-dialog";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,16 +32,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   cancelBillingSubscription,
   createBillingCheckout,
-  createPackageCheckout,
   fetchInvoiceViewHtml,
   fetchInvoicePdf,
   requestInvoicePdf,
@@ -57,7 +41,6 @@ import {
   invoiceFileName,
   type BillingInvoiceRow,
   getSellablePackages,
-  type PackageCheckoutInput,
   getBillingConfig,
   getBillingSubscription,
   listBillingInvoices,
@@ -66,21 +49,32 @@ import {
   verifyRazorpayCheckout,
   type CheckoutInput,
 } from "@/lib/api/billing-api";
+import { getWorkspaceUsage } from "@/lib/api/workspaces-api";
 import {
   openRazorpaySubscriptionCheckout,
   RazorpayCheckoutCancelled,
 } from "@/lib/razorpay-checkout";
-import {
-  cardPriceText,
-  formatInrPaise,
-  formatUsdCents,
-  inrPaiseForInterval,
-  packageGatewayAvailability,
-  usdCentsForInterval,
-} from "@/lib/billing/pricing";
+import { cardPriceText, packageGatewayAvailability } from "@/lib/billing/pricing";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { useApp } from "@/state/app-context";
 import { PlanLimitsPanel } from "@/components/billing/plan-limits-panel";
+import { cn } from "@/lib/utils";
+import {
+  CardNote,
+  IconButton,
+  SettingRow,
+  SettingsButton,
+  SettingsCard,
+  SettingsPanel,
+  SettingsTable,
+  StatusChip,
+  Td,
+  TextField,
+  Th,
+  UsageTile,
+  shortDate,
+  type ChipTone,
+} from "../components";
 /**
  * 🔴 `CountryPrompt` and `PlaceOfSupplyPrompt` WERE IMPORTED HERE, AND BOTH ARE DELETED.
  * (Billing address capture)
@@ -118,15 +112,29 @@ export type BillingSearch = { status?: string; highlight?: string };
  * sends `rank` (tier order) and `sellable` (on the ladder at all), and `sortOrder` for display.
  */
 
-const statusStyles: Record<string, string> = {
-  ACTIVE: "border-success/30 bg-success/10 text-success",
-  PAID: "border-success/30 bg-success/10 text-success",
-  PAST_DUE: "border-warning/30 bg-warning/10 text-warning",
-  PAYMENT_FAILED: "border-destructive/30 bg-destructive/10 text-destructive",
-  CANCELED: "border-border bg-muted text-muted-foreground",
+/** Subscription / invoice status → chip tone. Unknown statuses fall back to muted. */
+const STATUS_TONES: Record<string, ChipTone> = {
+  ACTIVE: "success",
+  PAID: "success",
+  PAST_DUE: "warning",
+  PAYMENT_FAILED: "danger",
+  CANCELED: "muted",
   /** A group whose cycle has run out. Its workspaces are read-only together. (U8) */
-  EXPIRED: "border-destructive/30 bg-destructive/10 text-destructive",
+  EXPIRED: "danger",
 };
+
+const statusTone = (status: string): ChipTone => STATUS_TONES[status.toUpperCase()] ?? "muted";
+
+function formatInvoiceAmount(amountCents: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency.toUpperCase(),
+    }).format(amountCents / 100);
+  } catch {
+    return `${(amountCents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+  }
+}
 
 export function BillingPage({ search = {} }: { search?: BillingSearch }) {
   const { current, refreshAuth } = useApp();
@@ -636,210 +644,241 @@ export function BillingPage({ search = {} }: { search?: BillingSearch }) {
   const currentRank =
     configQuery.data?.plans.find((p) => p.plan === (sub?.plan ?? "FREE"))?.rank ?? null;
 
-  return (
-    <div>
-      <PageHeader
-        eyebrow="Account"
-        title="Billing"
-        description="Manage your subscription plan and view payment history."
-        actions={
-          // Owner only, and the server refuses it for anybody else regardless. (T4, spec 2.7)
-          isOwner ? (
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                disabled={syncMutation.isPending}
-                onClick={() => syncMutation.mutate(false)}
-              >
-                <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-                Sync
-              </Button>
-            </div>
-          ) : null
-        }
-      />
+  /**
+   * Seat / automation usage for the usage tiles. Same query key as onboarding, so one cache entry.
+   * `limit: null` is unlimited; the numbers are the ones that block creation.
+   */
+  const usageQuery = useQuery({
+    queryKey: ["workspace-usage", workspaceId],
+    queryFn: () => getWorkspaceUsage(workspaceId),
+    enabled: isWorkspaceReady(workspaceId),
+  });
+  const usage = usageQuery.data;
 
-      <div className="space-y-6 p-4 sm:p-6 md:p-10">
-        {/* Current plan */}
-        <div className="rounded-2xl border bg-card p-6 shadow-soft">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Current plan
-              </p>
-              {subQuery.isLoading ? (
-                <Skeleton className="mt-1 h-7 w-32" />
-              ) : (
-                <div className="mt-1 flex items-center gap-2">
-                  {/*
-                   * 🔴 A grouped workspace names the GROUP's plan, not its own. (spec 2.4.10, U8)
-                   *
-                   * `sub` is this workspace's own `workspace_subscriptions` row, and a workspace
-                   * inside an agency has none: it is the group that is subscribed. Falling back to
-                   * "Free" put the word Free at the top of the Billing page of a workspace on a
-                   * paid Agency plan, directly under a card that says the agency renews next month.
-                   * The group's own label is already in hand from the switcher payload.
-                   */}
-                  <h2 className="font-display text-2xl font-bold">
-                    {group ? group.planLabel : (sub?.displayName ?? "Free")}
-                  </h2>
-                  {group ? (
-                    <Badge
-                      variant="outline"
-                      className={
-                        group.readOnly ? (statusStyles.EXPIRED ?? "") : (statusStyles.ACTIVE ?? "")
-                      }
-                    >
-                      {group.readOnly ? "expired" : "active"}
-                    </Badge>
-                  ) : (
-                    sub?.billingStatus && (
-                      <Badge variant="outline" className={statusStyles[sub.billingStatus] ?? ""}>
-                        {sub.billingStatus.toLowerCase().replace(/_/g, " ")}
-                      </Badge>
-                    )
-                  )}
-                </div>
-              )}
+  const plansRef = useRef<HTMLDivElement>(null);
+  const planName = group ? group.planLabel : (sub?.displayName ?? "Free");
+  const planStatus = group ? (group.readOnly ? "EXPIRED" : "ACTIVE") : (sub?.billingStatus ?? null);
+
+  return (
+    <SettingsPanel>
+      {/* Current plan */}
+      <section className="relative flex flex-col gap-6 overflow-hidden rounded-[20px] bg-[#160A08] px-7 py-[26px] text-white md:flex-row md:items-center md:justify-between">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-[60px] -top-20 size-[280px] rounded-full bg-brand-gradient opacity-35"
+        />
+        <div className="relative flex min-w-0 flex-col gap-2">
+          <span className="text-xs font-bold uppercase tracking-[0.08em] text-[#F2B8C6]">
+            Current plan
+          </span>
+          {subQuery.isLoading ? (
+            <Skeleton className="h-10 w-40 bg-white/10" />
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
               {/*
-                An agency is ONE plan on ONE cycle, so a grouped workspace says whose plan it is
-                and that the date covers all of them, instead of quietly showing a renewal that
-                looks like this workspace's own. (U4, spec 2.4)
-              */}
-              {group ? (
-                <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Building2 aria-hidden className="size-3.5" />
-                    {group.name}
-                  </span>
-                  {groupRenews ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <RefreshCw aria-hidden className="size-3.5" />
-                      Renews {groupRenews} for all workspaces in the group
-                    </span>
-                  ) : null}
-                  {isOwner && group.slotsUsed !== null && group.slotLimit !== null ? (
-                    <span>
-                      {group.slotsUsed} of {group.slotLimit} workspaces used
-                    </span>
-                  ) : null}
-                </div>
-              ) : sub?.billingCycleEnd ? (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {sub.cancelAtPeriodEnd ? "Cancels" : "Renews"}{" "}
-                  {new Date(sub.billingCycleEnd).toLocaleDateString()}
-                </p>
+               * 🔴 A grouped workspace names the GROUP's plan, not its own. (spec 2.4.10, U8)
+               *
+               * `sub` is this workspace's own `workspace_subscriptions` row, and a workspace
+               * inside an agency has none: it is the group that is subscribed. Falling back to
+               * "Free" put the word Free at the top of the Billing page of a workspace on a
+               * paid Agency plan, directly under a card that says the agency renews next month.
+               */}
+              <span className="font-display text-[34px] font-bold leading-tight tracking-[-0.02em]">
+                {planName}
+              </span>
+              {planStatus && (
+                <StatusChip tone={statusTone(planStatus)}>
+                  {planStatus.toLowerCase().replace(/_/g, " ")}
+                </StatusChip>
+              )}
+            </div>
+          )}
+          {/*
+            An agency is ONE plan on ONE cycle, so a grouped workspace says whose plan it is
+            and that the date covers all of them, instead of quietly showing a renewal that
+            looks like this workspace's own. (U4, spec 2.4)
+          */}
+          {group ? (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[#E9DFDB]">
+              <span className="inline-flex items-center gap-1.5">
+                <Building2 aria-hidden className="size-3.5" />
+                {group.name}
+              </span>
+              {groupRenews ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <RefreshCw aria-hidden className="size-3.5" />
+                  Renews {groupRenews} for all workspaces in the group
+                </span>
+              ) : null}
+              {isOwner && group.slotsUsed !== null && group.slotLimit !== null ? (
+                <span>
+                  {group.slotsUsed} of {group.slotLimit} workspaces used
+                </span>
               ) : null}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {(subscriptionCancelled || workspaceLocked) && (
-                <Button variant="outline" size="sm" onClick={handleContactSupport}>
-                  <LifeBuoy aria-hidden className="size-4" />
-                  Contact support
-                </Button>
-              )}
-              {/* Billing actions are the owner's. A member sees the plan read-only. (spec 2.7) */}
-              {isOwner && sub?.hasActiveSubscription && !subscriptionCancelled && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => setCancelOpen(true)}
-                >
-                  Cancel subscription
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {workspaceLocked ? (
-            <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">
-              <Lock aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
-              <span>
-                This workspace is locked because its subscription has ended. Contact support to
-                unlock it.
-              </span>
-            </div>
-          ) : subscriptionCancelled ? (
-            <div className="mt-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-              <Lock aria-hidden className="mt-0.5 size-4 shrink-0" />
-              <span>
-                Your subscription is cancelled.
-                {sub?.billingCycleEnd
-                  ? ` All features stay available until ${new Date(sub.billingCycleEnd).toLocaleDateString()}, then this workspace is locked.`
-                  : " This workspace will be locked when the current period ends."}{" "}
-                Contact support to unlock it.
-              </span>
-            </div>
-          ) : null}
-
-          {group && isOwner && group.slotsUsed !== null && group.slotLimit !== null ? (
-            <SlotBar used={group.slotsUsed} limit={group.slotLimit} size="lg" className="mt-4" />
-          ) : null}
-
-          {group || !isOwner ? (
-            <div className="mt-3 flex items-center gap-2 text-[12.5px] text-muted-foreground">
-              <ShieldCheck aria-hidden className="size-3.5 shrink-0" />
-              {isOwner
-                ? "One plan and one invoice cover every workspace in this group."
-                : "Only the owner can change billing."}
-            </div>
+          ) : sub?.billingCycleEnd ? (
+            <span className="text-sm text-[#E9DFDB]">
+              {sub.cancelAtPeriodEnd ? "Cancels" : "Renews"} on {shortDate(sub.billingCycleEnd)}
+            </span>
           ) : null}
         </div>
+        <div className="relative flex flex-wrap gap-2">
+          {plans.length > 0 && (
+            <button
+              type="button"
+              onClick={() =>
+                plansRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+              }
+              className="inline-flex h-[42px] cursor-pointer items-center rounded-[10px] border-0 bg-white px-[18px] text-sm font-semibold text-[#160A08] hover:bg-white/90"
+            >
+              Change plan
+            </button>
+          )}
+          {(subscriptionCancelled || workspaceLocked) && (
+            <button
+              type="button"
+              onClick={handleContactSupport}
+              className="inline-flex h-[42px] cursor-pointer items-center gap-2 rounded-[10px] border border-[#4A3A36] bg-transparent px-4 text-sm font-semibold text-white hover:bg-white/10"
+            >
+              <LifeBuoy aria-hidden className="size-4" />
+              Contact support
+            </button>
+          )}
+          {/* Billing actions are the owner's. A member sees the plan read-only. (spec 2.7) */}
+          {isOwner && sub?.hasActiveSubscription && !subscriptionCancelled && (
+            <button
+              type="button"
+              onClick={() => setCancelOpen(true)}
+              className="h-[42px] cursor-pointer rounded-[10px] border border-[#4A3A36] bg-transparent px-4 text-sm font-semibold text-white hover:bg-white/10"
+            >
+              Cancel plan
+            </button>
+          )}
+          {/* Owner only, and the server refuses it for anybody else regardless. (T4, spec 2.7) */}
+          {isOwner && (
+            <button
+              type="button"
+              aria-label="Sync billing"
+              title="Sync billing"
+              disabled={syncMutation.isPending}
+              onClick={() => syncMutation.mutate(false)}
+              className="inline-flex size-[42px] cursor-pointer items-center justify-center rounded-[10px] border border-[#4A3A36] bg-transparent text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <RefreshCw className={cn("size-4", syncMutation.isPending && "animate-spin")} />
+            </button>
+          )}
+        </div>
+      </section>
 
-        {/*
-          The EFFECTIVE limits, read from the server's own resolver.
+      {workspaceLocked ? (
+        <div className="flex items-start gap-2.5 rounded-[14px] border border-[#F3B8C1] bg-[#FDECEE] px-5 py-4 text-sm text-[#6B1422] dark:border-destructive-edge dark:bg-destructive-wash dark:text-foreground">
+          <Lock aria-hidden className="mt-0.5 size-4 shrink-0 text-[#DF1E39]" />
+          <span>
+            This workspace is locked because its subscription has ended. Contact support to unlock
+            it.
+          </span>
+        </div>
+      ) : subscriptionCancelled ? (
+        <div className="flex items-start gap-2.5 rounded-[14px] border border-border bg-card px-5 py-4 text-sm text-muted-foreground">
+          <Lock aria-hidden className="mt-0.5 size-4 shrink-0" />
+          <span>
+            Your subscription is cancelled.
+            {sub?.billingCycleEnd
+              ? ` All features stay available until ${new Date(sub.billingCycleEnd).toLocaleDateString()}, then this workspace is locked.`
+              : " This workspace will be locked when the current period ends."}{" "}
+            Contact support to unlock it.
+          </span>
+        </div>
+      ) : null}
 
-          The plan cards below advertise what a tier is sold with. Enforcement folds
-          `package_limits` and any workspace-level override on top, so the two can disagree — and
-          when they did, the customer was shown one number and refused at another. This panel is
-          the authoritative one; the cards stay list capabilities.
-        */}
-        <PlanLimitsPanel workspaceId={workspaceId} />
+      {group || !isOwner ? (
+        <div className="flex flex-col gap-3 rounded-[14px] border border-border bg-card px-5 py-4">
+          {group && isOwner && group.slotsUsed !== null && group.slotLimit !== null ? (
+            <SlotBar used={group.slotsUsed} limit={group.slotLimit} size="lg" />
+          ) : null}
+          <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+            <ShieldCheck aria-hidden className="size-3.5 shrink-0" />
+            {isOwner
+              ? "One plan and one invoice cover every workspace in this group."
+              : "Only the owner can change billing."}
+          </div>
+        </div>
+      ) : null}
 
-        {/* Plan selector */}
-        <div>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold">Upgrade your plan</h2>
-            <div className="flex gap-2">
+      {/* Usage */}
+      {usage && (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="m-0 pt-1 font-display text-[18px] font-semibold tracking-[-0.02em] text-foreground">
+              Usage
+            </h2>
+            <span className="text-[13px] text-muted-foreground">
+              The numbers that block creation on {planName}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <UsageTile
+              label="Automations"
+              used={usage.automations.used}
+              limit={usage.automations.limit}
+            />
+            <UsageTile
+              label="Team seats"
+              used={usage.teamMembers.used}
+              limit={usage.teamMembers.limit}
+            />
+          </div>
+        </div>
+      )}
+
+      {/*
+        The EFFECTIVE limits, read from the server's own resolver.
+
+        The plan cards below advertise what a tier is sold with. Enforcement folds
+        `package_limits` and any workspace-level override on top, so the two can disagree — and
+        when they did, the customer was shown one number and refused at another. This panel is
+        the authoritative one; the cards stay list capabilities.
+      */}
+      <PlanLimitsPanel workspaceId={workspaceId} />
+
+      {/* Plan selector */}
+      <div ref={plansRef} className="scroll-mt-6">
+        <SettingsCard
+          title="Change plan"
+          description="Pick the plan that fits. Downgrades go through support."
+          actions={
+            <div className="inline-flex gap-0.5 rounded-[11px] bg-muted p-[3px]">
               {(["monthly", "yearly"] as const).map((iv) => (
-                <Button
+                <button
                   key={iv}
-                  size="sm"
-                  variant={interval === iv ? "default" : "outline"}
+                  type="button"
                   onClick={() => setInterval(iv)}
+                  className={cn(
+                    "inline-flex h-8 cursor-pointer items-center rounded-[8px] border-0 px-4 font-sans text-[13px] font-semibold transition-colors",
+                    interval === iv
+                      ? "bg-card text-foreground shadow-[0_1px_2px_rgba(22,10,8,0.08)]"
+                      : "bg-transparent text-muted-foreground hover:text-foreground",
+                  )}
                 >
                   {/*
-                   * 🔴 "save ~20%" OVERSTATED the discount. MEASURED against live production
-                   * prices: the yearly price is EXACTLY ten months' price on every tier in USD
-                   * (9→90, 29→290, 59→590, 549→5490 — ratio 10.00), which is a 16.7% saving, not 20%.
-                   * INR is the same shape at 10.00–10.02 (16.5–16.7%).
-                   *
-                   * "2 months free" is preferred over "save 17%" because it is exactly true rather
-                   * than rounded, and it survives a price change as long as the 10× ratio holds —
-                   * a percentage goes stale the moment any tier is repriced.
-                   *
-                   * ⚠️ It is exact in USD and 1.98 months in INR (₹4,999 against ten months at
-                   * ₹4,990 — nine rupees). Immaterial, and it does not overstate the way 20% did.
-                   *
-                   * ✅ This also brings the app into line with the marketing page, which already
-                   * says "SAVE 17%" — the two were contradicting each other.
+                   * "2 months free", not "save ~20%": the yearly price is exactly ten months' price
+                   * on every tier, a 16.7% saving. Exact rather than rounded, and it survives a
+                   * repricing as long as the 10× ratio holds.
                    */}
                   {iv === "yearly" ? "Yearly (2 months free)" : "Monthly"}
-                </Button>
+                </button>
               ))}
             </div>
-          </div>
+          }
+        >
           {configQuery.isLoading ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <div className="grid gap-3 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3 xl:grid-cols-5">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-64 rounded-2xl" />
+                <Skeleton key={i} className="h-64 rounded-[14px]" />
               ))}
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <div className="grid gap-3 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3 xl:grid-cols-5">
               {plans.map((plan) => {
                 const isCurrent = plan.plan === sub?.plan;
                 // D20: downgrade stays disabled and routed to support. This decides only WHICH
@@ -863,52 +902,48 @@ export function BillingPage({ search = {} }: { search?: BillingSearch }) {
                   <div
                     key={plan.plan}
                     ref={highlighted ? scrollToHighlighted : undefined}
-                    className={`relative flex flex-col rounded-2xl border p-5 shadow-soft transition-all ${
+                    className={cn(
+                      "relative flex flex-col gap-3 rounded-[14px] border bg-card p-[18px]",
                       highlighted
-                        ? "border-primary bg-primary/5 ring-2 ring-primary shadow-glow"
+                        ? "border-[#F5184C] ring-2 ring-[#F5184C]/40"
                         : isCurrent
-                          ? "border-primary/40 bg-primary/5 ring-1 ring-primary/20"
-                          : "bg-card hover:-translate-y-0.5"
-                    }`}
+                          ? "border-[#F5184C]/50 bg-[#FFF8F5] dark:bg-primary-wash"
+                          : "border-border",
+                    )}
                   >
-                    {isCurrent && (
-                      <span className="absolute -top-2.5 left-4 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
-                        Current
-                      </span>
-                    )}
-                    {highlighted && !isCurrent && (
-                      <span className="absolute -top-2.5 left-4 inline-flex items-center gap-1 rounded-full bg-brand-gradient px-2.5 py-0.5 text-[10px] font-semibold text-primary-foreground shadow-glow">
-                        <Lock aria-hidden className="size-2.5" /> Unlocks this feature
-                      </span>
-                    )}
-                    <div className="mb-1 flex items-center gap-1.5">
-                      <Zap className="h-4 w-4 text-primary" />
-                      <span className="font-display text-sm font-semibold">{plan.displayName}</span>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-bold text-foreground">{plan.displayName}</span>
+                      {isCurrent ? (
+                        <StatusChip tone="brand">Current</StatusChip>
+                      ) : highlighted ? (
+                        <StatusChip tone="brand" icon={<Lock />}>
+                          Unlocks this feature
+                        </StatusChip>
+                      ) : null}
                     </div>
-                    <div className="mb-4 mt-2">
-                      <span className="font-display text-3xl font-bold">{priceText}</span>
+                    <div className="font-display text-[26px] font-bold tracking-[-0.02em] text-foreground">
+                      {priceText}
                       {price > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          /{interval === "yearly" ? "yr" : "mo"}
+                        <span className="text-sm font-medium text-muted-foreground">
+                          {" "}
+                          / {interval === "yearly" ? "year" : "month"}
                         </span>
                       )}
                     </div>
-                    <ul className="mb-5 flex-1 space-y-1.5 text-xs text-muted-foreground">
+                    <ul className="m-0 flex flex-1 list-none flex-col gap-1.5 p-0 text-[13px] leading-normal text-muted-foreground">
                       {plan.highlights.slice(0, 5).map((h) => (
                         <li key={h} className="flex items-start gap-1.5">
-                          <span className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success">✓</span>
+                          <Check
+                            aria-hidden
+                            className="mt-0.5 size-3.5 shrink-0 stroke-[2.4] text-[#03A14A]"
+                          />
                           {h}
                         </li>
                       ))}
                     </ul>
-                    <Button
-                      size="sm"
-                      variant={isCurrent ? "outline" : "default"}
-                      className={
-                        !isCurrent
-                          ? "bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
-                          : ""
-                      }
+                    <SettingsButton
+                      variant={isCurrent || isDowngrade ? "secondary" : "primary"}
+                      className="w-full"
                       disabled={isCurrent || checkoutInFlight || plan.plan === "FREE"}
                       onClick={() => {
                         if (isCurrent) return;
@@ -923,182 +958,191 @@ export function BillingPage({ search = {} }: { search?: BillingSearch }) {
                       }}
                     >
                       {isCurrent ? "Current plan" : isDowngrade ? "Contact us" : "Upgrade"}
-                    </Button>
+                    </SettingsButton>
                   </div>
                 );
               })}
             </div>
           )}
-        </div>
-
-        {/* Billing details — the address every invoice is issued against. */}
-        <div className="rounded-2xl border bg-card shadow-soft">
-          <div className="flex items-center justify-between border-b px-6 py-4">
-            <h2 className="font-display text-lg font-semibold">Billing details</h2>
-            {/*
-              Edits the address in place. (R6)
-              It used to link to `/checkout/review`, which needs a `packageId` to price a plan and
-              has nothing to render without one, so the only control offered for fixing an address
-              went somewhere that could not show it. Correcting an address is not a purchase.
-            */}
-            <Button variant="outline" size="sm" onClick={() => setAddressOpen(true)}>
-              {billingProfile ? "Edit" : "Add"}
-            </Button>
-          </div>
-          <div className="p-6 text-sm">
-            {profileQuery.isLoading ? (
-              <Skeleton className="h-16 rounded-lg" />
-            ) : billingProfile ? (
-              <div className="space-y-1">
-                {billingProfile.address && (
-                  <p className="whitespace-pre-line text-muted-foreground">
-                    {billingProfile.address}
-                  </p>
-                )}
-                <p className="text-muted-foreground">
-                  {billingProfile.state} {billingProfile.postalCode}
-                </p>
-                <p className="text-muted-foreground">{countryName(billingProfile.country)}</p>
-              </div>
-            ) : (
-              /*
-               * No profile yet is the normal pre-purchase state, not an error — checkout collects
-               * it. No "add now" link: the form needs a plan to price, and `/checkout/review`
-               * without a `packageId` has nothing to show.
-               */
-              <p className="text-muted-foreground">
-                You will add these when you subscribe. They appear on every invoice, and you can add
-                them now if you would rather.
-              </p>
-            )}
-          </div>
-        </div>
-
-        <BillingAddressDialog
-          workspaceId={workspaceId}
-          profile={billingProfile}
-          open={addressOpen}
-          onOpenChange={setAddressOpen}
-        />
-
-        {/* Invoices */}
-        <div className="rounded-2xl border bg-card shadow-soft">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 border-b px-6 py-4">
-            <h2 className="font-display text-lg font-semibold">Invoice history</h2>
-            {/*
-              Says whose invoices these are. A grouped workspace lists the GROUP's, and they appear
-              identically on every workspace in it, so without this the customer sees the same
-              invoice in several places and cannot tell why. (U4, spec 2.4)
-            */}
-            <span className="text-[12.5px] text-muted-foreground">
-              {group ? `Shared by all workspaces in ${group.name}` : "For this workspace"}
-            </span>
-          </div>
-          {invoicesQuery.isLoading ? (
-            <div className="space-y-3 p-6">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 rounded-lg" />
-              ))}
-            </div>
-          ) : invoices.length === 0 ? (
-            <div className="px-6 py-8 text-center text-sm text-muted-foreground">
-              No invoices yet.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <th className="px-6 py-3 font-medium">Date</th>
-                    <th className="px-4 py-3 font-medium">Invoice</th>
-                    <th className="px-4 py-3 font-medium">Plan</th>
-                    <th className="px-4 py-3 font-medium">Amount</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 text-right font-medium">Download</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((inv) => (
-                    <tr key={inv.id} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="px-6 py-3 text-muted-foreground">
-                        {new Date(inv.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3">
-                        {inv.hostedInvoiceUrl && inv.invoiceNumber ? (
-                          <button
-                            type="button"
-                            onClick={() => void openInvoiceView(inv.hostedInvoiceUrl!)}
-                            className="inline-flex items-center gap-1 border-0 bg-transparent p-0 font-mono text-xs text-primary hover:underline"
-                          >
-                            {inv.invoiceNumber} <ExternalLink className="h-3 w-3" />
-                          </button>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 capitalize">{inv.plan ?? "—"}</td>
-                      <td className="px-4 py-3 tabular-nums font-medium">
-                        {(inv.amountCents / 100).toFixed(2)} {inv.currency.toUpperCase()}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          variant="outline"
-                          className={statusStyles[inv.status.toUpperCase()] ?? ""}
-                        >
-                          {inv.status}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={
-                            !canDownloadInvoices ||
-                            (!inv.hasPdf && !inv.canRenderPdf) ||
-                            downloadingId === inv.id
-                          }
-                          onClick={() => void downloadInvoicePdf(inv)}
-                          title={
-                            !canDownloadInvoices
-                              ? "Invoice downloads are turned off for you. Ask the owner if you need them."
-                              : inv.hasPdf
-                                ? "Download this invoice as a PDF"
-                                : inv.canRenderPdf
-                                  ? "Prepare this invoice as a PDF and download it"
-                                  : inv.hasDocument
-                                    ? "This invoice was issued before PDF support. Use View to open it."
-                                    : "This payment was not issued as an invoice, so there is no document"
-                          }
-                        >
-                          {downloadingId === inv.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Download className="h-3.5 w-3.5" />
-                          )}
-                          <span className="ml-1.5">PDF</span>
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/*
-            The reason, under the table it applies to. (U4, spec 2.7)
-            Only when there is something to be refused: an empty list with a lock note would be
-            telling somebody they cannot have documents that do not exist.
-          */}
-          {!canDownloadInvoices && invoices.length > 0 ? (
-            <div className="flex items-center gap-2 border-t px-6 py-3 text-[12.5px] text-muted-foreground">
-              <Lock aria-hidden className="size-3.5 shrink-0" />
-              Invoice downloads are turned off for you. Ask the owner if you need them.
-            </div>
-          ) : null}
-        </div>
+        </SettingsCard>
       </div>
+
+      {/* Billing details — the address every invoice is issued against. */}
+      <SettingsCard
+        title="Billing details"
+        description="Printed on your GST invoices."
+        actions={
+          /*
+            Edits the address in place. (R6) Correcting an address is not a purchase, so it does
+            not go through `/checkout/review`, which needs a `packageId` to render anything.
+          */
+          <SettingsButton onClick={() => setAddressOpen(true)}>
+            {billingProfile ? "Edit" : "Add"}
+          </SettingsButton>
+        }
+      >
+        {profileQuery.isLoading ? (
+          <div className="px-5 py-5 sm:px-7">
+            <Skeleton className="h-16 rounded-[10px]" />
+          </div>
+        ) : billingProfile ? (
+          <>
+            <SettingRow label="Billing address" hint="Business or your own address.">
+              <TextField
+                readOnly
+                value={billingProfile.address ?? "—"}
+                aria-label="Billing address"
+              />
+            </SettingRow>
+            <SettingRow label="State and postal code" hint="State decides CGST and SGST or IGST.">
+              <TextField
+                readOnly
+                value={[billingProfile.state, billingProfile.postalCode].filter(Boolean).join(" ")}
+                aria-label="State and postal code"
+              />
+            </SettingRow>
+            <SettingRow label="Country" hint="Sets the currency you're billed in.">
+              <TextField
+                readOnly
+                value={countryName(billingProfile.country)}
+                aria-label="Country"
+              />
+            </SettingRow>
+          </>
+        ) : (
+          /*
+           * No profile yet is the normal pre-purchase state, not an error — checkout collects it.
+           */
+          <CardNote>
+            You will add these when you subscribe. They appear on every invoice, and you can add
+            them now if you would rather.
+          </CardNote>
+        )}
+      </SettingsCard>
+
+      <BillingAddressDialog
+        workspaceId={workspaceId}
+        profile={billingProfile}
+        open={addressOpen}
+        onOpenChange={setAddressOpen}
+      />
+
+      {/* Invoices */}
+      <SettingsCard
+        title="Invoices"
+        /*
+          Says whose invoices these are. A grouped workspace lists the GROUP's, and they appear
+          identically on every workspace in it. (U4, spec 2.4)
+        */
+        description={
+          group
+            ? `Every payment, with a GST invoice. Shared by all workspaces in ${group.name}.`
+            : "Every payment, with a GST invoice."
+        }
+      >
+        {invoicesQuery.isLoading ? (
+          <div className="flex flex-col gap-3 px-5 py-5 sm:px-6">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 rounded-[10px]" />
+            ))}
+          </div>
+        ) : invoices.length === 0 ? (
+          <CardNote>No invoices yet.</CardNote>
+        ) : (
+          <SettingsTable>
+            <thead>
+              <tr>
+                <Th>Invoice</Th>
+                <Th>Date</Th>
+                <Th>Plan</Th>
+                <Th>Amount</Th>
+                <Th>Status</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((inv) => (
+                <tr key={inv.id}>
+                  <Td className="font-mono text-[13px]">
+                    {inv.hostedInvoiceUrl && inv.invoiceNumber ? (
+                      <button
+                        type="button"
+                        onClick={() => void openInvoiceView(inv.hostedInvoiceUrl!)}
+                        className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 font-mono text-[13px] text-foreground hover:text-[#C20F3B]"
+                      >
+                        {inv.invoiceNumber} <ExternalLink aria-hidden className="size-3" />
+                      </button>
+                    ) : (
+                      (inv.invoiceNumber ?? <span className="text-muted-foreground">—</span>)
+                    )}
+                  </Td>
+                  <Td className="whitespace-nowrap text-muted-foreground">
+                    {shortDate(inv.createdAt)}
+                  </Td>
+                  <Td className="capitalize">{inv.plan?.toLowerCase() ?? "—"}</Td>
+                  <Td className="whitespace-nowrap font-semibold tabular-nums">
+                    {formatInvoiceAmount(inv.amountCents, inv.currency)}
+                  </Td>
+                  <Td>
+                    <StatusChip
+                      tone={statusTone(inv.status)}
+                      icon={
+                        statusTone(inv.status) === "success" ? (
+                          <Check />
+                        ) : statusTone(inv.status) === "danger" ? (
+                          <X />
+                        ) : undefined
+                      }
+                      className="capitalize"
+                    >
+                      {inv.status.toLowerCase().replace(/_/g, " ")}
+                    </StatusChip>
+                  </Td>
+                  <Td className="w-[50px]">
+                    <IconButton
+                      label="Download invoice PDF"
+                      disabled={
+                        !canDownloadInvoices ||
+                        (!inv.hasPdf && !inv.canRenderPdf) ||
+                        downloadingId === inv.id
+                      }
+                      onClick={() => void downloadInvoicePdf(inv)}
+                      title={
+                        !canDownloadInvoices
+                          ? "Invoice downloads are turned off for you. Ask the owner if you need them."
+                          : inv.hasPdf
+                            ? "Download this invoice as a PDF"
+                            : inv.canRenderPdf
+                              ? "Prepare this invoice as a PDF and download it"
+                              : inv.hasDocument
+                                ? "This invoice was issued before PDF support. Use View to open it."
+                                : "This payment was not issued as an invoice, so there is no document"
+                      }
+                    >
+                      {downloadingId === inv.id ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <Download />
+                      )}
+                    </IconButton>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </SettingsTable>
+        )}
+
+        {/*
+          The reason, under the table it applies to. (U4, spec 2.7)
+          Only when there is something to be refused.
+        */}
+        {!canDownloadInvoices && invoices.length > 0 ? (
+          <div className="flex items-center gap-2 px-5 py-3 text-[13px] text-muted-foreground sm:px-6">
+            <Lock aria-hidden className="size-3.5 shrink-0" />
+            Invoice downloads are turned off for you. Ask the owner if you need them.
+          </div>
+        ) : null}
+      </SettingsCard>
 
       <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <AlertDialogContent>
@@ -1120,6 +1164,6 @@ export function BillingPage({ search = {} }: { search?: BillingSearch }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </SettingsPanel>
   );
 }

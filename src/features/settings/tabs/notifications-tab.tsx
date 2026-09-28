@@ -1,15 +1,20 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Switch } from "@/components/ui/switch";
+import type { LucideIcon } from "lucide-react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Bell,
+  CalendarDays,
+  CreditCard,
+  Instagram,
+  MessageCircle,
+  ShieldCheck,
+  Users,
+  Zap,
+} from "lucide-react";
+
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import {
   getNotificationPreferences,
   updateNotificationPreference,
@@ -19,13 +24,42 @@ import {
 import { useApp } from "@/state/app-context";
 import { getUserErrorMessage } from "@/lib/user-facing-error";
 import { toast } from "@/lib/toast";
-import { SettingsCard } from "../components";
+import {
+  CardNote,
+  IconTile,
+  SelectField,
+  SettingsCard,
+  SettingsPanel,
+  Toggle,
+} from "../components";
 
 /** Column order and labels for the channel toggles; which ones a row shows comes from the API. */
 const CHANNEL_COLUMNS: { id: NotificationChannel; label: string }[] = [
   { id: "in_app", label: "In app" },
   { id: "email", label: "Email" },
 ];
+
+const GRID =
+  "grid grid-cols-[minmax(0,1fr)_64px_64px] gap-3 sm:grid-cols-[minmax(0,1fr)_80px_80px]";
+
+/**
+ * Presentation only: an icon per catalog category key. Categories themselves come from the API;
+ * an unknown key falls back to the bell.
+ */
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  automation: Zap,
+  automations: Zap,
+  scheduler: CalendarDays,
+  posts: CalendarDays,
+  leads: Users,
+  dm: MessageCircle,
+  chatbot: MessageCircle,
+  billing: CreditCard,
+  account: ShieldCheck,
+  security: ShieldCheck,
+  instagram: Instagram,
+  team: Users,
+};
 
 /**
  * Settings → Notifications (plan/settings-revamp.md). Preferences are per workspace AND per user,
@@ -97,76 +131,88 @@ export function NotificationsTab() {
   };
 
   return (
-    <SettingsCard
-      title="What you hear about"
-      description={`Per workspace. You're editing ${workspaceName}.`}
-      actions={
-        workspaces.length > 1 ? (
-          <Select value={workspaceId} onValueChange={setWorkspaceId}>
-            <SelectTrigger className="w-56" aria-label="Workspace">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {workspaces.map((w) => (
-                <SelectItem key={w.id} value={w.id}>
-                  {w.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : undefined
-      }
-    >
-      <div className="hidden grid-cols-[1fr_repeat(2,5rem)] px-5 py-2 text-xs font-medium text-muted-foreground sm:grid">
-        <span>Notification</span>
-        {CHANNEL_COLUMNS.map((c) => (
-          <span key={c.id} className="text-center">
-            {c.label}
-          </span>
-        ))}
-      </div>
-      {prefs.isLoading && (
-        <div className="space-y-2 px-5 py-4">
-          <Skeleton className="h-6 w-full" />
-          <Skeleton className="h-6 w-full" />
-          <Skeleton className="h-6 w-2/3" />
+    <SettingsPanel>
+      <SettingsCard
+        title="What you hear about"
+        description={`Per workspace. You're editing ${workspaceName}.`}
+        actions={
+          <SelectField
+            aria-label="Workspace"
+            icon={<Instagram aria-hidden />}
+            wrapperClassName="w-full sm:w-[220px]"
+            value={workspaceId}
+            disabled={workspaces.length < 2}
+            onChange={(e) => setWorkspaceId(e.target.value)}
+          >
+            {workspaces.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </SelectField>
+        }
+      >
+        <div
+          className={cn(
+            GRID,
+            "bg-[#FCFAF7] px-5 py-2.5 text-xs font-semibold text-muted-foreground sm:px-6 dark:bg-muted/50",
+            "border-b border-border",
+          )}
+        >
+          <span>Notification</span>
+          {CHANNEL_COLUMNS.map((c) => (
+            <span key={c.id} className="text-center">
+              {c.label}
+            </span>
+          ))}
         </div>
-      )}
-      {prefs.error && (
-        <p className="px-5 py-4 text-sm text-destructive">{getUserErrorMessage(prefs.error)}</p>
-      )}
-      {groups.map(([group, rows]) => (
-        <div key={group}>
-          <p className="bg-muted/40 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {group}
-          </p>
-          {rows.map((row) => {
-            const available = row.availableChannels ?? CHANNEL_COLUMNS.map((c) => c.id);
-            const on = row.isEnabled ? (row.channels ?? available) : [];
-            return (
-              <div
-                key={row.type}
-                className="grid grid-cols-[1fr_repeat(2,5rem)] items-center px-5 py-3"
-              >
-                <span className="text-sm">{row.label}</span>
-                {CHANNEL_COLUMNS.map((c) => (
-                  <div key={c.id} className="flex justify-center">
-                    {available.includes(c.id) ? (
-                      <Switch
-                        aria-label={`${row.label} — ${c.label}`}
-                        checked={on.includes(c.id)}
-                        onCheckedChange={(v) => toggle(row, c.id, v)}
-                      />
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </div>
-                ))}
+        {prefs.isLoading && (
+          <div className="space-y-3 px-6 py-5">
+            <Skeleton className="h-6 w-full" />
+            <Skeleton className="h-6 w-full" />
+            <Skeleton className="h-6 w-2/3" />
+          </div>
+        )}
+        {prefs.error && <CardNote tone="danger">{getUserErrorMessage(prefs.error)}</CardNote>}
+        {groups.map(([group, rows]) => {
+          const Icon = CATEGORY_ICONS[rows[0]?.category ?? ""] ?? Bell;
+          return (
+            <div
+              key={group}
+              className="flex flex-col border-b border-border px-5 py-4 last:border-b-0 sm:px-6"
+            >
+              <div className="flex items-center gap-2.5 py-1.5">
+                <IconTile size="sm">
+                  <Icon />
+                </IconTile>
+                <span className="text-sm font-bold text-foreground">{group}</span>
               </div>
-            );
-          })}
-        </div>
-      ))}
-    </SettingsCard>
+              {rows.map((row) => {
+                const available = row.availableChannels ?? CHANNEL_COLUMNS.map((c) => c.id);
+                const on = row.isEnabled ? (row.channels ?? available) : [];
+                return (
+                  <div key={row.type} className={cn(GRID, "items-center py-3")}>
+                    <span className="text-sm font-semibold text-foreground">{row.label}</span>
+                    {CHANNEL_COLUMNS.map((c) => (
+                      <div key={c.id} className="flex justify-center">
+                        {available.includes(c.id) ? (
+                          <Toggle
+                            label={`${row.label} ${c.id === "email" ? "by email" : "in app"}`}
+                            checked={on.includes(c.id)}
+                            onChange={(v) => toggle(row, c.id, v)}
+                          />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </SettingsCard>
+    </SettingsPanel>
   );
 }

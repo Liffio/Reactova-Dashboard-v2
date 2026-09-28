@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Gauge, Info } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SettingsButton } from "@/features/settings/components";
 import { Slider } from "@/components/ui/slider";
 import { getSendRate, setSendRate, type SendRateSettings } from "@/lib/api/send-rate-api";
 import { toast } from "@/lib/toast";
@@ -167,33 +167,33 @@ export function SendRateCard({ variant = "card" }: SendRateCardProps = {}) {
   );
 
   /** The two ends of the scale. Everything between them is a dot on the rail. */
-  const bounds = (
-    <div className="mt-1.5 flex justify-between text-[10px] leading-none tabular-nums text-muted-foreground/70">
-      <span>{min}</span>
-      <span>{max}</span>
-    </div>
-  );
-
-  /** The chosen number, parked to the right of the rail where the eye lands after a drag. */
-  const valuePill = (
-    <span className="inline-flex shrink-0 items-baseline gap-0.5 self-start rounded-full border bg-background px-2.5 py-1 text-xs font-semibold tabular-nums shadow-sm sm:self-auto">
-      {value}
-      <span className="text-[10px] font-normal text-muted-foreground">/hr</span>
-    </span>
-  );
-
-  const actions = (
-    <>
-      <Button size="sm" disabled={mutation.isPending} onClick={() => mutation.mutate(value)}>
-        {mutation.isPending ? "Saving…" : "Save"}
-      </Button>
-      <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
-        Cancel
-      </Button>
-    </>
-  );
-
   if (inline) {
+    const bounds = (
+      <div className="mt-1.5 flex justify-between text-[10px] leading-none tabular-nums text-muted-foreground/70">
+        <span>{min}</span>
+        <span>{max}</span>
+      </div>
+    );
+
+    /** The chosen number, parked to the right of the rail where the eye lands after a drag. */
+    const valuePill = (
+      <span className="inline-flex shrink-0 items-baseline gap-0.5 self-start rounded-full border bg-background px-2.5 py-1 text-xs font-semibold tabular-nums shadow-sm sm:self-auto">
+        {value}
+        <span className="text-[10px] font-normal text-muted-foreground">/hr</span>
+      </span>
+    );
+
+    const actions = (
+      <>
+        <Button size="sm" disabled={mutation.isPending} onClick={() => mutation.mutate(value)}>
+          {mutation.isPending ? "Saving…" : "Save"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
+          Cancel
+        </Button>
+      </>
+    );
+
     const NoteIcon = throttled ? AlertTriangle : Info;
 
     return (
@@ -250,36 +250,47 @@ export function SendRateCard({ variant = "card" }: SendRateCardProps = {}) {
     );
   }
 
+  // Settings → Instagram: the reference's "DM send rate" block — label + big number, a brand
+  // gradient rail with a ringed thumb, and the two ends of the range underneath.
   return (
-    <div className="space-y-4">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl border bg-muted/40">
-          <Gauge className="h-4 w-4 text-muted-foreground" />
+    <div className="flex flex-col gap-3.5">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <span id="send-rate-label" className="text-sm font-semibold text-foreground">
+            DM send rate
+          </span>
+          <span className="text-[13px] text-muted-foreground">
+            Slower is safer. Instagram limits how fast accounts can DM.
+          </span>
         </div>
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold">Send rate</h3>
-          <p className="text-sm text-muted-foreground">
-            How many automated DMs this account sends per hour.
-          </p>
-        </div>
+        <span className="shrink-0 font-display text-[22px] font-bold tabular-nums text-foreground">
+          {value}
+          <span className="text-[13px] font-medium text-muted-foreground"> / hour</span>
+        </span>
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="text-2xl font-semibold tabular-nums">{value}</span>
-          <span className="text-xs text-muted-foreground">DMs per hour</span>
-        </div>
+      <Slider
+        value={[value]}
+        min={min}
+        max={max}
+        step={step}
+        onValueChange={([next]) => setDraft(next)}
+        aria-labelledby="send-rate-label"
+        aria-valuetext={`${value} DMs per hour`}
+        className="h-6"
+        trackClassName="h-1.5 bg-muted [&>span]:bg-brand-gradient"
+        thumbClassName="h-5 w-5 border-2 border-[#F5184C] bg-white shadow-[0_2px_6px_rgba(245,24,76,0.3)]"
+      />
 
-        <div>
-          {slider}
-          {bounds}
-        </div>
+      <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
+        <span>Careful · {min}</span>
+        <span>Max {max}</span>
       </div>
 
       {belowChosen && (
         <p
           className={cn(
-            "text-xs tabular-nums",
+            "m-0 text-[13px] tabular-nums",
             throttled ? "text-warning" : "text-muted-foreground",
           )}
         >
@@ -288,17 +299,28 @@ export function SendRateCard({ variant = "card" }: SendRateCardProps = {}) {
       )}
 
       {limitNote && (
-        <p className={cn("text-xs", throttled ? "text-warning" : "text-muted-foreground")}>
+        <p className={cn("m-0 text-[13px]", throttled ? "text-warning" : "text-muted-foreground")}>
           {limitNote}
         </p>
       )}
 
-      {dirty && <div className="flex gap-2">{actions}</div>}
-
-      <Separator />
+      {dirty && (
+        <div className="flex gap-2">
+          <SettingsButton
+            variant="primary"
+            disabled={mutation.isPending}
+            onClick={() => mutation.mutate(value)}
+          >
+            {mutation.isPending ? "Saving…" : "Save"}
+          </SettingsButton>
+          <SettingsButton variant="ghost" onClick={() => setDraft(null)}>
+            Cancel
+          </SettingsButton>
+        </div>
+      )}
 
       {/* The permitted caveat — about the platform, never about who else is on the account. */}
-      <p className="flex items-start gap-2 text-xs text-muted-foreground">
+      <p className="m-0 flex items-start gap-2 text-xs text-muted-foreground">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <span>{settings.caveat}</span>
       </p>

@@ -2,18 +2,18 @@ import { useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Archive, History } from "lucide-react";
 
-import { PageHeader } from "@/components/dashboard/page-header";
-import { Button } from "@/components/ui/button";
 import { AuditTimeline } from "@/components/admin/audit-timeline";
 import { getAuditLogs, getAuditLogsArchive } from "@/lib/api/audit-logs-api";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useApp } from "@/state/app-context";
+import { SettingsButton, SettingsCard } from "../components";
 
 /**
- * Workspace Audit Logs — the tenant-facing activity trail. Rendering is delegated to the shared
- * `<AuditTimeline>` (same component the admin trails use), fed by a keyset `useInfiniteQuery`. The
- * live feed caps at the 500 most-recent entries within 7 days; when the server flags
- * `archiveAvailable`, a header action switches the timeline to the archive query for older entries.
+ * Workspace Audit Logs — the tenant-facing activity trail, shown as the "Audit log" card of
+ * Settings → Developer. Rendering is delegated to the shared `<AuditTimeline>` (same component the
+ * admin trails use, which carries the per-entry change diff), fed by a keyset `useInfiniteQuery`.
+ * The live feed caps at the 500 most-recent entries within 7 days; when the server flags
+ * `archiveAvailable`, the card action switches the timeline to the archive query for older entries.
  */
 
 const PAGE_SIZE = 50;
@@ -39,34 +39,30 @@ export function AuditLogPage() {
   const archiveAvailable = query.data?.pages.some((p) => p.archiveAvailable) ?? false;
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="Workspace"
-        title="Audit Logs"
-        description="Recent activity across your workspace — who did what, and when."
-        actions={
-          view === "live" ? (
-            archiveAvailable ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                onClick={() => setView("archive")}
-              >
-                <Archive className="h-4 w-4" />
-                View archive
-              </Button>
-            ) : null
-          ) : (
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setView("live")}>
-              <History className="h-4 w-4" />
-              Back to recent
-            </Button>
-          )
-        }
-      />
-
-      <div className="space-y-5 p-4 sm:p-6 md:p-10">
+    <SettingsCard
+      title="Audit log"
+      description={
+        view === "archive"
+          ? `Older activity in ${current.name}, from the archive.`
+          : `Every change in ${current.name}, kept 7 days.`
+      }
+      actions={
+        view === "live" ? (
+          archiveAvailable ? (
+            <SettingsButton onClick={() => setView("archive")}>
+              <Archive />
+              <span>View archive</span>
+            </SettingsButton>
+          ) : null
+        ) : (
+          <SettingsButton onClick={() => setView("live")}>
+            <History />
+            <span>Back to recent</span>
+          </SettingsButton>
+        )
+      }
+    >
+      <div className="px-5 py-5 sm:px-6">
         <AuditTimeline
           entries={entries}
           isLoading={query.isLoading}
@@ -84,6 +80,6 @@ export function AuditLogPage() {
           }
         />
       </div>
-    </div>
+    </SettingsCard>
   );
 }

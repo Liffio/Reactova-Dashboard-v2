@@ -13,7 +13,8 @@ export type StepType =
   | "CONDITION"
   | "HANDOVER"
   | "START_CHATBOT"
-  | "WEBHOOK";
+  | "WEBHOOK"
+  | "NOTIFY";
 
 /** One delivery of a Webhook step, newest first. */
 export interface WebhookDelivery {
@@ -355,6 +356,13 @@ export const chatbotApi = {
         workspaceId,
         body,
       }),
+    ),
+  alertRecipients: (workspaceId: string) =>
+    unwrap(
+      apiRequest<{ data: Array<{ id: string; name: string | null; email: string }> }>(
+        apiUri.chatbots.alertRecipients,
+        { workspaceId },
+      ),
     ),
   webhookDeliveries: (workspaceId: string, id: string, stepId: string) =>
     unwrap(

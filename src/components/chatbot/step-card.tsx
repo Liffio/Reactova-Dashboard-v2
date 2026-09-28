@@ -12,6 +12,7 @@ import { STEP_LABEL, cfgStr, formatDelay, stepSummary } from "./model";
 import { LockedRow } from "./upgrade";
 import { MergeFieldPicker } from "./merge-fields";
 import { WebhookEditor } from "./webhook-editor";
+import { NotifyEditor } from "./notify-editor";
 import {
   ButtonList,
   ConditionEditor,
@@ -331,6 +332,14 @@ export function StepCard({
             />
           )}
 
+          {step.type === "NOTIFY" && (
+            <NotifyEditor
+              step={step}
+              onChange={(config) => onChange({ ...step, config })}
+              {...pick}
+            />
+          )}
+
           {step.type === "START_CHATBOT" && (
             <label className="flex flex-col gap-1.5 text-xs font-semibold text-muted-foreground">
               Continue in
@@ -445,117 +454,120 @@ export function StepCard({
             </div>
           )}
 
-          {!isCond && step.type !== "START_CHATBOT" && step.type !== "WEBHOOK" && (
-            <div className="flex flex-col gap-2">
-              <SettingsRow
-                tone="delay"
-                icon={DelayIcon}
-                label="Delay before sending"
-                value={formatDelay(step.delaySeconds)}
-                isSet={step.delaySeconds > 0}
-              >
-                <DelayControl
-                  value={step.delaySeconds}
-                  onChange={(delaySeconds) => onChange({ ...step, delaySeconds })}
-                />
-              </SettingsRow>
-              {!features.tags ? (
-                <LockedRow
-                  capability="chatbot:tags"
-                  feature="Tags"
-                  icon={<Tag className="h-4 w-4" />}
-                  label="Add tag when sent"
-                />
-              ) : (
+          {!isCond &&
+            step.type !== "START_CHATBOT" &&
+            step.type !== "WEBHOOK" &&
+            step.type !== "NOTIFY" && (
+              <div className="flex flex-col gap-2">
                 <SettingsRow
-                  tone="tag"
-                  icon={TagIcon}
-                  label="Add tag when sent"
-                  value={step.tagToAdd?.trim() || "None"}
-                  isSet={!!step.tagToAdd?.trim()}
+                  tone="delay"
+                  icon={DelayIcon}
+                  label="Delay before sending"
+                  value={formatDelay(step.delaySeconds)}
+                  isSet={step.delaySeconds > 0}
                 >
-                  <input
-                    className={fieldCls}
-                    value={step.tagToAdd ?? ""}
-                    maxLength={64}
-                    placeholder="e.g. Got discount code"
-                    aria-label="Tag to add"
-                    onChange={(e) => onChange({ ...step, tagToAdd: e.target.value || null })}
+                  <DelayControl
+                    value={step.delaySeconds}
+                    onChange={(delaySeconds) => onChange({ ...step, delaySeconds })}
                   />
-                  <span>Conditions can check this tag later.</span>
                 </SettingsRow>
-              )}
-              {(waits || step.followUps.length > 0) &&
-                (!features.follow_ups ? (
+                {!features.tags ? (
                   <LockedRow
-                    capability="chatbot:follow_ups"
-                    feature="Follow-ups"
-                    icon={<Repeat className="h-4 w-4" />}
-                    label="Follow-ups"
+                    capability="chatbot:tags"
+                    feature="Tags"
+                    icon={<Tag className="h-4 w-4" />}
+                    label="Add tag when sent"
                   />
                 ) : (
                   <SettingsRow
-                    tone="fu"
-                    icon={RepeatIcon}
-                    label="Follow-ups"
-                    value={step.followUps.length ? `${step.followUps.length} set` : "Off"}
-                    isSet={step.followUps.length > 0}
+                    tone="tag"
+                    icon={TagIcon}
+                    label="Add tag when sent"
+                    value={step.tagToAdd?.trim() || "None"}
+                    isSet={!!step.tagToAdd?.trim()}
                   >
-                    <FollowUpEditor
-                      step={step}
-                      onChange={(followUps) => onChange({ ...step, followUps })}
-                      {...pick}
+                    <input
+                      className={fieldCls}
+                      value={step.tagToAdd ?? ""}
+                      maxLength={64}
+                      placeholder="e.g. Got discount code"
+                      aria-label="Tag to add"
+                      onChange={(e) => onChange({ ...step, tagToAdd: e.target.value || null })}
                     />
+                    <span>Conditions can check this tag later.</span>
                   </SettingsRow>
-                ))}
-              {!features.business_hours ? (
-                <LockedRow
-                  capability="chatbot:business_hours"
-                  feature="Business hours"
-                  icon={<MoonStar className="h-4 w-4" />}
-                  label="Outside business hours"
-                />
-              ) : (
-                <SettingsRow
-                  tone="delay"
-                  icon={<MoonStar className="h-4 w-4" />}
-                  label="Outside business hours"
-                  value={
-                    outside.stepId
-                      ? "Go to another step"
-                      : outside.body?.trim()
-                        ? "Different reply"
-                        : "Same reply"
-                  }
-                  isSet={!!outside.stepId || !!outside.body?.trim()}
-                >
-                  <textarea
-                    className={fieldCls}
-                    rows={2}
-                    maxLength={1000}
-                    placeholder="Reply instead, e.g. We're closed right now, we'll reply at 9am"
-                    aria-label="Reply outside business hours"
-                    value={outside.body ?? ""}
-                    onChange={(e) => setOutside({ body: e.target.value || null })}
-                  />
-                  <div className="flex items-center gap-1.5">
-                    <span className="flex-1">Or go to</span>
-                    <TargetPicker
-                      value={{ kind: "step", id: outside.stepId ?? null }}
-                      onPick={(t) => setOutside({ stepId: t.kind === "step" ? t.id : null })}
-                      selfId={step.id}
-                      allowHuman={false}
-                      allowEnd
-                      {...pick}
+                )}
+                {(waits || step.followUps.length > 0) &&
+                  (!features.follow_ups ? (
+                    <LockedRow
+                      capability="chatbot:follow_ups"
+                      feature="Follow-ups"
+                      icon={<Repeat className="h-4 w-4" />}
+                      label="Follow-ups"
                     />
-                  </div>
-                  <span>
-                    Uses the hours set on your chatbots page. Inside those hours nothing changes.
-                  </span>
-                </SettingsRow>
-              )}
-            </div>
-          )}
+                  ) : (
+                    <SettingsRow
+                      tone="fu"
+                      icon={RepeatIcon}
+                      label="Follow-ups"
+                      value={step.followUps.length ? `${step.followUps.length} set` : "Off"}
+                      isSet={step.followUps.length > 0}
+                    >
+                      <FollowUpEditor
+                        step={step}
+                        onChange={(followUps) => onChange({ ...step, followUps })}
+                        {...pick}
+                      />
+                    </SettingsRow>
+                  ))}
+                {!features.business_hours ? (
+                  <LockedRow
+                    capability="chatbot:business_hours"
+                    feature="Business hours"
+                    icon={<MoonStar className="h-4 w-4" />}
+                    label="Outside business hours"
+                  />
+                ) : (
+                  <SettingsRow
+                    tone="delay"
+                    icon={<MoonStar className="h-4 w-4" />}
+                    label="Outside business hours"
+                    value={
+                      outside.stepId
+                        ? "Go to another step"
+                        : outside.body?.trim()
+                          ? "Different reply"
+                          : "Same reply"
+                    }
+                    isSet={!!outside.stepId || !!outside.body?.trim()}
+                  >
+                    <textarea
+                      className={fieldCls}
+                      rows={2}
+                      maxLength={1000}
+                      placeholder="Reply instead, e.g. We're closed right now, we'll reply at 9am"
+                      aria-label="Reply outside business hours"
+                      value={outside.body ?? ""}
+                      onChange={(e) => setOutside({ body: e.target.value || null })}
+                    />
+                    <div className="flex items-center gap-1.5">
+                      <span className="flex-1">Or go to</span>
+                      <TargetPicker
+                        value={{ kind: "step", id: outside.stepId ?? null }}
+                        onPick={(t) => setOutside({ stepId: t.kind === "step" ? t.id : null })}
+                        selfId={step.id}
+                        allowHuman={false}
+                        allowEnd
+                        {...pick}
+                      />
+                    </div>
+                    <span>
+                      Uses the hours set on your chatbots page. Inside those hours nothing changes.
+                    </span>
+                  </SettingsRow>
+                )}
+              </div>
+            )}
         </div>
       )}
     </article>

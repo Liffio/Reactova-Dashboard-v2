@@ -82,6 +82,12 @@ const ADD_OPTIONS: Array<{ type: StepType; label: string; hint: string; feature?
     feature: "chain_bots",
   },
   {
+    type: "NOTIFY",
+    label: "Notify the team",
+    hint: "Alert someone mid-flow; the bot keeps talking",
+    feature: "notify_step",
+  },
+  {
     type: "WEBHOOK",
     label: "Webhook",
     hint: "Send their details and answers to another tool",

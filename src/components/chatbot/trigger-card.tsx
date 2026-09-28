@@ -9,6 +9,8 @@ import {
   type IceBreakerSlot,
 } from "@/lib/api/chatbot-api";
 import { useModuleFeatures } from "@/hooks/use-features";
+import { useUpgradeInfo } from "@/hooks/use-capability-plan";
+import { PlanChip, useUpgradeSheet } from "./upgrade";
 import { getUserErrorMessage } from "@/lib/user-facing-error";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -93,11 +95,36 @@ export function TriggerCard({
     }
   };
 
+  const openUpgrade = useUpgradeSheet();
+  // A <select> option cannot hold a chip, so a locked option names its plan in the text instead.
+  const storyPlan = useUpgradeInfo("chatbot:story_triggers").planName;
+  const defaultPlan = useUpgradeInfo("chatbot:default_reply").planName;
   const kinds = [
-    { v: "KEYWORD", label: "Keyword", ok: true },
-    { v: "STORY_REPLY", label: "Story reply", ok: f.story_triggers },
-    { v: "STORY_MENTION", label: "Story mention", ok: f.story_triggers },
-    { v: "DEFAULT_REPLY", label: "Default reply", ok: f.default_reply },
+    { v: "KEYWORD", label: "Keyword", ok: true, capability: "", feature: "", plan: null },
+    {
+      v: "STORY_REPLY",
+      label: "Story reply",
+      ok: f.story_triggers,
+      capability: "chatbot:story_triggers",
+      feature: "Story triggers",
+      plan: storyPlan,
+    },
+    {
+      v: "STORY_MENTION",
+      label: "Story mention",
+      ok: f.story_triggers,
+      capability: "chatbot:story_triggers",
+      feature: "Story triggers",
+      plan: storyPlan,
+    },
+    {
+      v: "DEFAULT_REPLY",
+      label: "Default reply",
+      ok: f.default_reply,
+      capability: "chatbot:default_reply",
+      feature: "Default reply",
+      plan: defaultPlan,
+    },
   ] as const;
 
   return (
@@ -131,12 +158,18 @@ export function TriggerCard({
             className="rounded-full bg-transparent px-1 text-xs font-medium outline-none"
             aria-label="Trigger type"
             value={kind}
-            onChange={(e) => setKind(e.target.value as typeof kind)}
+            onChange={(e) => {
+              const picked = kinds.find((k) => k.v === e.target.value);
+              if (picked && !picked.ok) {
+                openUpgrade({ capability: picked.capability, feature: picked.feature });
+                return;
+              }
+              setKind(e.target.value as typeof kind);
+            }}
           >
             {kinds.map((k) => (
-              <option key={k.v} value={k.v} disabled={!k.ok}>
-                {k.label}
-                {k.ok ? "" : " (upgrade)"}
+              <option key={k.v} value={k.v}>
+                {k.ok ? k.label : `${k.label} 🔒 ${k.plan ?? "Upgrade"}`}
               </option>
             ))}
           </select>
@@ -195,12 +228,16 @@ export function TriggerCard({
         <button
           type="button"
           className={cn(
-            "p-0.5 font-medium text-primary hover:underline",
-            !f.ice_breakers && "hidden",
+            "inline-flex items-center gap-1 p-0.5 font-medium text-primary hover:underline",
           )}
-          onClick={onOpenIce}
+          onClick={() =>
+            f.ice_breakers
+              ? onOpenIce()
+              : openUpgrade({ capability: "chatbot:ice_breakers", feature: "Ice breakers" })
+          }
         >
           {mine.length ? "Manage" : "Manage ice breakers"}
+          {!f.ice_breakers && <PlanChip capability="chatbot:ice_breakers" />}
         </button>
         <span title="Keywords aren't case sensitive. Replies work for 24 hours after their last message.">
           <Info className="h-3.5 w-3.5" />

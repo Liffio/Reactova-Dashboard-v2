@@ -9,6 +9,7 @@ import {
 import { MAX_QUICK_REPLIES, type ChatbotButton, type ChatbotStep } from "@/lib/api/chatbot-api";
 import { cn } from "@/lib/utils";
 import { STEP_LABEL, cfgStr, formatDelay, stepSummary } from "./model";
+import { LockedRow } from "./upgrade";
 import {
   ButtonList,
   ConditionEditor,
@@ -37,7 +38,8 @@ interface Props {
   flash: boolean;
   steps: StepRef[];
   chatbots: ChatbotRef[];
-  canFollowUps: boolean;
+  /** `useModuleFeatures("chatbot")`: a missing capability locks its row, never hides it. */
+  features: Record<string, boolean>;
   onToggle: () => void;
   onChange: (step: ChatbotStep) => void;
   onAction: (a: StepAction) => void;
@@ -175,7 +177,7 @@ export function StepCard({
   flash,
   steps,
   chatbots,
-  canFollowUps,
+  features,
   onToggle,
   onChange,
   onAction,
@@ -403,44 +405,55 @@ export function StepCard({
                   onChange={(delaySeconds) => onChange({ ...step, delaySeconds })}
                 />
               </SettingsRow>
-              <SettingsRow
-                tone="tag"
-                icon={TagIcon}
-                label="Add tag when sent"
-                value={step.tagToAdd?.trim() || "None"}
-                isSet={!!step.tagToAdd?.trim()}
-              >
-                <input
-                  className={fieldCls}
-                  value={step.tagToAdd ?? ""}
-                  maxLength={64}
-                  placeholder="e.g. Got discount code"
-                  aria-label="Tag to add"
-                  onChange={(e) => onChange({ ...step, tagToAdd: e.target.value || null })}
+              {!features.tags ? (
+                <LockedRow
+                  capability="chatbot:tags"
+                  feature="Tags"
+                  icon={<Tag className="h-4 w-4" />}
+                  label="Add tag when sent"
                 />
-                <span>Conditions can check this tag later.</span>
-              </SettingsRow>
-              {(waits || step.followUps.length > 0) && (
+              ) : (
                 <SettingsRow
-                  tone="fu"
-                  icon={RepeatIcon}
-                  label="Follow-ups"
-                  value={step.followUps.length ? `${step.followUps.length} set` : "Off"}
-                  isSet={step.followUps.length > 0}
-                  badge={
-                    <span className="rounded-full bg-brand-gradient px-1.5 py-px text-[10px] font-semibold text-white">
-                      Starter+
-                    </span>
-                  }
+                  tone="tag"
+                  icon={TagIcon}
+                  label="Add tag when sent"
+                  value={step.tagToAdd?.trim() || "None"}
+                  isSet={!!step.tagToAdd?.trim()}
                 >
-                  <FollowUpEditor
-                    step={step}
-                    locked={!canFollowUps}
-                    onChange={(followUps) => onChange({ ...step, followUps })}
-                    {...pick}
+                  <input
+                    className={fieldCls}
+                    value={step.tagToAdd ?? ""}
+                    maxLength={64}
+                    placeholder="e.g. Got discount code"
+                    aria-label="Tag to add"
+                    onChange={(e) => onChange({ ...step, tagToAdd: e.target.value || null })}
                   />
+                  <span>Conditions can check this tag later.</span>
                 </SettingsRow>
               )}
+              {(waits || step.followUps.length > 0) &&
+                (!features.follow_ups ? (
+                  <LockedRow
+                    capability="chatbot:follow_ups"
+                    feature="Follow-ups"
+                    icon={<Repeat className="h-4 w-4" />}
+                    label="Follow-ups"
+                  />
+                ) : (
+                  <SettingsRow
+                    tone="fu"
+                    icon={RepeatIcon}
+                    label="Follow-ups"
+                    value={step.followUps.length ? `${step.followUps.length} set` : "Off"}
+                    isSet={step.followUps.length > 0}
+                  >
+                    <FollowUpEditor
+                      step={step}
+                      onChange={(followUps) => onChange({ ...step, followUps })}
+                      {...pick}
+                    />
+                  </SettingsRow>
+                ))}
             </div>
           )}
         </div>

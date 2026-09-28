@@ -44,31 +44,42 @@ import { IceBreakerSheet } from "@/components/chatbot/ice-breakers";
 import { ThemeSwitcher } from "@/components/chatbot/theme-switcher";
 import { StatusPill, publishErrorMessage, publishProblems } from "@/components/chatbot/shared";
 import { duplicateStep, newStep, removeStep } from "@/components/chatbot/model";
+import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
 
 export const Route = createFileRoute("/_app/chatbot/$chatbotId")({
   head: () => ({ meta: [{ title: "Chatbot builder — Liffio" }] }),
   component: () => (
     <ProtectedRoute module="chatbot">
       <InstagramRequired feature="Chatbots">
-        <BuilderPage />
+        <UpgradeSheetProvider>
+          <BuilderPage />
+        </UpgradeSheetProvider>
       </InstagramRequired>
     </ProtectedRoute>
   ),
 });
 
+/** `feature` is the `chatbot:<feature>` capability; without it the option stays, locked. */
 const ADD_OPTIONS: Array<{ type: StepType; label: string; hint: string; feature?: string }> = [
   { type: "MESSAGE", label: "Message", hint: "Send text with reply buttons" },
   {
     type: "QUESTION",
     label: "Question",
     hint: "Ask for an email, phone, number or text and save it",
+    feature: "questions",
   },
-  { type: "CONDITION", label: "Condition", hint: "Branch by tags or saved answers" },
+  {
+    type: "CONDITION",
+    label: "Condition",
+    hint: "Branch by tags or saved answers",
+    feature: "conditions",
+  },
   { type: "HANDOVER", label: "Hand to a person", hint: "Pause the bot and notify your team" },
   {
     type: "START_CHATBOT",
     label: "Start another chatbot",
     hint: "Continue in a different chatbot",
+    feature: "chain_bots",
   },
 ];
 
@@ -94,6 +105,7 @@ function BuilderPage() {
   const queryClient = useQueryClient();
   const canUpdate = useCan("chatbot", "update");
   const features = useModuleFeatures("chatbot");
+  const openUpgrade = useUpgradeSheet();
   const editor = useChatbotEditor(ws, chatbotId);
   const { bot } = editor;
 
@@ -389,7 +401,7 @@ function BuilderPage() {
                     flash={flashId === s.id}
                     steps={stepRefs}
                     chatbots={chatbots}
-                    canFollowUps={features.follow_ups}
+                    features={features}
                     onToggle={() => toggleOpen(s.id)}
                     onChange={(next) => setSteps((xs) => xs.map((x) => (x.id === s.id ? next : x)))}
                     onAction={(a) => onAction(s, i, a)}
@@ -420,16 +432,29 @@ function BuilderPage() {
                       align="start"
                       className="w-[var(--radix-dropdown-menu-trigger-width)]"
                     >
-                      {ADD_OPTIONS.map((o) => (
-                        <DropdownMenuItem
-                          key={o.type}
-                          className="flex-col items-start gap-0"
-                          onSelect={() => addStep(o.type)}
-                        >
-                          <b>{o.label}</b>
-                          <small className="text-xs text-muted-foreground">{o.hint}</small>
-                        </DropdownMenuItem>
-                      ))}
+                      {ADD_OPTIONS.map((o) => {
+                        const locked = !!o.feature && !features[o.feature];
+                        return (
+                          <DropdownMenuItem
+                            key={o.type}
+                            className="items-start gap-2"
+                            onSelect={() =>
+                              locked
+                                ? openUpgrade({
+                                    capability: `chatbot:${o.feature}`,
+                                    feature: `${o.label} step`,
+                                  })
+                                : addStep(o.type)
+                            }
+                          >
+                            <span className={cn("flex flex-1 flex-col", locked && "opacity-60")}>
+                              <b>{o.label}</b>
+                              <small className="text-xs text-muted-foreground">{o.hint}</small>
+                            </span>
+                            {locked && <PlanChip capability={`chatbot:${o.feature}`} />}
+                          </DropdownMenuItem>
+                        );
+                      })}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

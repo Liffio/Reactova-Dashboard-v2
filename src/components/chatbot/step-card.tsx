@@ -13,6 +13,7 @@ import { LockedRow } from "./upgrade";
 import { MergeFieldPicker } from "./merge-fields";
 import { WebhookEditor } from "./webhook-editor";
 import { NotifyEditor } from "./notify-editor";
+import { HandoverAssignee } from "./handover-assignee";
 import {
   ButtonList,
   ConditionEditor,
@@ -388,9 +389,18 @@ export function StepCard({
                 />
               </div>
               {step.type === "HANDOVER" && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Then the bot goes quiet for 24 hours and your team is notified.
-                </p>
+                <>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Then the bot goes quiet for 24 hours and your team is notified.
+                  </p>
+                  <div className="mt-2">
+                    <HandoverAssignee
+                      step={step}
+                      enabled={features.handover_routing}
+                      onChange={(config) => onChange({ ...step, config })}
+                    />
+                  </div>
+                </>
               )}
             </div>
           )}

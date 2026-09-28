@@ -160,6 +160,11 @@ function ContactsPage() {
                       Bot paused · {pauseWhy[c.pausedReason ?? "MANUAL"]}
                     </span>
                   )}
+                  {c.assignedTo && (
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs whitespace-nowrap">
+                      Assigned to {c.assignedTo.name ?? "a teammate"}
+                    </span>
+                  )}
                   <span className="text-xs whitespace-nowrap text-muted-foreground max-sm:hidden">
                     {when(c.lastInboundAt)}
                   </span>

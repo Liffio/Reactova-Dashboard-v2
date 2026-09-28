@@ -160,6 +160,8 @@ export interface ContactRow {
   windowExpiresAt: string | null;
   botPausedUntil: string | null;
   pausedReason: "HANDOVER" | "HUMAN_REPLY" | "MANUAL" | null;
+  /** Who a handover was assigned to (null: the team). */
+  assignedTo?: { id: string; name: string | null } | null;
   activeSession: {
     id: string;
     chatbotId: string;

@@ -1,25 +1,33 @@
 /**
  * Workspace settings panels carried over from the old single-page `/settings` (plan/settings-revamp.md).
  * Each is rendered by its own tab route now; the hardcoded plan→seat map that lived here is gone
- * (Team reads its limit from the server).
+ * (Team reads its limit from the server). The General / Instagram / Developer panels reproduce
+ * `docs/profile/03-liffio-settings.html` with the shared primitives in `../components`.
  */
 import { useEffect, useState } from "react";
-import { WorkspaceIdChip } from "@/components/workspace-id-chip";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Copy, Instagram, KeyRound, Plus, Shield, Trash2, Users } from "lucide-react";
+import {
+  BookOpen,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  Instagram,
+  Plus,
+  RefreshCw,
+  Shield,
+  Trash2,
+} from "lucide-react";
 import { toast } from "@/lib/toast";
 
-import { PageHeader } from "@/components/dashboard/page-header";
 import { SendRateCard } from "@/components/settings/send-rate-card";
-import { ProtectedRoute } from "@/components/auth/guards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { UserAvatar } from "@/components/user-avatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,7 +52,6 @@ import {
   unlinkMetaIntegration,
 } from "@/lib/api/integrations-api";
 import { openMetaOAuthPopup } from "@/lib/meta-oauth-popup";
-import { ApiDocsContent } from "@/components/api-docs-content";
 import { useApp } from "@/state/app-context";
 import { useAuthState } from "@/lib/auth/auth-store";
 import {
@@ -56,33 +63,44 @@ import {
 import { mfaSetupStart, mfaSetupVerify, mfaSetupCancel, mfaSetChannels } from "@/lib/api/auth-api";
 import { apiRequest } from "@/lib/api/http";
 import { apiUri } from "@/lib/api/apiUri";
-import {
-  getNotificationPreferences,
-  updateNotificationPreference,
-} from "@/lib/api/notifications-api";
-import {
-  listTeamInvites,
-  getTeamOptions,
-  createTeamInvite,
-  revokeTeamInvite,
-  removeTeamMember,
-  updateTeamMember,
-  type TeamMember,
-} from "@/lib/api/team-api";
-import { useServerList } from "@/hooks/use-server-list";
-import { LIMITS, emailError, lengthError, duplicateAliasError } from "@/lib/validation";
+import { LIMITS, lengthError } from "@/lib/validation";
 import { useTouched } from "@/hooks/use-touched";
 import { formatHandle } from "@/lib/format";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
-import { useCan } from "@/hooks/use-auth";
 import { FeatureGate } from "@/components/access/feature-gate";
+import { cn } from "@/lib/utils";
+import {
+  CardNote,
+  IconButton,
+  IconTile,
+  OkChip,
+  PlainCard,
+  SettingRow,
+  SettingsButton,
+  SettingsCard,
+  SettingsTable,
+  StatTile,
+  StatusChip,
+  Td,
+  TextField,
+  Th,
+  UsageTile,
+  shortDate,
+  textLinkClass,
+  timeAgo,
+} from "../components";
+
+function copyToClipboard(value: string) {
+  void navigator.clipboard.writeText(value);
+  toast.success("Copied!");
+}
 
 export function GeneralSettings() {
   const { current, workspaces, setCurrentId, refreshAuth } = useApp();
   const workspaceId = current.id;
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState(current.name);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const touched = useTouched();
 
   useEffect(() => {
@@ -90,6 +108,7 @@ export function GeneralSettings() {
   }, [current.name]);
 
   const nameError = lengthError(displayName, "Workspace name", LIMITS.workspaceName);
+  const nameDirty = displayName !== current.name;
 
   const saveMutation = useMutation({
     mutationFn: () => updateWorkspace(workspaceId, { displayName: displayName.trim() }),
@@ -105,6 +124,7 @@ export function GeneralSettings() {
     mutationFn: () => deleteWorkspace(workspaceId),
     onSuccess: async () => {
       const next = workspaces.find((w) => w.id !== workspaceId);
+      setDeleteOpen(false);
       setCurrentId(next?.id ?? "");
       await refreshAuth();
       toast.success("Workspace deleted");
@@ -112,101 +132,154 @@ export function GeneralSettings() {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  const lastWorkspace = workspaces.length <= 1;
+
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border bg-card p-6 shadow-soft">
-        <h2 className="mb-4 font-display text-base font-semibold">Workspace</h2>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="ws-name">Display name</Label>
-            <Input
+    <div className="flex flex-col gap-[22px]">
+      <SettingsCard
+        title="Workspace details"
+        description={`Everyone in ${current.name} sees these.`}
+      >
+        <SettingRow
+          label="Workspace name"
+          hint="Keep it short, it shows in the sidebar."
+          htmlFor="ws-name"
+        >
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <TextField
               id="ws-name"
+              wrapperClassName="flex-1"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value.slice(0, LIMITS.workspaceName.max))}
               onBlur={touched.onBlur("name")}
               maxLength={LIMITS.workspaceName.max}
               aria-invalid={touched.visible("name") && Boolean(nameError)}
+              trailing={
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {displayName.length}/{LIMITS.workspaceName.max}
+                </span>
+              }
             />
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-destructive">
-                {touched.visible("name") && nameError ? nameError : ""}
-              </span>
-              <span className="text-muted-foreground">
-                {displayName.length}/{LIMITS.workspaceName.max}
-              </span>
-            </div>
-          </div>
-          {current.humanId && (
-            <div className="space-y-1">
-              <Label className="text-muted-foreground">Workspace ID</Label>
-              <WorkspaceIdChip humanId={current.humanId} size="md" />
-              <p className="text-[11px] text-muted-foreground">
-                Use this when contacting support or calling the API. It stays the same even if you
-                rename the workspace.
-              </p>
-            </div>
-          )}
-          <div className="space-y-1">
-            {/* The uuid stays visible — existing integrations and support tickets reference it. */}
-            <Label className="text-muted-foreground">Internal ID (UUID)</Label>
-            <div className="flex items-center gap-2">
-              <code className="rounded-md bg-muted px-2 py-1 font-mono text-xs">{workspaceId}</code>
-              <button
-                className="text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  void navigator.clipboard.writeText(workspaceId);
-                  toast.success("Copied!");
-                }}
+            {nameDirty && (
+              <SettingsButton
+                variant="primary"
+                className="h-11"
+                disabled={saveMutation.isPending || Boolean(nameError)}
+                onClick={() => saveMutation.mutate()}
               >
-                <Copy className="h-3.5 w-3.5" />
-              </button>
-            </div>
+                {saveMutation.isPending ? "Saving…" : "Save"}
+              </SettingsButton>
+            )}
           </div>
-          <div className="space-y-1">
-            <Label className="text-muted-foreground">Plan</Label>
-            <p className="text-sm font-medium capitalize">{current.plan.toLowerCase()}</p>
-          </div>
-        </div>
-        <div className="mt-6 flex justify-end">
-          <Button
-            size="sm"
-            disabled={saveMutation.isPending || displayName === current.name || Boolean(nameError)}
-            onClick={() => saveMutation.mutate()}
-          >
-            {saveMutation.isPending ? "Saving…" : "Save changes"}
-          </Button>
-        </div>
-      </div>
+          {touched.visible("name") && nameError && (
+            <span className="text-[13px] text-destructive">{nameError}</span>
+          )}
+        </SettingRow>
 
-      <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 space-y-4">
-        <h2 className="font-display text-base font-semibold text-destructive">Danger zone</h2>
-        <p className="text-sm text-muted-foreground">
-          Permanently delete this workspace and all its automations, leads, and short links.
-        </p>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={deleteConfirm}
-            onChange={(e) => setDeleteConfirm(e.target.checked)}
-          />
-          I understand this permanently deletes this workspace and all its data.
-        </label>
-        <Button
-          variant="destructive"
-          size="sm"
-          disabled={!deleteConfirm || deleteMutation.isPending || workspaces.length <= 1}
-          onClick={() => deleteMutation.mutate()}
-        >
-          {deleteMutation.isPending ? "Deleting…" : "Delete workspace"}
-        </Button>
-        {workspaces.length <= 1 && (
-          <p className="text-xs text-muted-foreground">
-            At least one workspace must remain on your account.
-          </p>
+        {current.humanId && (
+          <SettingRow
+            label="Workspace ID"
+            hint="Share this with support so they find you fast. It stays the same if you rename the workspace."
+            htmlFor="ws-id"
+          >
+            <TextField
+              id="ws-id"
+              readOnly
+              value={current.humanId}
+              trailing={
+                <IconButton
+                  label="Copy workspace ID"
+                  onClick={() => copyToClipboard(current.humanId ?? "")}
+                >
+                  <Copy />
+                </IconButton>
+              }
+            />
+          </SettingRow>
         )}
-      </div>
+
+        {/* The uuid stays visible — existing integrations and support tickets reference it. */}
+        <SettingRow
+          label="Internal ID"
+          hint="The UUID older integrations and API calls use."
+          htmlFor="ws-uuid"
+        >
+          <TextField
+            id="ws-uuid"
+            readOnly
+            value={workspaceId}
+            className="font-mono text-[13px]"
+            trailing={
+              <IconButton label="Copy internal ID" onClick={() => copyToClipboard(workspaceId)}>
+                <Copy />
+              </IconButton>
+            }
+          />
+        </SettingRow>
+
+        <SettingRow label="Plan" hint="What this workspace is on today.">
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusChip tone="brand">{current.plan}</StatusChip>
+            <Link to="/settings/billing" className={textLinkClass}>
+              Manage in Billing
+            </Link>
+          </div>
+        </SettingRow>
+      </SettingsCard>
+
+      <PlainCard className="flex flex-col gap-4 border-[#F3B8C1] px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:gap-5 dark:border-destructive-edge">
+        <div className="flex flex-col gap-1">
+          <div className="text-[15px] font-semibold text-[#8F0A2B] dark:text-destructive">
+            Delete this workspace
+          </div>
+          <div className="text-[13px] text-muted-foreground">
+            {lastWorkspace
+              ? "At least one workspace must remain on your account."
+              : "Permanently deletes its automations, leads and short links, and disconnects Instagram."}
+          </div>
+        </div>
+        <SettingsButton
+          variant="dangerOutline"
+          disabled={lastWorkspace || deleteMutation.isPending}
+          onClick={() => setDeleteOpen(true)}
+        >
+          <Trash2 />
+          <span>Delete workspace</span>
+        </SettingsButton>
+      </PlainCard>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {current.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes this workspace and all its data — automations, leads and
+              short links. It can't be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                deleteMutation.mutate();
+              }}
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete workspace"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
+}
+
+/** Days until an ISO date, or null. */
+function daysUntil(iso: string | null): number | null {
+  if (!iso) return null;
+  return Math.floor((new Date(iso).getTime() - Date.now()) / 86_400_000);
 }
 
 export function InstagramSettings() {
@@ -273,95 +346,133 @@ export function InstagramSettings() {
     }
   };
 
+  const tokenDays = daysUntil(current.igTokenExpiresAt);
+  const health =
+    current.status === "failed" || current.status === "disconnected"
+      ? { tone: "danger" as const, label: "Needs reconnect" }
+      : tokenDays !== null && tokenDays <= 7
+        ? { tone: "warning" as const, label: "Token expiring" }
+        : current.status === "paused"
+          ? { tone: "warning" as const, label: "Paused" }
+          : null;
+
+  // Only metrics the workspace endpoint actually returns — `null` means "not computed", never 0.
+  const stats = [
+    { label: "Followers", value: current.igFollowerCount },
+    { label: "Live automations", value: current.activeAutomations },
+    { label: "DMs sent this month", value: current.dmsThisMonth },
+    { label: "Leads this month", value: current.leadsThisMonth },
+  ].filter((s): s is { label: string; value: number } => s.value !== null);
+
   return (
-    <div className="rounded-2xl border bg-card p-6 shadow-soft">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500">
-          <Instagram className="h-5 w-5 text-white" />
-        </div>
-        <div>
-          <h2 className="font-display text-base font-semibold">Instagram</h2>
-          <p className="text-sm text-muted-foreground">
-            Connect your Instagram Professional account to enable automations.
-          </p>
-        </div>
-      </div>
-
-      <Separator className="mb-6" />
-
+    <div className="flex flex-col gap-[22px]">
       {current.instagramConnected ? (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="h-2.5 w-2.5 rounded-full bg-success" />
-            <span className="text-sm font-medium text-success">Connected</span>
-            {current.igHandle && (
-              <span className="text-sm text-muted-foreground">
-                · {formatHandle(current.igHandle)}
+        <section className="overflow-hidden rounded-[16px] border border-border bg-card">
+          <div className="flex flex-col gap-4 border-b border-border px-6 py-[22px] sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-4">
+              <span className="inline-flex size-14 shrink-0 rounded-full bg-brand-gradient p-[3px]">
+                <span className="flex size-[50px] items-center justify-center rounded-full bg-card">
+                  <UserAvatar
+                    userId={workspaceId}
+                    name={current.igHandle ?? current.name}
+                    size={44}
+                  />
+                </span>
               </span>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Your Instagram account is connected and automations are active.
-          </p>
-          <div className="flex gap-3">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isConnecting}
-              onClick={() => void handleConnect()}
-            >
-              {isConnecting ? "Connecting…" : "Reconnect"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-destructive hover:text-destructive"
-              onClick={() => setUnlinkOpen(true)}
-            >
-              Disconnect
-            </Button>
+              <div className="flex min-w-0 flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-2 text-[17px] font-bold text-foreground">
+                  {current.igHandle ? formatHandle(current.igHandle) : current.name}
+                  {health ? (
+                    <StatusChip tone={health.tone}>{health.label}</StatusChip>
+                  ) : (
+                    <OkChip>Healthy</OkChip>
+                  )}
+                </div>
+                <div className="text-[13px] text-muted-foreground">
+                  Professional account
+                  {current.igTokenExpiresAt
+                    ? ` · token valid until ${shortDate(current.igTokenExpiresAt)}`
+                    : ""}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <SettingsButton disabled={isConnecting} onClick={() => void handleConnect()}>
+                <RefreshCw />
+                <span>{isConnecting ? "Connecting…" : "Reconnect"}</span>
+              </SettingsButton>
+              <SettingsButton variant="dangerOutline" onClick={() => setUnlinkOpen(true)}>
+                Disconnect
+              </SettingsButton>
+            </div>
           </div>
 
-          <Separator />
+          {stats.length > 0 && (
+            <div
+              className={cn(
+                "grid grid-cols-2 gap-3 border-b border-border px-6 py-[18px]",
+                stats.length >= 4 ? "lg:grid-cols-4" : stats.length === 3 && "lg:grid-cols-3",
+              )}
+            >
+              {stats.map((s) => (
+                <StatTile key={s.label} value={s.value.toLocaleString()} label={s.label} />
+              ))}
+            </div>
+          )}
 
           {/* Send rate lives with the connection rather than under automations: it is a property
               of the Instagram account, and every automation on it shares the same budget. */}
-          <SendRateCard />
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="h-2.5 w-2.5 rounded-full bg-warning" />
-            <span className="text-sm font-medium text-warning">Not connected</span>
+          <div className="px-6 py-5">
+            <SendRateCard />
           </div>
-          <p className="text-sm text-muted-foreground">
-            Connect your Instagram Professional account to start sending automated DMs.
-          </p>
-          <ul className="space-y-1.5 text-xs text-muted-foreground">
-            {[
-              "Requires an Instagram Professional account",
-              "Your account must be linked to a Facebook Page",
-              "You must be the admin of the Facebook Page",
-            ].map((r) => (
-              <li key={r} className="flex items-start gap-1.5">
-                <span className="mt-0.5 shrink-0 text-warning">•</span>
-                {r}
-              </li>
-            ))}
-          </ul>
-          <Button
-            size="sm"
-            className="gap-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:opacity-90"
-            disabled={isConnecting}
-            onClick={() => void handleConnect()}
-          >
-            {isConnecting ? (
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            ) : (
-              <Instagram className="h-4 w-4" />
-            )}
-            {isConnecting ? "Connecting…" : "Connect Instagram"}
-          </Button>
+        </section>
+      ) : (
+        <SettingsCard
+          title="Instagram"
+          description="Connect your Instagram Professional account to start sending automated DMs."
+        >
+          <div className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <ul className="m-0 flex list-none flex-col gap-2 p-0 text-[13px] text-muted-foreground">
+              {[
+                "Requires an Instagram Professional account",
+                "Your account must be linked to a Facebook Page",
+                "You must be the admin of the Facebook Page",
+              ].map((r) => (
+                <li key={r} className="flex items-start gap-2">
+                  <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-warning" />
+                  {r}
+                </li>
+              ))}
+            </ul>
+            <SettingsButton
+              variant="primary"
+              disabled={isConnecting}
+              onClick={() => void handleConnect()}
+            >
+              {isConnecting ? (
+                <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : (
+                <Instagram />
+              )}
+              <span>{isConnecting ? "Connecting…" : "Connect Instagram"}</span>
+            </SettingsButton>
+          </div>
+        </SettingsCard>
+      )}
+
+      {current.instagramConnected && (
+        // No in-page route adds a workspace (that flow lives in the workspace switcher), so this is
+        // the reference's dashed hint without a link target.
+        <div className="flex items-center gap-4 rounded-[16px] border-[1.5px] border-dashed border-[#D3CBC3] bg-transparent px-6 py-5 text-foreground dark:border-border">
+          <IconTile tone="white">
+            <Plus />
+          </IconTile>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[15px] font-semibold">Connect another Instagram account</span>
+            <span className="text-[13px] text-muted-foreground">
+              Each workspace runs one account. Add a workspace from the switcher to run more.
+            </span>
+          </div>
         </div>
       )}
 
@@ -389,7 +500,18 @@ export function InstagramSettings() {
   );
 }
 
-export function ApiCredentialsSettings() {
+const KEY_STATUS: Record<ApiCredentialItem["status"], { label: string; tone: "muted" | "danger" }> =
+  {
+    active: { label: "Active", tone: "muted" },
+    expired: { label: "Expired", tone: "muted" },
+    revoked: { label: "Revoked", tone: "danger" },
+  };
+
+/**
+ * Developer tab: the key-quota tile + API docs link, then the API keys table. `docsHref` is the
+ * in-page anchor of the docs card the route renders below.
+ */
+export function ApiCredentialsSettings({ docsHref }: { docsHref?: string } = {}) {
   const workspaceId = useApp().current.id;
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
@@ -429,6 +551,8 @@ export function ApiCredentialsSettings() {
   });
 
   const creds = credsQuery.data?.credentials ?? [];
+  const limits = credsQuery.data?.limits;
+  const activeCount = creds.filter((c) => c.status === "active").length;
 
   /**
    * Whether this workspace can actually create a key — the package's `api:create_keys`, as the
@@ -442,92 +566,142 @@ export function ApiCredentialsSettings() {
     ? (credsQuery.data.capabilities?.createKeys ?? credsQuery.data.planMeetsMinimum)
     : true;
 
+  const createButton = (
+    <SettingsButton
+      variant="primary"
+      onClick={apiAvailable ? () => setCreateOpen(true) : undefined}
+    >
+      <Plus />
+      <span>Create key</span>
+    </SettingsButton>
+  );
+
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border bg-card p-6 shadow-soft">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="font-display text-base font-semibold">API credentials</h2>
-            <p className="text-sm text-muted-foreground">
-              Use API keys to integrate with external tools via our REST API.
-            </p>
+    <>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {limits ? (
+          <UsageTile label="API keys" used={activeCount} limit={limits.maxApiCredentials || null} />
+        ) : (
+          <Skeleton className="h-[106px] rounded-[14px]" />
+        )}
+        <a
+          href={docsHref ?? "#api-docs"}
+          className="flex items-center gap-3.5 rounded-[14px] border border-border bg-card p-[18px] text-foreground no-underline transition-colors hover:bg-muted/40"
+        >
+          <IconTile tone="green">
+            <BookOpen />
+          </IconTile>
+          <div className="flex flex-grow flex-col gap-0.5">
+            <span className="text-[15px] font-semibold">API docs</span>
+            <span className="text-[13px] text-muted-foreground">
+              Endpoints, auth and examples
+              {limits?.apiRequestsPerDay
+                ? ` · ${limits.apiRequestsPerDay.toLocaleString()} requests / day`
+                : ""}
+            </span>
           </div>
-          {apiAvailable ? (
-            <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              New key
-            </Button>
+          <ExternalLink className="size-4 shrink-0 text-muted-foreground" />
+        </a>
+      </div>
+
+      <SettingsCard
+        title="API keys"
+        description={
+          limits
+            ? `${activeCount} of ${limits.maxApiCredentials} keys on ${credsQuery.data?.plan ?? "this plan"}. We only show a key once, right after you create it.`
+            : "We only show a key once, right after you create it."
+        }
+        actions={
+          apiAvailable ? (
+            createButton
           ) : (
             // Shown locked; the tooltip names the plan that includes API access.
             <FeatureGate module="api" action="create_keys">
-              <Button size="sm" className="gap-1.5">
-                <Plus className="h-4 w-4" />
-                New key
-              </Button>
+              {createButton}
             </FeatureGate>
-          )}
-        </div>
-
+          )
+        }
+      >
         {credsQuery.isLoading ? (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2 px-6 py-5">
             {Array.from({ length: 2 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 rounded-lg" />
+              <Skeleton key={i} className="h-10 rounded-[10px]" />
             ))}
           </div>
         ) : creds.length === 0 ? (
-          <div className="rounded-xl border border-dashed p-6 text-center">
-            <KeyRound className="mx-auto h-6 w-6 text-muted-foreground" />
-            <p className="mt-2 text-sm text-muted-foreground">No API keys yet.</p>
-          </div>
+          <CardNote>No API keys yet. Create one to call the API from your own tools.</CardNote>
         ) : (
-          <div className="space-y-2">
-            {creds.map((cred: ApiCredentialItem) => (
-              <div
-                key={cred.id}
-                className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3"
-              >
-                <KeyRound className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{cred.name}</p>
-                  <p className="font-mono text-xs text-muted-foreground">{cred.maskedKey}</p>
-                </div>
-                <span className="hidden text-xs text-muted-foreground sm:block">
-                  {new Date(cred.createdAt).toLocaleDateString()}
-                </span>
-                <button
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={() => setDeletingId(cred.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-          </div>
+          <SettingsTable>
+            <thead>
+              <tr>
+                <Th>Name</Th>
+                <Th>Key</Th>
+                <Th>Expires</Th>
+                <Th>Last used</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {creds.map((cred) => {
+                const status = KEY_STATUS[cred.status];
+                return (
+                  <tr key={cred.id}>
+                    <Td className="font-semibold">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {cred.name}
+                        {cred.status !== "active" && (
+                          <StatusChip tone={status.tone}>{status.label}</StatusChip>
+                        )}
+                      </div>
+                    </Td>
+                    <Td>
+                      <span className="whitespace-nowrap rounded-[6px] bg-muted px-2 py-[3px] font-mono text-[13px]">
+                        {cred.maskedKey}
+                      </span>
+                    </Td>
+                    <Td className="whitespace-nowrap text-muted-foreground">
+                      {cred.neverExpires ? "Never" : shortDate(cred.expiresAt)}
+                    </Td>
+                    <Td className="whitespace-nowrap text-muted-foreground">
+                      {cred.lastUsedAt ? timeAgo(cred.lastUsedAt) : "Never"}
+                    </Td>
+                    <Td className="w-px text-right">
+                      <SettingsButton variant="ghost" onClick={() => setDeletingId(cred.id)}>
+                        Revoke
+                      </SettingsButton>
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </SettingsTable>
         )}
-      </div>
+      </SettingsCard>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>New API key</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label>Key name</Label>
-            <Input
+          <div className="flex flex-col gap-2">
+            <label htmlFor="api-key-name" className="text-[13px] font-semibold">
+              Key name
+            </label>
+            <TextField
+              id="api-key-name"
               placeholder="My integration"
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.target.value.slice(0, LIMITS.apiKeyName.max))}
               maxLength={LIMITS.apiKeyName.max}
             />
-            <p className="text-xs text-muted-foreground text-right">
+            <p className="m-0 text-right text-xs text-muted-foreground">
               {newKeyName.length}/{LIMITS.apiKeyName.max}
             </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              Cancel
-            </Button>
-            <Button
+            <SettingsButton onClick={() => setCreateOpen(false)}>Cancel</SettingsButton>
+            <SettingsButton
+              variant="primary"
               disabled={
                 createMutation.isPending ||
                 Boolean(lengthError(newKeyName, "Key name", LIMITS.apiKeyName))
@@ -535,7 +709,7 @@ export function ApiCredentialsSettings() {
               onClick={() => createMutation.mutate(newKeyName.trim())}
             >
               {createMutation.isPending ? "Creating…" : "Create key"}
-            </Button>
+            </SettingsButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -543,7 +717,7 @@ export function ApiCredentialsSettings() {
       <AlertDialog open={Boolean(deletingId)} onOpenChange={(o) => !o && setDeletingId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete API key?</AlertDialogTitle>
+            <AlertDialogTitle>Revoke API key?</AlertDialogTitle>
             <AlertDialogDescription>
               Any integrations using this key will stop working immediately.
             </AlertDialogDescription>
@@ -555,12 +729,12 @@ export function ApiCredentialsSettings() {
               disabled={deleteMutation.isPending}
               onClick={() => deletingId && deleteMutation.mutate(deletingId)}
             >
-              {deleteMutation.isPending ? "Deleting…" : "Delete"}
+              {deleteMutation.isPending ? "Revoking…" : "Revoke"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }
 

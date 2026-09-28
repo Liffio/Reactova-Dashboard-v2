@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, Download, Loader2 } from "lucide-react";
+import { AlertTriangle, Check, Download, FileText, Loader2, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,17 @@ import { useLogoutMutation } from "@/hooks/use-auth";
 import { loginPathWithRedirect } from "@/lib/auth/auth-navigation";
 import { getUserErrorMessage } from "@/lib/user-facing-error";
 import { toast } from "@/lib/toast";
-import { SettingsCard, StatusChip, shortDate, timeAgo } from "../components";
+import {
+  IconTile,
+  ListRow,
+  SettingsButton,
+  SettingsCard,
+  SettingsPanel,
+  StatusChip,
+  settingsButtonClass,
+  shortDate,
+  timeAgo,
+} from "../components";
 
 const EXPORT_STATUS: Record<
   DataExport["status"],
@@ -41,10 +51,10 @@ const BLOCKER_ACTION: Record<DeletionBlocker["code"], { label: string; to: strin
 
 export function DangerTab() {
   return (
-    <div className="space-y-6">
+    <SettingsPanel>
       <ExportCard />
       <DeleteCard />
-    </div>
+    </SettingsPanel>
   );
 }
 
@@ -72,56 +82,61 @@ function ExportCard() {
     <SettingsCard
       title="Export your data"
       description="A zip of your profile, workspaces, automations, leads, posts and invoices."
-      actions={
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={request.isPending}
-          onClick={() => request.mutate()}
-        >
-          {request.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Request export
-        </Button>
-      }
     >
-      {list.length === 0 && (
-        <p className="px-5 py-4 text-sm text-muted-foreground">
-          One export every 24 hours. We'll email you when it's ready.
-        </p>
-      )}
       {list.map((e) => {
         const status = EXPORT_STATUS[e.status];
         const filename = `liffio-export-${e.createdAt.slice(0, 10)}.zip`;
         return (
-          <div key={e.id} className="flex items-center gap-3 px-5 py-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                {filename} <StatusChip tone={status.tone}>{status.label}</StatusChip>
-              </div>
-              <p className="text-xs text-muted-foreground">
+          <ListRow
+            key={e.id}
+            className="py-[18px]"
+            icon={
+              <IconTile>
+                <FileText />
+              </IconTile>
+            }
+            title={
+              <>
+                {filename}
+                <StatusChip tone={status.tone} icon={e.status === "ready" ? <Check /> : undefined}>
+                  {status.label}
+                </StatusChip>
+              </>
+            }
+            description={
+              <>
                 Requested {timeAgo(e.createdAt)}
                 {e.status === "ready" && e.expiresAt
                   ? ` · link expires ${shortDate(e.expiresAt)}`
                   : ""}
-              </p>
-            </div>
-            {e.status === "ready" && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  accountApi
-                    .downloadExport(e.id, filename)
-                    .catch((err) => toast.error(getUserErrorMessage(err)))
-                }
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Download
-              </Button>
-            )}
-          </div>
+              </>
+            }
+            actions={
+              e.status === "ready" ? (
+                <SettingsButton
+                  onClick={() =>
+                    accountApi
+                      .downloadExport(e.id, filename)
+                      .catch((err) => toast.error(getUserErrorMessage(err)))
+                  }
+                >
+                  <Download />
+                  <span>Download</span>
+                </SettingsButton>
+              ) : undefined
+            }
+          />
         );
       })}
+      <div className="flex flex-col gap-3 border-t border-border px-5 py-4 first:border-t-0 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <span className="text-[13px] text-muted-foreground">
+          One export every 24 hours. We'll email you when it's ready.
+        </span>
+        <SettingsButton disabled={request.isPending} onClick={() => request.mutate()}>
+          {request.isPending && <Loader2 className="animate-spin" />}
+          <span>Request export</span>
+        </SettingsButton>
+      </div>
     </SettingsCard>
   );
 }
@@ -153,66 +168,89 @@ function DeleteCard() {
   const graceDays = check.data?.graceDays;
 
   return (
-    <SettingsCard
-      tone="danger"
-      title="Delete account"
-      description={
-        graceDays
-          ? `We keep it for ${graceDays} days in case you change your mind. After that your workspaces, automations and photo are gone. Invoices stay, because tax law says so.`
-          : "Permanently delete your account."
-      }
-    >
-      <div className="space-y-3 px-5 py-4">
+    <section className="overflow-hidden rounded-[16px] border border-[#F3B8C1] bg-card dark:border-destructive-edge">
+      <div className="flex gap-[18px] bg-[#FDECEE] px-5 py-[22px] sm:px-6 dark:bg-destructive-wash">
+        <IconTile tone="danger">
+          <AlertTriangle />
+        </IconTile>
+        <div className="flex flex-col gap-1">
+          <h2 className="m-0 font-display text-[20px] font-semibold text-[#8F0A2B] dark:text-destructive">
+            Delete account
+          </h2>
+          <p className="m-0 text-sm leading-normal text-[#6B1422] dark:text-foreground/80">
+            {graceDays
+              ? `We keep it for ${graceDays} days in case you change your mind. After that your workspaces, automations and photo are gone. Invoices stay, because tax law says so.`
+              : "Permanently delete your account."}
+          </p>
+        </div>
+      </div>
+
+      <div className="px-5 pb-1 pt-2 sm:px-6">
         {check.isLoading && (
-          <p className="text-sm text-muted-foreground">Checking what's left to sort out…</p>
-        )}
-        {check.error && (
-          <p className="text-sm text-destructive">{getUserErrorMessage(check.error)}</p>
-        )}
-        {blockers.length > 0 && (
-          <>
-            <p className="text-sm font-medium">Before you can delete</p>
-            {blockers.map((b, i) => {
-              const action = BLOCKER_ACTION[b.code];
-              return (
-                <div
-                  key={`${b.code}-${i}`}
-                  className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/5 p-3"
-                >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                  <p className="flex-1 text-sm">{b.message}</p>
-                  {action && (
-                    <Link
-                      to={action.to}
-                      className="shrink-0 text-sm font-medium text-primary hover:underline"
-                    >
-                      {action.label}
-                    </Link>
-                  )}
-                </div>
-              );
-            })}
-          </>
-        )}
-        {check.data && blockers.length === 0 && (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <CheckCircle2 className="h-4 w-4 text-success" /> Nothing blocking deletion.
+          <p className="m-0 py-3 text-sm text-muted-foreground">
+            Checking what's left to sort out…
           </p>
         )}
-        <div className="flex items-center justify-between gap-3 pt-1">
-          <span className="text-xs text-muted-foreground">
-            {blockers.length > 0
-              ? `${blockers.length} thing${blockers.length === 1 ? "" : "s"} left to sort out`
+        {check.error && (
+          <p className="m-0 py-3 text-sm text-destructive">{getUserErrorMessage(check.error)}</p>
+        )}
+        {check.data && (
+          <div className="py-3 text-xs font-bold uppercase tracking-[0.06em] text-muted-foreground">
+            Before you can delete
+          </div>
+        )}
+        {blockers.map((b, i) => {
+          const action = BLOCKER_ACTION[b.code];
+          return (
+            <div
+              key={`${b.code}-${i}`}
+              className="flex flex-wrap items-center gap-3.5 border-t border-[#F6D5DA] py-3.5 sm:flex-nowrap dark:border-destructive-edge"
+            >
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#FDECEE] text-[#B0122B] dark:bg-destructive-wash dark:text-destructive">
+                <X className="size-[15px]" strokeWidth={2.6} />
+              </span>
+              <span className="min-w-0 flex-grow text-sm font-semibold text-foreground">
+                {b.message}
+              </span>
+              {action && (
+                <Link to={action.to} className={settingsButtonClass()}>
+                  <span>{action.label}</span>
+                </Link>
+              )}
+            </div>
+          );
+        })}
+        {check.data && blockers.length === 0 && (
+          <div className="flex items-center gap-3.5 border-t border-[#F6D5DA] py-3.5 dark:border-destructive-edge">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#E6F6EC] text-[#03A14A] dark:bg-success-wash">
+              <Check className="size-[15px]" strokeWidth={2.6} />
+            </span>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-semibold text-foreground">
+                Nothing blocking deletion
+              </span>
+              <span className="text-[13px] text-muted-foreground">You're clear to go ahead.</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-3 border-t border-[#F6D5DA] bg-[#FFFBFB] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 dark:border-destructive-edge dark:bg-transparent">
+        <span className="text-[13px] text-muted-foreground">
+          {blockers.length > 0
+            ? `${blockers.length} thing${blockers.length === 1 ? "" : "s"} left to sort out`
+            : check.data
+              ? "Nothing left to sort out"
               : ""}
-          </span>
-          <Button
-            variant="destructive"
-            disabled={!check.data?.canDelete}
-            onClick={() => setOpen(true)}
-          >
-            Delete my account
-          </Button>
-        </div>
+        </span>
+        <SettingsButton
+          variant="danger"
+          disabled={!check.data?.canDelete}
+          onClick={() => setOpen(true)}
+        >
+          <Trash2 />
+          <span>Delete my account</span>
+        </SettingsButton>
       </div>
 
       <Dialog
@@ -254,6 +292,6 @@ function DeleteCard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </SettingsCard>
+    </section>
   );
 }

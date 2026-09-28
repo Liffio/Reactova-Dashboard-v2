@@ -1,18 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Country } from "country-state-city";
-import { Loader2, ShieldCheck, Upload } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Camera,
+  ChevronDown,
+  Clock,
+  Globe,
+  Loader2,
+  Mail,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  Upload,
+} from "lucide-react";
+
 import { UserAvatar } from "@/components/user-avatar";
 import { accountApi } from "@/lib/api/account-api";
 import { setAccountCountry } from "@/lib/api/auth-api";
@@ -20,7 +23,18 @@ import { ApiError } from "@/lib/api/http";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { getUserErrorMessage } from "@/lib/user-facing-error";
 import { toast } from "@/lib/toast";
-import { SettingRow, SettingsCard, StatusChip, shortDate } from "../components";
+import { cn } from "@/lib/utils";
+import {
+  OkChip,
+  SelectField,
+  SettingRow,
+  SettingsButton,
+  SettingsCard,
+  SettingsPanel,
+  StatusChip,
+  TextField,
+  textLinkClass,
+} from "../components";
 
 /** Upload limits mirror the server's (`avatarService.AVATAR_MAX_BYTES`); the server re-checks. */
 const AVATAR_ACCEPT = "image/jpeg,image/png,image/webp";
@@ -37,7 +51,7 @@ function tzLabel(tz: string): string {
     const part = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" })
       .formatToParts(new Date())
       .find((p) => p.type === "timeZoneName")?.value;
-    return part ? `${tz.replace(/_/g, " ")} (${part})` : tz;
+    return part ? `${tz} (${part})` : tz;
   } catch {
     return tz;
   }
@@ -55,12 +69,18 @@ function splitPhone(
   return { code, number: digits.slice(code.length) };
 }
 
+function memberSince(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
 export function ProfileTab() {
   const user = useAuthState((s) => s.user);
   const role = useAuthState((s) => s.role);
   const mfaEnabled = useAuthState((s) => s.mfaEnabled);
   const emailVerified = useAuthState((s) => s.emailVerified);
   const queryClient = useQueryClient();
+  const sessions = useQuery({ queryKey: ["account-sessions"], queryFn: accountApi.listSessions });
 
   const countries = useMemo(() => Country.getAllCountries(), []);
   const dialCodes = useMemo(
@@ -69,7 +89,7 @@ export function ProfileTab() {
         new Set(
           countries.map((c) => c.phonecode.replace(/^\+/, "").split(/[ -]/)[0]).filter(Boolean),
         ),
-      ),
+      ).sort((a, b) => Number(a) - Number(b)),
     [countries],
   );
   const timezones = useMemo(() => supportedTimezones(), []);
@@ -108,6 +128,8 @@ export function ProfileTab() {
     phone: nextPhone !== storedPhone,
   };
   const isDirty = Object.values(dirty).some(Boolean);
+  const sessionCount = sessions.data?.sessions.length;
+  const since = memberSince(user.createdAt);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["auth-me"] });
 
@@ -168,36 +190,105 @@ export function ProfileTab() {
     }
   };
 
+  const pickPhoto = () => fileInput.current?.click();
+
   return (
-    <div className="space-y-6 pb-24">
-      <div className="flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-soft sm:flex-row sm:items-center">
-        <UserAvatar
-          userId={user.id}
-          name={user.name}
-          avatarUrl={user.avatarUrl}
-          size={72}
-          animate
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-display text-lg font-semibold">{user.name}</h2>
-            {role && <StatusChip tone="muted">{role}</StatusChip>}
-          </div>
-          <p className="truncate text-sm text-muted-foreground">{user.email}</p>
-          {user.createdAt && (
-            <p className="text-xs text-muted-foreground">
-              Member since {shortDate(user.createdAt)}
-            </p>
-          )}
+    <SettingsPanel>
+      <input
+        ref={fileInput}
+        type="file"
+        accept={AVATAR_ACCEPT}
+        className="hidden"
+        onChange={(e) => void onPickAvatar(e.target.files?.[0])}
+      />
+
+      {/* Identity hero */}
+      <section className="relative overflow-hidden rounded-[20px] border border-border bg-card shadow-[0_1px_2px_rgba(22,10,8,0.04),0_12px_32px_-16px_rgba(22,10,8,0.12)]">
+        <div className="relative h-[88px] bg-brand-gradient">
+          <svg
+            width="100%"
+            height="88"
+            viewBox="0 0 1000 88"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+            className="absolute inset-0"
+          >
+            <path d="M0 64 Q 250 18 500 56 T 1000 36 V88 H0z" fill="#FFFFFF" fillOpacity="0.10" />
+            <path d="M0 78 Q 312 46 625 74 T 1000 64 V88 H0z" fill="#FFFFFF" fillOpacity="0.12" />
+          </svg>
         </div>
-        <Link
-          to="/settings/security"
-          className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:border-primary/40"
-        >
-          <ShieldCheck className={mfaEnabled ? "h-4 w-4 text-success" : "h-4 w-4 text-warning"} />
-          {mfaEnabled ? "Account protected · 2FA on" : "Turn on 2FA"}
-        </Link>
-      </div>
+        <div className="relative -mt-10 flex flex-col gap-5 px-5 pb-[22px] sm:px-[26px] lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-[18px] sm:flex-row sm:items-end">
+            <div className="relative self-start rounded-[30px] bg-card p-1 shadow-[0_6px_20px_-8px_rgba(178,13,143,0.35)]">
+              <UserAvatar
+                userId={user.id}
+                name={user.name}
+                avatarUrl={user.avatarUrl}
+                size={88}
+                animate
+              />
+              <button
+                type="button"
+                aria-label="Change profile photo"
+                disabled={avatarBusy}
+                onClick={pickPhoto}
+                className="absolute -bottom-1 -right-1 flex size-8 cursor-pointer items-center justify-center rounded-full border-[3px] border-card bg-[#160A08] p-0 text-white disabled:cursor-wait dark:bg-foreground dark:text-background"
+              >
+                {avatarBusy ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Camera className="size-3.5" strokeWidth={2} />
+                )}
+              </button>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5 pb-1">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h2 className="m-0 font-display text-[26px] font-bold tracking-[-0.02em] text-foreground">
+                  {user.name}
+                </h2>
+                {role && <StatusChip tone="brand">{role}</StatusChip>}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[13px] text-muted-foreground">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <Mail className="size-3.5 shrink-0" strokeWidth={1.8} />
+                  <span className="truncate">{user.email}</span>
+                </span>
+                {since && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Clock className="size-3.5" strokeWidth={1.8} />
+                    Member since {since}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <Link
+            to="/settings/security"
+            className={cn(
+              "flex items-center gap-2.5 self-start rounded-[12px] px-3.5 py-2.5 no-underline lg:self-auto",
+              mfaEnabled
+                ? "bg-[#D5F1D5] text-[#012D07] hover:text-[#012D07] dark:bg-success-wash dark:text-success"
+                : "bg-[#FDF1D6] text-[#8A5A00] hover:text-[#8A5A00] dark:bg-warning-wash dark:text-warning",
+            )}
+          >
+            {mfaEnabled ? (
+              <ShieldCheck className="size-[18px]" strokeWidth={2} />
+            ) : (
+              <ShieldAlert className="size-[18px]" strokeWidth={2} />
+            )}
+            <div className="flex flex-col">
+              <span className="text-[13px] font-bold">
+                {mfaEnabled ? "Account protected" : "Protect your account"}
+              </span>
+              <span className="text-xs">
+                {mfaEnabled ? "2FA on" : "Turn on 2FA"}
+                {sessionCount !== undefined &&
+                  ` · ${sessionCount} active session${sessionCount === 1 ? "" : "s"}`}
+              </span>
+            </div>
+          </Link>
+        </div>
+      </section>
 
       <SettingsCard
         title="Personal info"
@@ -207,39 +298,26 @@ export function ProfileTab() {
           label="Profile photo"
           hint="No photo? You get your own blob, and it never changes."
         >
-          <input
-            ref={fileInput}
-            type="file"
-            accept={AVATAR_ACCEPT}
-            className="hidden"
-            onChange={(e) => void onPickAvatar(e.target.files?.[0])}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={avatarBusy}
-            onClick={() => fileInput.current?.click()}
-          >
-            {avatarBusy ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Upload className="mr-2 h-4 w-4" />
-            )}
-            Upload photo
-          </Button>
-          {user.avatarUrl && (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={avatarBusy}
-              onClick={() => void removeAvatar()}
-            >
-              Remove
-            </Button>
-          )}
-          <p className="w-full text-right text-xs text-muted-foreground">
-            JPG, PNG or WebP, up to 5 MB.
-          </p>
+          <div className="flex flex-wrap items-center gap-[18px]">
+            <UserAvatar userId={user.id} name={user.name} avatarUrl={user.avatarUrl} size={64} />
+            <div className="flex flex-col gap-2.5">
+              <div className="flex flex-wrap gap-2">
+                <SettingsButton disabled={avatarBusy} onClick={pickPhoto}>
+                  {avatarBusy ? <Loader2 className="animate-spin" /> : <Upload />}
+                  <span>Upload photo</span>
+                </SettingsButton>
+                <SettingsButton
+                  variant="ghost"
+                  disabled={avatarBusy || !user.avatarUrl}
+                  onClick={() => void removeAvatar()}
+                >
+                  <Trash2 />
+                  <span>Remove</span>
+                </SettingsButton>
+              </div>
+              <span className="text-xs text-muted-foreground">JPG, PNG or WebP, up to 5 MB.</span>
+            </div>
+          </div>
         </SettingRow>
 
         <SettingRow
@@ -247,25 +325,33 @@ export function ProfileTab() {
           hint="Shown to teammates and on invoices."
           htmlFor="profile-name"
         >
-          <Input
+          <TextField
             id="profile-name"
-            className="sm:max-w-xs"
             maxLength={100}
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
           />
         </SettingRow>
 
-        <SettingRow label="Email" hint="Used to sign in and for account alerts.">
-          <span className="truncate text-sm">{user.email}</span>
-          <StatusChip tone={emailVerified ? "success" : "warning"}>
-            {emailVerified ? "Verified" : "Not verified"}
-          </StatusChip>
-          <Link
-            to="/settings/security"
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            Change in Security
+        <SettingRow
+          label="Email"
+          hint="Used to sign in and for account alerts."
+          htmlFor="profile-email"
+        >
+          <TextField
+            id="profile-email"
+            readOnly
+            value={user.email}
+            trailing={
+              emailVerified ? (
+                <OkChip>Verified</OkChip>
+              ) : (
+                <StatusChip tone="warning">Not verified</StatusChip>
+              )
+            }
+          />
+          <Link to="/settings/security" className={textLinkClass}>
+            Change email in Security
           </Link>
         </SettingRow>
 
@@ -274,37 +360,46 @@ export function ProfileTab() {
           hint="Optional. For account recovery once SMS is live."
           htmlFor="profile-phone"
         >
-          <Select
-            value={form.phoneCode}
-            onValueChange={(v) => setForm((f) => ({ ...f, phoneCode: v }))}
-          >
-            <SelectTrigger className="w-24" aria-label="Country code">
-              <SelectValue placeholder="+" />
-            </SelectTrigger>
-            <SelectContent className="max-h-72">
-              {dialCodes.map((code) => (
-                <SelectItem key={code} value={code}>
-                  +{code}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
+          <TextField
             id="profile-phone"
-            className="w-40"
             inputMode="tel"
-            placeholder="9876543210"
+            placeholder="98765 43210"
             value={form.phoneNumber}
             onChange={(e) =>
               setForm((f) => ({ ...f, phoneNumber: e.target.value.replace(/[^\d]/g, "") }))
             }
+            leading={
+              <span className="relative flex h-[42px] shrink-0 items-center gap-1.5 border-r border-border px-3 text-sm font-medium text-foreground">
+                {form.phoneCode ? `+${form.phoneCode}` : "+"}
+                <ChevronDown className="size-3.5 text-muted-foreground" strokeWidth={1.8} />
+                <select
+                  aria-label="Country code"
+                  value={form.phoneCode}
+                  onChange={(e) => setForm((f) => ({ ...f, phoneCode: e.target.value }))}
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                >
+                  <option value="" disabled>
+                    Code
+                  </option>
+                  {dialCodes.map((code) => (
+                    <option key={code} value={code}>
+                      +{code}
+                    </option>
+                  ))}
+                </select>
+              </span>
+            }
           />
-          {user.phoneNumber && (
-            <StatusChip tone={user.phoneVerified ? "success" : "muted"}>
-              {user.phoneVerified ? "Verified" : "Not verified"}
+          <div className="flex flex-wrap gap-2">
+            {user.phoneNumber && user.phoneVerified ? (
+              <OkChip>Verified</OkChip>
+            ) : (
+              <StatusChip tone="muted">Not verified</StatusChip>
+            )}
+            <StatusChip tone="warning" icon={<Sparkles />}>
+              SMS verification coming soon
             </StatusChip>
-          )}
-          <StatusChip tone="muted">SMS verification coming soon</StatusChip>
+          </div>
         </SettingRow>
 
         <SettingRow
@@ -312,23 +407,24 @@ export function ProfileTab() {
           hint={
             countryLocked ?? "Sets your billing currency. Locked while a subscription is active."
           }
+          htmlFor="profile-country"
         >
-          <Select
+          <SelectField
+            id="profile-country"
+            icon={<Globe aria-hidden />}
             value={form.country}
             disabled={Boolean(countryLocked)}
-            onValueChange={(v) => setForm((f) => ({ ...f, country: v }))}
+            onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
           >
-            <SelectTrigger className="sm:w-64" aria-label="Country">
-              <SelectValue placeholder="Choose your country" />
-            </SelectTrigger>
-            <SelectContent className="max-h-72">
-              {countries.map((c) => (
-                <SelectItem key={c.isoCode} value={c.isoCode}>
-                  {c.flag} {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <option value="" disabled>
+              Choose your country
+            </option>
+            {countries.map((c) => (
+              <option key={c.isoCode} value={c.isoCode}>
+                {c.name}
+              </option>
+            ))}
+          </SelectField>
         </SettingRow>
 
         <SettingRow
@@ -336,39 +432,53 @@ export function ProfileTab() {
           hint={
             user.timezone ? "Used for dates across Liffio." : "We picked this from your browser."
           }
+          htmlFor="profile-timezone"
         >
-          <Select
+          <SelectField
+            id="profile-timezone"
+            icon={<Clock aria-hidden />}
             value={form.timezone}
-            onValueChange={(v) => setForm((f) => ({ ...f, timezone: v }))}
+            onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))}
           >
-            <SelectTrigger className="sm:w-72" aria-label="Timezone">
-              <SelectValue placeholder="Choose a timezone" />
-            </SelectTrigger>
-            <SelectContent className="max-h-72">
-              {timezones.map((tz) => (
-                <SelectItem key={tz} value={tz}>
-                  {tzLabel(tz)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <option value="" disabled>
+              Choose a timezone
+            </option>
+            {timezones.map((tz) => (
+              <option key={tz} value={tz}>
+                {tzLabel(tz)}
+              </option>
+            ))}
+          </SelectField>
         </SettingRow>
       </SettingsCard>
 
       {isDirty && (
-        <div className="fixed inset-x-4 bottom-24 z-30 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 shadow-lg md:bottom-6">
-          <span className="text-sm">You have unsaved changes</span>
+        <div className="sticky bottom-24 z-30 flex flex-col gap-3 rounded-[14px] bg-[#160A08] py-3.5 pl-5 pr-4 text-white shadow-[0_16px_40px_-16px_rgba(22,10,8,0.45)] sm:flex-row sm:items-center sm:justify-between md:bottom-4 dark:border dark:border-border dark:bg-card dark:text-foreground">
+          <div className="flex items-center gap-2.5 text-sm">
+            <span className="inline-block size-2 rounded-full bg-[#FF7C49]" />
+            You have unsaved changes
+          </div>
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" disabled={saving} onClick={() => setForm(initial)}>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => setForm(initial)}
+              className="h-10 cursor-pointer rounded-[10px] border border-[#3A2C29] bg-transparent px-4 text-sm font-semibold text-inherit hover:bg-white/5 disabled:opacity-45 dark:border-border"
+            >
               Discard
-            </Button>
-            <Button size="sm" disabled={saving || !form.name.trim()} onClick={() => void save()}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            </button>
+            <button
+              type="button"
+              disabled={saving || !form.name.trim()}
+              onClick={() => void save()}
+              className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-[10px] border-0 bg-[#E8103F] px-[18px] text-sm font-semibold text-white hover:bg-[#C20F3B] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {saving && <Loader2 className="size-4 animate-spin" />}
               Save changes
-            </Button>
+            </button>
           </div>
         </div>
       )}
-    </div>
+    </SettingsPanel>
   );
 }

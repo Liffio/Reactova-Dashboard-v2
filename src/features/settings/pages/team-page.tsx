@@ -1,29 +1,22 @@
 import { UserAvatar } from "@/components/user-avatar";
-import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Check,
+  ChevronDown,
   Download,
+  Loader2,
   Lock,
-  MailPlus,
   MailWarning,
   MoreHorizontal,
   Pencil,
-  RefreshCw,
-  Search,
+  Send,
   ShieldCheck,
-  Trash2,
   UserMinus,
-  Users,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 
-import { PageHeader } from "@/components/dashboard/page-header";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,23 +33,41 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { PaginationBar } from "@/components/ui/pagination-bar";
 import {
+  createTeamInvite,
+  getGrantableAccess,
   listTeamInvites,
   removeTeamMember,
   resendTeamInvite,
   revokeTeamInvite,
   type TeamMember,
+  type WorkspaceInvite,
 } from "@/lib/api/team-api";
 import { apiUri } from "@/lib/api/apiUri";
 import { inviteDeliveryBadge, inviteDeliveryMessage } from "@/lib/invite-delivery";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
-import { useAuthState } from "@/lib/auth/auth-store";
 import { cn } from "@/lib/utils";
 import { getTeamOverview, type TeamOverview, type TeamOverviewMember } from "@/lib/api/team-api";
 import { TeamAccessDialog } from "@/components/team/team-access-dialog";
+import {
+  CardNote,
+  IconButton,
+  PlainCard,
+  SelectField,
+  SettingsButton,
+  SettingsCard,
+  SettingsPanel,
+  SettingsTable,
+  StatusChip,
+  Td,
+  TextField,
+  Th,
+  dayMonth,
+  shortDate,
+  textLinkClass,
+} from "../components";
 
 /**
  * What the Access column says. (U5, spec 5.7)
@@ -79,20 +90,23 @@ function accessLabel(member: TeamOverviewMember, overview: TeamOverview | null):
   return names.length > 0 ? `${count} ${noun}: ${names.join(", ")}` : `${count} ${noun}`;
 }
 
-const inviteStatusStyles: Record<string, string> = {
-  PENDING: "border-warning/30 bg-warning/10 text-warning",
-  ACCEPTED: "border-success/30 bg-success/10 text-success",
-  REVOKED: "border-border bg-muted text-muted-foreground",
-  EXPIRED: "border-border bg-muted text-muted-foreground",
+const INVITE_STATUS_TONE: Record<WorkspaceInvite["status"], "success" | "muted" | "warning"> = {
+  PENDING: "warning",
+  ACCEPTED: "success",
+  REVOKED: "muted",
+  EXPIRED: "muted",
 };
+
+/** Deliberately loose: the server validates the address; this only gates the button. */
+const looksLikeEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+
+type RemovingMember = { userId: string; name: string };
 
 export function TeamPage() {
   const { current } = useApp();
   const workspaceId = current.id;
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const currentUserId = useAuthState((s) => s.user?.id);
-  const [removingMember, setRemovingMember] = useState<TeamMember | null>(null);
+  const [removingMember, setRemovingMember] = useState<RemovingMember | null>(null);
 
   /**
    * Paged server-side. The old endpoint resolved every member's full permission set — roles,
@@ -152,11 +166,11 @@ export function TeamPage() {
       // Key prefix only — the hook appends workspace and request state, so a scoped key would
       // miss every page but the first.
       void queryClient.invalidateQueries({ queryKey: ["team-members"] });
+      void queryClient.invalidateQueries({ queryKey: ["team-overview", workspaceId] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
 
-  const members = memberList.items;
   const invites = invitesQuery.data ?? [];
 
   /**
@@ -174,328 +188,326 @@ export function TeamPage() {
   const overview = overviewQuery.data ?? null;
   const teamMembers = overview?.members ?? [];
   const atLimit = Boolean(overview && overview.used >= overview.limit);
+  const seatPct =
+    overview && overview.limit > 0
+      ? Math.min(100, Math.round((overview.used / overview.limit) * 100))
+      : 0;
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamOverviewMember | null>(null);
 
+  const canEditMember = (member: TeamOverviewMember) =>
+    Boolean(overview?.viewerIsOwner) && !member.isOwner && member.source === "GROUP";
+  const canRemoveMember = (member: TeamOverviewMember) =>
+    Boolean(overview?.viewerIsOwner) && !member.isOwner && member.source === "MEMBER";
+
   return (
-    <div>
-      <PageHeader
-        eyebrow="Account"
-        title="Team"
+    <SettingsPanel>
+      {/* Owner only (spec 2.7), and disabled at the limit rather than failing on submit. */}
+      {overview?.viewerIsOwner ? (
+        overview.group ? (
+          /*
+            A grouped workspace invites through the agency, because the grant is a group grant:
+            scope, role and the invoice permission. The dialog carries all three.
+          */
+          <PlainCard className="flex flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-1">
+              <span className="text-[13px] font-semibold text-foreground">Invite by email</span>
+              <span className="text-[13px] text-muted-foreground">
+                {overview.group.name} invites through the agency, so you can choose which workspaces
+                they reach.
+              </span>
+            </div>
+            <SettingsButton
+              variant="primary"
+              className="h-11"
+              disabled={atLimit}
+              onClick={() => setInviteOpen(true)}
+            >
+              <Send />
+              <span>Send invite</span>
+            </SettingsButton>
+          </PlainCard>
+        ) : (
+          <InviteBar workspaceId={workspaceId} atLimit={atLimit} />
+        )
+      ) : null}
+
+      {/*
+        The reference's table, not a permissions console. (U5, spec 5.7)
+
+        Person, Role, Access, Invoices, and an actions menu for the owner. The Access column is the
+        one that did not exist and could not: until T1 there was no way to say "whole group" or
+        "these three workspaces", because access was a row per workspace with nothing recording
+        what had been granted.
+      */}
+      <SettingsCard
+        title="Members"
         /*
-          The count the reference shows, and it is not the length of this table: it includes the
-          owner and counts a whole-group member in every workspace of the group (T3). The limit is
-          the RESOLVED one, so a package or admin override is reflected rather than the plan default
-          the pricing page advertises.
+          The count is not the length of this table: it includes the owner and counts a whole-group
+          member in every workspace of the group (T3). The limit is the RESOLVED one, so a package or
+          admin override is reflected rather than the plan default the pricing page advertises.
         */
         description={
           overview
-            ? `${overview.used} of ${overview.limit} team members in this workspace${
-                atLimit ? ". Limit reached" : ""
-              }`
-            : "Manage team members and workspace invitations."
+            ? `${overview.used} of ${overview.limit} seats used${atLimit ? ". Limit reached" : ""}.`
+            : `${memberList.total} members in this workspace.`
         }
         actions={
-          // Owner only (spec 2.7), and disabled at the limit rather than failing on submit.
-          overview?.viewerIsOwner ? (
-            <Button
-              size="sm"
-              disabled={atLimit}
-              className="gap-1.5 bg-brand-gradient text-primary-foreground shadow-glow hover:opacity-95"
-              onClick={() => {
-                // A grouped workspace invites through the agency, because the grant is a group
-                // grant: scope, role and the invoice permission. A standalone one keeps the
-                // existing per-workspace invite flow.
-                if (overview.group) setInviteOpen(true);
-                else void navigate({ to: "/team/invite" });
-              }}
-            >
-              <MailPlus className="h-4 w-4" />
-              Invite
-            </Button>
-          ) : null
+          overview && overview.limit > 0 ? (
+            <div className="flex w-[180px] items-center gap-2.5">
+              <div className="h-1.5 flex-grow rounded-full bg-muted">
+                <div
+                  className={cn(
+                    "h-1.5 rounded-full",
+                    atLimit ? "bg-[#F5184C]" : "bg-[#160A08] dark:bg-foreground",
+                  )}
+                  style={{ width: `${seatPct}%` }}
+                />
+              </div>
+              <span className="text-[13px] font-semibold text-foreground">
+                {overview.used}/{overview.limit}
+              </span>
+            </div>
+          ) : undefined
         }
-      />
-
-      <div className="space-y-6 p-4 sm:p-6 md:p-10">
-        <Tabs defaultValue="members">
-          <TabsList className="mb-4">
-            <TabsTrigger value="members" className="gap-1.5">
-              <Users className="h-3.5 w-3.5" />
-              {/* The workspace total from the server, not the page length. */}
-              {/*
-               * The count has to be the count of the table under it. (U8)
-               *
-               * `memberList.total` is the old `workspace_members` page count, which excludes the
-               * owner and every whole-group member, so an agency workspace showing three people
-               * had a tab reading "Members (1)" directly under a header reading "3 of 15".
-               * `overview.used` is the same number T3 enforces the limit against.
-               */}
-              Members ({overview ? overview.used : memberList.total})
-            </TabsTrigger>
-            <TabsTrigger value="invites" className="gap-1.5">
-              <MailPlus className="h-3.5 w-3.5" />
-              Invites ({invites.filter((i) => i.status === "PENDING").length})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="members">
-            {/*
-              The reference's table, not a permissions console. (U5, spec 5.7)
-
-              Person, Role, Access, Invoices, and a pencil for the owner. The Access column is the
-              one that did not exist and could not: until T1 there was no way to say "whole group"
-              or "these three workspaces", because access was a row per workspace with nothing
-              recording what had been granted.
-            */}
-            {overviewQuery.isLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="h-16 rounded-xl" />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-2xl border bg-card shadow-soft">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left text-xs font-medium text-muted-foreground">
-                        <th className="px-5 py-3">Person</th>
-                        <th className="px-4 py-3">Role</th>
-                        <th className="px-4 py-3">Access</th>
-                        <th className="px-4 py-3">Invoices</th>
-                        <th className="px-4 py-3" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {teamMembers.map((member) => (
-                        <tr key={member.userId} className="border-b last:border-0">
-                          <td className="px-5 py-3">
-                            <div className="flex min-w-0 items-center gap-2.5">
-                              <UserAvatar
-                                userId={member.userId}
-                                name={member.name ?? member.email}
-                                avatarUrl={member.avatarUrl}
-                                size={32}
-                              />
-                              <span className="grid min-w-0 leading-tight">
-                                <span className="truncate text-[13.5px] font-semibold">
-                                  {member.name ?? member.email}
-                                </span>
-                                <span className="truncate text-xs text-muted-foreground">
-                                  {member.email}
-                                </span>
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant="outline">
-                              {member.isOwner ? "Owner" : member.roleName}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3 text-[12.5px] text-muted-foreground">
-                            {accessLabel(member, overview)}
-                          </td>
-                          <td className="px-4 py-3">
-                            {member.isOwner ? null : (
-                              <span
-                                className={cn(
-                                  "inline-flex items-center gap-1 text-xs",
-                                  member.canDownloadInvoices
-                                    ? "text-success"
-                                    : "text-muted-foreground",
-                                )}
-                              >
-                                {member.canDownloadInvoices ? (
-                                  <Download aria-hidden className="size-3.5" />
-                                ) : (
-                                  <Lock aria-hidden className="size-3.5" />
-                                )}
-                                Invoices {member.canDownloadInvoices ? "on" : "off"}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            {/* Owner only, and only for a group grant: a standalone member's role
-                                is edited through the existing member flow. */}
-                            {overview?.viewerIsOwner &&
-                            !member.isOwner &&
-                            member.source === "GROUP" ? (
-                              <button
-                                type="button"
-                                onClick={() => setEditingMember(member)}
-                                aria-label={`Edit access for ${member.name ?? member.email}`}
-                                className="grid size-[30px] place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
-                              >
-                                <Pencil aria-hidden className="size-4" />
-                              </button>
-                            ) : null}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/*
-              The read-only half of spec 2.7: a member SEES the team, and is told why they cannot
-              change it. Not a hidden page, and not a page whose buttons fail when pressed.
-            */}
-            {overview && !overview.viewerIsOwner ? (
-              <div className="mt-3 flex items-center gap-2 text-[12.5px] text-muted-foreground">
-                <ShieldCheck aria-hidden className="size-3.5 shrink-0" />
-                Only the owner can invite people or change access.
-              </div>
-            ) : null}
-          </TabsContent>
-
-          <TabsContent value="invites">
-            {invitesQuery.isLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-14 rounded-xl" />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-2xl border bg-card shadow-soft">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
-                        <th className="px-6 py-3 font-medium">Email</th>
-                        <th className="px-4 py-3 font-medium">Role</th>
-                        <th className="px-4 py-3 font-medium">Status</th>
-                        <th className="px-4 py-3 font-medium hidden md:table-cell">Expires</th>
-                        <th className="px-6 py-3 font-medium" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invites.map((inv) => (
-                        <tr key={inv.id} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="px-6 py-3.5 font-medium">{inv.email}</td>
-                          <td className="px-4 py-3.5 text-xs text-muted-foreground">
-                            {inv.baseRole.name}
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <Badge
-                                variant="outline"
-                                className={inviteStatusStyles[inv.status] ?? ""}
-                              >
-                                {inv.status.toLowerCase()}
-                              </Badge>
-                              {/*
-                                A pending invite whose email went nowhere, marked so the owner can
-                                see it without having to remember the moment they created it. (R3b)
-
-                                `=== false` on purpose: `null` means nothing was recorded, which is
-                                every invite from before this was tracked, and those must not be
-                                accused of failing.
-                              */}
-                              {inv.status === "PENDING" && inv.lastDeliveryOk === false && (
-                                <Badge
-                                  variant="outline"
-                                  className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                                  title={inviteDeliveryMessage(inv.lastDeliveryIssue).headline}
-                                >
-                                  <MailWarning aria-hidden className="size-3" />
-                                  {inviteDeliveryBadge(inv.lastDeliveryIssue)}
-                                </Badge>
-                              )}
-                            </div>
-                            {inv.status === "PENDING" && inv.lastDeliveryOk === false && (
-                              <p className="mt-1 max-w-xs text-[11.5px] leading-relaxed text-muted-foreground">
-                                {inviteDeliveryMessage(inv.lastDeliveryIssue).detail}
-                              </p>
-                            )}
-                          </td>
-                          <td className="px-4 py-3.5 text-xs text-muted-foreground hidden md:table-cell">
-                            {new Date(inv.expiresAt).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-3.5">
-                            {inv.status === "PENDING" && (
-                              <div className="flex items-center gap-3">
-                                {/*
-                                  Resend is offered on every pending invite as before, and spelled
-                                  out on one whose email failed. An icon alone is a thing you notice
-                                  when you already know what you are looking for. (R3b)
-
-                                  `recipient_opted_out` gets no button: the person has turned these
-                                  emails off, so every resend would fail the same way, and offering
-                                  one would be busywork dressed as a fix.
-                                */}
-                                {inv.lastDeliveryOk === false &&
-                                inviteDeliveryMessage(inv.lastDeliveryIssue).canRetry ? (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 gap-1.5 px-2 text-xs"
-                                    disabled={resendMutation.isPending}
-                                    onClick={() => resendMutation.mutate(inv.id)}
-                                  >
-                                    <RefreshCw
-                                      aria-hidden
-                                      className={`size-3.5 ${resendMutation.isPending ? "animate-spin" : ""}`}
-                                    />
-                                    Resend
-                                  </Button>
-                                ) : inv.lastDeliveryOk === false ? null : (
-                                  <button
-                                    className="text-muted-foreground hover:text-foreground disabled:opacity-50"
-                                    title="Resend"
-                                    disabled={resendMutation.isPending}
-                                    onClick={() => resendMutation.mutate(inv.id)}
-                                  >
-                                    <RefreshCw className="h-4 w-4" />
-                                  </button>
-                                )}
-                                <button
-                                  className="text-muted-foreground hover:text-destructive"
-                                  title="Revoke"
-                                  onClick={() => revokeMutation.mutate(inv.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                      {invites.length === 0 && (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="px-6 py-8 text-center text-sm text-muted-foreground"
-                          >
-                            No invites sent yet.
-                          </td>
-                        </tr>
+      >
+        {overviewQuery.isLoading ? (
+          <CardNote>Loading members…</CardNote>
+        ) : overviewQuery.error ? (
+          <CardNote tone="danger">{(overviewQuery.error as Error).message}</CardNote>
+        ) : (
+          <SettingsTable>
+            <thead>
+              <tr>
+                <Th>Person</Th>
+                <Th>Role</Th>
+                <Th>Access</Th>
+                <Th>Invoices</Th>
+                <Th className="w-[50px]" />
+              </tr>
+            </thead>
+            <tbody>
+              {teamMembers.map((member) => {
+                const label = member.name ?? member.email;
+                const editable = canEditMember(member);
+                const removable = canRemoveMember(member);
+                return (
+                  <tr key={member.userId}>
+                    <Td>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <UserAvatar
+                          userId={member.userId}
+                          name={label}
+                          avatarUrl={member.avatarUrl}
+                          size={34}
+                        />
+                        <div className="flex min-w-0 flex-col">
+                          <span className="truncate font-semibold">{label}</span>
+                          <span className="truncate text-[13px] text-muted-foreground">
+                            {member.email}
+                          </span>
+                        </div>
+                      </div>
+                    </Td>
+                    <Td>
+                      {member.isOwner ? (
+                        <StatusChip tone="brand">Owner</StatusChip>
+                      ) : editable ? (
+                        <button
+                          type="button"
+                          onClick={() => setEditingMember(member)}
+                          aria-label={`Change role for ${label}`}
+                          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-[8px] border border-border bg-transparent px-2.5 font-sans text-[13px] font-medium text-foreground hover:bg-muted"
+                        >
+                          {member.roleName}
+                          <ChevronDown aria-hidden className="size-3.5 text-muted-foreground" />
+                        </button>
+                      ) : (
+                        <span className="inline-flex h-8 items-center rounded-[8px] border border-border px-2.5 text-[13px] font-medium">
+                          {member.roleName}
+                        </span>
                       )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+                    </Td>
+                    <Td className="text-[13px] text-muted-foreground">
+                      {accessLabel(member, overview)}
+                    </Td>
+                    <Td>
+                      {member.isOwner ? null : (
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 whitespace-nowrap text-[13px]",
+                            member.canDownloadInvoices ? "text-success" : "text-muted-foreground",
+                          )}
+                        >
+                          {member.canDownloadInvoices ? (
+                            <Download aria-hidden className="size-3.5" />
+                          ) : (
+                            <Lock aria-hidden className="size-3.5" />
+                          )}
+                          {member.canDownloadInvoices ? "On" : "Off"}
+                        </span>
+                      )}
+                    </Td>
+                    <Td className="w-[50px]">
+                      {editable || removable ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <IconButton label={`Actions for ${label}`}>
+                              <MoreHorizontal />
+                            </IconButton>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {editable && (
+                              <DropdownMenuItem onSelect={() => setEditingMember(member)}>
+                                <Pencil className="mr-2 size-4" /> Edit access
+                              </DropdownMenuItem>
+                            )}
+                            {removable && (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onSelect={() =>
+                                  setRemovingMember({ userId: member.userId, name: label })
+                                }
+                              >
+                                <UserMinus className="mr-2 size-4" /> Remove from workspace
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </SettingsTable>
+        )}
+      </SettingsCard>
 
-        {overview ? (
-          <TeamAccessDialog
-            open={inviteOpen || Boolean(editingMember)}
-            onOpenChange={(next) => {
-              if (next) return;
-              setInviteOpen(false);
-              setEditingMember(null);
-            }}
-            overview={overview}
-            editing={editingMember}
-            workspaceId={workspaceId}
-          />
-        ) : null}
-      </div>
+      {/*
+        The read-only half of spec 2.7: a member SEES the team, and is told why they cannot change
+        it. Not a hidden page, and not a page whose buttons fail when pressed.
+      */}
+      {overview && !overview.viewerIsOwner ? (
+        <div className="-mt-2.5 flex items-center gap-2 text-[13px] text-muted-foreground">
+          <ShieldCheck aria-hidden className="size-3.5 shrink-0" />
+          Only the owner can invite people or change access.
+        </div>
+      ) : null}
+
+      <SettingsCard
+        title="Pending invites"
+        description="Each invite link stops working after its expiry date."
+      >
+        {invitesQuery.isLoading ? (
+          <CardNote>Loading invites…</CardNote>
+        ) : invitesQuery.error ? (
+          <CardNote tone="danger">{(invitesQuery.error as Error).message}</CardNote>
+        ) : invites.length === 0 ? (
+          <CardNote>No invites sent yet.</CardNote>
+        ) : (
+          <SettingsTable>
+            <thead>
+              <tr>
+                <Th>Email</Th>
+                <Th>Role</Th>
+                <Th>Sent</Th>
+                <Th>Delivery</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {invites.map((inv) => {
+                const pending = inv.status === "PENDING";
+                const failed = pending && inv.lastDeliveryOk === false;
+                const delivery = failed ? inviteDeliveryMessage(inv.lastDeliveryIssue) : null;
+                return (
+                  <tr key={inv.id}>
+                    <Td className="font-semibold">{inv.email}</Td>
+                    <Td>{inv.baseRole.name}</Td>
+                    <Td className="whitespace-nowrap text-muted-foreground">
+                      <span title={`Expires ${shortDate(inv.expiresAt)}`}>
+                        {dayMonth(inv.createdAt)}
+                      </span>
+                    </Td>
+                    <Td>
+                      {/*
+                        `=== false` on purpose: `null` means nothing was recorded, which is every
+                        invite from before this was tracked, and those must not be accused of
+                        failing. (R3b)
+                      */}
+                      {failed ? (
+                        <div className="flex flex-col gap-1">
+                          <StatusChip tone="danger" icon={<MailWarning />} className="self-start">
+                            {inviteDeliveryBadge(inv.lastDeliveryIssue)}
+                          </StatusChip>
+                          <span className="max-w-xs text-xs leading-relaxed text-muted-foreground">
+                            {delivery?.detail}
+                          </span>
+                        </div>
+                      ) : pending && inv.lastDeliveryOk === true ? (
+                        <StatusChip tone="success" icon={<Check />}>
+                          Delivered
+                        </StatusChip>
+                      ) : pending ? (
+                        <StatusChip tone="warning">Pending</StatusChip>
+                      ) : (
+                        <StatusChip tone={INVITE_STATUS_TONE[inv.status]}>
+                          {inv.status.charAt(0) + inv.status.slice(1).toLowerCase()}
+                        </StatusChip>
+                      )}
+                    </Td>
+                    <Td>
+                      {pending && (
+                        <div className="flex justify-end gap-1.5">
+                          {/*
+                            `recipient_opted_out` gets no button: the person has turned these emails
+                            off, so every resend would fail the same way. (R3b)
+                          */}
+                          {!failed || delivery?.canRetry ? (
+                            <SettingsButton
+                              variant="ghost"
+                              disabled={resendMutation.isPending}
+                              onClick={() => resendMutation.mutate(inv.id)}
+                            >
+                              {resendMutation.isPending && resendMutation.variables === inv.id ? (
+                                <Loader2 className="animate-spin" />
+                              ) : null}
+                              <span>Resend</span>
+                            </SettingsButton>
+                          ) : null}
+                          <SettingsButton
+                            variant="ghost"
+                            disabled={revokeMutation.isPending}
+                            onClick={() => revokeMutation.mutate(inv.id)}
+                          >
+                            <span>Revoke</span>
+                          </SettingsButton>
+                        </div>
+                      )}
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </SettingsTable>
+        )}
+      </SettingsCard>
+
+      {overview ? (
+        <TeamAccessDialog
+          open={inviteOpen || Boolean(editingMember)}
+          onOpenChange={(next) => {
+            if (next) return;
+            setInviteOpen(false);
+            setEditingMember(null);
+          }}
+          overview={overview}
+          editing={editingMember}
+          workspaceId={workspaceId}
+        />
+      ) : null}
 
       <AlertDialog
         open={Boolean(removingMember)}
@@ -503,7 +515,7 @@ export function TeamPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove {removingMember?.user.name}?</AlertDialogTitle>
+            <AlertDialogTitle>Remove {removingMember?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
               They will lose access to this workspace immediately.
             </AlertDialogDescription>
@@ -513,13 +525,126 @@ export function TeamPage() {
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={removeMutation.isPending}
-              onClick={() => removingMember && removeMutation.mutate(removingMember.user.id)}
+              onClick={() => removingMember && removeMutation.mutate(removingMember.userId)}
             >
               {removeMutation.isPending ? "Removing…" : "Remove"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </SettingsPanel>
+  );
+}
+
+/**
+ * The reference's inline invite bar, for a standalone workspace. Roles come from the server's
+ * grantable list (what THIS inviter may confer) — never a client-side list. Custom per-permission
+ * access still lives on the full invite page, linked below the bar.
+ */
+function InviteBar({ workspaceId, atLimit }: { workspaceId: string; atLimit: boolean }) {
+  const queryClient = useQueryClient();
+  const [email, setEmail] = useState("");
+  const [roleKey, setRoleKey] = useState("");
+
+  const grantableQuery = useQuery({
+    queryKey: ["team-grantable", workspaceId],
+    queryFn: () => getGrantableAccess(workspaceId),
+    enabled: isWorkspaceReady(workspaceId),
+  });
+  const roles = useMemo(() => grantableQuery.data?.roles ?? [], [grantableQuery.data]);
+  const seats = grantableQuery.data?.seats;
+  const seatFull =
+    atLimit ||
+    (seats?.remaining !== null && seats?.remaining !== undefined && seats.remaining <= 0);
+
+  useEffect(() => {
+    if (!roleKey && roles.length > 0) setRoleKey(roles[0].key);
+  }, [roles, roleKey]);
+
+  const invite = useMutation({
+    mutationFn: () =>
+      createTeamInvite(workspaceId, {
+        email: email.trim(),
+        roleKey,
+        customizeAccess: false,
+        moduleAccess: [],
+        permissionKeys: [],
+        policyKeys: [],
+        expiresInDays: 7,
+      }),
+    /** The invite existing and the email arriving are two different events. (R3b) */
+    onSuccess: (created) => {
+      void queryClient.invalidateQueries({ queryKey: ["team-invites", workspaceId] });
+      void queryClient.invalidateQueries({ queryKey: ["team-grantable", workspaceId] });
+      const invitedEmail = created.email || email.trim();
+      setEmail("");
+      if (created.emailSent !== false) {
+        toast.success(`Invite created. The email is on its way to ${invitedEmail}.`);
+        return;
+      }
+      const message = inviteDeliveryMessage(created.deliveryIssue);
+      toast.error(message.headline, { description: message.detail });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const canSend = looksLikeEmail(email) && Boolean(roleKey) && !seatFull && !invite.isPending;
+
+  return (
+    <PlainCard className="flex flex-col gap-3 px-6 py-5">
+      <form
+        className="flex flex-col gap-3 sm:flex-row sm:items-end"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (canSend) invite.mutate();
+        }}
+      >
+        <div className="flex flex-grow flex-col gap-2">
+          <label htmlFor="inv-email" className="text-[13px] font-semibold text-foreground">
+            Invite by email
+          </label>
+          <TextField
+            id="inv-email"
+            type="email"
+            autoComplete="off"
+            placeholder="name@company.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-2 sm:w-[180px]">
+          <label htmlFor="inv-role" className="text-[13px] font-semibold text-foreground">
+            Role
+          </label>
+          <SelectField
+            id="inv-role"
+            value={roleKey}
+            disabled={roles.length === 0}
+            onChange={(e) => setRoleKey(e.target.value)}
+          >
+            {roles.length === 0 && <option value="">Loading…</option>}
+            {roles.map((r) => (
+              <option key={r.key} value={r.key}>
+                {r.name}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+        <SettingsButton type="submit" variant="primary" className="h-11" disabled={!canSend}>
+          {invite.isPending ? <Loader2 className="animate-spin" /> : <Send />}
+          <span>Send invite</span>
+        </SettingsButton>
+      </form>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[13px] text-muted-foreground">
+        <span>
+          {seatFull
+            ? "Every seat on this plan is taken. Remove someone or upgrade to invite more."
+            : "They get the role's default access."}
+        </span>
+        <Link to="/team/invite" className={textLinkClass}>
+          Customize access
+        </Link>
+      </div>
+    </PlainCard>
   );
 }

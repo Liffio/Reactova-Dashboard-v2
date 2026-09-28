@@ -45,6 +45,7 @@ import { ThemeSwitcher } from "@/components/chatbot/theme-switcher";
 import { StatusPill, publishErrorMessage, publishProblems } from "@/components/chatbot/shared";
 import { duplicateStep, newStep, removeStep } from "@/components/chatbot/model";
 import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
+import { UsageMeter, atCap } from "@/components/chatbot/usage-meter";
 
 export const Route = createFileRoute("/_app/chatbot/$chatbotId")({
   head: () => ({ meta: [{ title: "Chatbot builder — Liffio" }] }),
@@ -245,6 +246,21 @@ function BuilderPage() {
       : "Go live";
 
   const goLive = async () => {
+    // Blocked before the request: going live past the plan's live-chatbot cap opens the sheet.
+    const listing = others.data;
+    if (
+      primaryLabel !== "Pause" &&
+      bot.status !== "LIVE" &&
+      listing &&
+      atCap(listing.live, listing.limit)
+    ) {
+      openUpgrade({
+        limit: true,
+        title: "You're using all your live chatbots",
+        body: `Your plan includes ${listing.limit} live chatbot${listing.limit === 1 ? "" : "s"}. Pause one, or move up for more. Everything you've built stays exactly as it is.`,
+      });
+      return;
+    }
     setBusy(true);
     setProblems([]);
     try {
@@ -406,8 +422,19 @@ function BuilderPage() {
 
             <div className="mb-3.5 flex items-center gap-2.5">
               <h2 className="font-display text-[15px] font-semibold">Flow</h2>
-              <span className="mr-auto text-xs whitespace-nowrap text-muted-foreground">
-                {bot.steps.length} step{bot.steps.length === 1 ? "" : "s"}
+              <span className="mr-auto">
+                {others.data ? (
+                  <UsageMeter
+                    compact
+                    label="Steps"
+                    used={bot.steps.length}
+                    limit={others.data.limits.stepsPerBot}
+                  />
+                ) : (
+                  <span className="text-xs whitespace-nowrap text-muted-foreground">
+                    {bot.steps.length} step{bot.steps.length === 1 ? "" : "s"}
+                  </span>
+                )}
               </span>
               {reorder && (
                 <span className="text-right text-xs leading-snug text-muted-foreground max-md:hidden">
@@ -437,6 +464,7 @@ function BuilderPage() {
                 ice={ice.data?.slots ?? []}
                 onOpenIce={() => setIceOpen(true)}
                 onChanged={(triggers) => editor.absorb({ triggers })}
+                keywordLimit={others.data ? others.data.limits.keywordsPerBot : undefined}
               />
 
               {reorder ? (

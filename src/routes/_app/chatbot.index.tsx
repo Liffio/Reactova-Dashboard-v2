@@ -43,6 +43,7 @@ import { IceBreakerBand, IceBreakerSheet } from "@/components/chatbot/ice-breake
 import { ThemeSwitcher } from "@/components/chatbot/theme-switcher";
 import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
 import { BusinessHoursBand } from "@/components/chatbot/business-hours";
+import { UsageMeter, atCap } from "@/components/chatbot/usage-meter";
 import { StatusPill, publishErrorMessage } from "@/components/chatbot/shared";
 
 export const Route = createFileRoute("/_app/chatbot/")({
@@ -158,12 +159,19 @@ function ChatbotListPage() {
 
   const live = chatbots.filter((c) => c.status === "LIVE").length;
   const limit = list.data?.limit;
-  const limitText =
-    limit === undefined
-      ? ""
-      : limit >= 999_999_999 || limit < 0
-        ? `${live} live`
-        : `${live} live of ${limit} on your plan`;
+  const liveCapReached = atCap(live, limit);
+  // Blocked before the request: going live past the cap opens the limit sheet instead.
+  const toggleLive = (b: ChatbotListItem) => {
+    if (b.status !== "LIVE" && liveCapReached) {
+      openUpgrade({
+        limit: true,
+        title: "You're using all your live chatbots",
+        body: `Your plan includes ${limit} live chatbot${limit === 1 ? "" : "s"}. Pause one, or move up for more. Everything you've built stays exactly as it is.`,
+      });
+      return;
+    }
+    toggle.mutate(b);
+  };
 
   return (
     <div className="flex flex-1 flex-col">
@@ -174,6 +182,15 @@ function ChatbotListPage() {
             Each chatbot handles one job. Its keywords decide when it starts.
           </p>
         </div>
+        {list.data && (
+          <UsageMeter
+            className="ml-4 max-md:hidden"
+            label="Conversations this month"
+            used={list.data.usage.conversationsThisMonth}
+            limit={list.data.limits.conversationsPerMonth}
+            note="One person starting a flow, counted once a day."
+          />
+        )}
         <div className="flex-1" />
         <ThemeSwitcher className="max-md:hidden" />
         <Button variant="outline" size="sm" asChild>
@@ -194,8 +211,16 @@ function ChatbotListPage() {
           <section>
             <div className="mb-3 flex items-baseline gap-2">
               <h2 className="font-display text-base font-semibold">Your chatbots</h2>
-              <span className="text-xs text-muted-foreground">{limitText}</span>
+              {limit !== undefined && (
+                <UsageMeter compact label="Live" used={live} limit={limit} className="ml-auto" />
+              )}
             </div>
+            {liveCapReached && (
+              <p className="mb-3 text-xs text-warning">
+                All your live chatbots are in use. Drafts don't count, only live chatbots: pause one
+                to publish another.
+              </p>
+            )}
             <div className="grid grid-cols-[repeat(auto-fill,minmax(290px,1fr))] gap-3.5 max-md:grid-cols-1 max-md:gap-2.5">
               {list.isLoading &&
                 [0, 1, 2].map((i) => <Skeleton key={i} className="h-44 rounded-2xl" />)}
@@ -239,7 +264,7 @@ function ChatbotListPage() {
                           checked={b.status === "LIVE"}
                           disabled={toggle.isPending}
                           aria-label={`${b.name} live`}
-                          onCheckedChange={() => toggle.mutate(b)}
+                          onCheckedChange={() => toggleLive(b)}
                           title={b.status === "LIVE" ? "Pause" : "Go live"}
                         />
                       )}

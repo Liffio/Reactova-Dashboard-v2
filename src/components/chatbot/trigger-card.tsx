@@ -11,6 +11,7 @@ import {
 import { useModuleFeatures } from "@/hooks/use-features";
 import { useUpgradeInfo } from "@/hooks/use-capability-plan";
 import { PlanChip, useUpgradeSheet } from "./upgrade";
+import { UsageMeter } from "./usage-meter";
 import { getUserErrorMessage } from "@/lib/user-facing-error";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -41,12 +42,15 @@ export function TriggerCard({
   ice,
   onOpenIce,
   onChanged,
+  keywordLimit,
 }: {
   workspaceId: string;
   bot: Chatbot;
   ice: IceBreakerSlot[];
   onOpenIce: () => void;
   onChanged: (triggers: ChatbotTrigger[]) => void;
+  /** The plan's keywords per chatbot (`null` unlimited, `undefined` not loaded yet). */
+  keywordLimit?: number | null;
 }) {
   const queryClient = useQueryClient();
   const f = useModuleFeatures("chatbot");
@@ -135,7 +139,18 @@ export function TriggerCard({
       >
         <Zap className="h-4 w-4" />
       </span>
-      <h3 className="font-display text-sm font-semibold">Starts when someone DMs</h3>
+      <div className="flex items-baseline gap-2">
+        <h3 className="font-display text-sm font-semibold">Starts when someone DMs</h3>
+        {keywordLimit !== undefined && (
+          <UsageMeter
+            compact
+            label="Keywords"
+            used={bot.triggers.filter((t) => t.type === "KEYWORD" && t.isEnabled).length}
+            limit={keywordLimit}
+            className="ml-auto"
+          />
+        )}
+      </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
         {bot.triggers.map((t) => (
           <span

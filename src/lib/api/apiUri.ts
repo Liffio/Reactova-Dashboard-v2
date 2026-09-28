@@ -186,6 +186,9 @@ export const apiUri = {
   /** Instagram DM chatbots (server `api/routes/chatbots.ts`). Every response is `{ data }`. */
   chatbots: {
     list: `${V1}/chatbots`,
+    templates: `${V1}/chatbots/templates`,
+    businessHours: `${V1}/chatbots/business-hours`,
+    alertRecipients: `${V1}/chatbots/alert-recipients`,
     byId: (id: string) => `${V1}/chatbots/${id}`,
     graph: (id: string) => `${V1}/chatbots/${id}/graph`,
     duplicate: (id: string) => `${V1}/chatbots/${id}/duplicate`,
@@ -196,6 +199,8 @@ export const apiUri = {
     trigger: (id: string, triggerId: string) => `${V1}/chatbots/${id}/triggers/${triggerId}`,
     analytics: (id: string, days: number) => `${V1}/chatbots/${id}/analytics?days=${days}`,
     test: (id: string) => `${V1}/chatbots/${id}/test`,
+    webhookDeliveries: (id: string, stepId: string) =>
+      `${V1}/chatbots/${id}/steps/${stepId}/webhook-deliveries`,
     iceBreakers: `${V1}/chatbots/ice-breakers`,
     contacts: (qs: string) => `${V1}/chatbots/contacts${qs ? `?${qs}` : ""}`,
     contact: (contactId: string) => `${V1}/chatbots/contacts/${contactId}`,

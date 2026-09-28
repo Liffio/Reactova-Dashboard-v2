@@ -1,4 +1,4 @@
-import { ChevronDown, Clock, MoreHorizontal, Repeat, Tag } from "lucide-react";
+import { ChevronDown, Clock, MoonStar, MoreHorizontal, Repeat, Tag, UserPlus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,6 +9,12 @@ import {
 import { MAX_QUICK_REPLIES, type ChatbotButton, type ChatbotStep } from "@/lib/api/chatbot-api";
 import { cn } from "@/lib/utils";
 import { STEP_LABEL, cfgStr, formatDelay, stepSummary } from "./model";
+import { LockedRow } from "./upgrade";
+import { MergeFieldPicker } from "./merge-fields";
+import { WebhookEditor } from "./webhook-editor";
+import { NotifyEditor } from "./notify-editor";
+import { HandoverAssignee } from "./handover-assignee";
+import { SplitEditor } from "./split-editor";
 import {
   ButtonList,
   ConditionEditor,
@@ -37,7 +43,11 @@ interface Props {
   flash: boolean;
   steps: StepRef[];
   chatbots: ChatbotRef[];
-  canFollowUps: boolean;
+  /** `useModuleFeatures("chatbot")`: a missing capability locks its row, never hides it. */
+  features: Record<string, boolean>;
+  /** Answer keys saved by this chatbot's Question steps, for merge fields. */
+  answerKeys: string[];
+  chatbotId: string;
   onToggle: () => void;
   onChange: (step: ChatbotStep) => void;
   onAction: (a: StepAction) => void;
@@ -175,7 +185,9 @@ export function StepCard({
   flash,
   steps,
   chatbots,
-  canFollowUps,
+  features,
+  answerKeys,
+  chatbotId,
   onToggle,
   onChange,
   onAction,
@@ -189,6 +201,16 @@ export function StepCard({
     (step.type === "MESSAGE" && step.buttons.some((b) => b.action !== "LINK")) ||
     step.type === "QUESTION";
   const pick = { steps, chatbots, onNewStep, onJump };
+  // D4: what this step does outside the account's business hours.
+  const outside = (step.config.outsideHours ?? {}) as {
+    body?: string | null;
+    stepId?: string | null;
+  };
+  const setOutside = (next: { body?: string | null; stepId?: string | null }) => {
+    const merged = { ...outside, ...next };
+    const empty = !merged.body?.trim() && !merged.stepId;
+    onChange({ ...step, config: { ...step.config, outsideHours: empty ? undefined : merged } });
+  };
 
   return (
     <article
@@ -303,6 +325,31 @@ export function StepCard({
             />
           )}
 
+          {step.type === "WEBHOOK" && (
+            <WebhookEditor
+              step={step}
+              chatbotId={chatbotId}
+              onChange={(config) => onChange({ ...step, config })}
+              {...pick}
+            />
+          )}
+
+          {step.type === "SPLIT" && (
+            <SplitEditor
+              step={step}
+              onChange={(config) => onChange({ ...step, config })}
+              {...pick}
+            />
+          )}
+
+          {step.type === "NOTIFY" && (
+            <NotifyEditor
+              step={step}
+              onChange={(config) => onChange({ ...step, config })}
+              {...pick}
+            />
+          )}
+
           {step.type === "START_CHATBOT" && (
             <label className="flex flex-col gap-1.5 text-xs font-semibold text-muted-foreground">
               Continue in
@@ -337,10 +384,32 @@ export function StepCard({
                 aria-label="Message"
                 onChange={(e) => onChange({ ...step, body: e.target.value })}
               />
+              <div className="mt-1">
+                <MergeFieldPicker
+                  enabled={features.personalization}
+                  answerKeys={answerKeys}
+                  onInsert={(token) => {
+                    const body = step.body ?? "";
+                    onChange({
+                      ...step,
+                      body: body && !body.endsWith(" ") ? `${body} ${token}` : `${body}${token}`,
+                    });
+                  }}
+                />
+              </div>
               {step.type === "HANDOVER" && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Then the bot goes quiet for 24 hours and your team is notified.
-                </p>
+                <>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Then the bot goes quiet for 24 hours and your team is notified.
+                  </p>
+                  <div className="mt-2">
+                    <HandoverAssignee
+                      step={step}
+                      enabled={features.handover_routing}
+                      onChange={(config) => onChange({ ...step, config })}
+                    />
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -352,6 +421,21 @@ export function StepCard({
               {...pick}
             />
           )}
+
+          {step.type === "QUESTION" &&
+            (features.lead_capture ? (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <UserPlus className="h-3.5 w-3.5" /> Answers are saved to Leads, with this chatbot
+                and step as the source.
+              </p>
+            ) : (
+              <LockedRow
+                capability="chatbot:lead_capture"
+                feature="Answers to Leads"
+                icon={<UserPlus className="h-4 w-4" />}
+                label="Save answers to Leads"
+              />
+            ))}
 
           {step.type === "MESSAGE" && (
             <div>
@@ -389,60 +473,121 @@ export function StepCard({
             </div>
           )}
 
-          {!isCond && step.type !== "START_CHATBOT" && (
-            <div className="flex flex-col gap-2">
-              <SettingsRow
-                tone="delay"
-                icon={DelayIcon}
-                label="Delay before sending"
-                value={formatDelay(step.delaySeconds)}
-                isSet={step.delaySeconds > 0}
-              >
-                <DelayControl
-                  value={step.delaySeconds}
-                  onChange={(delaySeconds) => onChange({ ...step, delaySeconds })}
-                />
-              </SettingsRow>
-              <SettingsRow
-                tone="tag"
-                icon={TagIcon}
-                label="Add tag when sent"
-                value={step.tagToAdd?.trim() || "None"}
-                isSet={!!step.tagToAdd?.trim()}
-              >
-                <input
-                  className={fieldCls}
-                  value={step.tagToAdd ?? ""}
-                  maxLength={64}
-                  placeholder="e.g. Got discount code"
-                  aria-label="Tag to add"
-                  onChange={(e) => onChange({ ...step, tagToAdd: e.target.value || null })}
-                />
-                <span>Conditions can check this tag later.</span>
-              </SettingsRow>
-              {(waits || step.followUps.length > 0) && (
+          {!isCond &&
+            step.type !== "START_CHATBOT" &&
+            step.type !== "WEBHOOK" &&
+            step.type !== "NOTIFY" &&
+            step.type !== "SPLIT" && (
+              <div className="flex flex-col gap-2">
                 <SettingsRow
-                  tone="fu"
-                  icon={RepeatIcon}
-                  label="Follow-ups"
-                  value={step.followUps.length ? `${step.followUps.length} set` : "Off"}
-                  isSet={step.followUps.length > 0}
-                  badge={
-                    <span className="rounded-full bg-brand-gradient px-1.5 py-px text-[10px] font-semibold text-white">
-                      Starter+
-                    </span>
-                  }
+                  tone="delay"
+                  icon={DelayIcon}
+                  label="Delay before sending"
+                  value={formatDelay(step.delaySeconds)}
+                  isSet={step.delaySeconds > 0}
                 >
-                  <FollowUpEditor
-                    step={step}
-                    locked={!canFollowUps}
-                    onChange={(followUps) => onChange({ ...step, followUps })}
-                    {...pick}
+                  <DelayControl
+                    value={step.delaySeconds}
+                    onChange={(delaySeconds) => onChange({ ...step, delaySeconds })}
                   />
                 </SettingsRow>
-              )}
-            </div>
-          )}
+                {!features.tags ? (
+                  <LockedRow
+                    capability="chatbot:tags"
+                    feature="Tags"
+                    icon={<Tag className="h-4 w-4" />}
+                    label="Add tag when sent"
+                  />
+                ) : (
+                  <SettingsRow
+                    tone="tag"
+                    icon={TagIcon}
+                    label="Add tag when sent"
+                    value={step.tagToAdd?.trim() || "None"}
+                    isSet={!!step.tagToAdd?.trim()}
+                  >
+                    <input
+                      className={fieldCls}
+                      value={step.tagToAdd ?? ""}
+                      maxLength={64}
+                      placeholder="e.g. Got discount code"
+                      aria-label="Tag to add"
+                      onChange={(e) => onChange({ ...step, tagToAdd: e.target.value || null })}
+                    />
+                    <span>Conditions can check this tag later.</span>
+                  </SettingsRow>
+                )}
+                {(waits || step.followUps.length > 0) &&
+                  (!features.follow_ups ? (
+                    <LockedRow
+                      capability="chatbot:follow_ups"
+                      feature="Follow-ups"
+                      icon={<Repeat className="h-4 w-4" />}
+                      label="Follow-ups"
+                    />
+                  ) : (
+                    <SettingsRow
+                      tone="fu"
+                      icon={RepeatIcon}
+                      label="Follow-ups"
+                      value={step.followUps.length ? `${step.followUps.length} set` : "Off"}
+                      isSet={step.followUps.length > 0}
+                    >
+                      <FollowUpEditor
+                        step={step}
+                        onChange={(followUps) => onChange({ ...step, followUps })}
+                        {...pick}
+                      />
+                    </SettingsRow>
+                  ))}
+                {!features.business_hours ? (
+                  <LockedRow
+                    capability="chatbot:business_hours"
+                    feature="Business hours"
+                    icon={<MoonStar className="h-4 w-4" />}
+                    label="Outside business hours"
+                  />
+                ) : (
+                  <SettingsRow
+                    tone="delay"
+                    icon={<MoonStar className="h-4 w-4" />}
+                    label="Outside business hours"
+                    value={
+                      outside.stepId
+                        ? "Go to another step"
+                        : outside.body?.trim()
+                          ? "Different reply"
+                          : "Same reply"
+                    }
+                    isSet={!!outside.stepId || !!outside.body?.trim()}
+                  >
+                    <textarea
+                      className={fieldCls}
+                      rows={2}
+                      maxLength={1000}
+                      placeholder="Reply instead, e.g. We're closed right now, we'll reply at 9am"
+                      aria-label="Reply outside business hours"
+                      value={outside.body ?? ""}
+                      onChange={(e) => setOutside({ body: e.target.value || null })}
+                    />
+                    <div className="flex items-center gap-1.5">
+                      <span className="flex-1">Or go to</span>
+                      <TargetPicker
+                        value={{ kind: "step", id: outside.stepId ?? null }}
+                        onPick={(t) => setOutside({ stepId: t.kind === "step" ? t.id : null })}
+                        selfId={step.id}
+                        allowHuman={false}
+                        allowEnd
+                        {...pick}
+                      />
+                    </div>
+                    <span>
+                      Uses the hours set on your chatbots page. Inside those hours nothing changes.
+                    </span>
+                  </SettingsRow>
+                )}
+              </div>
+            )}
         </div>
       )}
     </article>

@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -489,7 +490,10 @@ function WaitlistTable() {
   );
 }
 
-type EditableSettingKey = Exclude<keyof AdminCreatorSettings, "active_creator_count">;
+type EditableSettingKey = Exclude<
+  keyof AdminCreatorSettings,
+  "active_creator_count" | "branding_required"
+>;
 
 const EDITABLE_FIELDS: Array<{ key: EditableSettingKey; label: string; note?: string }> = [
   { key: "auto_approve_threshold", label: "Auto-approve threshold" },
@@ -517,7 +521,7 @@ function SettingsTab() {
   const [edited, setEdited] = useState<Partial<Record<EditableSettingKey, number>>>({});
 
   const saveMutation = useMutation({
-    mutationFn: (entries: Array<{ key: string; value: number }>) =>
+    mutationFn: (entries: Array<{ key: string; value: number | boolean }>) =>
       updateAdminCreatorSettings(entries),
     onSuccess: () => {
       toast.success("Settings updated");
@@ -540,6 +544,8 @@ function SettingsTab() {
 
   const s = settingsQuery.data;
   const effective = (key: EditableSettingKey) => edited[key] ?? s[key];
+  const setBrandingRequired = (value: boolean) =>
+    saveMutation.mutate([{ key: "branding_required", value }]);
   const dirtyKeys = (Object.keys(edited) as EditableSettingKey[]).filter(
     (k) => edited[k] !== undefined && edited[k] !== s[k],
   );
@@ -571,6 +577,24 @@ function SettingsTab() {
           <p>Manual review threshold must be lower than the auto-approve threshold.</p>
         </div>
       )}
+
+      <div className="flex items-start justify-between gap-4 rounded-2xl border bg-card p-6 shadow-soft">
+        <div className="space-y-1">
+          <Label htmlFor="creator-branding-required" className="text-sm font-semibold">
+            Creators keep Liffio branding
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            While on, Creator Program workspaces send the Liffio line on comment DMs and chatbot
+            messages even if their package lets them remove it. Saves immediately.
+          </p>
+        </div>
+        <Switch
+          id="creator-branding-required"
+          checked={s.branding_required !== false}
+          disabled={saveMutation.isPending}
+          onCheckedChange={setBrandingRequired}
+        />
+      </div>
 
       <div className="rounded-2xl border bg-card p-6 shadow-soft">
         <div className="grid gap-4 sm:grid-cols-2">

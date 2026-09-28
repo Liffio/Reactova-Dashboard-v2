@@ -41,7 +41,9 @@ import { useModuleFeatures } from "@/hooks/use-features";
 import { cn } from "@/lib/utils";
 import { IceBreakerBand, IceBreakerSheet } from "@/components/chatbot/ice-breakers";
 import { ThemeSwitcher } from "@/components/chatbot/theme-switcher";
-import { TEMPLATES, templateSteps } from "@/components/chatbot/model";
+import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
+import { BusinessHoursBand } from "@/components/chatbot/business-hours";
+import { UsageMeter, atCap } from "@/components/chatbot/usage-meter";
 import { StatusPill, publishErrorMessage } from "@/components/chatbot/shared";
 
 export const Route = createFileRoute("/_app/chatbot/")({
@@ -49,7 +51,9 @@ export const Route = createFileRoute("/_app/chatbot/")({
   component: () => (
     <ProtectedRoute module="chatbot">
       <InstagramRequired feature="Chatbots">
-        <ChatbotListPage />
+        <UpgradeSheetProvider>
+          <ChatbotListPage />
+        </UpgradeSheetProvider>
       </InstagramRequired>
     </ProtectedRoute>
   ),
@@ -94,25 +98,23 @@ function ChatbotListPage() {
   const slots = ice.data?.slots ?? [];
   const refresh = () => void queryClient.invalidateQueries({ queryKey: chatbotKeys.list(ws) });
 
+  // The template library is the server's; a gated one is installed only with `chatbot:templates`.
+  const templates = useQuery({
+    queryKey: chatbotKeys.templates(ws),
+    queryFn: () => chatbotApi.templates(ws),
+    enabled: ready,
+    staleTime: 10 * 60 * 1000,
+  });
+  const openUpgrade = useUpgradeSheet();
+
   const create = useMutation({
     mutationFn: (key: string) => {
-      const t = TEMPLATES.find((x) => x.key === key)!;
-      const steps = templateSteps(t);
+      const t = (templates.data ?? []).find((x) => x.key === key)!;
       const taken = new Set(chatbots.map((c) => c.name.toLowerCase()));
-      let name = t.key === "blank" ? "Untitled chatbot" : t.name;
-      for (let i = 2; taken.has(name.toLowerCase()); i++)
-        name = `${t.key === "blank" ? "Untitled chatbot" : t.name} ${i}`;
-      return chatbotApi.create(ws, {
-        name,
-        icon: t.icon,
-        graph: {
-          icon: t.icon,
-          handoverMessage: "Got it! Someone from our team will reply here soon 🙌",
-          fallbackMessage: "Please pick one of the options below 👇",
-          firstStepId: steps[0].id,
-          steps,
-        },
-      });
+      const base = t.key === "blank" ? "Untitled chatbot" : t.name;
+      let name = base;
+      for (let i = 2; taken.has(name.toLowerCase()); i++) name = `${base} ${i}`;
+      return chatbotApi.create(ws, { name, templateKey: t.key });
     },
     onSuccess: (bot) => {
       refresh();
@@ -157,12 +159,19 @@ function ChatbotListPage() {
 
   const live = chatbots.filter((c) => c.status === "LIVE").length;
   const limit = list.data?.limit;
-  const limitText =
-    limit === undefined
-      ? ""
-      : limit >= 999_999_999 || limit < 0
-        ? `${live} live`
-        : `${live} live of ${limit} on your plan`;
+  const liveCapReached = atCap(live, limit);
+  // Blocked before the request: going live past the cap opens the limit sheet instead.
+  const toggleLive = (b: ChatbotListItem) => {
+    if (b.status !== "LIVE" && liveCapReached) {
+      openUpgrade({
+        limit: true,
+        title: "You're using all your live chatbots",
+        body: `Your plan includes ${limit} live chatbot${limit === 1 ? "" : "s"}. Pause one, or move up for more. Everything you've built stays exactly as it is.`,
+      });
+      return;
+    }
+    toggle.mutate(b);
+  };
 
   return (
     <div className="flex flex-1 flex-col">
@@ -173,6 +182,15 @@ function ChatbotListPage() {
             Each chatbot handles one job. Its keywords decide when it starts.
           </p>
         </div>
+        {list.data && (
+          <UsageMeter
+            className="ml-4 max-md:hidden"
+            label="Conversations this month"
+            used={list.data.usage.conversationsThisMonth}
+            limit={list.data.limits.conversationsPerMonth}
+            note="One person starting a flow, counted once a day."
+          />
+        )}
         <div className="flex-1" />
         <ThemeSwitcher className="max-md:hidden" />
         <Button variant="outline" size="sm" asChild>
@@ -193,8 +211,16 @@ function ChatbotListPage() {
           <section>
             <div className="mb-3 flex items-baseline gap-2">
               <h2 className="font-display text-base font-semibold">Your chatbots</h2>
-              <span className="text-xs text-muted-foreground">{limitText}</span>
+              {limit !== undefined && (
+                <UsageMeter compact label="Live" used={live} limit={limit} className="ml-auto" />
+              )}
             </div>
+            {liveCapReached && (
+              <p className="mb-3 text-xs text-warning">
+                All your live chatbots are in use. Drafts don't count, only live chatbots: pause one
+                to publish another.
+              </p>
+            )}
             <div className="grid grid-cols-[repeat(auto-fill,minmax(290px,1fr))] gap-3.5 max-md:grid-cols-1 max-md:gap-2.5">
               {list.isLoading &&
                 [0, 1, 2].map((i) => <Skeleton key={i} className="h-44 rounded-2xl" />)}
@@ -238,7 +264,7 @@ function ChatbotListPage() {
                           checked={b.status === "LIVE"}
                           disabled={toggle.isPending}
                           aria-label={`${b.name} live`}
-                          onCheckedChange={() => toggle.mutate(b)}
+                          onCheckedChange={() => toggleLive(b)}
                           title={b.status === "LIVE" ? "Pause" : "Go live"}
                         />
                       )}
@@ -339,6 +365,12 @@ function ChatbotListPage() {
             </div>
           </section>
 
+          <BusinessHoursBand
+            workspaceId={ws}
+            enabled={features.business_hours}
+            canEdit={canUpdate}
+          />
+
           {features.ice_breakers && (
             <IceBreakerBand
               slots={slots}
@@ -359,21 +391,37 @@ function ChatbotListPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2.5">
-            {TEMPLATES.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                disabled={create.isPending}
-                onClick={() => create.mutate(t.key)}
-                className="flex flex-col gap-0.5 rounded-[14px] border border-border bg-background p-3.5 text-left hover:border-primary disabled:opacity-50"
-              >
-                <i className="mb-1 text-xl not-italic">{t.icon}</i>
-                <b className="font-display text-sm">{t.name}</b>
-                <span className="text-xs text-muted-foreground">
-                  {t.steps.length} step{t.steps.length > 1 ? "s" : ""} · {t.description}
-                </span>
-              </button>
-            ))}
+            {(templates.data ?? []).map((t) => {
+              const locked = t.gated && !features.templates;
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  disabled={create.isPending}
+                  onClick={() =>
+                    locked
+                      ? openUpgrade({
+                          capability: "chatbot:templates",
+                          feature: `The ${t.name} template`,
+                        })
+                      : create.mutate(t.key)
+                  }
+                  className="relative flex flex-col gap-0.5 rounded-[14px] border border-border bg-background p-3.5 text-left hover:border-primary disabled:opacity-50"
+                >
+                  {locked && (
+                    <PlanChip
+                      capability="chatbot:templates"
+                      className="absolute top-2.5 right-2.5"
+                    />
+                  )}
+                  <i className={cn("mb-1 text-xl not-italic", locked && "opacity-60")}>{t.icon}</i>
+                  <b className="font-display text-sm">{t.name}</b>
+                  <span className="text-xs text-muted-foreground">
+                    {t.stepCount} step{t.stepCount > 1 ? "s" : ""} · {t.description}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </DialogContent>
       </Dialog>

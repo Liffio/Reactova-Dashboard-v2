@@ -199,7 +199,16 @@ function AnalyticsPage() {
               <tbody>
                 {funnel.map((f) => (
                   <tr key={f.stepId} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2.5">{f.label}</td>
+                    <td className="px-4 py-2.5">
+                      {f.label}
+                      {f.splitPaths && (
+                        <span className="block text-xs text-muted-foreground">
+                          {f.splitPaths
+                            .map((p) => `Path ${String.fromCharCode(65 + p.path)}: ${p.runs}`)
+                            .join(" · ")}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{f.sent}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums">{f.taps}</td>
                     <td className="px-4 py-2.5 text-right font-semibold tabular-nums">

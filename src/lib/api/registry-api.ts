@@ -475,7 +475,27 @@ export const PACKAGE_LIMIT_KEYS = [
   "apiRequestsPerDay",
   "schedulerPostsPerDay",
   "automationsPerDay",
+  // Chatbot limits. Unlike the ones above, no plan carries a default for these: a package without
+  // the row is unlimited (server: billing.config CHATBOT_LIMITS_UNSET).
+  "chatbots",
+  "chatbotStepsPerBot",
+  "chatbotKeywordsPerBot",
+  "chatbotButtonsPerStep",
+  "chatbotConditionRules",
+  "chatbotFollowUpsPerStep",
+  "chatbotConversationsPerMonth",
 ] as const;
+
+/** Limit keys whose plan default is unlimited, so "not overridden" means no cap at all. */
+export const UNSET_MEANS_UNLIMITED: ReadonlySet<string> = new Set([
+  "chatbots",
+  "chatbotStepsPerBot",
+  "chatbotKeywordsPerBot",
+  "chatbotButtonsPerStep",
+  "chatbotConditionRules",
+  "chatbotFollowUpsPerStep",
+  "chatbotConversationsPerMonth",
+]);
 
 /** Guarded by `requireTotpConfirm` (S0.11) — `confirmCode` is not optional. */
 export const setPackageLimits = (

@@ -7,7 +7,25 @@ import { apiRequest } from "./http";
  */
 
 export type ChatbotStatus = "DRAFT" | "LIVE" | "PAUSED" | "ARCHIVED";
-export type StepType = "MESSAGE" | "QUESTION" | "CONDITION" | "HANDOVER" | "START_CHATBOT";
+export type StepType =
+  | "MESSAGE"
+  | "QUESTION"
+  | "CONDITION"
+  | "HANDOVER"
+  | "START_CHATBOT"
+  | "WEBHOOK"
+  | "NOTIFY"
+  | "SPLIT";
+
+/** One delivery of a Webhook step, newest first. */
+export interface WebhookDelivery {
+  ok: boolean;
+  at: string;
+  status?: number;
+  error?: string;
+  attempt?: number;
+  attempts?: number;
+}
 export type ButtonAction = "NEXT_STEP" | "LINK" | "HANDOVER" | "START_CHATBOT" | "SKIP";
 export type AnswerType = "TEXT" | "EMAIL" | "PHONE" | "NUMBER";
 export type MatchMode = "CONTAINS" | "EXACT";
@@ -143,6 +161,8 @@ export interface ContactRow {
   windowExpiresAt: string | null;
   botPausedUntil: string | null;
   pausedReason: "HANDOVER" | "HUMAN_REPLY" | "MANUAL" | null;
+  /** Who a handover was assigned to (null: the team). */
+  assignedTo?: { id: string; name: string | null } | null;
   activeSession: {
     id: string;
     chatbotId: string;
@@ -214,27 +234,90 @@ export interface ChatbotAnalytics {
     taps: number;
     dropOffs: number;
     followUps: number;
+    /** A/B split steps: runs sent down each path (0-based) in the window. */
+    splitPaths?: Array<{ path: number; runs: number }>;
   }>;
 }
 
 const unwrap = <T>(p: Promise<{ data: T }>) => p.then((r) => r.data);
 
+/** The plan's builder limits as the server resolves them. `null` is unlimited. */
+export interface ChatbotLimits {
+  stepsPerBot: number | null;
+  keywordsPerBot: number | null;
+  buttonsPerStep: number | null;
+  conditionRules: number | null;
+  followUpsPerStep: number | null;
+  conversationsPerMonth: number | null;
+}
+
+export interface ChatbotListResponse {
+  chatbots: ChatbotListItem[];
+  /** Live chatbots allowed at once (a large number when unlimited). */
+  limit: number;
+  live: number;
+  limits: ChatbotLimits;
+  usage: { conversationsThisMonth: number };
+}
+
+export const WEEK_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+export type WeekDay = (typeof WEEK_DAYS)[number];
+/** Per day, same-day intervals as 24-hour "HH:MM" pairs. An empty day is closed. */
+export type WeeklySchedule = Record<WeekDay, Array<[string, string]>>;
+export interface BusinessHours {
+  timezone: string;
+  schedule: WeeklySchedule;
+}
+export interface BusinessHoursState {
+  platformAccountId: string | null;
+  /** Null until hours are set: always open. */
+  hours: BusinessHours | null;
+  openNow: boolean | null;
+}
+
+/** One ready-made flow from the server's library. `gated` ones need `chatbot:templates`. */
+export interface ChatbotTemplateSummary {
+  key: string;
+  icon: string;
+  name: string;
+  description: string;
+  stepCount: number;
+  gated: boolean;
+}
+
 export const chatbotApi = {
   list: (workspaceId: string) =>
+    unwrap(apiRequest<{ data: ChatbotListResponse }>(apiUri.chatbots.list, { workspaceId })),
+  templates: (workspaceId: string) =>
     unwrap(
-      apiRequest<{ data: { chatbots: ChatbotListItem[]; limit: number; live: number } }>(
-        apiUri.chatbots.list,
-        { workspaceId },
-      ),
+      apiRequest<{ data: ChatbotTemplateSummary[] }>(apiUri.chatbots.templates, { workspaceId }),
     ),
   get: (workspaceId: string, id: string) =>
     unwrap(apiRequest<{ data: Chatbot }>(apiUri.chatbots.byId(id), { workspaceId })),
   create: (
     workspaceId: string,
-    body: { name: string; icon?: string; graph?: Omit<GraphInput, "name"> },
+    body: { name: string; icon?: string; graph?: Omit<GraphInput, "name">; templateKey?: string },
   ) =>
     unwrap(
       apiRequest<{ data: Chatbot }>(apiUri.chatbots.list, { method: "POST", workspaceId, body }),
+    ),
+  updateMeta: (
+    workspaceId: string,
+    id: string,
+    patch: Partial<{
+      name: string;
+      icon: string;
+      handoverMessage: string;
+      fallbackMessage: string;
+      brandingEnabled: boolean;
+    }>,
+  ) =>
+    unwrap(
+      apiRequest<{ data: Chatbot }>(apiUri.chatbots.byId(id), {
+        method: "PATCH",
+        workspaceId,
+        body: patch,
+      }),
     ),
   saveGraph: (workspaceId: string, id: string, graph: GraphInput) =>
     unwrap(
@@ -288,13 +371,45 @@ export const chatbotApi = {
   test: (
     workspaceId: string,
     id: string,
-    body: { contact: TestResult["contact"]; actions: TestAction[] },
+    body: { contact: TestResult["contact"]; actions: TestAction[]; outsideHours?: boolean },
   ) =>
     unwrap(
       apiRequest<{ data: TestResult }>(apiUri.chatbots.test(id), {
         method: "POST",
         workspaceId,
         body,
+      }),
+    ),
+  alertRecipients: (workspaceId: string) =>
+    unwrap(
+      apiRequest<{ data: Array<{ id: string; name: string | null; email: string }> }>(
+        apiUri.chatbots.alertRecipients,
+        { workspaceId },
+      ),
+    ),
+  webhookDeliveries: (workspaceId: string, id: string, stepId: string) =>
+    unwrap(
+      apiRequest<{ data: WebhookDelivery[] }>(apiUri.chatbots.webhookDeliveries(id, stepId), {
+        workspaceId,
+      }),
+    ),
+  businessHours: (workspaceId: string) =>
+    unwrap(
+      apiRequest<{ data: BusinessHoursState }>(apiUri.chatbots.businessHours, { workspaceId }),
+    ),
+  saveBusinessHours: (workspaceId: string, body: BusinessHours) =>
+    unwrap(
+      apiRequest<{ data: BusinessHoursState }>(apiUri.chatbots.businessHours, {
+        method: "PUT",
+        workspaceId,
+        body,
+      }),
+    ),
+  clearBusinessHours: (workspaceId: string) =>
+    unwrap(
+      apiRequest<{ data: BusinessHoursState }>(apiUri.chatbots.businessHours, {
+        method: "DELETE",
+        workspaceId,
       }),
     ),
   iceBreakers: (workspaceId: string) =>
@@ -356,6 +471,8 @@ export const chatbotApi = {
 
 export const chatbotKeys = {
   list: (ws: string) => ["chatbots", ws] as const,
+  templates: (ws: string) => ["chatbot-templates", ws] as const,
+  businessHours: (ws: string) => ["chatbot-business-hours", ws] as const,
   one: (ws: string, id: string) => ["chatbot", ws, id] as const,
   ice: (ws: string) => ["chatbot-ice-breakers", ws] as const,
   contacts: (ws: string) => ["chatbot-contacts", ws] as const,

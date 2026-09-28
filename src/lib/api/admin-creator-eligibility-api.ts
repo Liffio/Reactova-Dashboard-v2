@@ -372,6 +372,8 @@ export type AdminCreatorSettings = {
   max_active_creators: number;
   active_creator_count: number;
   max_consecutive_sync_failures: number;
+  /** Creator Program workspaces keep the Liffio line on DMs and chatbot messages while this is on. */
+  branding_required: boolean;
 };
 
 /** Super-Admin only, read-only view — ENDPOINT-CONTRACT.md §4.9. */
@@ -380,7 +382,9 @@ export function getAdminCreatorSettings() {
 }
 
 /** Super-Admin only — ENDPOINT-CONTRACT.md §7.2. Atomic multi-key update; returns the full updated settings object. */
-export function updateAdminCreatorSettings(entries: Array<{ key: string; value: number }>) {
+export function updateAdminCreatorSettings(
+  entries: Array<{ key: string; value: number | boolean }>,
+) {
   return apiRequest<AdminCreatorSettings>(apiUri.admin.creator.settings, {
     method: "PATCH",
     body: entries,

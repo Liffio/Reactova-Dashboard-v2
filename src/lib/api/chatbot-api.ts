@@ -7,7 +7,23 @@ import { apiRequest } from "./http";
  */
 
 export type ChatbotStatus = "DRAFT" | "LIVE" | "PAUSED" | "ARCHIVED";
-export type StepType = "MESSAGE" | "QUESTION" | "CONDITION" | "HANDOVER" | "START_CHATBOT";
+export type StepType =
+  | "MESSAGE"
+  | "QUESTION"
+  | "CONDITION"
+  | "HANDOVER"
+  | "START_CHATBOT"
+  | "WEBHOOK";
+
+/** One delivery of a Webhook step, newest first. */
+export interface WebhookDelivery {
+  ok: boolean;
+  at: string;
+  status?: number;
+  error?: string;
+  attempt?: number;
+  attempts?: number;
+}
 export type ButtonAction = "NEXT_STEP" | "LINK" | "HANDOVER" | "START_CHATBOT" | "SKIP";
 export type AnswerType = "TEXT" | "EMAIL" | "PHONE" | "NUMBER";
 export type MatchMode = "CONTAINS" | "EXACT";
@@ -338,6 +354,12 @@ export const chatbotApi = {
         method: "POST",
         workspaceId,
         body,
+      }),
+    ),
+  webhookDeliveries: (workspaceId: string, id: string, stepId: string) =>
+    unwrap(
+      apiRequest<{ data: WebhookDelivery[] }>(apiUri.chatbots.webhookDeliveries(id, stepId), {
+        workspaceId,
       }),
     ),
   businessHours: (workspaceId: string) =>

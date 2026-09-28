@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { STEP_LABEL, cfgStr, formatDelay, stepSummary } from "./model";
 import { LockedRow } from "./upgrade";
 import { MergeFieldPicker } from "./merge-fields";
+import { WebhookEditor } from "./webhook-editor";
 import {
   ButtonList,
   ConditionEditor,
@@ -43,6 +44,7 @@ interface Props {
   features: Record<string, boolean>;
   /** Answer keys saved by this chatbot's Question steps, for merge fields. */
   answerKeys: string[];
+  chatbotId: string;
   onToggle: () => void;
   onChange: (step: ChatbotStep) => void;
   onAction: (a: StepAction) => void;
@@ -182,6 +184,7 @@ export function StepCard({
   chatbots,
   features,
   answerKeys,
+  chatbotId,
   onToggle,
   onChange,
   onAction,
@@ -319,6 +322,15 @@ export function StepCard({
             />
           )}
 
+          {step.type === "WEBHOOK" && (
+            <WebhookEditor
+              step={step}
+              chatbotId={chatbotId}
+              onChange={(config) => onChange({ ...step, config })}
+              {...pick}
+            />
+          )}
+
           {step.type === "START_CHATBOT" && (
             <label className="flex flex-col gap-1.5 text-xs font-semibold text-muted-foreground">
               Continue in
@@ -433,7 +445,7 @@ export function StepCard({
             </div>
           )}
 
-          {!isCond && step.type !== "START_CHATBOT" && (
+          {!isCond && step.type !== "START_CHATBOT" && step.type !== "WEBHOOK" && (
             <div className="flex flex-col gap-2">
               <SettingsRow
                 tone="delay"

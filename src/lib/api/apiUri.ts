@@ -173,6 +173,8 @@ export const apiUri = {
     trigger: (id: string, triggerId: string) => `${V1}/chatbots/${id}/triggers/${triggerId}`,
     analytics: (id: string, days: number) => `${V1}/chatbots/${id}/analytics?days=${days}`,
     test: (id: string) => `${V1}/chatbots/${id}/test`,
+    webhookDeliveries: (id: string, stepId: string) =>
+      `${V1}/chatbots/${id}/steps/${stepId}/webhook-deliveries`,
     iceBreakers: `${V1}/chatbots/ice-breakers`,
     contacts: (qs: string) => `${V1}/chatbots/contacts${qs ? `?${qs}` : ""}`,
     contact: (contactId: string) => `${V1}/chatbots/contacts/${contactId}`,

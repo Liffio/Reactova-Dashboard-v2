@@ -81,6 +81,12 @@ const ADD_OPTIONS: Array<{ type: StepType; label: string; hint: string; feature?
     hint: "Continue in a different chatbot",
     feature: "chain_bots",
   },
+  {
+    type: "WEBHOOK",
+    label: "Webhook",
+    hint: "Send their details and answers to another tool",
+    feature: "webhook_step",
+  },
 ];
 
 const useSingleOpen = () => {
@@ -407,6 +413,7 @@ function BuilderPage() {
                     chatbots={chatbots}
                     features={features}
                     answerKeys={answerKeys}
+                    chatbotId={bot.id}
                     onToggle={() => toggleOpen(s.id)}
                     onChange={(next) => setSteps((xs) => xs.map((x) => (x.id === s.id ? next : x)))}
                     onAction={(a) => onAction(s, i, a)}

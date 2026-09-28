@@ -38,6 +38,7 @@ export const STEP_LABEL: Record<StepType, string> = {
   CONDITION: "Condition",
   HANDOVER: "Hand to a person",
   START_CHATBOT: "Start chatbot",
+  WEBHOOK: "Webhook",
 };
 
 export function newStep(type: StepType, position: number): ChatbotStep {
@@ -46,7 +47,10 @@ export function newStep(type: StepType, position: number): ChatbotStep {
     type,
     position,
     // R8: every new message step waits 2 seconds, so the bot reads as typing, not instant.
-    delaySeconds: type === "CONDITION" || type === "START_CHATBOT" ? 0 : DEFAULT_STEP_DELAY_SECONDS,
+    delaySeconds:
+      type === "CONDITION" || type === "START_CHATBOT" || type === "WEBHOOK"
+        ? 0
+        : DEFAULT_STEP_DELAY_SECONDS,
     mediaAssetId: null,
     tagToAdd: null,
     buttons: [] as ChatbotButton[],
@@ -99,6 +103,13 @@ export function newStep(type: StepType, position: number): ChatbotStep {
         body: null,
         config: { targetChatbotId: "" },
       };
+    case "WEBHOOK":
+      return {
+        ...base,
+        name: "Send to webhook",
+        body: null,
+        config: { url: "", nextStepId: null },
+      };
   }
 }
 
@@ -145,6 +156,8 @@ export function stepSummary(s: ChatbotStep): string {
     );
   }
   if (s.type === "START_CHATBOT") return "Continues in another chatbot";
+  if (s.type === "WEBHOOK")
+    return cfgStr(s, "url") ? `Sends to ${cfgStr(s, "url")}` : "Webhook address not set";
   return (s.body ?? "").split("\n")[0] || (s.mediaAssetId ? "Media" : "Empty message");
 }
 

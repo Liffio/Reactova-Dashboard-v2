@@ -1,4 +1,4 @@
-import { ChevronDown, Clock, MoreHorizontal, Repeat, Tag } from "lucide-react";
+import { ChevronDown, Clock, MoreHorizontal, Repeat, Tag, UserPlus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -354,6 +354,21 @@ export function StepCard({
               {...pick}
             />
           )}
+
+          {step.type === "QUESTION" &&
+            (features.lead_capture ? (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <UserPlus className="h-3.5 w-3.5" /> Answers are saved to Leads, with this chatbot
+                and step as the source.
+              </p>
+            ) : (
+              <LockedRow
+                capability="chatbot:lead_capture"
+                feature="Answers to Leads"
+                icon={<UserPlus className="h-4 w-4" />}
+                label="Save answers to Leads"
+              />
+            ))}
 
           {step.type === "MESSAGE" && (
             <div>

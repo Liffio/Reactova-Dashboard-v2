@@ -5,8 +5,12 @@ import { authStore } from "@/lib/auth/auth-store";
 export type Lead = {
   id: string;
   workspaceId: string;
-  automationId: string;
+  /** Null for a lead a chatbot captured (see `chatbotId`). */
+  automationId: string | null;
+  /** The source's name: the automation's, or the chatbot's. */
   automationName: string;
+  /** Set when a chatbot's question answers captured this lead. */
+  chatbotId?: string | null;
   /** Identity, keyword, source and click fields are `null` when the package withholds them. */
   igUserId: string | null;
   igUsername: string | null;

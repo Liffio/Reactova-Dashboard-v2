@@ -82,6 +82,12 @@ const ADD_OPTIONS: Array<{ type: StepType; label: string; hint: string; feature?
     feature: "chain_bots",
   },
   {
+    type: "SPLIT",
+    label: "A/B split",
+    hint: "Send a share of people down each path",
+    feature: "ab_testing",
+  },
+  {
     type: "NOTIFY",
     label: "Notify the team",
     hint: "Alert someone mid-flow; the bot keeps talking",

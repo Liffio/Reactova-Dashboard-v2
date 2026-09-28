@@ -14,6 +14,7 @@ import { MergeFieldPicker } from "./merge-fields";
 import { WebhookEditor } from "./webhook-editor";
 import { NotifyEditor } from "./notify-editor";
 import { HandoverAssignee } from "./handover-assignee";
+import { SplitEditor } from "./split-editor";
 import {
   ButtonList,
   ConditionEditor,
@@ -333,6 +334,14 @@ export function StepCard({
             />
           )}
 
+          {step.type === "SPLIT" && (
+            <SplitEditor
+              step={step}
+              onChange={(config) => onChange({ ...step, config })}
+              {...pick}
+            />
+          )}
+
           {step.type === "NOTIFY" && (
             <NotifyEditor
               step={step}
@@ -467,7 +476,8 @@ export function StepCard({
           {!isCond &&
             step.type !== "START_CHATBOT" &&
             step.type !== "WEBHOOK" &&
-            step.type !== "NOTIFY" && (
+            step.type !== "NOTIFY" &&
+            step.type !== "SPLIT" && (
               <div className="flex flex-col gap-2">
                 <SettingsRow
                   tone="delay"

@@ -40,6 +40,7 @@ export const STEP_LABEL: Record<StepType, string> = {
   START_CHATBOT: "Start chatbot",
   WEBHOOK: "Webhook",
   NOTIFY: "Notify the team",
+  SPLIT: "A/B split",
 };
 
 export function newStep(type: StepType, position: number): ChatbotStep {
@@ -49,7 +50,11 @@ export function newStep(type: StepType, position: number): ChatbotStep {
     position,
     // R8: every new message step waits 2 seconds, so the bot reads as typing, not instant.
     delaySeconds:
-      type === "CONDITION" || type === "START_CHATBOT" || type === "WEBHOOK" || type === "NOTIFY"
+      type === "CONDITION" ||
+      type === "START_CHATBOT" ||
+      type === "WEBHOOK" ||
+      type === "NOTIFY" ||
+      type === "SPLIT"
         ? 0
         : DEFAULT_STEP_DELAY_SECONDS,
     mediaAssetId: null,
@@ -118,6 +123,18 @@ export function newStep(type: StepType, position: number): ChatbotStep {
         body: null,
         config: { memberIds: [], message: "{{username|Someone}} needs a hand", nextStepId: null },
       };
+    case "SPLIT":
+      return {
+        ...base,
+        name: "A/B split",
+        body: null,
+        config: {
+          paths: [
+            { label: "A", percent: 50, stepId: null },
+            { label: "B", percent: 50, stepId: null },
+          ],
+        },
+      };
   }
 }
 
@@ -164,6 +181,12 @@ export function stepSummary(s: ChatbotStep): string {
     );
   }
   if (s.type === "START_CHATBOT") return "Continues in another chatbot";
+  if (s.type === "SPLIT") {
+    const paths = Array.isArray(s.config.paths)
+      ? (s.config.paths as Array<{ label?: string; percent: number }>)
+      : [];
+    return `Splits ${paths.map((p, i) => `${p.label || String.fromCharCode(65 + i)} ${p.percent}%`).join(" / ")}`;
+  }
   if (s.type === "NOTIFY")
     return cfgStr(s, "message")
       ? `Alerts the team: ${cfgStr(s, "message")}`

@@ -14,7 +14,8 @@ export type StepType =
   | "HANDOVER"
   | "START_CHATBOT"
   | "WEBHOOK"
-  | "NOTIFY";
+  | "NOTIFY"
+  | "SPLIT";
 
 /** One delivery of a Webhook step, newest first. */
 export interface WebhookDelivery {
@@ -233,6 +234,8 @@ export interface ChatbotAnalytics {
     taps: number;
     dropOffs: number;
     followUps: number;
+    /** A/B split steps: runs sent down each path (0-based) in the window. */
+    splitPaths?: Array<{ path: number; runs: number }>;
   }>;
 }
 

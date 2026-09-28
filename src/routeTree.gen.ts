@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
@@ -73,6 +74,7 @@ import { Route as AppAdminUsersRouteImport } from './routes/_app/admin.users'
 import { Route as AppAdminPluginsRouteImport } from './routes/_app/admin.plugins'
 import { Route as AppAdminImpersonationRouteImport } from './routes/_app/admin.impersonation'
 import { Route as AppAdminGatingMapRouteImport } from './routes/_app/admin.gating-map'
+import { Route as AppAdminEmailUnsubscribesRouteImport } from './routes/_app/admin.email-unsubscribes'
 import { Route as AppAdminEmailTemplatesRouteImport } from './routes/_app/admin.email-templates'
 import { Route as AppAdminCreatorsRouteImport } from './routes/_app/admin.creators'
 import { Route as AppAdminCreatorManagementRouteImport } from './routes/_app/admin.creator-management'
@@ -99,6 +101,11 @@ import { Route as AppAdminUsersUserIdAiApiRouteImport } from './routes/_app/admi
 import { Route as AppAdminUsersUserIdActivityRouteImport } from './routes/_app/admin.users.$userId.activity'
 import { Route as AppAdminUsersUserIdWorkspacesWsIdRouteImport } from './routes/_app/admin.users.$userId.workspaces_.$wsId'
 
+const UnsubscribeRoute = UnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
@@ -421,6 +428,12 @@ const AppAdminGatingMapRoute = AppAdminGatingMapRouteImport.update({
   path: '/admin/gating-map',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAdminEmailUnsubscribesRoute =
+  AppAdminEmailUnsubscribesRouteImport.update({
+    id: '/admin/email-unsubscribes',
+    path: '/admin/email-unsubscribes',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppAdminEmailTemplatesRoute = AppAdminEmailTemplatesRouteImport.update({
   id: '/admin/email-templates',
   path: '/admin/email-templates',
@@ -573,6 +586,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/register': typeof RegisterRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/access-management': typeof AppAccessManagementRoute
   '/affiliate': typeof AppAffiliateRoute
   '/agency': typeof AppAgencyRoute
@@ -601,6 +615,7 @@ export interface FileRoutesByFullPath {
   '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
+  '/admin/email-unsubscribes': typeof AppAdminEmailUnsubscribesRoute
   '/admin/gating-map': typeof AppAdminGatingMapRoute
   '/admin/impersonation': typeof AppAdminImpersonationRoute
   '/admin/plugins': typeof AppAdminPluginsRoute
@@ -663,6 +678,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/register': typeof RegisterRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/access-management': typeof AppAccessManagementRoute
   '/affiliate': typeof AppAffiliateRoute
   '/agency': typeof AppAgencyRoute
@@ -690,6 +706,7 @@ export interface FileRoutesByTo {
   '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
+  '/admin/email-unsubscribes': typeof AppAdminEmailUnsubscribesRoute
   '/admin/gating-map': typeof AppAdminGatingMapRoute
   '/admin/impersonation': typeof AppAdminImpersonationRoute
   '/admin/plugins': typeof AppAdminPluginsRoute
@@ -752,6 +769,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/register': typeof RegisterRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/_app/access-management': typeof AppAccessManagementRoute
   '/_app/affiliate': typeof AppAffiliateRoute
   '/_app/agency': typeof AppAgencyRoute
@@ -780,6 +798,7 @@ export interface FileRoutesById {
   '/_app/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/_app/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/_app/admin/email-templates': typeof AppAdminEmailTemplatesRoute
+  '/_app/admin/email-unsubscribes': typeof AppAdminEmailUnsubscribesRoute
   '/_app/admin/gating-map': typeof AppAdminGatingMapRoute
   '/_app/admin/impersonation': typeof AppAdminImpersonationRoute
   '/_app/admin/plugins': typeof AppAdminPluginsRoute
@@ -844,6 +863,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/register'
+    | '/unsubscribe'
     | '/access-management'
     | '/affiliate'
     | '/agency'
@@ -872,6 +892,7 @@ export interface FileRouteTypes {
     | '/admin/creator-management'
     | '/admin/creators'
     | '/admin/email-templates'
+    | '/admin/email-unsubscribes'
     | '/admin/gating-map'
     | '/admin/impersonation'
     | '/admin/plugins'
@@ -934,6 +955,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/register'
+    | '/unsubscribe'
     | '/access-management'
     | '/affiliate'
     | '/agency'
@@ -961,6 +983,7 @@ export interface FileRouteTypes {
     | '/admin/creator-management'
     | '/admin/creators'
     | '/admin/email-templates'
+    | '/admin/email-unsubscribes'
     | '/admin/gating-map'
     | '/admin/impersonation'
     | '/admin/plugins'
@@ -1022,6 +1045,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/onboarding'
     | '/register'
+    | '/unsubscribe'
     | '/_app/access-management'
     | '/_app/affiliate'
     | '/_app/agency'
@@ -1050,6 +1074,7 @@ export interface FileRouteTypes {
     | '/_app/admin/creator-management'
     | '/_app/admin/creators'
     | '/_app/admin/email-templates'
+    | '/_app/admin/email-unsubscribes'
     | '/_app/admin/gating-map'
     | '/_app/admin/impersonation'
     | '/_app/admin/plugins'
@@ -1114,6 +1139,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
   RegisterRoute: typeof RegisterRoute
+  UnsubscribeRoute: typeof UnsubscribeRoute
   AuthHandoffRoute: typeof AuthHandoffRoute
   CheckoutReviewRoute: typeof CheckoutReviewRoute
   LeadsCapturedSlugRoute: typeof LeadsCapturedSlugRoute
@@ -1123,6 +1149,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/unsubscribe': {
+      id: '/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof UnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -1571,6 +1604,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminGatingMapRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/email-unsubscribes': {
+      id: '/_app/admin/email-unsubscribes'
+      path: '/admin/email-unsubscribes'
+      fullPath: '/admin/email-unsubscribes'
+      preLoaderRoute: typeof AppAdminEmailUnsubscribesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/admin/email-templates': {
       id: '/_app/admin/email-templates'
       path: '/admin/email-templates'
@@ -1873,6 +1913,7 @@ interface AppRouteChildren {
   AppAdminCreatorManagementRoute: typeof AppAdminCreatorManagementRouteWithChildren
   AppAdminCreatorsRoute: typeof AppAdminCreatorsRouteWithChildren
   AppAdminEmailTemplatesRoute: typeof AppAdminEmailTemplatesRoute
+  AppAdminEmailUnsubscribesRoute: typeof AppAdminEmailUnsubscribesRoute
   AppAdminGatingMapRoute: typeof AppAdminGatingMapRoute
   AppAdminImpersonationRoute: typeof AppAdminImpersonationRoute
   AppAdminPluginsRoute: typeof AppAdminPluginsRoute
@@ -1928,6 +1969,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdminCreatorManagementRoute: AppAdminCreatorManagementRouteWithChildren,
   AppAdminCreatorsRoute: AppAdminCreatorsRouteWithChildren,
   AppAdminEmailTemplatesRoute: AppAdminEmailTemplatesRoute,
+  AppAdminEmailUnsubscribesRoute: AppAdminEmailUnsubscribesRoute,
   AppAdminGatingMapRoute: AppAdminGatingMapRoute,
   AppAdminImpersonationRoute: AppAdminImpersonationRoute,
   AppAdminPluginsRoute: AppAdminPluginsRoute,
@@ -1969,6 +2011,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
   RegisterRoute: RegisterRoute,
+  UnsubscribeRoute: UnsubscribeRoute,
   AuthHandoffRoute: AuthHandoffRoute,
   CheckoutReviewRoute: CheckoutReviewRoute,
   LeadsCapturedSlugRoute: LeadsCapturedSlugRoute,

@@ -442,6 +442,9 @@ export const apiUri = {
      *  tree, additively carrying each child's `enforcementState`. Gated `platform:metrics_read`,
      *  distinct from the `platform:module_manage`-gated registry CRUD console. */
     capabilities: `${V1}/admin/capabilities`,
+    /** Email unsubscribes + reasons (plan/email-unsubscribe.md D7). Gated `platform:metrics_read`. */
+    emailUnsubscribes: (params: Record<string, string | number | undefined>) =>
+      `${V1}/admin/email-unsubscribes${listQs(params)}`,
     /** Branding-link analytics (Free Tier + Creator). Admin-only; gated server-side on
      *  `platform:branding_read`. */
     brandingLinks: {
@@ -982,6 +985,14 @@ export const apiUri = {
     biolinkClick: `${V1}/public/biolink/click`,
     shortlink: (slug: string) => `${V1}/public/shortlinks/${encodeURIComponent(slug)}`,
     leadsCaptured: (slug: string) => `${V1}/public/leads-captured/${encodeURIComponent(slug)}`,
+    /** Email unsubscribe links (plan/email-unsubscribe.md) — the signed token is the only auth. */
+    emailUnsubscribe: {
+      describe: (token: string) =>
+        `${V1}/public/email/unsubscribe?token=${encodeURIComponent(token)}`,
+      unsubscribe: `${V1}/public/email/unsubscribe`,
+      reason: `${V1}/public/email/unsubscribe/reason`,
+      resubscribe: `${V1}/public/email/resubscribe`,
+    },
   },
 
   liffio: {

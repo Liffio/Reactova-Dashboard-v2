@@ -25,6 +25,8 @@ import {
   type Rule,
 } from "@/lib/api/chatbot-api";
 import { cn } from "@/lib/utils";
+import { useModuleFeatures } from "@/hooks/use-features";
+import { PlanChip, useUpgradeSheet } from "./upgrade";
 import {
   DELAY_PRESETS,
   FOLLOW_UP_PRESETS,
@@ -156,6 +158,9 @@ export function TargetPicker({
 }) {
   const label = targetLabel(value, steps, chatbots);
   const current = value.kind === "step" ? value.id : null;
+  // Locked destinations stay in the menu with the plan that unlocks them.
+  const features = useModuleFeatures("chatbot");
+  const openUpgrade = useUpgradeSheet();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -197,7 +202,17 @@ export function TargetPicker({
             Hand to a person
           </DropdownMenuItem>
         )}
-        {allowChatbot && chatbots.length > 0 && (
+        {allowChatbot && chatbots.length > 0 && !features.chain_bots && (
+          <DropdownMenuItem
+            onSelect={() =>
+              openUpgrade({ capability: "chatbot:chain_bots", feature: "Start another chatbot" })
+            }
+          >
+            <span className="flex-1 opacity-60">Start another chatbot</span>
+            <PlanChip capability="chatbot:chain_bots" />
+          </DropdownMenuItem>
+        )}
+        {allowChatbot && chatbots.length > 0 && features.chain_bots && (
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>Start another chatbot</DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
@@ -213,8 +228,18 @@ export function TargetPicker({
           + New step
         </DropdownMenuItem>
         {allowLink && (
-          <DropdownMenuItem onSelect={() => onPick({ kind: "link" })}>
-            <Link2 className="h-3.5 w-3.5" /> Open a link instead
+          <DropdownMenuItem
+            onSelect={() =>
+              features.link_buttons
+                ? onPick({ kind: "link" })
+                : openUpgrade({ capability: "chatbot:link_buttons", feature: "Link buttons" })
+            }
+          >
+            <Link2 className="h-3.5 w-3.5" />
+            <span className={cn("flex-1", !features.link_buttons && "opacity-60")}>
+              Open a link instead
+            </span>
+            {!features.link_buttons && <PlanChip capability="chatbot:link_buttons" />}
           </DropdownMenuItem>
         )}
         {allowEnd && (
@@ -462,24 +487,17 @@ export function DelayControl({
 
 /* ---------------------------------------------------------------- follow-ups */
 
+/** Only rendered when the workspace has `chatbot:follow_ups`; the step card shows a locked row otherwise. */
 export function FollowUpEditor({
   step,
   onChange,
-  locked,
   ...pick
 }: {
   step: ChatbotStep;
   onChange: (fus: ChatbotFollowUp[]) => void;
-  locked: boolean;
 } & Omit<ButtonListProps, "buttons" | "onChange" | "max" | "selfId" | "addLabel">) {
   const fus = step.followUps;
   const set = (k: number, f: ChatbotFollowUp) => onChange(fus.map((x, j) => (j === k ? f : x)));
-  if (locked)
-    return (
-      <span>
-        Follow-ups are part of Starter and above. Upgrade to nudge people who don't reply.
-      </span>
-    );
   return (
     <>
       <span>Sent if they don't reply.</span>

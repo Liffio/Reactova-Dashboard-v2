@@ -1,6 +1,10 @@
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { PACKAGE_LIMIT_KEYS, type PackageLimit } from "@/lib/api/registry-api";
+import {
+  PACKAGE_LIMIT_KEYS,
+  UNSET_MEANS_UNLIMITED,
+  type PackageLimit,
+} from "@/lib/api/registry-api";
 
 /**
  * Editing a package's numeric quotas.
@@ -11,7 +15,10 @@ import { PACKAGE_LIMIT_KEYS, type PackageLimit } from "@/lib/api/registry-api";
  * above every enforcement threshold.
  */
 
-const LABELS: Record<(typeof PACKAGE_LIMIT_KEYS)[number], { label: string; hint: string }> = {
+const LABELS: Record<
+  (typeof PACKAGE_LIMIT_KEYS)[number],
+  { label: string; hint: string; unit?: string }
+> = {
   workflows: { label: "Automation workflows", hint: "Total active automations." },
   dmFollowUps: { label: "DM follow-ups", hint: "Follow-up messages per automation." },
   teamMembers: { label: "Team members", hint: "Seats in the workspace." },
@@ -20,6 +27,41 @@ const LABELS: Record<(typeof PACKAGE_LIMIT_KEYS)[number], { label: string; hint:
   apiRequestsPerDay: { label: "API requests / day", hint: "External API calls." },
   schedulerPostsPerDay: { label: "Scheduled posts / day", hint: "Via the external API." },
   automationsPerDay: { label: "Automations / day", hint: "Created via the external API." },
+  chatbots: {
+    label: "Live chatbots",
+    hint: "Chatbots live at once. Drafts don't count.",
+    unit: "chatbots",
+  },
+  chatbotStepsPerBot: {
+    label: "Chatbot steps",
+    hint: "Steps in one chatbot.",
+    unit: "per chatbot",
+  },
+  chatbotKeywordsPerBot: {
+    label: "Chatbot keywords",
+    hint: "Keywords that start one chatbot.",
+    unit: "per chatbot",
+  },
+  chatbotButtonsPerStep: {
+    label: "Chatbot buttons",
+    hint: "Buttons on one step. Instagram allows 13 at most.",
+    unit: "per step",
+  },
+  chatbotConditionRules: {
+    label: "Condition rules",
+    hint: "Rules in one condition step. 0 means none.",
+    unit: "per condition",
+  },
+  chatbotFollowUpsPerStep: {
+    label: "Chatbot follow-ups",
+    hint: "Follow-up nudges on one step. 0 means none.",
+    unit: "per step",
+  },
+  chatbotConversationsPerMonth: {
+    label: "Chatbot conversations",
+    hint: "One person starting a flow, counted once a day.",
+    unit: "per month",
+  },
 };
 
 export function PackageLimitsEditor({
@@ -70,8 +112,11 @@ export function PackageLimitsEditor({
                     disabled={unlimited}
                     value={unlimited ? "" : String(raw ?? 0)}
                     placeholder={unlimited ? "∞" : "0"}
-                    onChange={(e) => setKey(key, e.target.value === "" ? 0 : Number(e.target.value))}
+                    onChange={(e) =>
+                      setKey(key, e.target.value === "" ? 0 : Number(e.target.value))
+                    }
                   />
+                  {meta.unit && <span className="text-xs text-muted-foreground">{meta.unit}</span>}
                   <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Switch
                       checked={unlimited}
@@ -84,7 +129,9 @@ export function PackageLimitsEditor({
               )}
 
               {!overridden && (
-                <span className="text-xs text-muted-foreground">Inherits plan</span>
+                <span className="text-xs text-muted-foreground">
+                  {UNSET_MEANS_UNLIMITED.has(key) ? "Not set: unlimited" : "Inherits plan"}
+                </span>
               )}
             </div>
           </div>

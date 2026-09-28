@@ -44,31 +44,61 @@ import { IceBreakerSheet } from "@/components/chatbot/ice-breakers";
 import { ThemeSwitcher } from "@/components/chatbot/theme-switcher";
 import { StatusPill, publishErrorMessage, publishProblems } from "@/components/chatbot/shared";
 import { duplicateStep, newStep, removeStep } from "@/components/chatbot/model";
+import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
+import { UsageMeter, atCap } from "@/components/chatbot/usage-meter";
 
 export const Route = createFileRoute("/_app/chatbot/$chatbotId")({
   head: () => ({ meta: [{ title: "Chatbot builder — Liffio" }] }),
   component: () => (
     <ProtectedRoute module="chatbot">
       <InstagramRequired feature="Chatbots">
-        <BuilderPage />
+        <UpgradeSheetProvider>
+          <BuilderPage />
+        </UpgradeSheetProvider>
       </InstagramRequired>
     </ProtectedRoute>
   ),
 });
 
+/** `feature` is the `chatbot:<feature>` capability; without it the option stays, locked. */
 const ADD_OPTIONS: Array<{ type: StepType; label: string; hint: string; feature?: string }> = [
   { type: "MESSAGE", label: "Message", hint: "Send text with reply buttons" },
   {
     type: "QUESTION",
     label: "Question",
     hint: "Ask for an email, phone, number or text and save it",
+    feature: "questions",
   },
-  { type: "CONDITION", label: "Condition", hint: "Branch by tags or saved answers" },
+  {
+    type: "CONDITION",
+    label: "Condition",
+    hint: "Branch by tags or saved answers",
+    feature: "conditions",
+  },
   { type: "HANDOVER", label: "Hand to a person", hint: "Pause the bot and notify your team" },
   {
     type: "START_CHATBOT",
     label: "Start another chatbot",
     hint: "Continue in a different chatbot",
+    feature: "chain_bots",
+  },
+  {
+    type: "SPLIT",
+    label: "A/B split",
+    hint: "Send a share of people down each path",
+    feature: "ab_testing",
+  },
+  {
+    type: "NOTIFY",
+    label: "Notify the team",
+    hint: "Alert someone mid-flow; the bot keeps talking",
+    feature: "notify_step",
+  },
+  {
+    type: "WEBHOOK",
+    label: "Webhook",
+    hint: "Send their details and answers to another tool",
+    feature: "webhook_step",
   },
 ];
 
@@ -94,6 +124,7 @@ function BuilderPage() {
   const queryClient = useQueryClient();
   const canUpdate = useCan("chatbot", "update");
   const features = useModuleFeatures("chatbot");
+  const openUpgrade = useUpgradeSheet();
   const editor = useChatbotEditor(ws, chatbotId);
   const { bot } = editor;
 
@@ -176,6 +207,10 @@ function BuilderPage() {
   }
 
   const stepRefs = bot.steps.map((s, index) => ({ id: s.id, name: s.name, index }));
+  const answerKeys = bot.steps
+    .filter((s) => s.type === "QUESTION")
+    .map((s) => (typeof s.config.answerKey === "string" ? s.config.answerKey.trim() : ""))
+    .filter(Boolean);
   const setSteps = editor.updateSteps;
   const addStep = (type: StepType) => {
     const s = newStep(type, bot.steps.length);
@@ -211,6 +246,21 @@ function BuilderPage() {
       : "Go live";
 
   const goLive = async () => {
+    // Blocked before the request: going live past the plan's live-chatbot cap opens the sheet.
+    const listing = others.data;
+    if (
+      primaryLabel !== "Pause" &&
+      bot.status !== "LIVE" &&
+      listing &&
+      atCap(listing.live, listing.limit)
+    ) {
+      openUpgrade({
+        limit: true,
+        title: "You're using all your live chatbots",
+        body: `Your plan includes ${listing.limit} live chatbot${listing.limit === 1 ? "" : "s"}. Pause one, or move up for more. Everything you've built stays exactly as it is.`,
+      });
+      return;
+    }
     setBusy(true);
     setProblems([]);
     try {
@@ -291,6 +341,35 @@ function BuilderPage() {
                 Pause chatbot
               </DropdownMenuItem>
             )}
+            {canUpdate && (
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  if (!features.branding_control) {
+                    openUpgrade({
+                      capability: "chatbot:branding_control",
+                      feature: "Removing Liffio branding",
+                    });
+                    return;
+                  }
+                  void chatbotApi
+                    .updateMeta(ws, bot.id, { brandingEnabled: !bot.brandingEnabled })
+                    .then(editor.absorb)
+                    .catch((err) =>
+                      toast.error(getUserErrorMessage(err, "Couldn't change branding.")),
+                    );
+                }}
+              >
+                <span className="flex-1">Liffio branding</span>
+                {features.branding_control ? (
+                  <span className="text-xs text-muted-foreground">
+                    {bot.brandingEnabled ? "On" : "Off"}
+                  </span>
+                ) : (
+                  <PlanChip capability="chatbot:branding_control" />
+                )}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs text-muted-foreground">Theme</DropdownMenuLabel>
             <div className="px-2 pb-1.5">
@@ -343,8 +422,19 @@ function BuilderPage() {
 
             <div className="mb-3.5 flex items-center gap-2.5">
               <h2 className="font-display text-[15px] font-semibold">Flow</h2>
-              <span className="mr-auto text-xs whitespace-nowrap text-muted-foreground">
-                {bot.steps.length} step{bot.steps.length === 1 ? "" : "s"}
+              <span className="mr-auto">
+                {others.data ? (
+                  <UsageMeter
+                    compact
+                    label="Steps"
+                    used={bot.steps.length}
+                    limit={others.data.limits.stepsPerBot}
+                  />
+                ) : (
+                  <span className="text-xs whitespace-nowrap text-muted-foreground">
+                    {bot.steps.length} step{bot.steps.length === 1 ? "" : "s"}
+                  </span>
+                )}
               </span>
               {reorder && (
                 <span className="text-right text-xs leading-snug text-muted-foreground max-md:hidden">
@@ -374,6 +464,7 @@ function BuilderPage() {
                 ice={ice.data?.slots ?? []}
                 onOpenIce={() => setIceOpen(true)}
                 onChanged={(triggers) => editor.absorb({ triggers })}
+                keywordLimit={others.data ? others.data.limits.keywordsPerBot : undefined}
               />
 
               {reorder ? (
@@ -389,7 +480,9 @@ function BuilderPage() {
                     flash={flashId === s.id}
                     steps={stepRefs}
                     chatbots={chatbots}
-                    canFollowUps={features.follow_ups}
+                    features={features}
+                    answerKeys={answerKeys}
+                    chatbotId={bot.id}
                     onToggle={() => toggleOpen(s.id)}
                     onChange={(next) => setSteps((xs) => xs.map((x) => (x.id === s.id ? next : x)))}
                     onAction={(a) => onAction(s, i, a)}
@@ -420,16 +513,29 @@ function BuilderPage() {
                       align="start"
                       className="w-[var(--radix-dropdown-menu-trigger-width)]"
                     >
-                      {ADD_OPTIONS.map((o) => (
-                        <DropdownMenuItem
-                          key={o.type}
-                          className="flex-col items-start gap-0"
-                          onSelect={() => addStep(o.type)}
-                        >
-                          <b>{o.label}</b>
-                          <small className="text-xs text-muted-foreground">{o.hint}</small>
-                        </DropdownMenuItem>
-                      ))}
+                      {ADD_OPTIONS.map((o) => {
+                        const locked = !!o.feature && !features[o.feature];
+                        return (
+                          <DropdownMenuItem
+                            key={o.type}
+                            className="items-start gap-2"
+                            onSelect={() =>
+                              locked
+                                ? openUpgrade({
+                                    capability: `chatbot:${o.feature}`,
+                                    feature: `${o.label} step`,
+                                  })
+                                : addStep(o.type)
+                            }
+                          >
+                            <span className={cn("flex flex-1 flex-col", locked && "opacity-60")}>
+                              <b>{o.label}</b>
+                              <small className="text-xs text-muted-foreground">{o.hint}</small>
+                            </span>
+                            {locked && <PlanChip capability={`chatbot:${o.feature}`} />}
+                          </DropdownMenuItem>
+                        );
+                      })}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

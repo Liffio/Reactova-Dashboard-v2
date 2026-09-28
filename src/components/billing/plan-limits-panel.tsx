@@ -32,6 +32,13 @@ const LIMIT_LABELS: Array<{ key: string; label: string; unit?: string }> = [
   { key: "automationsPerDay", label: "New automations", unit: "per day" },
   { key: "maxApiCredentials", label: "API credentials" },
   { key: "apiRequestsPerDay", label: "API requests", unit: "per day" },
+  { key: "chatbots", label: "Live chatbots" },
+  { key: "chatbotConversationsPerMonth", label: "Chatbot conversations", unit: "per month" },
+  { key: "chatbotStepsPerBot", label: "Chatbot steps", unit: "per chatbot" },
+  { key: "chatbotKeywordsPerBot", label: "Chatbot keywords", unit: "per chatbot" },
+  { key: "chatbotButtonsPerStep", label: "Chatbot buttons", unit: "per step" },
+  { key: "chatbotConditionRules", label: "Condition rules", unit: "per condition" },
+  { key: "chatbotFollowUpsPerStep", label: "Chatbot follow-ups", unit: "per step" },
 ];
 
 type LimitRow = { key: string; label: string; unit?: string; limit: ResolvedLimit };

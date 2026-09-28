@@ -207,8 +207,8 @@ export function ImpersonateDialog({
             <UserCog className="h-4 w-4" /> Impersonate {targetLabel}
           </DialogTitle>
           <DialogDescription>
-            Opens a new tab, signed in as this user, in VIEW ONLY mode. Escalating to WRITE requires
-            your own authenticator code, from the impersonation console, once the session is live.
+            Opens a new tab, signed in as this user, with full WRITE access — you see every feature
+            they can and can change anything they could.
           </DialogDescription>
         </DialogHeader>
 

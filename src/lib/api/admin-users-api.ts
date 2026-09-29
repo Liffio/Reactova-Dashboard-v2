@@ -135,6 +135,48 @@ export function getAdminUser(userId: string) {
   return apiRequest<AdminUserDetail>(apiUri.admin.users.detail(userId));
 }
 
+/** Mirrors `AdminUserInsights` in `server/src/services/adminUserInsights.ts`. */
+export type AdminUserIpRecord = {
+  ip: string;
+  /** ISO 3166-1 alpha-2, geolocated server-side; null for private/unknown addresses. */
+  country: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  sessions: number;
+  events: number;
+  lastUserAgent: string | null;
+};
+
+export type AdminUserInsights = {
+  account: {
+    timezone: string | null;
+    phoneVerified: boolean;
+    termsAcceptedAt: string | null;
+    passwordChangedAt: string | null;
+    mfaOnboardingConsentAt: string | null;
+    pendingEmail: string | null;
+    deletionRequestedAt: string | null;
+    deletionScheduledFor: string | null;
+    googleLinked: boolean;
+    deviceFingerprint: string | null;
+    lastActiveWorkspace: { id: string; name: string } | null;
+    updatedAt: string;
+  };
+  signupAttribution: Record<string, unknown> | null;
+  network: {
+    signupIp: AdminUserIpRecord | null;
+    lastIp: AdminUserIpRecord | null;
+    ips: AdminUserIpRecord[];
+    distinctCountries: string[];
+    lookbackDays: number;
+  };
+};
+
+/** `GET /admin/users/:userId/insights` — profile extras, attribution, geolocated IP history. */
+export function getAdminUserInsights(userId: string) {
+  return apiRequest<AdminUserInsights>(apiUri.admin.users.insights(userId));
+}
+
 /** `GET /admin/users/:userId/workspaces` — endpoint 2. One row per membership, unpaginated
  *  (memberships are small; server caps at `ADMIN_USER_WORKSPACES_MAX`). */
 export type AdminUserWorkspaceMembership = {

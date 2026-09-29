@@ -4,6 +4,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, CheckCircle2, Clock, KeyRound, ShieldCheck, XCircle } from "lucide-react";
 
 import { CopyableKey, FormSection } from "@/components/admin/form-page";
+import { CountryLabel } from "@/components/country-flag";
+import {
+  AccountFactsSection,
+  NetworkSection,
+  SignupSourceSection,
+} from "@/features/admin-users/user-insights";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,10 +25,13 @@ import { getAdminUser, setAdminUserNotes, type AdminUserDetail } from "@/lib/api
 const USER_MANAGE = "platform:user_manage";
 
 /**
- * Overview tab — a stats strip, then identity, email verification, ban details and admin notes,
- * with a details column (ids, auth methods, MFA, platform authority) on the right — the layout of
- * Clerk's user profile page. The shell's header already shows name, status and last activity, so
- * this tab carries the rest. Per spec §7.2 / task-8-brief.md requirement 3.
+ * Overview tab — a stats strip; location & network (every IP, geolocated to a country with its
+ * flag); identity and email verification; the rest of the account record; signup source; ban
+ * details and admin notes — with a details column (ids, auth methods, MFA, platform authority) on
+ * the right, the layout of Clerk's user profile page. The shell's header already shows name,
+ * status and last activity, so this tab carries everything else. Per spec §7.2 /
+ * task-8-brief.md requirement 3. The network/account/attribution sections come from
+ * `GET /admin/users/:id/insights` (`features/admin-users/user-insights.tsx`).
  *
  * Admin notes (Task 15) — editable textarea + save via `PATCH /admin/users/:id/notes`
  * (task-14-report.md §1: a legacy carry-over route, not one of Task 14's eleven). Plain
@@ -69,10 +78,14 @@ function OverviewTab() {
       <div className="min-w-0 space-y-4">
         <StatsStrip user={user} />
 
+        <NetworkSection userId={user.id} profileCountry={user.country} />
+
         <div className="grid gap-4 sm:grid-cols-2">
           <FormSection title="Identity">
             <dl className="space-y-2.5 text-sm">
-              <OverviewRow label="Country">{user.country || "—"}</OverviewRow>
+              <OverviewRow label="Country">
+                <CountryLabel code={user.country} showCode fallback="—" />
+              </OverviewRow>
               <OverviewRow label="Phone number">{user.phoneNumber || "—"}</OverviewRow>
               <OverviewRow label="Status">
                 <Badge
@@ -108,6 +121,9 @@ function OverviewTab() {
             </dl>
           </FormSection>
         </div>
+
+        <AccountFactsSection userId={user.id} />
+        <SignupSourceSection userId={user.id} />
 
         {user.ban.isBanned && (
           <FormSection title="Ban details">

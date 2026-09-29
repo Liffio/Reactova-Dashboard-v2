@@ -295,8 +295,9 @@ function EscalateDialog({
               />
             </div>
             <div className="space-y-2 text-left">
-              <Label>Your authenticator code</Label>
+              <Label htmlFor="banner-escalate-totp">Your authenticator code</Label>
               <InputOTP
+                id="banner-escalate-totp"
                 name="totp"
                 maxLength={6}
                 value={code}

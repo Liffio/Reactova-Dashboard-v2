@@ -9,8 +9,8 @@ import { useRouterState } from "@tanstack/react-router";
 import { ShieldOff } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { NotifyDeliveryBar } from "@/components/admin/notify-delivery-controls";
+import { PageSkeleton } from "@/components/shell/app-shell-skeleton";
+import { WithAdminPageBar } from "@/components/admin/admin-page-bar";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { getImpersonationToken } from "@/lib/api/impersonation";
 import { usePlatformAuthz } from "@/hooks/use-platform-authz";
@@ -72,27 +72,34 @@ function AccessDenied({ label }: { label?: string }) {
   );
 }
 
+/**
+ * The placeholder a guard shows while it resolves. Inside the app shell it fills `<main>` only,
+ * so it is the page skeleton — the sidebar and top bar around it stay put.
+ */
 function FullPageSpinner() {
-  return (
-    <div className="flex flex-col gap-4 p-8">
-      <Skeleton className="h-8 w-40 rounded-lg" />
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-32 rounded-2xl" />
-        ))}
-      </div>
-      <Skeleton className="h-56 rounded-2xl" />
-    </div>
-  );
+  return <PageSkeleton />;
 }
 
 type ProtectedRouteProps = {
   children: ReactNode;
   module?: string;
   action?: string;
+  /**
+   * Rendered while the guard is still resolving (pre-mount, `auth/me`, the onboarding check) or
+   * mid-redirect. The `_app` layout passes the shell skeleton so the sidebar and top bar hold
+   * their place instead of vanishing on every page load; inner guards default to a page skeleton.
+   */
+  fallback?: ReactNode;
 };
 
-export function ProtectedRoute({ children, module, action = "read" }: ProtectedRouteProps) {
+export function ProtectedRoute({
+  children,
+  module,
+  action = "read",
+  fallback,
+}: ProtectedRouteProps) {
+  // What to show while this can't answer yet — the caller's shell skeleton when it has one.
+  const hold = fallback ?? <FullPageSpinner />;
   const mounted = useMounted();
   const location = useRouterState({ select: (s) => s.location });
   const token = useAuthState((s) => s.accessToken);
@@ -106,7 +113,7 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
   const { needsOnboarding, resolved: onboardingResolved } = useNeedsNewOnboarding();
 
   if (!mounted) {
-    return <FullPageSpinner />;
+    return hold;
   }
 
   const returnTo = `${location.pathname}${location.searchStr}`;
@@ -117,12 +124,12 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
   if (!token) {
     // Redirect to liffio.com/login with the return path
     window.location.href = loginPathWithRedirect(returnTo);
-    return <FullPageSpinner />;
+    return hold;
   }
 
   if (!user) {
     // auth/me is still loading
-    return <FullPageSpinner />;
+    return hold;
   }
 
   // Terms / Privacy acceptance comes before anything else, for every account. An impersonating
@@ -130,13 +137,13 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
   // and the server's Terms gate exempts impersonation for the same reason.
   if (!termsAccepted && !getImpersonationToken()) {
     window.location.href = completeSignupUrl(token, returnTo !== "/" ? returnTo : undefined);
-    return <FullPageSpinner />;
+    return hold;
   }
 
   if (!emailVerified) {
     // Pass token so liffio.com can restore the session
     window.location.href = confirmEmailUrl(token, returnTo !== "/" ? returnTo : undefined);
-    return <FullPageSpinner />;
+    return hold;
   }
 
   const skipOnboarding = skipOnboardingForAffiliate || skipOnboardingForBilling;
@@ -151,12 +158,12 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
    * anyone on a spinner.
    */
   if (!skipOnboarding && !onboardingResolved) {
-    return <FullPageSpinner />;
+    return hold;
   }
 
   if (!skipOnboarding && needsOnboarding) {
     window.location.replace("/onboarding");
-    return <FullPageSpinner />;
+    return hold;
   }
 
   if (!isOnboarded && !skipOnboardingForAffiliate && !skipOnboardingForBilling) {
@@ -174,7 +181,7 @@ export function ProtectedRoute({ children, module, action = "read" }: ProtectedR
      * history, so Back from onboarding does not land on the page that redirected here.
      */
     window.location.replace("/onboarding");
-    return <FullPageSpinner />;
+    return hold;
   }
 
   if (module && !permissions.includes(`${module}:${action}`)) {
@@ -244,13 +251,10 @@ export function PlatformPermissionRoute({
    * screens), where the bar would be a promise about something that never happens.
    */
   notifyDelivery = true,
-  /** Start with the popup on — for screens where the interruption is usually warranted. */
-  notifyPopupDefault = false,
 }: {
   permission: string;
   children: ReactNode;
   notifyDelivery?: boolean;
-  notifyPopupDefault?: boolean;
 }) {
   const mounted = useMounted();
   const token = useAuthState((s) => s.accessToken);
@@ -268,12 +272,7 @@ export function PlatformPermissionRoute({
   if (!authz.permissions.includes(permission)) {
     return <AccessDenied label={permission} />;
   }
-  return (
-    <>
-      {notifyDelivery && <NotifyDeliveryBar popupDefault={notifyPopupDefault} />}
-      {children}
-    </>
-  );
+  return <WithAdminPageBar notifyDelivery={notifyDelivery}>{children}</WithAdminPageBar>;
 }
 
 export function PlatformAdminRoute({ children }: { children: ReactNode }) {
@@ -289,5 +288,5 @@ export function PlatformAdminRoute({ children }: { children: ReactNode }) {
   }
   if (!user) return <FullPageSpinner />;
   if (!isPlatformSuperAdmin) return <AccessDenied label="Platform admin" />;
-  return <>{children}</>;
+  return <WithAdminPageBar notifyDelivery={false}>{children}</WithAdminPageBar>;
 }

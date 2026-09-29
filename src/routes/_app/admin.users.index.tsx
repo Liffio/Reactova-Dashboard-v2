@@ -11,6 +11,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   AlertCircle,
   Bookmark,
+  ChevronRight,
   BookmarkPlus,
   ChevronDown,
   ChevronsUpDown,
@@ -54,6 +55,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -72,6 +74,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { timeAgo } from "@/features/settings/components";
 import { useDebounced } from "@/hooks/use-debounced";
 import { usePlatformCan } from "@/hooks/use-platform-authz";
 import { cn } from "@/lib/utils";
@@ -275,9 +278,9 @@ function AdminUsersPage() {
       <PageHeader
         eyebrow="Platform admin"
         title="Users"
-        description="Every account on the platform — search, filter, and open a profile to manage access, sessions, and billing."
+        description="Every account on the platform. Search, filter, and open a profile to manage access, sessions, and billing."
       />
-      <div className="space-y-4 p-4 sm:p-6 md:p-10">
+      <div className="space-y-4 p-4 sm:p-6 md:p-8">
         <UsersTable />
       </div>
     </div>
@@ -406,6 +409,35 @@ function LoadingSkeleton() {
   );
 }
 
+/** The one status a row leads with — account state first, since it decides what an operator can
+ *  do next. Banned/Inactive are folded in here, so they aren't repeated as flags beside it. */
+function primaryStatus(flags: AdminUserFlag[]): { label: string; className: string } {
+  if (flags.includes("BANNED")) {
+    return { label: "Banned", className: "bg-destructive/10 text-destructive" };
+  }
+  if (flags.includes("INACTIVE")) {
+    return { label: "Inactive", className: "bg-muted text-muted-foreground" };
+  }
+  return { label: "Active", className: "bg-success/10 text-success" };
+}
+
+function StatusPill({ label, className }: { label: string; className: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium",
+        className,
+      )}
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {label}
+    </span>
+  );
+}
+
+/** Secondary flags shown inline; the rest collapse into a "+n" with a tooltip. */
+const SECONDARY_FLAGS_SHOWN = 2;
+
 function UserRow({
   row,
   selected,
@@ -423,6 +455,11 @@ function UserRow({
   onSelect: () => void;
   onImpersonate: () => void;
 }) {
+  const status = primaryStatus(row.flags);
+  const secondary = row.flags.filter((f) => f !== "BANNED" && f !== "INACTIVE");
+  const shown = secondary.slice(0, SECONDARY_FLAGS_SHOWN);
+  const hidden = secondary.slice(SECONDARY_FLAGS_SHOWN);
+
   return (
     <TableRow
       data-selected={selected || undefined}
@@ -431,70 +468,227 @@ function UserRow({
         onOpen();
       }}
       className={cn(
-        "cursor-pointer transition-opacity",
+        "group cursor-pointer transition-opacity",
         selected && "bg-muted/60 hover:bg-muted/60",
         dimmed && "opacity-60",
       )}
     >
-      <TableCell>
+      <TableCell className="py-3 pl-4">
         <div className="flex min-w-0 items-center gap-3">
           <UserAvatar
             userId={row.id}
             name={row.name ?? row.email}
             avatarUrl={row.avatarUrl}
             seed={row.avatarSeed}
-            size={32}
+            size={36}
           />
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{row.name || "—"}</p>
-            <p className="truncate text-xs text-muted-foreground">{row.email}</p>
+            <p className="truncate text-sm font-medium leading-5">{row.name || row.email}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {row.name ? row.email : "No name set"}
+            </p>
           </div>
         </div>
       </TableCell>
       <TableCell>
-        <div className="flex flex-wrap gap-1">
-          {row.flags.length === 0 ? (
-            <span className="text-xs text-muted-foreground">—</span>
-          ) : (
-            row.flags.map((flag) => <FlagBadge key={flag} flag={flag} />)
+        <div className="flex flex-wrap items-center gap-1">
+          <StatusPill label={status.label} className={status.className} />
+          {shown.map((flag) => (
+            <FlagBadge key={flag} flag={flag} />
+          ))}
+          {hidden.length > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="rounded-full border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  +{hidden.length}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {hidden.map((f) => FLAG_BADGE[f]?.label ?? f).join(", ")}
+              </TooltipContent>
+            </Tooltip>
           )}
         </div>
       </TableCell>
-      <TableCell className="text-right tabular-nums">{row.workspaceCount}</TableCell>
-      <TableCell className="text-xs">{row.primaryPlan ?? "—"}</TableCell>
+      <TableCell className="text-right text-sm tabular-nums">{row.workspaceCount}</TableCell>
+      <TableCell>
+        {row.primaryPlan ? (
+          <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium">
+            {row.primaryPlan}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </TableCell>
       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
         {new Date(row.createdAt).toLocaleDateString()}
       </TableCell>
-      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-        {row.lastActiveAt ? new Date(row.lastActiveAt).toLocaleDateString() : "Never"}
+      <TableCell
+        className="whitespace-nowrap text-xs text-muted-foreground"
+        title={row.lastActiveAt ? new Date(row.lastActiveAt).toLocaleString() : undefined}
+      >
+        {row.lastActiveAt ? timeAgo(row.lastActiveAt) : "Never"}
       </TableCell>
-      <TableCell onClick={(e) => e.stopPropagation()} className="text-right">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Row actions">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link to="/admin/users/$userId" params={{ userId: row.id }}>
-                Open
-              </Link>
-            </DropdownMenuItem>
-            {canImpersonate && (
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onImpersonate();
-                }}
+      <TableCell onClick={(e) => e.stopPropagation()} className="pr-3 text-right">
+        <div className="flex items-center justify-end gap-0.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 opacity-60 group-hover:opacity-100"
+                aria-label="Row actions"
               >
-                <UserCog className="mr-2 h-4 w-4" /> Impersonate
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link to="/admin/users/$userId" params={{ userId: row.id }}>
+                  Open
+                </Link>
               </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              {canImpersonate && (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onImpersonate();
+                  }}
+                >
+                  <UserCog className="mr-2 h-4 w-4" /> Impersonate
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <ChevronRight className="h-4 w-4 text-muted-foreground/40 transition-colors group-hover:text-foreground" />
+        </div>
       </TableCell>
     </TableRow>
+  );
+}
+
+/**
+ * One-click segments over the same URL filters the Filters panel sets (the "All · Needs review"
+ * tabs on Asana's and Mercury's user lists). Each is an exact filter set, so a segment reads as
+ * selected only when the URL holds exactly that set — a hand-tuned combination selects none
+ * rather than implying a segment that isn't what's applied.
+ */
+const QUICK_FILTERS: Array<{ key: string; label: string; set: Partial<AdminUsersSearch> }> = [
+  { key: "all", label: "All users", set: {} },
+  { key: "banned", label: "Banned", set: { status: "banned" } },
+  { key: "inactive", label: "Inactive", set: { status: "inactive" } },
+  { key: "unverified", label: "Unverified", set: { verified: false } },
+  { key: "no-mfa", label: "No MFA", set: { has_mfa: false } },
+  { key: "payment", label: "Payment failed", set: { workspace_status: "PAYMENT_FAILED" } },
+];
+
+const FILTER_KEYS = [
+  "status",
+  "plan",
+  "verified",
+  "has_mfa",
+  "workspace_status",
+  "created_after",
+  "created_before",
+] as const;
+type FilterKey = (typeof FILTER_KEYS)[number];
+
+function activeQuickFilter(search: AdminUsersSearch): string | null {
+  const active = FILTER_KEYS.filter((k) => search[k] !== undefined);
+  const match = QUICK_FILTERS.find((q) => {
+    const keys = Object.keys(q.set) as FilterKey[];
+    return keys.length === active.length && keys.every((k) => search[k] === q.set[k]);
+  });
+  return match?.key ?? null;
+}
+
+function QuickFilters({
+  search,
+  onPick,
+}: {
+  search: AdminUsersSearch;
+  onPick: (set: Partial<AdminUsersSearch>) => void;
+}) {
+  const current = activeQuickFilter(search);
+  return (
+    <div className="-mx-1 flex gap-1 overflow-x-auto px-1" aria-label="Quick filters">
+      {QUICK_FILTERS.map((q) => (
+        <button
+          key={q.key}
+          type="button"
+          aria-pressed={current === q.key}
+          onClick={() => onPick(q.set)}
+          className={cn(
+            "shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors",
+            current === q.key
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          )}
+        >
+          {q.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The human reading of one active filter, for its removable chip. */
+function describeFilter(key: FilterKey, search: AdminUsersSearch): string {
+  switch (key) {
+    case "status":
+      return `Status: ${humanizeEnum(search.status ?? "")}`;
+    case "plan":
+      return `Plan: ${search.plan}`;
+    case "verified":
+      return search.verified ? "Email verified" : "Email unverified";
+    case "has_mfa":
+      return search.has_mfa ? "MFA on" : "MFA off";
+    case "workspace_status":
+      return `Workspace: ${humanizeEnum(search.workspace_status ?? "")}`;
+    case "created_after":
+      return `Joined after ${search.created_after}`;
+    case "created_before":
+      return `Joined before ${search.created_before}`;
+  }
+}
+
+function ActiveFilterChips({
+  search,
+  onRemove,
+  onClear,
+}: {
+  search: AdminUsersSearch;
+  onRemove: (key: FilterKey) => void;
+  onClear: () => void;
+}) {
+  const active = FILTER_KEYS.filter((k) => search[k] !== undefined);
+  if (active.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {active.map((key) => (
+        <span
+          key={key}
+          className="inline-flex items-center gap-1 rounded-full border bg-card py-0.5 pl-2.5 pr-1 text-xs"
+        >
+          {describeFilter(key, search)}
+          <button
+            type="button"
+            onClick={() => onRemove(key)}
+            className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={`Remove filter: ${describeFilter(key, search)}`}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      ))}
+      <button
+        type="button"
+        onClick={onClear}
+        className="px-1.5 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+      >
+        Clear all
+      </button>
+    </div>
   );
 }
 
@@ -925,6 +1119,14 @@ function UsersTable() {
     void navigate({ search: (prev) => ({ q: prev.q, sort: prev.sort, dir: prev.dir }) });
   }, [navigate]);
 
+  /** A quick filter replaces every filter (keeping search and sort) with its own exact set. */
+  const applyQuickFilter = useCallback(
+    (set: Partial<AdminUsersSearch>) => {
+      void navigate({ search: (prev) => ({ q: prev.q, sort: prev.sort, dir: prev.dir, ...set }) });
+    },
+    [navigate],
+  );
+
   /** Applying a saved view replaces the URL search state wholesale (not merged into `prev`) — a
    *  saved view is a complete snapshot, so any filter not present in it should clear, exactly
    *  like following a shared link would. */
@@ -1118,22 +1320,38 @@ function UsersTable() {
   return (
     <div className="space-y-3">
       <Collapsible data-filters-bar="true" open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-full sm:max-w-sm">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b pb-2">
+          <QuickFilters search={search} onPick={applyQuickFilter} />
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {total !== undefined
+              ? `${total.toLocaleString()} user${total === 1 ? "" : "s"}`
+              : rows.length > 0
+                ? `${rows.length}+ loaded`
+                : ""}
+          </span>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="relative w-full sm:max-w-md sm:flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               ref={searchInputRef}
-              placeholder="Search by name, email, phone, or user id… (press / to focus)"
-              className="h-9 pl-9 pr-9"
+              placeholder="Search name, email, phone, or user id"
+              aria-label="Search users"
+              className="h-9 rounded-lg pl-9 pr-10"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
-            {isRefetching && (
+            {isRefetching ? (
               <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />
+            ) : (
+              <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-mono text-[10px] text-muted-foreground sm:block">
+                /
+              </kbd>
             )}
           </div>
           <CollapsibleTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5">
+            <Button variant="outline" size="sm" className="h-9 gap-1.5">
               <SlidersHorizontal className="h-3.5 w-3.5" />
               Filters
               {activeFilterCount > 0 && (
@@ -1143,20 +1361,20 @@ function UsersTable() {
               )}
             </Button>
           </CollapsibleTrigger>
-          {activeFilterCount > 0 && (
-            <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={clearFilters}>
-              <X className="h-3.5 w-3.5" /> Clear filters
-            </Button>
-          )}
-          <SavedViewsControls search={search} onApply={applySavedView} />
-          <span className="ml-auto text-xs text-muted-foreground">
-            {total !== undefined
-              ? `${total.toLocaleString()} user${total === 1 ? "" : "s"}`
-              : rows.length > 0
-                ? `${rows.length}+ loaded`
-                : ""}
-          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <SavedViewsControls search={search} onApply={applySavedView} />
+          </div>
         </div>
+
+        {activeFilterCount > 0 && (
+          <div className="mt-2.5">
+            <ActiveFilterChips
+              search={search}
+              onRemove={(key) => setFilter(key, undefined)}
+              onClear={clearFilters}
+            />
+          </div>
+        )}
 
         <CollapsibleContent className="mt-3 grid gap-3 rounded-2xl border bg-card p-4 shadow-soft sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
@@ -1295,7 +1513,7 @@ function UsersTable() {
         <div
           ref={scrollRef}
           onScroll={maybeFetchMore}
-          className="h-[calc(100vh-22rem)] min-h-[420px] overflow-auto rounded-2xl border bg-card shadow-soft"
+          className="h-[calc(100vh-24rem)] min-h-[420px] overflow-auto rounded-xl border bg-card"
         >
           {/* Raw <table>, not the shadcn `Table` wrapper: `Table` wraps children in its own
               `relative w-full overflow-auto` div (src/components/ui/table.tsx), which — having no
@@ -1306,9 +1524,9 @@ function UsersTable() {
               scrolls) instead. Composing the table directly here — one overflow container, not
               two nested ones — is what makes `sticky top-0` resolve against `scrollRef`. */}
           <table className="w-full caption-bottom text-sm">
-            <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableHeader className="sticky top-0 z-10 bg-muted/80 backdrop-blur">
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[300px]">
+                <TableHead className="w-[320px] pl-4">
                   <SortableHeader
                     label="User"
                     value="name"
@@ -1330,7 +1548,7 @@ function UsersTable() {
                   />
                 </TableHead>
                 <TableHead>Last active</TableHead>
-                <TableHead className="w-10" />
+                <TableHead className="w-16" />
               </TableRow>
             </TableHeader>
             <TableBody>

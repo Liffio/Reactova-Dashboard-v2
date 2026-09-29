@@ -1,24 +1,28 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { Building2, CheckCircle2, Clock, KeyRound, ShieldCheck, XCircle } from "lucide-react";
 
-import { FormSection } from "@/components/admin/form-page";
+import { CopyableKey, FormSection } from "@/components/admin/form-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDateTime } from "@/lib/format";
+import { timeAgo } from "@/features/settings/components";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api/http";
 import { usePlatformCan } from "@/hooks/use-platform-authz";
-import { getAdminUser, setAdminUserNotes } from "@/lib/api/admin-users-api";
+import { getAdminUser, setAdminUserNotes, type AdminUserDetail } from "@/lib/api/admin-users-api";
 
 const USER_MANAGE = "platform:user_manage";
 
 /**
- * Overview tab — identity summary (fields not already on the rail), counts, admin notes, ban
- * details, email-verification state. Per spec §7.2 / task-8-brief.md requirement 3.
+ * Overview tab — a stats strip, then identity, email verification, ban details and admin notes,
+ * with a details column (ids, auth methods, MFA, platform authority) on the right — the layout of
+ * Clerk's user profile page. The shell's header already shows name, status and last activity, so
+ * this tab carries the rest. Per spec §7.2 / task-8-brief.md requirement 3.
  *
  * Admin notes (Task 15) — editable textarea + save via `PATCH /admin/users/:id/notes`
  * (task-14-report.md §1: a legacy carry-over route, not one of Task 14's eleven). Plain
@@ -41,8 +45,8 @@ function OverviewTab() {
   if (detailQuery.isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-32 rounded-2xl" />
-        <Skeleton className="h-32 rounded-2xl" />
+        <Skeleton className="h-24 rounded-2xl" />
+        <Skeleton className="h-48 rounded-2xl" />
       </div>
     );
   }
@@ -61,79 +65,207 @@ function OverviewTab() {
   const user = detailQuery.data;
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <FormSection title="Identity">
-          <dl className="space-y-2.5 text-sm">
-            <OverviewRow label="Country">{user.country || "—"}</OverviewRow>
-            <OverviewRow label="Phone number">{user.phoneNumber || "—"}</OverviewRow>
-            <OverviewRow label="Status">
-              <Badge
-                variant="outline"
-                className={
-                  user.isActive
-                    ? "border-success/30 bg-success/10 text-success"
-                    : "border-border bg-muted text-muted-foreground"
-                }
-              >
-                {user.isActive ? "Active" : "Inactive"}
-              </Badge>
-            </OverviewRow>
-          </dl>
-        </FormSection>
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="min-w-0 space-y-4">
+        <StatsStrip user={user} />
 
-        <FormSection title="Email verification">
-          <dl className="space-y-2.5 text-sm">
-            <OverviewRow label="Verified">
-              {user.emailVerified ? (
-                <span className="inline-flex items-center gap-1.5 text-success">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Verified
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 text-warning">
-                  <XCircle className="h-3.5 w-3.5" /> Unverified
-                </span>
-              )}
-            </OverviewRow>
-            <OverviewRow label="Verified at">
-              {user.emailVerifiedAt ? formatDateTime(user.emailVerifiedAt) : "—"}
-            </OverviewRow>
-          </dl>
-        </FormSection>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormSection title="Identity">
+            <dl className="space-y-2.5 text-sm">
+              <OverviewRow label="Country">{user.country || "—"}</OverviewRow>
+              <OverviewRow label="Phone number">{user.phoneNumber || "—"}</OverviewRow>
+              <OverviewRow label="Status">
+                <Badge
+                  variant="outline"
+                  className={
+                    user.isActive
+                      ? "border-success/30 bg-success/10 text-success"
+                      : "border-border bg-muted text-muted-foreground"
+                  }
+                >
+                  {user.isActive ? "Active" : "Inactive"}
+                </Badge>
+              </OverviewRow>
+            </dl>
+          </FormSection>
+
+          <FormSection title="Email verification">
+            <dl className="space-y-2.5 text-sm">
+              <OverviewRow label="Verified">
+                {user.emailVerified ? (
+                  <span className="inline-flex items-center gap-1.5 text-success">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Verified
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-warning">
+                    <XCircle className="h-3.5 w-3.5" /> Unverified
+                  </span>
+                )}
+              </OverviewRow>
+              <OverviewRow label="Verified at">
+                {user.emailVerifiedAt ? formatDateTime(user.emailVerifiedAt) : "—"}
+              </OverviewRow>
+            </dl>
+          </FormSection>
+        </div>
+
+        {user.ban.isBanned && (
+          <FormSection title="Ban details">
+            <dl className="space-y-2.5 text-sm">
+              <OverviewRow label="Reason">{user.ban.reason || "—"}</OverviewRow>
+              <OverviewRow label="Banned at">
+                {user.ban.bannedAt ? formatDateTime(user.ban.bannedAt) : "—"}
+              </OverviewRow>
+              <OverviewRow label="Banned by">
+                {user.ban.bannedByUserId ? (
+                  <span className="font-mono text-xs">{user.ban.bannedByUserId}</span>
+                ) : (
+                  "—"
+                )}
+              </OverviewRow>
+            </dl>
+          </FormSection>
+        )}
+
+        <AdminNotesSection userId={user.id} notes={user.adminNotes} />
       </div>
 
-      <FormSection title="Counts">
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-semibold tabular-nums">{user.counts.workspaces}</span>
-          <span className="text-sm text-muted-foreground">
-            workspace{user.counts.workspaces === 1 ? "" : "s"}
-          </span>
-        </div>
-      </FormSection>
-
-      <FormSection
-        title="Ban details"
-        description={user.ban.isBanned ? undefined : "This account is not banned."}
-      >
-        {user.ban.isBanned ? (
-          <dl className="space-y-2.5 text-sm">
-            <OverviewRow label="Reason">{user.ban.reason || "—"}</OverviewRow>
-            <OverviewRow label="Banned at">
-              {user.ban.bannedAt ? formatDateTime(user.ban.bannedAt) : "—"}
-            </OverviewRow>
-            <OverviewRow label="Banned by">
-              {user.ban.bannedByUserId ? (
-                <span className="font-mono text-xs">{user.ban.bannedByUserId}</span>
-              ) : (
-                "—"
-              )}
-            </OverviewRow>
-          </dl>
-        ) : null}
-      </FormSection>
-
-      <AdminNotesSection userId={user.id} notes={user.adminNotes} />
+      <DetailsColumn user={user} />
     </div>
+  );
+}
+
+/** The four numbers an operator reads first — the Sweatpals member-page stats row. */
+function StatsStrip({ user }: { user: AdminUserDetail }) {
+  const stats: Array<{ icon: typeof Clock; label: string; value: ReactNode; hint?: string }> = [
+    {
+      icon: Building2,
+      label: "Workspaces",
+      value: user.counts.workspaces.toLocaleString(),
+    },
+    {
+      icon: Clock,
+      label: "Last active",
+      value: user.lastActiveAt ? timeAgo(user.lastActiveAt) : "Never",
+      hint: user.lastActiveAt ? formatDateTime(user.lastActiveAt) : undefined,
+    },
+    {
+      icon: ShieldCheck,
+      label: "MFA",
+      value: user.mfa.enabled
+        ? `${user.mfa.methods.length} method${user.mfa.methods.length === 1 ? "" : "s"}`
+        : "Off",
+    },
+    {
+      icon: KeyRound,
+      label: "Sign-in",
+      value: user.authMethods.length === 0 ? "—" : user.authMethods.join(", "),
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 overflow-hidden rounded-2xl border bg-card shadow-soft md:grid-cols-4">
+      {stats.map(({ icon: Icon, label, value, hint }, i) => (
+        <div
+          key={label}
+          title={hint}
+          className={cn(
+            "min-w-0 p-4",
+            i % 2 === 1 && "border-l",
+            i >= 2 && "border-t md:border-t-0",
+            i === 2 && "md:border-l",
+          )}
+        >
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Icon className="h-3.5 w-3.5" />
+            {label}
+          </p>
+          <p className="mt-1.5 truncate text-lg font-semibold capitalize tabular-nums">{value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PlatformAuthorityBadge({ platform }: { platform: AdminUserDetail["platform"] }) {
+  if (platform.isSuperAdmin) {
+    return (
+      <Badge variant="outline" className="border-chart-3/30 bg-chart-3/10 text-[10px] text-chart-3">
+        Super admin
+      </Badge>
+    );
+  }
+  if (platform.isPlatformAdmin) {
+    return (
+      <Badge variant="outline" className="border-primary/30 bg-primary/10 text-[10px] text-primary">
+        Scoped{platform.source ? ` · ${platform.source}` : ""}
+      </Badge>
+    );
+  }
+  return <span className="text-muted-foreground">None</span>;
+}
+
+function DetailItem({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1 py-3 first:pt-0 last:pb-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-sm font-medium">{children}</dd>
+    </div>
+  );
+}
+
+/** Reference data, stacked label-over-value like Clerk's right column — ids are copyable because
+ *  they get pasted into logs, SQL and support threads. */
+function DetailsColumn({ user }: { user: AdminUserDetail }) {
+  return (
+    <aside className="min-w-0">
+      <div className="rounded-2xl border bg-card p-5 shadow-soft">
+        <dl className="divide-y">
+          <DetailItem label="User ID">
+            <CopyableKey value={user.id} className="max-w-full" />
+          </DetailItem>
+          <DetailItem label="Primary email">
+            <CopyableKey value={user.email} className="max-w-full" />
+          </DetailItem>
+          <DetailItem label="User since">{formatDate(user.createdAt)}</DetailItem>
+          <DetailItem label="Auth methods">
+            {user.authMethods.length === 0 ? (
+              "—"
+            ) : (
+              <span className="flex flex-wrap gap-1">
+                {user.authMethods.map((m) => (
+                  <Badge key={m} variant="outline" className="text-[10px] capitalize">
+                    {m}
+                  </Badge>
+                ))}
+              </span>
+            )}
+          </DetailItem>
+          <DetailItem label="MFA methods">
+            {user.mfa.enabled ? (
+              <span className="flex flex-wrap gap-1">
+                {user.mfa.methods.map((m) => (
+                  <Badge
+                    key={m.id}
+                    variant="outline"
+                    title={`Enrolled ${formatDate(m.createdAt)}`}
+                    className="border-success/30 bg-success/10 text-[10px] capitalize text-success"
+                  >
+                    {m.type.toLowerCase().replace(/_/g, " ")}
+                  </Badge>
+                ))}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">Disabled</span>
+            )}
+          </DetailItem>
+          <DetailItem label="Platform authority">
+            <PlatformAuthorityBadge platform={user.platform} />
+          </DetailItem>
+          <DetailItem label="Profile updated">{formatDateTime(user.updatedAt)}</DetailItem>
+        </dl>
+      </div>
+    </aside>
   );
 }
 

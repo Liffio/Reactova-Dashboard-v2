@@ -23,47 +23,46 @@ import { useNotifyDelivery } from "@/hooks/use-notify-delivery";
  * silence popups to fix one typo and every later change that day goes out quiet. The choice lives
  * exactly as long as the screen you made it on.
  *
- * Rendered by `PlatformPermissionRoute`, so it appears on all twenty admin pages without each one
- * opting in — the same reason the server side is ambient rather than a parameter.
+ * Rendered inside `AdminPageBar` by `PlatformPermissionRoute`, so it appears on all twenty admin
+ * pages without each one opting in — the same reason the server side is ambient rather than a
+ * parameter.
  */
-export function NotifyDeliveryBar({ popupDefault = false }: { popupDefault?: boolean }) {
-  const { notify, setNotify, popup, setPopup } = useNotifyDelivery({ popupDefault });
+export function NotifyDeliveryControls() {
+  const { notify, setNotify, popup, setPopup } = useNotifyDelivery();
 
   return (
-    <div className="border-b bg-muted/30 px-4 py-2 sm:px-6 md:px-10">
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          {notify ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
-          When a change here affects users:
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+      <span className="flex items-center gap-1.5 text-muted-foreground">
+        {notify ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
+        When a change here affects users:
+      </span>
+
+      <label className="flex cursor-pointer items-center gap-2">
+        <Switch checked={notify} onCheckedChange={setNotify} aria-label="Notify affected users" />
+        <span className={notify ? "font-medium" : "text-muted-foreground"}>Notify them</span>
+      </label>
+
+      <label className="flex cursor-pointer items-center gap-2">
+        <Switch checked={popup} onCheckedChange={setPopup} aria-label="Show a popup" />
+        <span
+          className={
+            popup
+              ? "flex items-center gap-1 font-medium"
+              : "flex items-center gap-1 text-muted-foreground"
+          }
+        >
+          <Zap className={popup ? "h-3 w-3 text-warning" : "h-3 w-3"} />
+          Interrupt with a popup
         </span>
+      </label>
 
-        <label className="flex cursor-pointer items-center gap-2">
-          <Switch checked={notify} onCheckedChange={setNotify} aria-label="Notify affected users" />
-          <span className={notify ? "font-medium" : "text-muted-foreground"}>Notify them</span>
-        </label>
-
-        <label className="flex cursor-pointer items-center gap-2">
-          <Switch checked={popup} onCheckedChange={setPopup} aria-label="Show a popup" />
-          <span
-            className={
-              popup
-                ? "flex items-center gap-1 font-medium"
-                : "flex items-center gap-1 text-muted-foreground"
-            }
-          >
-            <Zap className={popup ? "h-3 w-3 text-warning" : "h-3 w-3"} />
-            Interrupt with a popup
-          </span>
-        </label>
-
-        <span className="text-muted-foreground">
-          {!notify && !popup
-            ? "Nothing will be sent — users still get the new access, they just aren't told."
-            : popup
-              ? "They see a modal immediately, or next time they connect."
-              : "It lands quietly on their notifications page."}
-        </span>
-      </div>
+      <span className="text-muted-foreground">
+        {!notify && !popup
+          ? "Nothing will be sent — users still get the new access, they just aren't told."
+          : popup
+            ? "They see a modal immediately, or next time they connect."
+            : "It lands quietly on their notifications page."}
+      </span>
     </div>
   );
 }

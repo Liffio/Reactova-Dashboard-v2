@@ -156,6 +156,8 @@ export interface ContactRow {
   igUsername: string | null;
   displayName: string | null;
   profilePicUrl: string | null;
+  /** The Instagram profile lookup; `no_consent` / `failed`: Instagram did not share it. */
+  profileStatus?: "queued" | "ok" | "no_consent" | "failed" | null;
   tags: string[];
   lastInboundAt: string | null;
   windowExpiresAt: string | null;

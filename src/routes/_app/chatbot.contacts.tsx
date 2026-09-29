@@ -14,7 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { chatbotApi, chatbotKeys, type ContactRow } from "@/lib/api/chatbot-api";
+import { chatbotApi, chatbotKeys } from "@/lib/api/chatbot-api";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { useDebounced } from "@/hooks/use-debounced";
 import { getUserErrorMessage } from "@/lib/user-facing-error";
@@ -23,6 +23,8 @@ import { useApp } from "@/state/app-context";
 import { useCan } from "@/hooks/use-auth";
 import { useModuleFeatures } from "@/hooks/use-features";
 import { cn } from "@/lib/utils";
+import { ContactAvatar, ContactName } from "@/components/chatbot/contact-identity";
+import { instagramIdentity } from "@/lib/instagram-identity";
 
 export const Route = createFileRoute("/_app/chatbot/contacts")({
   head: () => ({ meta: [{ title: "Chatbot contacts — Liffio" }] }),
@@ -37,8 +39,6 @@ export const Route = createFileRoute("/_app/chatbot/contacts")({
 
 const when = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
-const handle = (c: ContactRow) =>
-  c.igUsername ? `@${c.igUsername}` : (c.displayName ?? "Instagram user");
 const pauseWhy = {
   HANDOVER: "asked for a person",
   HUMAN_REPLY: "your team replied",
@@ -140,15 +140,9 @@ function ContactsPage() {
                   onClick={() => setOpenId(c.id)}
                   className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left last:border-b-0 hover:bg-muted"
                 >
-                  <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-brand-gradient text-xs font-bold text-white">
-                    {c.profilePicUrl ? (
-                      <img src={c.profilePicUrl} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      handle(c).replace("@", "").slice(0, 1).toUpperCase()
-                    )}
-                  </span>
+                  <ContactAvatar identity={instagramIdentity(c)} src={c.profilePicUrl} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{handle(c)}</div>
+                    <ContactName identity={instagramIdentity(c)} className="text-sm font-medium" />
                     <div className="truncate text-xs text-muted-foreground">
                       {c.activeSession
                         ? `In ${c.activeSession.chatbotName}${c.activeSession.stepName ? ` · ${c.activeSession.stepName}` : ""}`
@@ -235,7 +229,20 @@ function ContactSheet({
     <Sheet open={!!contactId} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="flex w-full flex-col gap-5 overflow-y-auto sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>{c ? handle(c) : "Contact"}</SheetTitle>
+          <SheetTitle className="flex items-center gap-3">
+            {c ? (
+              <>
+                <ContactAvatar
+                  identity={instagramIdentity(c)}
+                  src={c.profilePicUrl}
+                  className="h-10 w-10"
+                />
+                <ContactName identity={instagramIdentity(c)} />
+              </>
+            ) : (
+              "Contact"
+            )}
+          </SheetTitle>
           <SheetDescription>{c ? `Last message ${when(c.lastInboundAt)}` : ""}</SheetDescription>
         </SheetHeader>
         {!c ? (

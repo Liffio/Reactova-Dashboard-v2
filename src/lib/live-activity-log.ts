@@ -1,3 +1,4 @@
+import { realHandle } from "@/lib/instagram-identity";
 import type { WorkspaceEventPayload } from "@/lib/socket";
 import { formatHandle } from "@/lib/format";
 
@@ -73,7 +74,8 @@ const str = (v: unknown): string | null =>
 function describe(payload: WorkspaceEventPayload): LiveActivityEntry | null {
   const d = payload.data ?? {};
   const at = str(d.createdAt) ?? str(d.capturedAt) ?? str(d.clickedAt) ?? new Date().toISOString();
-  const handle = str(d.igUsername) ?? str(d.recipientIgId);
+  // Never the numeric Instagram id: with no username known, the sentence names nobody.
+  const handle = realHandle(str(d.igUsername), str(d.igUserId) ?? str(d.recipientIgId));
   const automation = str(d.automationName) ?? str(d.name);
 
   switch (payload.resource) {

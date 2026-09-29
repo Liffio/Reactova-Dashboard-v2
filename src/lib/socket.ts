@@ -44,8 +44,22 @@ export type WorkspaceEventPayload = {
   data?: Record<string, unknown>;
 };
 
+/** Why the server ended this device's session — mirrors `server/src/lib/sessionRevocation.ts`. */
+export type SessionRevokedReason =
+  | "signed_out"
+  | "signed_out_elsewhere"
+  | "password_changed"
+  | "email_changed"
+  | "admin"
+  | "account_deleted";
+
 type ServerToClientEvents = {
   "socket:error": (payload: { message: string }) => void;
+  /**
+   * This device's session was ended elsewhere. Sent to the server-derived `session:<sid>` room;
+   * the server disconnects the socket a moment later. See `SessionRevokedListener`.
+   */
+  "session:revoked": (payload: { reason: SessionRevokedReason }) => void;
   "notification:new": (payload: Record<string, unknown>) => void;
   "token-balance-updated": (payload: Record<string, unknown>) => void;
   /**

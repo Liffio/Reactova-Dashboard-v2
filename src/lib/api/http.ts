@@ -486,9 +486,15 @@ export async function apiRequest<T>(path: string, config: ApiRequestConfig = {})
     // needs the same silent-refresh-then-logout recovery. Otherwise a stale/invalid
     // token (e.g. after a JWT secret rotation, or corrupted localStorage) leaves
     // queries 401ing forever with nothing to clear the session or redirect to login.
+    // SESSION_REVOKED: this device was signed out elsewhere. Usually the realtime
+    // `session:revoked` event gets here first; this covers a tab whose socket was down at the time.
+    // The silent refresh it triggers fails (the refresh row is revoked), which logs out.
     const isAuthFailure =
       res.status === 401 &&
-      (code === "TOKEN_EXPIRED" || code === "TOKEN_INVALID" || code === "NO_TOKEN");
+      (code === "TOKEN_EXPIRED" ||
+        code === "TOKEN_INVALID" ||
+        code === "NO_TOKEN" ||
+        code === "SESSION_REVOKED");
     if (isAuthFailure && token) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }

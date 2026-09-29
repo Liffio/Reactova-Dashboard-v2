@@ -355,7 +355,7 @@ function SessionsCard() {
   const revokeOne = useMutation({
     mutationFn: accountApi.revokeSession,
     onSuccess: () => {
-      toast.success("Signed out. It can take a few minutes to take effect on that device.");
+      toast.success("That device was signed out.");
       void invalidate();
     },
     onError: (e) => toast.error(getUserErrorMessage(e)),
@@ -363,9 +363,7 @@ function SessionsCard() {
   const revokeOthers = useMutation({
     mutationFn: accountApi.revokeOtherSessions,
     onSuccess: (r) => {
-      toast.success(
-        `Signed out ${r.count} other device${r.count === 1 ? "" : "s"}, within a few minutes.`,
-      );
+      toast.success(`Signed out ${r.count} other device${r.count === 1 ? "" : "s"}.`);
       void invalidate();
     },
     onError: (e) => toast.error(getUserErrorMessage(e)),

@@ -17,6 +17,7 @@ import { MobileTabBar } from "@/components/shell/mobile-tab-bar";
 import { AccessChangedModal } from "@/components/access/access-changed-modal";
 import { AccessRefreshListener } from "@/components/access/access-refresh-listener";
 import { RegistryUpdatedListener } from "@/components/plugins/registry-updated-listener";
+import { SessionRevokedListener } from "@/components/auth/session-revoked-listener";
 import { NotificationsMenu } from "@/components/notifications/notifications-menu";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { PageTransition } from "@/components/page-transition";
@@ -184,6 +185,7 @@ function AppLayout() {
           suppressed the notice, which is the default for package edits. See the component. */}
           <AccessRefreshListener />
           <RegistryUpdatedListener />
+          <SessionRevokedListener />
           {/* Mounted once, here, for the same reason `useWorkspaceEvents` is: both topbar triggers and
           the ⌘K shortcut dispatch one DOM event, and a second listener would open two dialogs. */}
           <GlobalSearchPalette />

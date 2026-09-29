@@ -17,7 +17,8 @@ import { clearLyraPersisted } from "@/lib/lyra-persist";
 
 export { SESSION_EXPIRED_EVENT } from "@/lib/session-events";
 
-export type SessionEndReason = "idle" | "expired";
+/** `revoked`: ended from elsewhere (another device, a password change, an admin). */
+export type SessionEndReason = "idle" | "expired" | "revoked";
 
 let loggingOut = false;
 
@@ -42,7 +43,11 @@ export async function attemptSilentRefresh(): Promise<boolean | "idle"> {
 }
 
 /** Flushes any in-progress drafts, clears the session, and redirects to login. */
-export async function forceSessionLogout(reason: SessionEndReason = "expired"): Promise<void> {
+export async function forceSessionLogout(
+  reason: SessionEndReason = "expired",
+  /** Overrides the toast title — the revoked path says why the session ended. */
+  message?: string,
+): Promise<void> {
   if (loggingOut || !authStore.getState().accessToken) {
     return;
   }
@@ -56,7 +61,12 @@ export async function forceSessionLogout(reason: SessionEndReason = "expired"): 
   void logout().catch(() => undefined);
 
   toast.error(
-    reason === "idle" ? "You were signed out due to inactivity" : "Your session has ended",
+    message ??
+      (reason === "idle"
+        ? "You were signed out due to inactivity"
+        : reason === "revoked"
+          ? "You were signed out from another device"
+          : "Your session has ended"),
     {
       description: "Please log back in to continue — your unsaved work has been saved as a draft.",
       duration: 6000,

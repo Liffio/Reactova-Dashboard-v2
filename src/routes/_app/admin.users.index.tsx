@@ -442,6 +442,7 @@ function UserRow({
             userId={row.id}
             name={row.name ?? row.email}
             avatarUrl={row.avatarUrl}
+            seed={row.avatarSeed}
             size={32}
           />
           <div className="min-w-0">

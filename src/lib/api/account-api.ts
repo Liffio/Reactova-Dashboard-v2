@@ -64,6 +64,13 @@ export const accountApi = {
     });
   },
   removeAvatar: () => apiRequest<void>(acct.avatar, { method: "DELETE", ...userLevel }),
+  /** Save a generated Blobatar. 409 `BLOB_TAKEN` if another account owns that blob — roll again. */
+  setAvatarSeed: (seed: string) =>
+    apiRequest<{ avatarSeed: string }>(acct.avatarSeed, {
+      method: "PUT",
+      body: { seed },
+      ...userLevel,
+    }),
 
   getReauthMethod: () => apiRequest<{ method: ReauthMethod }>(acct.reauth, userLevel),
   sendReauthEmailCode: () =>

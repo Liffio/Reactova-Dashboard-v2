@@ -29,6 +29,8 @@ export type AdminUserListItem = {
   email: string;
   name: string | null;
   avatarUrl: string | null;
+  /** Blobatar seed; the user id unless they generated a new blob. */
+  avatarSeed?: string | null;
   isActive: boolean;
   isBanned: boolean;
   emailVerified: boolean;
@@ -94,6 +96,8 @@ export type AdminUserDetail = {
   email: string;
   name: string | null;
   avatarUrl: string | null;
+  /** Blobatar seed; the user id unless they generated a new blob. */
+  avatarSeed?: string | null;
   country: string | null;
   phoneNumber: string | null;
   isActive: boolean;

@@ -42,6 +42,7 @@ export const Route = createFileRoute("/_app")({
 function TopBar() {
   const { user, current } = useApp();
   const avatarUrl = useAuthState((s) => s.user?.avatarUrl ?? null);
+  const avatarSeed = useAuthState((s) => s.user?.avatarSeed ?? null);
   const navigate = useNavigate();
   const logoutMutation = useLogoutMutation();
 
@@ -91,6 +92,7 @@ function TopBar() {
                   userId={user.id}
                   name={user.name}
                   avatarUrl={avatarUrl}
+                  seed={avatarSeed}
                   size={30}
                   bare
                 />

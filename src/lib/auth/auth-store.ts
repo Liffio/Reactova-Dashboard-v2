@@ -29,6 +29,8 @@ export type AuthUser = {
   displayCurrency?: "USD" | "INR" | null;
   // ── Settings revamp (plan/settings-revamp.md). Optional: an older API simply omits them. ──
   avatarUrl?: string | null;
+  /** What the Blobatar is drawn from; the user id unless they generated a new blob. */
+  avatarSeed?: string | null;
   timezone?: string | null;
   phoneNumber?: string | null;
   phoneVerified?: boolean;

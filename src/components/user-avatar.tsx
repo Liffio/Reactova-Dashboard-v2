@@ -26,6 +26,11 @@ export type UserAvatarProps = {
   userId: string;
   name?: string | null;
   avatarUrl?: string | null;
+  /**
+   * What the Blobatar is drawn from (plan/blob-regenerate.md) — the user's saved seed, or a preview
+   * seed while they are choosing. Falls back to `userId`, the default everyone starts with.
+   */
+  seed?: string | null;
   size?: number;
   /** Hover animation. On by default; pass `false` for dense lists if it ever gets noisy. */
   animate?: boolean;
@@ -45,6 +50,7 @@ export function UserAvatar({
   userId,
   name,
   avatarUrl,
+  seed,
   size = 32,
   animate = true,
   bare = false,
@@ -81,7 +87,7 @@ export function UserAvatar({
         />
       ) : (
         <Blobatar
-          name={userId}
+          name={seed || userId}
           size={blobSize}
           background={bare ? false : "squircle"}
           title={label}

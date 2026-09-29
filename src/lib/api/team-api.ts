@@ -179,6 +179,8 @@ export type TeamOverviewMember = {
   email: string;
   /** Profile photo; null = Blobatar default (plan/settings-revamp.md). */
   avatarUrl?: string | null;
+  /** Blobatar seed; absent from older servers, where the user id is used. */
+  avatarSeed?: string | null;
   roleKey: string;
   roleName: string;
   isOwner: boolean;

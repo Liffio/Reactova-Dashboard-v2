@@ -282,6 +282,7 @@ function IdentityRail({ user }: { user: AdminUserDetail }) {
             userId={user.id}
             name={user.name ?? user.email}
             avatarUrl={user.avatarUrl}
+            seed={user.avatarSeed}
             size={64}
           />
           <p className="mt-3 truncate text-sm font-semibold">{user.name || "—"}</p>

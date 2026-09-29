@@ -304,6 +304,7 @@ export function TeamPage() {
                           userId={member.userId}
                           name={label}
                           avatarUrl={member.avatarUrl}
+                          seed={member.avatarSeed}
                           size={34}
                         />
                         <div className="flex min-w-0 flex-col">

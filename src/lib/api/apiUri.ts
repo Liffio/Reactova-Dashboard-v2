@@ -41,6 +41,7 @@ export const apiUri = {
       profile: `${V1}/auth/me/profile`,
       phone: `${V1}/auth/me/phone`,
       avatar: `${V1}/auth/me/avatar`,
+      avatarSeed: `${V1}/auth/me/avatar-seed`,
       reauth: `${V1}/auth/me/reauth`,
       reauthEmailCode: `${V1}/auth/me/reauth/email-code`,
       emailChange: `${V1}/auth/me/email/change`,

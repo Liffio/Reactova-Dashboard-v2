@@ -6,6 +6,7 @@ import {
   Camera,
   ChevronDown,
   Clock,
+  Dices,
   Globe,
   Loader2,
   Mail,
@@ -35,6 +36,12 @@ import {
   TextField,
   textLinkClass,
 } from "../components";
+
+/** How many times Save rolls a fresh blob when the chosen one turns out to belong to someone else. */
+const BLOB_SAVE_ATTEMPTS = 5;
+
+/** A seed for a brand-new blob. The server fingerprints what it draws and enforces uniqueness. */
+const randomBlobSeed = () => crypto.randomUUID();
 
 /** Upload limits mirror the server's (`avatarService.AVATAR_MAX_BYTES`); the server re-checks. */
 const AVATAR_ACCEPT = "image/jpeg,image/png,image/webp";
@@ -112,6 +119,8 @@ export function ProfileTab() {
   const [saving, setSaving] = useState(false);
   const [countryLocked, setCountryLocked] = useState<string | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  /** A generated blob being previewed; null = showing the saved one. */
+  const [previewSeed, setPreviewSeed] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => setForm(initial), [initial]);
 
@@ -126,12 +135,37 @@ export function ProfileTab() {
     timezone: form.timezone !== (user.timezone ?? "") && form.timezone !== "",
     country: form.country !== (user.country ?? "") && form.country !== "",
     phone: nextPhone !== storedPhone,
+    blob: previewSeed !== null && previewSeed !== (user.avatarSeed || user.id),
   };
   const isDirty = Object.values(dirty).some(Boolean);
   const sessionCount = sessions.data?.sessions.length;
   const since = memberSince(user.createdAt);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["auth-me"] });
+  /** While previewing, show the new blob (even over a photo) so the user can see what they'd get. */
+  const shownSeed = previewSeed ?? user.avatarSeed;
+  const shownPhoto = previewSeed ? null : user.avatarUrl;
+
+  /**
+   * Persist the previewed blob. The server refuses a blob another account owns (409 BLOB_TAKEN);
+   * then we roll a new one, show it, and try again — so Save always ends on a blob that is yours.
+   */
+  const saveBlob = async (first: string) => {
+    let seed = first;
+    for (let attempt = 1; attempt <= BLOB_SAVE_ATTEMPTS; attempt++) {
+      try {
+        await accountApi.setAvatarSeed(seed);
+        if (seed !== first) toast.info("That blob was already taken, so you got a fresh one");
+        return;
+      } catch (e) {
+        if (!(e instanceof ApiError && e.code === "BLOB_TAKEN") || attempt === BLOB_SAVE_ATTEMPTS) {
+          throw e;
+        }
+        seed = randomBlobSeed();
+        setPreviewSeed(seed);
+      }
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -143,6 +177,7 @@ export function ProfileTab() {
         });
       }
       if (dirty.phone) await accountApi.updatePhone(nextPhone);
+      if (dirty.blob && previewSeed) await saveBlob(previewSeed);
       if (dirty.country) {
         try {
           await setAccountCountry(form.country);
@@ -155,6 +190,7 @@ export function ProfileTab() {
         }
       }
       toast.success("Profile saved");
+      setPreviewSeed(null);
     } catch (e) {
       toast.error(getUserErrorMessage(e));
     } finally {
@@ -223,7 +259,7 @@ export function ProfileTab() {
               className={cn(
                 "relative self-start",
                 // A photo keeps the white frame; the bare blob stands on its own.
-                user.avatarUrl
+                shownPhoto
                   ? "rounded-[30px] bg-card p-1 shadow-[0_6px_20px_-8px_rgba(178,13,143,0.35)]"
                   : "p-1",
               )}
@@ -231,7 +267,8 @@ export function ProfileTab() {
               <UserAvatar
                 userId={user.id}
                 name={user.name}
-                avatarUrl={user.avatarUrl}
+                avatarUrl={shownPhoto}
+                seed={shownSeed}
                 size={104}
                 bare
               />
@@ -304,13 +341,19 @@ export function ProfileTab() {
       >
         <SettingRow
           label="Profile photo"
-          hint="No photo? You get your own blob, and it never changes."
+          hint={
+            user.avatarUrl && previewSeed
+              ? "Your photo is shown instead of your blob. Remove the photo to use this blob."
+              : "No photo? You get your own blob, and no one else has the same one. Roll a new one any time."
+          }
         >
           <div className="flex flex-wrap items-center gap-[18px]">
             <UserAvatar
+              key={shownSeed ?? user.id}
               userId={user.id}
               name={user.name}
-              avatarUrl={user.avatarUrl}
+              avatarUrl={shownPhoto}
+              seed={shownSeed}
               size={76}
               bare
             />
@@ -327,6 +370,14 @@ export function ProfileTab() {
                 >
                   <Trash2 />
                   <span>Remove</span>
+                </SettingsButton>
+                <SettingsButton
+                  disabled={saving}
+                  onClick={() => setPreviewSeed(randomBlobSeed())}
+                  title="Generate a new blob. Save to keep it."
+                >
+                  <Dices />
+                  <span>{previewSeed ? "Another one" : "New blob"}</span>
                 </SettingsButton>
               </div>
               <span className="text-xs text-muted-foreground">JPG, PNG or WebP, up to 5 MB.</span>
@@ -476,7 +527,10 @@ export function ProfileTab() {
             <button
               type="button"
               disabled={saving}
-              onClick={() => setForm(initial)}
+              onClick={() => {
+                setForm(initial);
+                setPreviewSeed(null);
+              }}
               className="h-10 cursor-pointer rounded-[10px] border border-[#3A2C29] bg-transparent px-4 text-sm font-semibold text-inherit hover:bg-white/5 disabled:opacity-45 dark:border-border"
             >
               Discard

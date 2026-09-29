@@ -73,6 +73,7 @@ import { formatHandle } from "@/lib/format";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { FeatureGate } from "@/components/access/feature-gate";
 import { cn } from "@/lib/utils";
+import { useWorkspacePlan } from "../use-workspace-plan";
 import {
   CardNote,
   IconButton,
@@ -103,6 +104,8 @@ export function GeneralSettings() {
   const { current, workspaces, setCurrentId, refreshAuth } = useApp();
   const workspaceId = current.id;
   const queryClient = useQueryClient();
+  // Billing's answer, not the legacy `current.plan` (which misses packages and agency plans).
+  const plan = useWorkspacePlan(workspaceId);
   const [displayName, setDisplayName] = useState(current.name);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const touched = useTouched();
@@ -221,9 +224,23 @@ export function GeneralSettings() {
           />
         </SettingRow>
 
-        <SettingRow label="Plan" hint="What this workspace is on today.">
+        <SettingRow
+          label="Plan"
+          hint={
+            plan.groupName
+              ? `Included in ${plan.groupName}'s agency plan.`
+              : "What this workspace is on today."
+          }
+        >
           <div className="flex flex-wrap items-center gap-3">
-            <StatusChip tone="brand">{current.plan}</StatusChip>
+            {plan.isLoading ? (
+              <Skeleton className="h-6 w-20 rounded-full" />
+            ) : (
+              <StatusChip tone={plan.status === "EXPIRED" ? "danger" : "brand"}>
+                {plan.label}
+                {plan.status === "EXPIRED" ? " · expired" : ""}
+              </StatusChip>
+            )}
             <Link to="/settings/billing" className={textLinkClass}>
               Manage in Billing
             </Link>

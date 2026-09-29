@@ -84,6 +84,7 @@ import {
  * forced every `overrides` / `pendingPurchase` / `dispatchingRef` workaround on this page.
  */
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
+import { resolvePlanLabel } from "../use-workspace-plan";
 
 /** Razorpay only — Stripe was removed from the product in full. */
 type Gateway = "razorpay";
@@ -656,7 +657,8 @@ export function BillingPage({ search = {} }: { search?: BillingSearch }) {
   const usage = usageQuery.data;
 
   const plansRef = useRef<HTMLDivElement>(null);
-  const planName = group ? group.planLabel : (sub?.displayName ?? "Free");
+  // Same formula as Settings → General (`use-workspace-plan.ts`), so the two can never disagree.
+  const planName = resolvePlanLabel(sub, group);
   const planStatus = group ? (group.readOnly ? "EXPIRED" : "ACTIVE") : (sub?.billingStatus ?? null);
 
   return (

@@ -17,8 +17,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -41,7 +39,6 @@ import { ReorderList } from "@/components/chatbot/reorder-list";
 import { TriggerCard } from "@/components/chatbot/trigger-card";
 import { PreviewPanel } from "@/components/chatbot/preview-panel";
 import { IceBreakerSheet } from "@/components/chatbot/ice-breakers";
-import { ThemeSwitcher } from "@/components/chatbot/theme-switcher";
 import { StatusPill, publishErrorMessage, publishProblems } from "@/components/chatbot/shared";
 import { duplicateStep, newStep, removeStep } from "@/components/chatbot/model";
 import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
@@ -370,11 +367,6 @@ function BuilderPage() {
                 )}
               </DropdownMenuItem>
             )}
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs text-muted-foreground">Theme</DropdownMenuLabel>
-            <div className="px-2 pb-1.5">
-              <ThemeSwitcher />
-            </div>
           </DropdownMenuContent>
         </DropdownMenu>
         {canUpdate && features.go_live && (

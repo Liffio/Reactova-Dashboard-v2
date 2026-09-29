@@ -148,6 +148,34 @@ export type AdminUserWorkspaceMembership = {
   unrestricted: boolean;
   subscription: { plan: string; status: string; billingStatus: string } | null;
   joinedAt: string;
+  /** The workspace's Instagram connection; `null` when it has never connected one. */
+  instagram: AdminWorkspaceInstagram | null;
+};
+
+/** Mirrors `AdminWorkspaceInstagram` in `server/src/services/adminUserDetail.ts`. */
+export type AdminWorkspaceInstagram = {
+  /** `disconnected` = had an account that is no longer active (different from never connected). */
+  status: "connected" | "disconnected";
+  igUserId: string;
+  username: string;
+  profilePictureUrl: string | null;
+  followerCount: number | null;
+  connectedAt: string;
+  tokenExpiresAt: string | null;
+  health: {
+    webhookSubscribed: boolean | null;
+    hasMessagingPermission: boolean | null;
+    hasCommentPermission: boolean | null;
+    permissionsVerified: boolean;
+  };
+  /** Meta's current send-side signals for the account; `null` when there are none. */
+  restriction: {
+    restrictedUntil: string | null;
+    abuseWarnings: number;
+    safetyCapUntil: string | null;
+  } | null;
+  /** Other live workspaces connected to the same Instagram account. */
+  sharedWithWorkspaces: number;
 };
 
 export type AdminUserWorkspacesResponse = {

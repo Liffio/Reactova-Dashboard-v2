@@ -513,6 +513,7 @@ export const apiUri = {
       workspaces: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/workspaces`,
       /** Active (non-revoked, non-expired) refresh-token sessions — Task 6 endpoint 3. */
       sessions: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/sessions`,
+      insights: (userId: string) => `${V1}/admin/users/${encodeURIComponent(userId)}/insights`,
       /** Keyset-paginated audit trail (actor OR on-behalf-of) — Task 6 endpoint 4. */
       audit: (userId: string, params: { cursor?: string; limit?: number } = {}) =>
         `${V1}/admin/users/${encodeURIComponent(userId)}/audit${listQs(params)}`,

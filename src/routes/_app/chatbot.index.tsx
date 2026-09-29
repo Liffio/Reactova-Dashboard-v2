@@ -40,7 +40,6 @@ import { useCan } from "@/hooks/use-auth";
 import { useModuleFeatures } from "@/hooks/use-features";
 import { cn } from "@/lib/utils";
 import { IceBreakerBand, IceBreakerSheet } from "@/components/chatbot/ice-breakers";
-import { ThemeSwitcher } from "@/components/chatbot/theme-switcher";
 import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
 import { BusinessHoursBand } from "@/components/chatbot/business-hours";
 import { UsageMeter, atCap } from "@/components/chatbot/usage-meter";
@@ -192,7 +191,6 @@ function ChatbotListPage() {
           />
         )}
         <div className="flex-1" />
-        <ThemeSwitcher className="max-md:hidden" />
         <Button variant="outline" size="sm" asChild>
           <Link to="/chatbot/contacts">
             <Users /> <span className="max-sm:hidden">Contacts</span>

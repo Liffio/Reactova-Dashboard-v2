@@ -1,7 +1,8 @@
 import { apiRequest } from "./http";
 import { apiUri } from "./apiUri";
 
-export type DiscountCodeKind = "PERCENT" | "FIXED";
+/** `TARGET_PRICE`: "sell at this price" — sets what the first month costs, per currency. */
+export type DiscountCodeKind = "PERCENT" | "FIXED" | "TARGET_PRICE";
 
 export type AdminDiscountCode = {
   id: string;
@@ -10,6 +11,9 @@ export type AdminDiscountCode = {
   percentBps: number | null;
   amountMinor: number | null;
   currency: "INR" | "USD" | null;
+  /** TARGET_PRICE only: the first month's price in paise / cents. */
+  targetInrMinor?: number | null;
+  targetUsdMinor?: number | null;
   maxDiscountMinor: number | null;
   packageKey: string | null;
   maxRedemptions: number | null;
@@ -54,6 +58,8 @@ export type CreateDiscountCodeInput = {
   percentBps?: number;
   amountMinor?: number;
   currency?: "INR" | "USD";
+  targetInrMinor?: number;
+  targetUsdMinor?: number;
   maxDiscountMinor?: number;
   packageKey?: string;
   maxRedemptions?: number;
@@ -75,6 +81,8 @@ export type UpdateDiscountCodeInput = {
   percentBps?: number | null;
   amountMinor?: number | null;
   currency?: "INR" | "USD" | null;
+  targetInrMinor?: number | null;
+  targetUsdMinor?: number | null;
   maxDiscountMinor?: number | null;
   packageKey?: string | null;
   maxRedemptions?: number | null;

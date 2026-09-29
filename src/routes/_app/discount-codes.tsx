@@ -23,6 +23,7 @@ import {
 } from "@/lib/api/discount-codes-api";
 import { DiscountCodeEditor } from "@/components/admin/discount-code-editor";
 import { DiscountCodeRedemptions } from "@/components/admin/discount-code-redemptions";
+import { DiscountTargetPreview } from "@/components/admin/discount-target-preview";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,7 +57,22 @@ function DiscountCodesRoute() {
 const money = (minor: number | null, currency: string | null) =>
   minor == null ? "—" : `${currency === "USD" ? "$" : "₹"}${(minor / 100).toFixed(2)}`;
 
+/** A typed price ("1", "1.50") as minor units, or null when empty / not a valid non-negative price. */
+const toMinor = (raw: string): number | null => {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
+};
+
 function describe(code: AdminDiscountCode): string {
+  if (code.kind === "TARGET_PRICE") {
+    const prices = [
+      code.targetInrMinor != null ? money(Math.max(code.targetInrMinor, 100), "INR") : null,
+      code.targetUsdMinor != null ? money(Math.max(code.targetUsdMinor, 100), "USD") : null,
+    ].filter(Boolean);
+    return `Sells at ${prices.join(" / ")} (first month)`;
+  }
   if (code.kind === "PERCENT") {
     const cap = code.maxDiscountMinor
       ? `, up to ${money(code.maxDiscountMinor, code.currency ?? "INR")}`
@@ -106,6 +122,9 @@ function DiscountCodesPage() {
     kind: DiscountCodeKind;
     value: string;
     currency: "INR" | "USD";
+    /** "Sell at price": what the first month costs, typed in rupees / dollars. */
+    targetInr: string;
+    targetUsd: string;
     maxRedemptions: string;
     perUserLimit: string;
     validUntil: string;
@@ -115,6 +134,8 @@ function DiscountCodesPage() {
     kind: "PERCENT",
     value: "",
     currency: "INR",
+    targetInr: "",
+    targetUsd: "",
     maxRedemptions: "",
     perUserLimit: "",
     validUntil: "",
@@ -138,6 +159,8 @@ function DiscountCodesPage() {
         ...f,
         code: "",
         value: "",
+        targetInr: "",
+        targetUsd: "",
         maxRedemptions: "",
         perUserLimit: "",
         validUntil: "",
@@ -181,6 +204,32 @@ function DiscountCodesPage() {
   });
 
   const submit = () => {
+    if (form.kind === "TARGET_PRICE") {
+      const targetInrMinor = toMinor(form.targetInr);
+      const targetUsdMinor = toMinor(form.targetUsd);
+      const badInr = form.targetInr.trim() !== "" && targetInrMinor === null;
+      const badUsd = form.targetUsd.trim() !== "" && targetUsdMinor === null;
+      if (
+        !form.code.trim() ||
+        badInr ||
+        badUsd ||
+        (targetInrMinor === null && targetUsdMinor === null)
+      ) {
+        toast.error("Enter a code and a ₹ and/or $ price it should sell at");
+        return;
+      }
+      create.mutate({
+        code: form.code.trim(),
+        kind: "TARGET_PRICE",
+        ...(targetInrMinor !== null ? { targetInrMinor } : {}),
+        ...(targetUsdMinor !== null ? { targetUsdMinor } : {}),
+        ...(form.maxRedemptions ? { maxRedemptions: Number(form.maxRedemptions) } : {}),
+        ...(form.perUserLimit ? { perUserLimit: Number(form.perUserLimit) } : {}),
+        ...(form.validUntil ? { validUntil: new Date(form.validUntil).toISOString() } : {}),
+        ...(form.note.trim() ? { note: form.note.trim() } : {}),
+      });
+      return;
+    }
     const numeric = Number(form.value);
     if (!form.code.trim() || !Number.isFinite(numeric) || numeric <= 0) {
       toast.error("Enter a code and a positive value");
@@ -224,10 +273,10 @@ function DiscountCodesPage() {
         dashboard — there is no API to create one, so nothing made here can reach cycle two.
       */}
       <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
-        <p className="font-medium">Codes apply to the first payment only</p>
+        <p className="font-medium">Codes apply to one payment only</p>
         <p className="text-muted-foreground">
-          Every following renewal is charged the full plan price. Discounts that last several
-          billing cycles have to be created in the Razorpay dashboard, which has no API.
+          A code discounts the payment it's used on; every renewal after it is charged the full plan
+          price. A "Sell at price" code buys one month at that price, even on a yearly plan.
         </p>
       </div>
 
@@ -248,7 +297,7 @@ function DiscountCodesPage() {
           <div className="space-y-1.5">
             <label className="text-xs text-muted-foreground">Type</label>
             <div className="flex gap-2">
-              {(["PERCENT", "FIXED"] as const).map((k) => (
+              {(["PERCENT", "FIXED", "TARGET_PRICE"] as const).map((k) => (
                 <Button
                   key={k}
                   type="button"
@@ -256,36 +305,60 @@ function DiscountCodesPage() {
                   variant={form.kind === k ? "default" : "outline"}
                   onClick={() => setForm({ ...form, kind: k })}
                 >
-                  {k === "PERCENT" ? "Percentage" : "Flat"}
+                  {k === "PERCENT" ? "Percentage" : k === "FIXED" ? "Flat" : "Sell at price"}
                 </Button>
               ))}
             </div>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground">
-              {form.kind === "PERCENT" ? "Percent off" : "Amount off"}
-            </label>
-            <div className="flex gap-2">
-              <Input
-                value={form.value}
-                onChange={(e) => setForm({ ...form, value: e.target.value })}
-                placeholder={form.kind === "PERCENT" ? "20" : "200"}
-                inputMode="decimal"
-              />
-              {form.kind === "FIXED" && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setForm({ ...form, currency: form.currency === "INR" ? "USD" : "INR" })
-                  }
-                >
-                  {form.currency}
-                </Button>
-              )}
+          {form.kind === "TARGET_PRICE" ? (
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">
+                Sell at (first month) — ₹ and/or $
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  value={form.targetInr}
+                  onChange={(e) => setForm({ ...form, targetInr: e.target.value })}
+                  placeholder="₹ 1"
+                  inputMode="decimal"
+                  aria-label="Price in rupees"
+                />
+                <Input
+                  value={form.targetUsd}
+                  onChange={(e) => setForm({ ...form, targetUsd: e.target.value })}
+                  placeholder="$ 1"
+                  inputMode="decimal"
+                  aria-label="Price in dollars"
+                />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">
+                {form.kind === "PERCENT" ? "Percent off" : "Amount off"}
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  value={form.value}
+                  onChange={(e) => setForm({ ...form, value: e.target.value })}
+                  placeholder={form.kind === "PERCENT" ? "20" : "200"}
+                  inputMode="decimal"
+                />
+                {form.kind === "FIXED" && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setForm({ ...form, currency: form.currency === "INR" ? "USD" : "INR" })
+                    }
+                  >
+                    {form.currency}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
           <div className="space-y-1.5">
             <label className="text-xs text-muted-foreground">Max uses (optional)</label>
             <Input
@@ -321,6 +394,15 @@ function DiscountCodesPage() {
             />
           </div>
         </div>
+        {form.kind === "TARGET_PRICE" && (
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-medium">What every package costs with this code</p>
+            <DiscountTargetPreview
+              targetInrMinor={toMinor(form.targetInr)}
+              targetUsdMinor={toMinor(form.targetUsd)}
+            />
+          </div>
+        )}
         <Separator className="my-4" />
         <Button onClick={submit} disabled={create.isPending} size="sm">
           {create.isPending ? "Creating…" : "Create code"}
@@ -356,9 +438,7 @@ function DiscountCodesPage() {
                 <tr key={c.id} className="border-t">
                   <td className="px-4 py-3">
                     <span className="font-mono">{c.code}</span>
-                    {c.note && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">{c.note}</p>
-                    )}
+                    {c.note && <p className="mt-0.5 text-xs text-muted-foreground">{c.note}</p>}
                   </td>
                   <td className="px-4 py-3">{describe(c)}</td>
                   <td className="px-4 py-3">
@@ -373,14 +453,20 @@ function DiscountCodesPage() {
                     </button>
                   </td>
                   {/* Null is unlimited, and is spelled out rather than shown as a dash. */}
-                  <td className="px-4 py-3">{c.perUserLimit == null ? "Unlimited" : c.perUserLimit}</td>
+                  <td className="px-4 py-3">
+                    {c.perUserLimit == null ? "Unlimited" : c.perUserLimit}
+                  </td>
                   <td className="px-4 py-3">
                     <StatusBadge code={c} />
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {c.validFrom ? `From ${new Date(c.validFrom).toLocaleDateString()}` : "No start"}
+                    {c.validFrom
+                      ? `From ${new Date(c.validFrom).toLocaleDateString()}`
+                      : "No start"}
                     <br />
-                    {c.validUntil ? `Until ${new Date(c.validUntil).toLocaleDateString()}` : "No end"}
+                    {c.validUntil
+                      ? `Until ${new Date(c.validUntil).toLocaleDateString()}`
+                      : "No end"}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1.5">

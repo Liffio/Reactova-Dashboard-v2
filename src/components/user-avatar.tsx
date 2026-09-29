@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Blobatar } from "@blobatar/react";
 // Required for `animate` — without it every blobatar renders static.
 import "blobatar/motion.css";
+// Required for the eyes to follow the cursor / taps — see `lib/blob-gaze.ts`.
+import "blobatar/gaze.css";
+import { attachBlobGaze } from "@/lib/blob-gaze";
 import { resolveApiAssetUrl } from "@/lib/api/http";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +18,9 @@ import { cn } from "@/lib/utils";
  *
  * Every blob animates on hover (`motion.css` above). `bare` drops the squircle backdrop and scales
  * the blob up so its body — not the empty backdrop area — fills the box; a photo is unaffected.
+ *
+ * The eyes follow the cursor (and look at taps on touch screens) via `lib/blob-gaze.ts`. Purely
+ * decorative: it only listens, passively, and never changes what a click or tap does.
  */
 export type UserAvatarProps = {
   userId: string;
@@ -30,6 +36,10 @@ export type UserAvatarProps = {
 
 /** The blob's body spans ~70% of its viewBox; this scale makes it fill the box when bare. */
 const BARE_SCALE = 1.4;
+/** Below this the eye movement is under a pixel, so the follow is skipped (dense lists). */
+const GAZE_MIN_SIZE = 24;
+/** How far the eyes travel, in viewBox units (~1.5–4 reads well). */
+const GAZE_TRAVEL = "3px";
 
 export function UserAvatar({
   userId,
@@ -46,6 +56,10 @@ export function UserAvatar({
   const label = name?.trim() || "User";
   const showPhoto = Boolean(src) && !failed;
   const blobSize = bare ? Math.round(size * BARE_SCALE) : size;
+  // The eyes live in the motion markup, so following needs `animate`.
+  const follow = animate && size >= GAZE_MIN_SIZE;
+  // React 19 ref callback: the returned teardown runs when the <svg> unmounts.
+  const gazeRef = useCallback((svg: SVGSVGElement | null) => attachBlobGaze(svg), []);
 
   return (
     <span
@@ -72,7 +86,11 @@ export function UserAvatar({
           background={bare ? false : "squircle"}
           title={label}
           className={bare ? "shrink-0" : undefined}
-          style={bare ? { margin: -(blobSize - size) / 2 } : undefined}
+          style={{
+            ...(bare ? { margin: -(blobSize - size) / 2 } : {}),
+            ...(follow ? { ["--mo-track-travel" as string]: GAZE_TRAVEL } : {}),
+          }}
+          ref={follow ? gazeRef : undefined}
           {...(animate ? { animate: "hover" as const } : {})}
         />
       )}

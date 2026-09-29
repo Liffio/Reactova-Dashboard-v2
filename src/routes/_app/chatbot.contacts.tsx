@@ -152,7 +152,10 @@ function ContactsPage() {
                   </div>
                   {paused && (
                     <span className="rounded-full bg-warning-wash px-2 py-0.5 text-xs whitespace-nowrap">
-                      Bot paused · {pauseWhy[c.pausedReason ?? "MANUAL"]}
+                      {c.pausedChatbot
+                        ? `${c.pausedChatbot.name ?? "A chatbot"} paused`
+                        : "All bots paused"}{" "}
+                      · {pauseWhy[c.pausedReason ?? "MANUAL"]}
                     </span>
                   )}
                   {c.assignedTo && (
@@ -268,8 +271,11 @@ function ContactSheet({
             <section className="rounded-xl border border-border p-3 text-sm">
               {paused ? (
                 <p>
-                  The bot is paused until {when(c.botPausedUntil)} because{" "}
-                  {pauseWhy[c.pausedReason ?? "MANUAL"]}.
+                  {c.pausedChatbot
+                    ? `${c.pausedChatbot.name ?? "One chatbot"} is paused for this person`
+                    : "Every chatbot is paused for this person"}{" "}
+                  until {when(c.botPausedUntil)} because {pauseWhy[c.pausedReason ?? "MANUAL"]}.
+                  {c.pausedChatbot && " Your other chatbots still reply to them."}
                 </p>
               ) : (
                 <p>The bot is replying to this person.</p>

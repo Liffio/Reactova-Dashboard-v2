@@ -189,6 +189,37 @@ export interface ContactDetail extends ContactRow {
   }>;
 }
 
+/**
+ * One conversation, read live from Instagram and never stored. When Instagram can't answer, a
+ * summary of the run (steps sent, buttons tapped) instead, which has nothing the person typed.
+ */
+export interface ConversationMessage {
+  id: string;
+  at: string;
+  /** `business`: sent from the account but not by this chatbot, usually a person in Instagram. */
+  from: "contact" | "bot" | "business";
+  text: string | null;
+}
+export type ConversationSummaryItem =
+  | { kind: "started"; at: string; entry: string | null }
+  | { kind: "step"; at: string; stepName: string; text: string | null }
+  | { kind: "follow_up"; at: string; stepName: string; text: string | null }
+  | { kind: "fallback"; at: string; text: string | null }
+  | { kind: "tap"; at: string; label: string }
+  | { kind: "answer"; at: string; key: string; valid: boolean }
+  | { kind: "handover"; at: string }
+  | { kind: "ended"; at: string; reason: string };
+export type ConversationSummaryReason =
+  "account_disconnected" | "instagram_unavailable" | "too_old" | "not_found";
+export type ConversationTranscript =
+  | {
+      mode: "transcript";
+      messages: ConversationMessage[];
+      partial: boolean;
+      summary: ConversationSummaryItem[];
+    }
+  | { mode: "summary"; reason: ConversationSummaryReason; summary: ConversationSummaryItem[] };
+
 export type TestAction =
   | { kind: "tap"; buttonId: string }
   | { kind: "text"; text: string }
@@ -277,28 +308,51 @@ export interface BusinessHoursState {
   openNow: boolean | null;
 }
 
-/** One ready-made flow from the server's library. `gated` ones need `chatbot:templates`. */
+/**
+ * One ready-made flow from the server's library. `gated` ones need `chatbot:templates`; "Start
+ * blank" (`key: "blank"`, `id: null`) never does. `requiredCapabilities` are plan features the
+ * flow uses: installing works without them, going live needs them.
+ */
 export interface ChatbotTemplateSummary {
+  id: string | null;
   key: string;
   icon: string;
   name: string;
   description: string;
   stepCount: number;
   gated: boolean;
+  categoryKey: string | null;
+  categoryLabel: string | null;
+  keywords: string[];
+  featured: boolean;
+  requiredCapabilities: string[];
+}
+
+/** A picker chip: an industry with at least one live template. */
+export interface ChatbotTemplateCategory {
+  key: string;
+  label: string;
 }
 
 export const chatbotApi = {
   list: (workspaceId: string) =>
     unwrap(apiRequest<{ data: ChatbotListResponse }>(apiUri.chatbots.list, { workspaceId })),
   templates: (workspaceId: string) =>
-    unwrap(
-      apiRequest<{ data: ChatbotTemplateSummary[] }>(apiUri.chatbots.templates, { workspaceId }),
-    ),
+    apiRequest<{ data: ChatbotTemplateSummary[]; categories?: ChatbotTemplateCategory[] }>(
+      apiUri.chatbots.templates,
+      { workspaceId },
+    ).then((r) => ({ templates: r.data, categories: r.categories ?? [] })),
   get: (workspaceId: string, id: string) =>
     unwrap(apiRequest<{ data: Chatbot }>(apiUri.chatbots.byId(id), { workspaceId })),
   create: (
     workspaceId: string,
-    body: { name: string; icon?: string; graph?: Omit<GraphInput, "name">; templateKey?: string },
+    body: {
+      name: string;
+      icon?: string;
+      graph?: Omit<GraphInput, "name">;
+      templateId?: string;
+      templateKey?: string;
+    },
   ) =>
     unwrap(
       apiRequest<{ data: Chatbot }>(apiUri.chatbots.list, { method: "POST", workspaceId, body }),
@@ -461,6 +515,13 @@ export const chatbotApi = {
         workspaceId,
         body: { hours },
       }),
+    ),
+  conversation: (workspaceId: string, contactId: string, sessionId: string) =>
+    unwrap(
+      apiRequest<{ data: ConversationTranscript }>(
+        apiUri.chatbots.contactConversation(contactId, sessionId),
+        { workspaceId },
+      ),
     ),
   resumeContact: (workspaceId: string, contactId: string) =>
     unwrap(

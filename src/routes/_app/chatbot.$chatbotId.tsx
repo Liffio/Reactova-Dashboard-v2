@@ -43,6 +43,8 @@ import { StatusPill, publishErrorMessage, publishProblems } from "@/components/c
 import { duplicateStep, newStep, removeStep } from "@/components/chatbot/model";
 import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
 import { UsageMeter, atCap } from "@/components/chatbot/usage-meter";
+import { SaveAsTemplateDialog } from "@/components/chatbot/save-as-template";
+import { usePlatformAuthz } from "@/hooks/use-platform-authz";
 
 export const Route = createFileRoute("/_app/chatbot/$chatbotId")({
   head: () => ({ meta: [{ title: "Chatbot builder — Liffio" }] }),
@@ -147,6 +149,10 @@ function BuilderPage() {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [reorder, setReorder] = useState(false);
   const [flashId, setFlashId] = useState<string | null>(null);
+  // Template library curators (`platform:module_manage`) can turn this flow into a template.
+  const { authz: platformAuthz } = usePlatformAuthz();
+  const canCurateTemplates = platformAuthz.permissions.includes("platform:module_manage");
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [iceOpen, setIceOpen] = useState(false);
   const [problems, setProblems] = useState<PublishProblem[]>([]);
@@ -367,8 +373,22 @@ function BuilderPage() {
                 )}
               </DropdownMenuItem>
             )}
+            {canCurateTemplates && (
+              <DropdownMenuItem onSelect={() => setSavingTemplate(true)}>
+                Save as template
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
+        {canCurateTemplates && (
+          <SaveAsTemplateDialog
+            open={savingTemplate}
+            onOpenChange={setSavingTemplate}
+            workspaceId={ws}
+            chatbotId={bot.id}
+            unsaved={editor.saveState === "saving" || editor.saveState === "error"}
+          />
+        )}
         {canUpdate && features.go_live && (
           <Button
             className="max-md:hidden"

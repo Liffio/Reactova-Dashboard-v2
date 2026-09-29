@@ -573,8 +573,11 @@ function LifecycleDialog({
             ))}
 
           <div className="space-y-2">
-            <Label className="text-sm">Authenticator code</Label>
+            <Label htmlFor="plugin-lifecycle-totp" className="text-sm">
+              Authenticator code
+            </Label>
             <InputOTP
+              id="plugin-lifecycle-totp"
               name="totp"
               maxLength={6}
               value={code}

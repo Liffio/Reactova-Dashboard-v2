@@ -17,15 +17,17 @@
  * per-screen in practice even though the storage is global: it survives exactly as long as the
  * page you set it on.
  *
- * The default is deliberately asymmetric — **notify yes, popup no**. Most admin edits are
- * corrections, and interrupting every affected tenant for a correction is how a modal gets trained
- * into "dismiss unread", so it is no longer there for the change that matters. Screens where the
- * interruption is usually warranted (moving one workspace onto a different plan) opt in explicitly.
+ * Two defaults. The **ambient** one (notify yes, popup no) is what every non-admin page sends, so
+ * ordinary team and invite changes keep notifying. A **superadmin screen** starts with both off —
+ * the operator opts in for the change worth telling tenants about (see `useNotifyDelivery`).
  */
 
 export type NotifyDeliveryChoice = { notify: boolean; popup: boolean };
 
 export const NOTIFY_DELIVERY_DEFAULT: NotifyDeliveryChoice = { notify: true, popup: false };
+
+/** What the notification bar starts at when a superadmin screen mounts. */
+export const SUPERADMIN_SCREEN_DEFAULT: NotifyDeliveryChoice = { notify: false, popup: false };
 
 let current: NotifyDeliveryChoice = { ...NOTIFY_DELIVERY_DEFAULT };
 

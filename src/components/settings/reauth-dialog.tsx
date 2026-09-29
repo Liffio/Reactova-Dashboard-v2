@@ -139,6 +139,7 @@ export function ReauthDialog() {
               <div className="flex items-center overflow-hidden rounded-[10px] border border-border bg-card focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-[#F5184C]">
                 <input
                   id="reauth-secret"
+                  name={method === "password" ? "password" : "one-time-code"}
                   autoFocus
                   type={method === "password" && !reveal ? "password" : "text"}
                   inputMode={method === "password" ? undefined : "numeric"}

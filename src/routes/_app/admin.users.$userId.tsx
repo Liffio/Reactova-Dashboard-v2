@@ -3,7 +3,6 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
-  ArrowLeft,
   Ban,
   KeyRound,
   Mail,
@@ -19,13 +18,11 @@ import {
   UserX,
 } from "lucide-react";
 
-import { PageHeader } from "@/components/dashboard/page-header";
 import { PlatformPermissionRoute } from "@/components/auth/guards";
+import { timeAgo } from "@/features/settings/components";
 import { PageErrorBoundary } from "@/components/error-boundary";
-import { CopyableKey } from "@/components/admin/form-page";
 import { ImpersonateDialog } from "@/components/admin/impersonate-dialog";
 import { UserAvatar } from "@/components/user-avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -90,7 +87,9 @@ import {
 } from "@/lib/api/admin-users-api";
 
 /**
- * Detail shell (Task 8) — left rail identity card + tab nav + `<Outlet/>`. Every tab is a
+ * Detail shell (Task 8) — profile header (identity, status pills, actions) + full-width tab nav +
+ * `<Outlet/>`. Tabs get the full width; the identity details the old left rail held now live in
+ * the Overview tab's side column, since the wider tabs (workspace drill-down, billing) need it. Every tab is a
  * separate route file (`admin.users.$userId.{index,workspaces,sessions,activity,impersonation,
  * ai-api,billing}.tsx`) so each is deep-linkable and lazily loaded, per spec §7.2. Impersonation
  * (Task 18) and AI & API / Billing (Task 21) are wired up; the per-workspace Access drill-down is
@@ -139,49 +138,143 @@ function AdminUserDetailPage() {
     queryFn: () => getAdminUser(userId),
   });
 
+  if (detailQuery.isLoading) return <DetailSkeleton />;
+  if (detailQuery.isError || !detailQuery.data) {
+    return (
+      <div className="p-4 sm:p-6 md:p-8">
+        <DetailError error={detailQuery.error} onRetry={() => void detailQuery.refetch()} />
+      </div>
+    );
+  }
+
+  const user = detailQuery.data;
   return (
     <div>
-      <PageHeader
-        eyebrow="Platform admin"
-        title={detailQuery.data?.name || detailQuery.data?.email || "User"}
-        description={detailQuery.data?.email}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            {detailQuery.data && <UserActionBar userId={userId} user={detailQuery.data} />}
-            <Button variant="outline" size="sm" className="gap-1.5" asChild>
-              <Link to="/admin/users">
-                <ArrowLeft className="h-3.5 w-3.5" /> Back to users
-              </Link>
-            </Button>
-          </div>
-        }
-      />
-
-      <div className="p-4 sm:p-6 md:p-10">
-        {detailQuery.isLoading ? (
-          <DetailSkeleton />
-        ) : detailQuery.isError ? (
-          <DetailError error={detailQuery.error} onRetry={() => void detailQuery.refetch()} />
-        ) : detailQuery.data ? (
-          <div className="grid gap-6 md:grid-cols-[280px_1fr]">
-            <IdentityRail user={detailQuery.data} />
-            <div className="min-w-0 space-y-4">
-              <TabNav userId={userId} />
-              <Outlet />
-            </div>
-          </div>
-        ) : null}
+      <ProfileHeader user={user} actions={<UserActionBar userId={userId} user={user} />} />
+      <TabNav userId={userId} />
+      <div className="p-4 sm:p-6 md:p-8">
+        <Outlet />
       </div>
     </div>
   );
 }
 
+/**
+ * Identity at a glance (the profile header on Clerk's and Sweatpals' user pages): who this is,
+ * whether the account is usable, and how it signs in — everything an operator checks before
+ * acting, without opening a tab. Detail that is only occasionally needed (ids, auth methods,
+ * platform authority) sits in the Overview tab's side column instead.
+ */
+function ProfileHeader({ user, actions }: { user: AdminUserDetail; actions: ReactNode }) {
+  return (
+    <div className="bg-soft-gradient px-4 pt-6 sm:px-6 md:px-8">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
+          <UserAvatar
+            userId={user.id}
+            name={user.name ?? user.email}
+            avatarUrl={user.avatarUrl}
+            seed={user.avatarSeed}
+            size={64}
+          />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <h1 className="truncate text-2xl font-semibold tracking-tight">
+                {user.name || user.email}
+              </h1>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <HeaderPill
+                  tone={user.ban.isBanned ? "danger" : user.isActive ? "success" : "muted"}
+                  dot
+                >
+                  {user.ban.isBanned ? "Banned" : user.isActive ? "Active" : "Inactive"}
+                </HeaderPill>
+                {!user.emailVerified && <HeaderPill tone="warning">Unverified email</HeaderPill>}
+                <HeaderPill tone={user.mfa.enabled ? "success" : "muted"}>
+                  {user.mfa.enabled ? (
+                    <ShieldCheck className="h-3 w-3" />
+                  ) : (
+                    <ShieldOff className="h-3 w-3" />
+                  )}
+                  {user.mfa.enabled ? "MFA on" : "No MFA"}
+                </HeaderPill>
+                {user.platform.isSuperAdmin ? (
+                  <HeaderPill tone="accent">Super admin</HeaderPill>
+                ) : user.platform.isPlatformAdmin ? (
+                  <HeaderPill tone="accent">Platform admin</HeaderPill>
+                ) : null}
+              </div>
+            </div>
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+              {user.name && <span className="truncate">{user.email}</span>}
+              {user.name && <span aria-hidden>·</span>}
+              <span>
+                {user.lastActiveAt ? `Active ${timeAgo(user.lastActiveAt)}` : "Never active"}
+              </span>
+              <span aria-hidden>·</span>
+              <span>Joined {formatDate(user.createdAt)}</span>
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+      </div>
+      {user.ban.isBanned && (
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            <span className="font-semibold">Banned</span>
+            {user.ban.bannedAt && ` since ${formatDateTime(user.ban.bannedAt)}`}
+            {user.ban.reason && <span className="text-destructive/90"> — {user.ban.reason}</span>}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const PILL_TONES = {
+  success: "bg-success/10 text-success",
+  warning: "bg-warning/10 text-warning",
+  danger: "bg-destructive/10 text-destructive",
+  accent: "bg-chart-3/10 text-chart-3",
+  muted: "bg-muted text-muted-foreground",
+} as const;
+
+function HeaderPill({
+  tone,
+  dot,
+  children,
+}: {
+  tone: keyof typeof PILL_TONES;
+  dot?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium",
+        PILL_TONES[tone],
+      )}
+    >
+      {dot && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+      {children}
+    </span>
+  );
+}
+
 function DetailSkeleton() {
   return (
-    <div className="grid gap-6 md:grid-cols-[280px_1fr]">
-      <Skeleton className="h-96 rounded-2xl" />
-      <div className="min-w-0 space-y-4">
-        <Skeleton className="h-9 w-full rounded-lg" />
+    <div>
+      <div className="flex items-center gap-4 px-4 pt-6 sm:px-6 md:px-8">
+        <Skeleton className="h-16 w-16 rounded-full" />
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-56" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+      </div>
+      <Skeleton className="mx-4 mt-6 h-9 rounded-lg sm:mx-6 md:mx-8" />
+      <div className="grid gap-4 p-4 sm:p-6 md:p-8 lg:grid-cols-[1fr_300px]">
+        <Skeleton className="h-64 rounded-2xl" />
         <Skeleton className="h-64 rounded-2xl" />
       </div>
     </div>
@@ -223,117 +316,6 @@ function DetailError({ error, onRetry }: { error: unknown; onRetry: () => void }
   );
 }
 
-function IdentityRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <dt className="shrink-0 text-muted-foreground">{label}</dt>
-      <dd className="text-right font-medium">{children}</dd>
-    </div>
-  );
-}
-
-function PlatformAuthorityBadge({ platform }: { platform: AdminUserDetail["platform"] }) {
-  if (platform.isSuperAdmin) {
-    return (
-      <Badge variant="outline" className="border-chart-3/30 bg-chart-3/10 text-[10px] text-chart-3">
-        Super admin
-      </Badge>
-    );
-  }
-  if (platform.isPlatformAdmin) {
-    return (
-      <Badge variant="outline" className="border-primary/30 bg-primary/10 text-[10px] text-primary">
-        Scoped{platform.source ? ` · ${platform.source}` : ""}
-      </Badge>
-    );
-  }
-  return (
-    <Badge
-      variant="outline"
-      className="border-muted-foreground/30 text-[10px] text-muted-foreground"
-    >
-      None
-    </Badge>
-  );
-}
-
-function IdentityRail({ user }: { user: AdminUserDetail }) {
-  return (
-    <aside className="min-w-0">
-      <div className="rounded-2xl border bg-card p-5 shadow-soft">
-        {user.ban.isBanned && (
-          <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
-            <p className="flex items-center gap-1.5 text-xs font-semibold text-destructive">
-              <ShieldOff className="h-3.5 w-3.5" /> Banned
-            </p>
-            {user.ban.reason && (
-              <p className="mt-1 text-xs text-destructive/90">{user.ban.reason}</p>
-            )}
-            {user.ban.bannedAt && (
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Since {formatDateTime(user.ban.bannedAt)}
-              </p>
-            )}
-          </div>
-        )}
-
-        <div className="flex flex-col items-center text-center">
-          <UserAvatar
-            userId={user.id}
-            name={user.name ?? user.email}
-            avatarUrl={user.avatarUrl}
-            seed={user.avatarSeed}
-            size={64}
-          />
-          <p className="mt-3 truncate text-sm font-semibold">{user.name || "—"}</p>
-          <CopyableKey value={user.email} className="mt-1.5 max-w-full" />
-          <CopyableKey value={user.id} className="mt-1.5 max-w-full" />
-        </div>
-
-        <dl className="mt-5 space-y-3 text-xs">
-          <IdentityRow label="Joined">{formatDate(user.createdAt)}</IdentityRow>
-          <IdentityRow label="Last active">
-            {user.lastActiveAt ? formatDateTime(user.lastActiveAt) : "Never"}
-          </IdentityRow>
-          <IdentityRow label="Auth methods">
-            {user.authMethods.length === 0 ? (
-              "—"
-            ) : (
-              <span className="flex flex-wrap justify-end gap-1">
-                {user.authMethods.map((m) => (
-                  <Badge key={m} variant="outline" className="text-[10px] capitalize">
-                    {m}
-                  </Badge>
-                ))}
-              </span>
-            )}
-          </IdentityRow>
-          <IdentityRow label="MFA">
-            {user.mfa.enabled ? (
-              <Badge
-                variant="outline"
-                className="border-success/30 bg-success/10 text-[10px] text-success"
-              >
-                Enabled · {user.mfa.methods.length}
-              </Badge>
-            ) : (
-              <Badge
-                variant="outline"
-                className="border-muted-foreground/30 text-[10px] text-muted-foreground"
-              >
-                Disabled
-              </Badge>
-            )}
-          </IdentityRow>
-          <IdentityRow label="Platform authority">
-            <PlatformAuthorityBadge platform={user.platform} />
-          </IdentityRow>
-        </dl>
-      </div>
-    </aside>
-  );
-}
-
 type TabTo =
   | "/admin/users/$userId"
   | "/admin/users/$userId/workspaces"
@@ -359,11 +341,12 @@ function TabLink({
     <Link
       to={to}
       params={{ userId }}
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+        "-mb-px shrink-0 whitespace-nowrap border-b-2 px-1 pb-2.5 pt-1 text-sm font-medium transition-colors",
         active
           ? "border-primary text-foreground"
-          : "border-transparent text-muted-foreground hover:text-foreground",
+          : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
       )}
     >
       {children}
@@ -371,66 +354,43 @@ function TabLink({
   );
 }
 
+const TABS: Array<{ to: TabTo; suffix: string; label: string }> = [
+  { to: "/admin/users/$userId", suffix: "", label: "Overview" },
+  { to: "/admin/users/$userId/workspaces", suffix: "/workspaces", label: "Workspaces" },
+  { to: "/admin/users/$userId/sessions", suffix: "/sessions", label: "Sessions & Security" },
+  { to: "/admin/users/$userId/activity", suffix: "/activity", label: "Activity" },
+  { to: "/admin/users/$userId/related", suffix: "/related", label: "Related" },
+  { to: "/admin/users/$userId/impersonation", suffix: "/impersonation", label: "Impersonation" },
+  { to: "/admin/users/$userId/ai-api", suffix: "/ai-api", label: "AI & API" },
+  { to: "/admin/users/$userId/billing", suffix: "/billing", label: "Billing" },
+];
+
 /** Nav links, not the shadcn `Tabs` primitive — each tab is a real route (deep-linkable,
- *  lazily loaded per spec §7.2), so content comes from `<Outlet/>`, not local tab state. */
+ *  lazily loaded per spec §7.2), so content comes from `<Outlet/>`, not local tab state.
+ *  Workspaces stays highlighted inside a workspace drill-down, which is its child page. */
 function TabNav({ userId }: { userId: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const base = `/admin/users/${userId}`;
 
   return (
-    <nav className="flex flex-wrap gap-1 overflow-x-auto border-b" aria-label="User detail tabs">
-      <TabLink to="/admin/users/$userId" userId={userId} active={pathname === base}>
-        Overview
-      </TabLink>
-      <TabLink
-        to="/admin/users/$userId/workspaces"
-        userId={userId}
-        active={pathname === `${base}/workspaces`}
-      >
-        Workspaces
-      </TabLink>
-      <TabLink
-        to="/admin/users/$userId/sessions"
-        userId={userId}
-        active={pathname === `${base}/sessions`}
-      >
-        Sessions & Security
-      </TabLink>
-      <TabLink
-        to="/admin/users/$userId/activity"
-        userId={userId}
-        active={pathname === `${base}/activity`}
-      >
-        Activity
-      </TabLink>
-      <TabLink
-        to="/admin/users/$userId/related"
-        userId={userId}
-        active={pathname === `${base}/related`}
-      >
-        Related
-      </TabLink>
-      <TabLink
-        to="/admin/users/$userId/impersonation"
-        userId={userId}
-        active={pathname === `${base}/impersonation`}
-      >
-        Impersonation
-      </TabLink>
-      <TabLink
-        to="/admin/users/$userId/ai-api"
-        userId={userId}
-        active={pathname === `${base}/ai-api`}
-      >
-        AI & API
-      </TabLink>
-      <TabLink
-        to="/admin/users/$userId/billing"
-        userId={userId}
-        active={pathname === `${base}/billing`}
-      >
-        Billing
-      </TabLink>
+    <nav
+      className="flex gap-6 overflow-x-auto border-b bg-soft-gradient px-4 pt-5 sm:px-6 md:px-8"
+      aria-label="User detail tabs"
+    >
+      {TABS.map((tab) => (
+        <TabLink
+          key={tab.to}
+          to={tab.to}
+          userId={userId}
+          active={
+            tab.suffix === "/workspaces"
+              ? pathname.startsWith(`${base}/workspaces`)
+              : pathname === `${base}${tab.suffix}`
+          }
+        >
+          {tab.label}
+        </TabLink>
+      ))}
     </nav>
   );
 }
@@ -1324,8 +1284,9 @@ function SetPasswordDialog({ userId, open, onOpenChange }: KebabDialogProps) {
           </div>
         ) : (
           <div className="space-y-2 text-left">
-            <Label>Your authenticator code</Label>
+            <Label htmlFor="user-action-totp">Your authenticator code</Label>
             <InputOTP
+              id="user-action-totp"
               name="totp"
               maxLength={6}
               value={code}

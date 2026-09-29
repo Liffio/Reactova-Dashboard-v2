@@ -122,11 +122,18 @@ export function ConfirmCodeField({
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-sm">
+      <Label htmlFor="confirm-code-totp" className="text-sm">
         {label}
         <span className="ml-0.5 text-destructive">*</span>
       </Label>
-      <InputOTP name="totp" maxLength={6} value={code} onChange={setCode} disabled={disabled}>
+      <InputOTP
+        id="confirm-code-totp"
+        name="totp"
+        maxLength={6}
+        value={code}
+        onChange={setCode}
+        disabled={disabled}
+      >
         <InputOTPGroup>
           {Array.from({ length: 6 }).map((_, i) => (
             <InputOTPSlot key={i} index={i} />

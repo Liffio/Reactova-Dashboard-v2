@@ -1029,8 +1029,9 @@ function AuthenticatorPanel({ variant, onBack }: { variant: "2fa" | "mfa"; onBac
               />
             </div>
             <div className="space-y-1.5">
-              <Label>6-digit authenticator code</Label>
+              <Label htmlFor="mfa-disable-totp">6-digit authenticator code</Label>
               <InputOTP
+                id="mfa-disable-totp"
                 name="totp"
                 maxLength={6}
                 value={disableOtp}
@@ -1088,8 +1089,9 @@ function AuthenticatorPanel({ variant, onBack }: { variant: "2fa" | "mfa"; onBac
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>6-digit code</Label>
+              <Label htmlFor="mfa-setup-totp">6-digit code</Label>
               <InputOTP
+                id="mfa-setup-totp"
                 name="totp"
                 maxLength={6}
                 value={otpSetup}
@@ -1271,8 +1273,9 @@ function DeleteAuthenticator({ onBack }: { onBack: () => void }) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>6-digit code from authenticator</Label>
+              <Label htmlFor="mfa-disable-totp-alt">6-digit code from authenticator</Label>
               <InputOTP
+                id="mfa-disable-totp-alt"
                 name="totp"
                 maxLength={6}
                 value={disableOtp}

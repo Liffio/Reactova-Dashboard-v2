@@ -52,7 +52,7 @@ function AssignRoute() {
   // Popup ON by default here: moving a workspace onto a different plan really does move that
   // tenant's ceiling, and it affects one workspace rather than everyone on a tier.
   return (
-    <PlatformPermissionRoute permission={PACKAGE_MANAGE} notifyPopupDefault>
+    <PlatformPermissionRoute permission={PACKAGE_MANAGE}>
       <AssignPage />
     </PlatformPermissionRoute>
   );
@@ -131,12 +131,7 @@ function AssignPage() {
     void queryClient.invalidateQueries({ queryKey: ["package-detail"] });
   };
 
-  /**
-   * Read-only — the page's notification bar owns the choice. This screen starts it with the popup
-   * ON (see `notifyPopupDefault` on the route guard below): moving one workspace onto a different
-   * plan is rarely a correction, the ceiling genuinely moved, and the blast radius is one tenant
-   * rather than everyone on a tier.
-   */
+  /** Read-only — the page's notification bar owns the choice (both channels start off). */
   const delivery = useNotifyDeliveryValue();
 
   const assignMutation = useMutation({
@@ -462,9 +457,7 @@ function DiffList({
             </li>
           ))}
           {keys.length > 12 && (
-            <li className="text-[11px] text-muted-foreground">
-              …and {keys.length - 12} more
-            </li>
+            <li className="text-[11px] text-muted-foreground">…and {keys.length - 12} more</li>
           )}
         </ul>
       )}

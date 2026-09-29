@@ -10,7 +10,7 @@ import { ShieldOff } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { NotifyDeliveryBar } from "@/components/admin/notify-delivery-controls";
+import { WithAdminPageBar } from "@/components/admin/admin-page-bar";
 import { useAuthState } from "@/lib/auth/auth-store";
 import { getImpersonationToken } from "@/lib/api/impersonation";
 import { usePlatformAuthz } from "@/hooks/use-platform-authz";
@@ -244,13 +244,10 @@ export function PlatformPermissionRoute({
    * screens), where the bar would be a promise about something that never happens.
    */
   notifyDelivery = true,
-  /** Start with the popup on — for screens where the interruption is usually warranted. */
-  notifyPopupDefault = false,
 }: {
   permission: string;
   children: ReactNode;
   notifyDelivery?: boolean;
-  notifyPopupDefault?: boolean;
 }) {
   const mounted = useMounted();
   const token = useAuthState((s) => s.accessToken);
@@ -268,12 +265,7 @@ export function PlatformPermissionRoute({
   if (!authz.permissions.includes(permission)) {
     return <AccessDenied label={permission} />;
   }
-  return (
-    <>
-      {notifyDelivery && <NotifyDeliveryBar popupDefault={notifyPopupDefault} />}
-      {children}
-    </>
-  );
+  return <WithAdminPageBar notifyDelivery={notifyDelivery}>{children}</WithAdminPageBar>;
 }
 
 export function PlatformAdminRoute({ children }: { children: ReactNode }) {
@@ -289,5 +281,5 @@ export function PlatformAdminRoute({ children }: { children: ReactNode }) {
   }
   if (!user) return <FullPageSpinner />;
   if (!isPlatformSuperAdmin) return <AccessDenied label="Platform admin" />;
-  return <>{children}</>;
+  return <WithAdminPageBar notifyDelivery={false}>{children}</WithAdminPageBar>;
 }

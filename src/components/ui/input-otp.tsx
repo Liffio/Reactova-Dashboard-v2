@@ -7,21 +7,35 @@ import { cn } from "@/lib/utils";
 const InputOTP = React.forwardRef<
   React.ElementRef<typeof OTPInput>,
   React.ComponentPropsWithoutRef<typeof OTPInput>
->(({ className, containerClassName, pasteTransformer, ...props }, ref) => (
-  <OTPInput
-    ref={ref}
-    // Codes are often copied or autofilled formatted ("123 456", "123-456"). Strip the separators
-    // BEFORE `maxLength` truncates, or a six-digit code pastes as five. `autoComplete` stays the
-    // library's `one-time-code`, which is what Bitwarden/1Password key their TOTP autofill on.
-    pasteTransformer={pasteTransformer ?? ((text) => text.replace(/[\s-]/g, ""))}
-    containerClassName={cn(
-      "flex items-center gap-2 has-[:disabled]:opacity-50",
-      containerClassName,
-    )}
-    className={cn("disabled:cursor-not-allowed", className)}
-    {...props}
-  />
-));
+>(({ className, containerClassName, pasteTransformer, id, ...props }, ref) => {
+  const generatedId = React.useId();
+  return (
+    <OTPInput
+      ref={ref}
+      // Codes are often copied or autofilled formatted ("123 456", "123-456"). Strip the separators
+      // BEFORE `maxLength` truncates, or a six-digit code pastes as five.
+      pasteTransformer={pasteTransformer ?? ((text) => text.replace(/[\s-]/g, ""))}
+      // Password managers (Bitwarden, 1Password) and iOS/Android code suggestions decide a field is a
+      // one-time code from `autocomplete`, then `name`/`id`, then the label or aria-label. The library
+      // defaults `autocomplete` but sets none of the rest, so state all of them here once instead of
+      // at every call site. Pair with `<Label htmlFor={id}>` where the field has a visible label.
+      id={id ?? `otp-${generatedId}`}
+      name="one-time-code"
+      autoComplete="one-time-code"
+      // Only when no caller-supplied id — a caller passing `id` binds a visible <Label>, which an
+      // aria-label would override for screen readers.
+      aria-label={id ? undefined : "One-time code"}
+      spellCheck={false}
+      autoCorrect="off"
+      containerClassName={cn(
+        "flex items-center gap-2 has-[:disabled]:opacity-50",
+        containerClassName,
+      )}
+      className={cn("disabled:cursor-not-allowed", className)}
+      {...props}
+    />
+  );
+});
 InputOTP.displayName = "InputOTP";
 
 const InputOTPGroup = React.forwardRef<

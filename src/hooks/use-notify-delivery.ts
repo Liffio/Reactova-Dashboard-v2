@@ -5,6 +5,7 @@ import {
   resetNotifyDelivery,
   setNotifyDelivery,
   subscribeNotifyDelivery,
+  SUPERADMIN_SCREEN_DEFAULT,
   type NotifyDeliveryChoice,
 } from "@/lib/notify-delivery-store";
 import type { NotifyDelivery } from "@/lib/api/registry-api";
@@ -24,26 +25,24 @@ import type { NotifyDelivery } from "@/lib/api/registry-api";
  * `useSyncExternalStore` rather than a subscribe-and-setState effect: it is the API built for
  * exactly this, and it avoids the tearing you get when two mounted controls disagree for a frame.
  *
- * ## `popupDefault` and the mode-you-forget problem
+ * ## Both channels start OFF on a superadmin screen
  *
  * ⚠️ A global toggle you can leave on is a trap — silence popups to fix one typo and every later
  * change that day goes out quiet. So this **resets on mount**: the choice lives exactly as long as
  * the screen you set it on.
  *
- * The default is asymmetric on purpose. Most admin edits are corrections, and interrupting every
- * affected tenant for a correction is how a modal gets trained into "dismiss unread" — so it is no
- * longer there for the change that matters. Screens where the interruption is usually warranted
- * pass `popupDefault: true`; moving one workspace onto a different plan is the example, since that
- * tenant's ceiling genuinely moved and the blast radius is one workspace rather than a whole tier.
+ * On mount both "Notify them" and "Interrupt with a popup" start **off**: most admin edits are
+ * corrections, and telling tenants about every one of them trains them to ignore the notice. The
+ * operator opts in for the change that matters. On unmount the store goes back to the *ambient*
+ * default (`NOTIFY_DELIVERY_DEFAULT`), which is what every non-admin page sends — so leaving a
+ * superadmin screen never silences an ordinary team or invite notification elsewhere in the app.
  */
-export function useNotifyDelivery(opts: { popupDefault?: boolean } = {}) {
-  const popupDefault = opts.popupDefault ?? false;
-
+export function useNotifyDelivery() {
   // Reset when the screen mounts so a choice cannot outlive the page it was made on.
   useEffect(() => {
-    resetNotifyDelivery({ popup: popupDefault });
+    resetNotifyDelivery(SUPERADMIN_SCREEN_DEFAULT);
     return () => resetNotifyDelivery();
-  }, [popupDefault]);
+  }, []);
 
   const choice: NotifyDeliveryChoice = useSyncExternalStore(
     subscribeNotifyDelivery,

@@ -171,7 +171,14 @@ export function LocalLoginForm({
 
               <div className="flex items-center justify-center w-full pt-1">
                 <InputOTP
+                  id="login-mfa-code"
                   name={mfaMethod === "authenticator" ? "totp" : "one-time-code"}
+                  aria-label={
+                    mfaMethod === "authenticator"
+                      ? "Authenticator code"
+                      : "Emailed verification code"
+                  }
+                  autoFocus
                   maxLength={6}
                   value={otp}
                   onChange={(v) => setOtp(v.replace(/\D/g, ""))}

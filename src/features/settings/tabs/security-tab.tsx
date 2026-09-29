@@ -505,6 +505,7 @@ function EmailChangeDialog({
             <Label htmlFor="email-code">Code</Label>
             <Input
               id="email-code"
+              name="one-time-code"
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={6}

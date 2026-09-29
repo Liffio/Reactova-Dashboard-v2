@@ -22,6 +22,7 @@ import { accountApi } from "@/lib/api/account-api";
 import { setAccountCountry } from "@/lib/api/auth-api";
 import { ApiError } from "@/lib/api/http";
 import { useAuthState } from "@/lib/auth/auth-store";
+import { defaultTimezoneForCountry, toSupportedTimezone } from "@/lib/country-timezones";
 import { getUserErrorMessage } from "@/lib/user-facing-error";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -100,20 +101,34 @@ export function ProfileTab() {
     [countries],
   );
   const timezones = useMemo(() => supportedTimezones(), []);
+  const timezoneSet = useMemo(() => new Set(timezones), [timezones]);
   const browserTz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
+  /**
+   * The saved zone in this browser's spelling. The server validates against Node's list, which
+   * spells some zones the legacy way (`Asia/Calcutta`); a browser listing `Asia/Kolkata` would
+   * otherwise show a blank select and report the field as changed on every visit.
+   */
+  const storedTz = user?.timezone ? (toSupportedTimezone(user.timezone, timezoneSet) ?? "") : "";
+  const countryTz = (country: string) => defaultTimezoneForCountry(country, timezoneSet);
 
   const initial = useMemo(() => {
     const phone = splitPhone(user?.phoneNumber, dialCodes);
     const countryDial =
       countries.find((c) => c.isoCode === user?.country)?.phonecode.replace(/^\+/, "") ?? "";
+    const saved = user?.timezone ? toSupportedTimezone(user.timezone, timezoneSet) : null;
     return {
       name: user?.name ?? "",
-      timezone: user?.timezone ?? (timezones.includes(browserTz) ? browserTz : ""),
+      // Saved zone, else the country's main zone, else the browser's — country first because it
+      // is what the account says about the user; the browser only says where the laptop is set.
+      timezone:
+        saved ??
+        defaultTimezoneForCountry(user?.country, timezoneSet) ??
+        (timezoneSet.has(browserTz) ? browserTz : ""),
       country: user?.country ?? "",
       phoneCode: phone.code || countryDial,
       phoneNumber: phone.number,
     };
-  }, [user, dialCodes, countries, timezones, browserTz]);
+  }, [user, dialCodes, countries, timezoneSet, browserTz]);
 
   const [form, setForm] = useState(initial);
   const [saving, setSaving] = useState(false);
@@ -132,7 +147,7 @@ export function ProfileTab() {
     : "";
   const dirty = {
     name: form.name.trim() !== (user.name ?? ""),
-    timezone: form.timezone !== (user.timezone ?? "") && form.timezone !== "",
+    timezone: form.timezone !== storedTz && form.timezone !== "",
     country: form.country !== (user.country ?? "") && form.country !== "",
     phone: nextPhone !== storedPhone,
     blob: previewSeed !== null && previewSeed !== (user.avatarSeed || user.id),
@@ -479,7 +494,16 @@ export function ProfileTab() {
             icon={<Globe aria-hidden />}
             value={form.country}
             disabled={Boolean(countryLocked)}
-            onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
+            onChange={(e) => {
+              const country = e.target.value;
+              setForm((f) => {
+                // Same rule as the server: the timezone follows the country while it is empty or
+                // still the old country's default; a zone the user picked stays put.
+                const next = countryTz(country);
+                const followsCountry = !f.timezone || f.timezone === countryTz(f.country);
+                return { ...f, country, ...(next && followsCountry ? { timezone: next } : {}) };
+              });
+            }}
           >
             <option value="" disabled>
               Choose your country
@@ -495,7 +519,11 @@ export function ProfileTab() {
         <SettingRow
           label="Timezone"
           hint={
-            user.timezone ? "Used for dates across Liffio." : "We picked this from your browser."
+            form.country && form.timezone === countryTz(form.country)
+              ? "Set from your country. Used for dates across Liffio."
+              : user.timezone
+                ? "Used for dates across Liffio."
+                : "We picked this from your browser."
           }
           htmlFor="profile-timezone"
         >

@@ -3,7 +3,6 @@ import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tan
 
 import { ProtectedRoute } from "@/components/auth/guards";
 import { usePermissions } from "@/hooks/use-auth";
-import { useApp } from "@/state/app-context";
 import { cn } from "@/lib/utils";
 import {
   SETTINGS_SCOPES,
@@ -33,7 +32,6 @@ function SettingsLayoutRoute() {
 function SettingsLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
-  const { current } = useApp();
   const permissionList = usePermissions();
   const permissions = useMemo(() => new Set(permissionList), [permissionList]);
 
@@ -73,7 +71,7 @@ function SettingsLayout() {
                     : "bg-transparent text-muted-foreground hover:text-foreground",
                 )}
               >
-                {s.id === "workspace" ? `${s.label} · ${current.name}` : s.label}
+                {s.label}
               </button>
             ))}
           </div>

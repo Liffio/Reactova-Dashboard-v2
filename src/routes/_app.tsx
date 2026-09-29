@@ -20,6 +20,7 @@ import { RegistryUpdatedListener } from "@/components/plugins/registry-updated-l
 import { SessionRevokedListener } from "@/components/auth/session-revoked-listener";
 import { NotificationsMenu } from "@/components/notifications/notifications-menu";
 import { ProtectedRoute } from "@/components/auth/guards";
+import { AppShellSkeleton } from "@/components/shell/app-shell-skeleton";
 import { PageTransition } from "@/components/page-transition";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
@@ -172,7 +173,9 @@ function AppLayout() {
   const deletionScheduledFor = useAuthState((s) => s.user?.deletionScheduledFor ?? null);
 
   return (
-    <ProtectedRoute>
+    // The shell skeleton, not a content-only one: while auth resolves the sidebar and top bar
+    // hold their place instead of disappearing on every page load.
+    <ProtectedRoute fallback={<AppShellSkeleton />}>
       {/* Global "Confirm it's you" prompt — any REAUTH_REQUIRED answer opens it. */}
       <ReauthDialog />
       {/* Deletion grace period: nothing else in the app is reachable, only cancel or log out. */}

@@ -78,6 +78,7 @@ import { Route as AppAdminEmailUnsubscribesRouteImport } from './routes/_app/adm
 import { Route as AppAdminEmailTemplatesRouteImport } from './routes/_app/admin.email-templates'
 import { Route as AppAdminCreatorsRouteImport } from './routes/_app/admin.creators'
 import { Route as AppAdminCreatorManagementRouteImport } from './routes/_app/admin.creator-management'
+import { Route as AppAdminChatbotTemplatesRouteImport } from './routes/_app/admin.chatbot-templates'
 import { Route as AppAdminCapabilitiesRouteImport } from './routes/_app/admin.capabilities'
 import { Route as AppAdminBrandingLinksRouteImport } from './routes/_app/admin.branding-links'
 import { Route as AppAdminAffiliatesRouteImport } from './routes/_app/admin.affiliates'
@@ -450,6 +451,12 @@ const AppAdminCreatorManagementRoute =
     path: '/admin/creator-management',
     getParentRoute: () => AppRoute,
   } as any)
+const AppAdminChatbotTemplatesRoute =
+  AppAdminChatbotTemplatesRouteImport.update({
+    id: '/admin/chatbot-templates',
+    path: '/admin/chatbot-templates',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppAdminCapabilitiesRoute = AppAdminCapabilitiesRouteImport.update({
   id: '/admin/capabilities',
   path: '/admin/capabilities',
@@ -611,6 +618,7 @@ export interface FileRoutesByFullPath {
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
   '/admin/branding-links': typeof AppAdminBrandingLinksRoute
+  '/admin/chatbot-templates': typeof AppAdminChatbotTemplatesRoute
   '/admin/capabilities': typeof AppAdminCapabilitiesRoute
   '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
@@ -702,6 +710,7 @@ export interface FileRoutesByTo {
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
   '/admin/branding-links': typeof AppAdminBrandingLinksRoute
+  '/admin/chatbot-templates': typeof AppAdminChatbotTemplatesRoute
   '/admin/capabilities': typeof AppAdminCapabilitiesRoute
   '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
@@ -794,6 +803,7 @@ export interface FileRoutesById {
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/_app/admin/affiliates': typeof AppAdminAffiliatesRoute
   '/_app/admin/branding-links': typeof AppAdminBrandingLinksRoute
+  '/_app/admin/chatbot-templates': typeof AppAdminChatbotTemplatesRoute
   '/_app/admin/capabilities': typeof AppAdminCapabilitiesRoute
   '/_app/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/_app/admin/creators': typeof AppAdminCreatorsRouteWithChildren
@@ -888,6 +898,7 @@ export interface FileRouteTypes {
     | '/leads-captured/$slug'
     | '/admin/affiliates'
     | '/admin/branding-links'
+    | '/admin/chatbot-templates'
     | '/admin/capabilities'
     | '/admin/creator-management'
     | '/admin/creators'
@@ -979,6 +990,7 @@ export interface FileRouteTypes {
     | '/leads-captured/$slug'
     | '/admin/affiliates'
     | '/admin/branding-links'
+    | '/admin/chatbot-templates'
     | '/admin/capabilities'
     | '/admin/creator-management'
     | '/admin/creators'
@@ -1070,6 +1082,7 @@ export interface FileRouteTypes {
     | '/leads-captured/$slug'
     | '/_app/admin/affiliates'
     | '/_app/admin/branding-links'
+    | '/_app/admin/chatbot-templates'
     | '/_app/admin/capabilities'
     | '/_app/admin/creator-management'
     | '/_app/admin/creators'
@@ -1632,6 +1645,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminCreatorManagementRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/admin/chatbot-templates': {
+      id: '/_app/admin/chatbot-templates'
+      path: '/admin/chatbot-templates'
+      fullPath: '/admin/chatbot-templates'
+      preLoaderRoute: typeof AppAdminChatbotTemplatesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/admin/capabilities': {
       id: '/_app/admin/capabilities'
       path: '/admin/capabilities'
@@ -1909,6 +1929,7 @@ interface AppRouteChildren {
   AppShortLinksRoute: typeof AppShortLinksRoute
   AppAdminAffiliatesRoute: typeof AppAdminAffiliatesRoute
   AppAdminBrandingLinksRoute: typeof AppAdminBrandingLinksRoute
+  AppAdminChatbotTemplatesRoute: typeof AppAdminChatbotTemplatesRoute
   AppAdminCapabilitiesRoute: typeof AppAdminCapabilitiesRoute
   AppAdminCreatorManagementRoute: typeof AppAdminCreatorManagementRouteWithChildren
   AppAdminCreatorsRoute: typeof AppAdminCreatorsRouteWithChildren
@@ -1965,6 +1986,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppShortLinksRoute: AppShortLinksRoute,
   AppAdminAffiliatesRoute: AppAdminAffiliatesRoute,
   AppAdminBrandingLinksRoute: AppAdminBrandingLinksRoute,
+  AppAdminChatbotTemplatesRoute: AppAdminChatbotTemplatesRoute,
   AppAdminCapabilitiesRoute: AppAdminCapabilitiesRoute,
   AppAdminCreatorManagementRoute: AppAdminCreatorManagementRouteWithChildren,
   AppAdminCreatorsRoute: AppAdminCreatorsRouteWithChildren,

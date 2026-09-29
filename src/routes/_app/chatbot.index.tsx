@@ -31,7 +31,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { chatbotApi, chatbotKeys, type ChatbotListItem } from "@/lib/api/chatbot-api";
+import {
+  chatbotApi,
+  chatbotKeys,
+  type ChatbotListItem,
+  type ChatbotTemplateSummary,
+} from "@/lib/api/chatbot-api";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { getUserErrorMessage } from "@/lib/user-facing-error";
 import { toast } from "@/lib/toast";
@@ -41,6 +46,7 @@ import { useModuleFeatures } from "@/hooks/use-features";
 import { cn } from "@/lib/utils";
 import { IceBreakerBand, IceBreakerSheet } from "@/components/chatbot/ice-breakers";
 import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
+import { TemplatePicker } from "@/components/chatbot/template-picker";
 import { BusinessHoursBand } from "@/components/chatbot/business-hours";
 import { UsageMeter, atCap } from "@/components/chatbot/usage-meter";
 import { StatusPill, publishErrorMessage } from "@/components/chatbot/shared";
@@ -107,13 +113,15 @@ function ChatbotListPage() {
   const openUpgrade = useUpgradeSheet();
 
   const create = useMutation({
-    mutationFn: (key: string) => {
-      const t = (templates.data ?? []).find((x) => x.key === key)!;
+    mutationFn: (t: ChatbotTemplateSummary) => {
       const taken = new Set(chatbots.map((c) => c.name.toLowerCase()));
       const base = t.key === "blank" ? "Untitled chatbot" : t.name;
       let name = base;
       for (let i = 2; taken.has(name.toLowerCase()); i++) name = `${base} ${i}`;
-      return chatbotApi.create(ws, { name, templateKey: t.key });
+      return chatbotApi.create(
+        ws,
+        t.id ? { name, templateId: t.id } : { name, templateKey: t.key },
+      );
     },
     onSuccess: (bot) => {
       refresh();
@@ -380,49 +388,15 @@ function ChatbotListPage() {
         </div>
       </div>
 
-      <Dialog open={picking} onOpenChange={setPicking}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>New chatbot</DialogTitle>
-            <DialogDescription>
-              Start from a template and edit it, or start blank.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-2.5">
-            {(templates.data ?? []).map((t) => {
-              const locked = t.gated && !features.templates;
-              return (
-                <button
-                  key={t.key}
-                  type="button"
-                  disabled={create.isPending}
-                  onClick={() =>
-                    locked
-                      ? openUpgrade({
-                          capability: "chatbot:templates",
-                          feature: `The ${t.name} template`,
-                        })
-                      : create.mutate(t.key)
-                  }
-                  className="relative flex flex-col gap-0.5 rounded-[14px] border border-border bg-background p-3.5 text-left hover:border-primary disabled:opacity-50"
-                >
-                  {locked && (
-                    <PlanChip
-                      capability="chatbot:templates"
-                      className="absolute top-2.5 right-2.5"
-                    />
-                  )}
-                  <i className={cn("mb-1 text-xl not-italic", locked && "opacity-60")}>{t.icon}</i>
-                  <b className="font-display text-sm">{t.name}</b>
-                  <span className="text-xs text-muted-foreground">
-                    {t.stepCount} step{t.stepCount > 1 ? "s" : ""} · {t.description}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <TemplatePicker
+        open={picking}
+        onOpenChange={setPicking}
+        templates={templates.data?.templates ?? []}
+        categories={templates.data?.categories ?? []}
+        features={features}
+        pending={create.isPending}
+        onPick={(t) => create.mutate(t)}
+      />
 
       <IceBreakerSheet
         workspaceId={ws}

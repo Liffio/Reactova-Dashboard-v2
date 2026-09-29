@@ -207,6 +207,8 @@ export const apiUri = {
     contact: (contactId: string) => `${V1}/chatbots/contacts/${contactId}`,
     contactPause: (contactId: string) => `${V1}/chatbots/contacts/${contactId}/pause`,
     contactResume: (contactId: string) => `${V1}/chatbots/contacts/${contactId}/resume`,
+    contactConversation: (contactId: string, sessionId: string) =>
+      `${V1}/chatbots/contacts/${contactId}/conversations/${sessionId}`,
   },
 
   automations: {
@@ -423,6 +425,14 @@ export const apiUri = {
   },
 
   admin: {
+    /** The chatbot template library (server `api/routes/adminChatbotTemplates.ts`, `platform:module_manage`). */
+    chatbotTemplates: {
+      list: `${V1}/admin/chatbot-templates`,
+      byId: (id: string) => `${V1}/admin/chatbot-templates/${id}`,
+      capture: `${V1}/admin/chatbot-templates/capture`,
+      categories: `${V1}/admin/chatbot-templates/categories`,
+      categoryById: (id: string) => `${V1}/admin/chatbot-templates/categories/${id}`,
+    },
     /**
      * Superadmin control plane. `platform:*` permissions are a different axis from workspace
      * RBAC — these endpoints are gated by the platform permission catalogue, not by

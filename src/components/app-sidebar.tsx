@@ -36,6 +36,7 @@ import {
   Eye,
   ListChecks,
   Network,
+  LayoutTemplate,
   ScrollText,
 } from "lucide-react";
 
@@ -230,6 +231,13 @@ const adminNav: Array<{ group: string; items: NavItem[] }> = [
         title: "Gating map",
         url: "/admin/gating-map",
         icon: Network,
+        platformPermission: "platform:module_manage",
+      },
+      {
+        // Same permission as Module Registry: templates are part of a product area's catalogue.
+        title: "Chatbot templates",
+        url: "/admin/chatbot-templates",
+        icon: LayoutTemplate,
         platformPermission: "platform:module_manage",
       },
       { title: "RBAC master", url: "/rbac-master", icon: ShieldCheck },

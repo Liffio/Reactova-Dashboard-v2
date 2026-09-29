@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Download, Search, UserPlus } from "lucide-react";
+import { Download, Search, User, UserPlus } from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -16,7 +16,8 @@ import { apiUri } from "@/lib/api/apiUri";
 import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
 import { LIMITS } from "@/lib/validation";
-import { bareHandle, formatHandle } from "@/lib/format";
+import { formatHandle } from "@/lib/format";
+import { realHandle, UNKNOWN_PERSON } from "@/lib/instagram-identity";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { FeatureGate } from "@/components/access/feature-gate";
 
@@ -165,10 +166,12 @@ function LeadsPage() {
                 </thead>
                 <tbody>
                   {leads.map((lead) => {
-                    // Every identity field is null when the package hides lead identity.
-                    const display = lead.igUsername ?? lead.displayName ?? lead.igUserId ?? "";
-                    const initials =
-                      (bareHandle(display) ?? display).slice(0, 2).toUpperCase() || "?";
+                    // Every identity field is null when the package hides lead identity. A username
+                    // column that held only the Instagram id (no handle known yet) is not a handle.
+                    const username = realHandle(lead.igUsername, lead.igUserId);
+                    const initials = (lead.displayName?.trim() || username || "")
+                      .slice(0, 2)
+                      .toUpperCase();
                     return (
                       <tr key={lead.id} className="border-b last:border-0 hover:bg-muted/30">
                         <td className="px-6 py-3.5">
@@ -176,14 +179,14 @@ function LeadsPage() {
                             <Avatar className="h-8 w-8 shrink-0">
                               <AvatarImage src={lead.profilePicUrl ?? undefined} />
                               <AvatarFallback className="bg-brand-gradient text-[10px] font-semibold text-primary-foreground">
-                                {initials}
+                                {initials || <User className="h-3.5 w-3.5" aria-hidden />}
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0">
                               <p className="truncate font-medium">
-                                {formatHandle(lead.igUsername) ??
+                                {formatHandle(username) ??
                                   lead.displayName ??
-                                  (identityRedacted ? "Hidden on your plan" : "—")}
+                                  (identityRedacted ? "Hidden on your plan" : UNKNOWN_PERSON)}
                               </p>
                               {lead.email && (
                                 <p className="truncate text-xs text-muted-foreground">

@@ -189,6 +189,37 @@ export interface ContactDetail extends ContactRow {
   }>;
 }
 
+/**
+ * One conversation, read live from Instagram and never stored. When Instagram can't answer, a
+ * summary of the run (steps sent, buttons tapped) instead, which has nothing the person typed.
+ */
+export interface ConversationMessage {
+  id: string;
+  at: string;
+  /** `business`: sent from the account but not by this chatbot, usually a person in Instagram. */
+  from: "contact" | "bot" | "business";
+  text: string | null;
+}
+export type ConversationSummaryItem =
+  | { kind: "started"; at: string; entry: string | null }
+  | { kind: "step"; at: string; stepName: string; text: string | null }
+  | { kind: "follow_up"; at: string; stepName: string; text: string | null }
+  | { kind: "fallback"; at: string; text: string | null }
+  | { kind: "tap"; at: string; label: string }
+  | { kind: "answer"; at: string; key: string; valid: boolean }
+  | { kind: "handover"; at: string }
+  | { kind: "ended"; at: string; reason: string };
+export type ConversationSummaryReason =
+  "account_disconnected" | "instagram_unavailable" | "too_old" | "not_found";
+export type ConversationTranscript =
+  | {
+      mode: "transcript";
+      messages: ConversationMessage[];
+      partial: boolean;
+      summary: ConversationSummaryItem[];
+    }
+  | { mode: "summary"; reason: ConversationSummaryReason; summary: ConversationSummaryItem[] };
+
 export type TestAction =
   | { kind: "tap"; buttonId: string }
   | { kind: "text"; text: string }
@@ -484,6 +515,13 @@ export const chatbotApi = {
         workspaceId,
         body: { hours },
       }),
+    ),
+  conversation: (workspaceId: string, contactId: string, sessionId: string) =>
+    unwrap(
+      apiRequest<{ data: ConversationTranscript }>(
+        apiUri.chatbots.contactConversation(contactId, sessionId),
+        { workspaceId },
+      ),
     ),
   resumeContact: (workspaceId: string, contactId: string) =>
     unwrap(

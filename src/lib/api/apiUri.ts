@@ -207,6 +207,8 @@ export const apiUri = {
     contact: (contactId: string) => `${V1}/chatbots/contacts/${contactId}`,
     contactPause: (contactId: string) => `${V1}/chatbots/contacts/${contactId}/pause`,
     contactResume: (contactId: string) => `${V1}/chatbots/contacts/${contactId}/resume`,
+    contactConversation: (contactId: string, sessionId: string) =>
+      `${V1}/chatbots/contacts/${contactId}/conversations/${sessionId}`,
   },
 
   automations: {

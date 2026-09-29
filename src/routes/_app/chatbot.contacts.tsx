@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, Info, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info, Search } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/guards";
 import { InstagramRequired } from "@/components/auth/instagram-required";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import { useModuleFeatures } from "@/hooks/use-features";
 import { cn } from "@/lib/utils";
 import { ContactAvatar, ContactName } from "@/components/chatbot/contact-identity";
 import { instagramIdentity } from "@/lib/instagram-identity";
+import { ConversationView } from "@/components/chatbot/conversation-view";
 
 export const Route = createFileRoute("/_app/chatbot/contacts")({
   head: () => ({ meta: [{ title: "Chatbot contacts — Liffio" }] }),
@@ -224,6 +225,13 @@ function ContactSheet({
   });
   const c = detail.data;
   const paused = c?.botPausedUntil && new Date(c.botPausedUntil) > new Date();
+  // The conversation open in the sheet, if any; closing the sheet or switching contact clears it.
+  const [openSession, setOpenSession] = useState<{ id: string; chatbotName: string } | null>(null);
+  const [forContact, setForContact] = useState(contactId);
+  if (forContact !== contactId) {
+    setForContact(contactId);
+    setOpenSession(null);
+  }
 
   return (
     <Sheet open={!!contactId} onOpenChange={(o) => !o && onClose()}>
@@ -247,6 +255,14 @@ function ContactSheet({
         </SheetHeader>
         {!c ? (
           <Skeleton className="h-40" />
+        ) : openSession && contactId ? (
+          <ConversationView
+            workspaceId={workspaceId}
+            contactId={contactId}
+            sessionId={openSession.id}
+            chatbotName={openSession.chatbotName}
+            onBack={() => setOpenSession(null)}
+          />
         ) : (
           <>
             <section className="rounded-xl border border-border p-3 text-sm">
@@ -323,23 +339,32 @@ function ContactSheet({
               <h3 className="mb-2 text-xs font-semibold text-muted-foreground">Conversations</h3>
               <ul className="flex flex-col gap-1.5">
                 {c.sessions.map((s) => (
-                  <li
-                    key={s.id}
-                    className={cn(
-                      "rounded-lg border border-border px-3 py-2 text-xs",
-                      s.status === "ACTIVE" && "border-primary/40",
-                    )}
-                  >
-                    <div className="flex justify-between gap-2">
-                      <b className="text-sm font-medium">{s.chatbotName}</b>
-                      <span className="text-muted-foreground">
-                        {s.status.toLowerCase().replace("_", " ")}
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenSession({ id: s.id, chatbotName: s.chatbotName })}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2 text-left text-xs transition-colors hover:border-primary hover:bg-secondary/40",
+                        s.status === "ACTIVE" && "border-primary/40",
+                      )}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="flex justify-between gap-2">
+                          <b className="truncate text-sm font-medium">{s.chatbotName}</b>
+                          <span className="shrink-0 text-muted-foreground">
+                            {s.status.toLowerCase().replace("_", " ")}
+                          </span>
+                        </span>
+                        <span className="block text-muted-foreground">
+                          {when(s.startedAt)} · {s.stepCount} step{s.stepCount === 1 ? "" : "s"}
+                          {s.endReason ? ` · ${s.endReason.toLowerCase().replace(/_/g, " ")}` : ""}
+                        </span>
                       </span>
-                    </div>
-                    <div className="text-muted-foreground">
-                      {when(s.startedAt)} · {s.stepCount} step{s.stepCount === 1 ? "" : "s"}
-                      {s.endReason ? ` · ${s.endReason.toLowerCase().replace(/_/g, " ")}` : ""}
-                    </div>
+                      <ChevronRight
+                        className="h-4 w-4 shrink-0 text-muted-foreground"
+                        aria-hidden
+                      />
+                    </button>
                   </li>
                 ))}
               </ul>

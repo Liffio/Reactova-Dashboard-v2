@@ -93,6 +93,7 @@ import {
 import { FollowBeforeDmSection } from "./sections/follow-before-dm-section";
 import { FollowUpSequenceSection } from "./sections/follow-up-sequence-section";
 import { DELAY_OPTIONS } from "./sections/follow-up-options";
+import { useWorkspacePlanKey } from "@/features/settings/use-workspace-plan";
 
 const MAX_TRIGGER_BLOCKS = 20;
 
@@ -165,6 +166,7 @@ export function AutomationBuilder({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { current, user } = useApp();
+  const { isFree } = useWorkspacePlanKey(current.id);
   const workspaceId = current.id;
   // Backend-resolved capability flags. Controls for features this account lacks are not rendered
   // at all — the server enforces the same set independently.
@@ -851,7 +853,7 @@ export function AutomationBuilder({
       {!isEdit && usage?.automations.limit != null && (
         <p className="text-center text-[11px] text-muted-foreground">
           This uses {usage.automations.used + 1} of your {usage.automations.limit} automations
-          {current.plan === "Free" ? " on Free" : ""}.
+          {isFree ? " on Free" : ""}.
         </p>
       )}
       {!isEdit && (
@@ -1495,7 +1497,7 @@ export function AutomationBuilder({
             autoReply={form.triggerBlocks[0]?.autoReply ? form.triggerBlocks[0].replyMessage : ""}
             followBeforeDm={form.followBeforeDm}
             followUps={form.followUps}
-            showFreeBranding={current.plan === "Free"}
+            showFreeBranding={isFree}
           />
 
           {/* Rides the aside's existing `lg:sticky`, so Publish stays on screen at every step. */}

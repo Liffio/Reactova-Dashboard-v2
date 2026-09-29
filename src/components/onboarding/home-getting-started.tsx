@@ -11,6 +11,7 @@ import { SuggestedTemplateCard } from "./suggested-template-card";
 import { SetupChecklist, buildChecklist } from "./setup-checklist";
 import { getAutomationStatusCounts } from "@/lib/api/automations-api";
 import { formatNum } from "@/lib/format";
+import { useWorkspacePlanKey } from "@/features/settings/use-workspace-plan";
 
 /**
  * The getting-started block on Home — suggestion, checklist, agency card, skipped-state note.
@@ -30,6 +31,7 @@ import { formatNum } from "@/lib/format";
  */
 export function HomeGettingStarted() {
   const { current } = useApp();
+  const { isFree } = useWorkspacePlanKey(current.id);
   const workspaceId = current.id !== "default" ? current.id : null;
   const { state } = useOnboardingState(workspaceId);
   const { save } = useSaveOnboarding(workspaceId);
@@ -154,7 +156,7 @@ export function HomeGettingStarted() {
                   ? formatNum(usage.automations.used)
                   : `${usage.automations.used} of ${usage.automations.limit}`
                 : "—"}
-              {usage && current.plan === "Free" ? (
+              {usage && isFree ? (
                 <span className="ml-1 text-xs font-normal text-muted-foreground">on Free</span>
               ) : null}
             </p>

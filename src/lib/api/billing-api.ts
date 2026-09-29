@@ -327,6 +327,12 @@ export type PackageCheckoutInput = {
    * Currency is still not sent either, for the same reason it never was: the server derives it
    * from the account country, so a client cannot ask to be charged in one.
    */
+  /**
+   * The code applied on the review page. The server re-validates it with the same resolver the
+   * quote used; without it the subscription is created at full price even though the page showed
+   * the discount.
+   */
+  discountCode?: string;
 };
 
 /**

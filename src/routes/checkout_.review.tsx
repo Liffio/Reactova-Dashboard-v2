@@ -371,6 +371,8 @@ function CheckoutReview() {
       const result = await createPackageCheckout(workspaceId, {
         packageId: pkg.id,
         interval,
+        // The same code the displayed quote used — the charge must match what was shown.
+        discountCode: appliedCode || undefined,
       });
       if (result.provider !== "razorpay" || !result.subscriptionId) {
         throw new Error("Razorpay checkout could not be started");

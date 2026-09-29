@@ -61,6 +61,7 @@ import { usePlatformAuthz } from "@/hooks/use-platform-authz";
 import { useApp } from "@/state/app-context";
 import { getNavigation } from "@/lib/api/navigation-api";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
+import { useWorkspacePlanKey } from "@/features/settings/use-workspace-plan";
 
 type NavItem = {
   title: string;
@@ -271,6 +272,8 @@ export function AppSidebar() {
   const isPlatformSuperAdmin = useAuthState((s) => s.isPlatformSuperAdmin);
   const { authz: platformAuthz } = usePlatformAuthz();
   const { current } = useApp();
+  // The real plan (agency group or own subscription), not the legacy `current.plan` map.
+  const { isAgency } = useWorkspacePlanKey(current.id);
   const { isMobile, setOpenMobile } = useSidebar();
   /**
    * Below md the sidebar is a Sheet, and navigating from inside it does not dismiss it — the
@@ -293,7 +296,7 @@ export function AppSidebar() {
       return true;
     }
     // Agency section only makes sense on the Agency plan.
-    if (item.module === "agency" && current.plan !== "Agency") {
+    if (item.module === "agency" && !isAgency) {
       return false;
     }
     return permissions.includes(`${item.module}:read`);

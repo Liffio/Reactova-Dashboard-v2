@@ -618,8 +618,8 @@ export interface FileRoutesByFullPath {
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
   '/admin/branding-links': typeof AppAdminBrandingLinksRoute
-  '/admin/chatbot-templates': typeof AppAdminChatbotTemplatesRoute
   '/admin/capabilities': typeof AppAdminCapabilitiesRoute
+  '/admin/chatbot-templates': typeof AppAdminChatbotTemplatesRoute
   '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
@@ -710,8 +710,8 @@ export interface FileRoutesByTo {
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/admin/affiliates': typeof AppAdminAffiliatesRoute
   '/admin/branding-links': typeof AppAdminBrandingLinksRoute
-  '/admin/chatbot-templates': typeof AppAdminChatbotTemplatesRoute
   '/admin/capabilities': typeof AppAdminCapabilitiesRoute
+  '/admin/chatbot-templates': typeof AppAdminChatbotTemplatesRoute
   '/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/admin/email-templates': typeof AppAdminEmailTemplatesRoute
@@ -803,8 +803,8 @@ export interface FileRoutesById {
   '/leads-captured/$slug': typeof LeadsCapturedSlugRoute
   '/_app/admin/affiliates': typeof AppAdminAffiliatesRoute
   '/_app/admin/branding-links': typeof AppAdminBrandingLinksRoute
-  '/_app/admin/chatbot-templates': typeof AppAdminChatbotTemplatesRoute
   '/_app/admin/capabilities': typeof AppAdminCapabilitiesRoute
+  '/_app/admin/chatbot-templates': typeof AppAdminChatbotTemplatesRoute
   '/_app/admin/creator-management': typeof AppAdminCreatorManagementRouteWithChildren
   '/_app/admin/creators': typeof AppAdminCreatorsRouteWithChildren
   '/_app/admin/email-templates': typeof AppAdminEmailTemplatesRoute
@@ -898,8 +898,8 @@ export interface FileRouteTypes {
     | '/leads-captured/$slug'
     | '/admin/affiliates'
     | '/admin/branding-links'
-    | '/admin/chatbot-templates'
     | '/admin/capabilities'
+    | '/admin/chatbot-templates'
     | '/admin/creator-management'
     | '/admin/creators'
     | '/admin/email-templates'
@@ -990,8 +990,8 @@ export interface FileRouteTypes {
     | '/leads-captured/$slug'
     | '/admin/affiliates'
     | '/admin/branding-links'
-    | '/admin/chatbot-templates'
     | '/admin/capabilities'
+    | '/admin/chatbot-templates'
     | '/admin/creator-management'
     | '/admin/creators'
     | '/admin/email-templates'
@@ -1082,8 +1082,8 @@ export interface FileRouteTypes {
     | '/leads-captured/$slug'
     | '/_app/admin/affiliates'
     | '/_app/admin/branding-links'
-    | '/_app/admin/chatbot-templates'
     | '/_app/admin/capabilities'
+    | '/_app/admin/chatbot-templates'
     | '/_app/admin/creator-management'
     | '/_app/admin/creators'
     | '/_app/admin/email-templates'
@@ -1929,8 +1929,8 @@ interface AppRouteChildren {
   AppShortLinksRoute: typeof AppShortLinksRoute
   AppAdminAffiliatesRoute: typeof AppAdminAffiliatesRoute
   AppAdminBrandingLinksRoute: typeof AppAdminBrandingLinksRoute
-  AppAdminChatbotTemplatesRoute: typeof AppAdminChatbotTemplatesRoute
   AppAdminCapabilitiesRoute: typeof AppAdminCapabilitiesRoute
+  AppAdminChatbotTemplatesRoute: typeof AppAdminChatbotTemplatesRoute
   AppAdminCreatorManagementRoute: typeof AppAdminCreatorManagementRouteWithChildren
   AppAdminCreatorsRoute: typeof AppAdminCreatorsRouteWithChildren
   AppAdminEmailTemplatesRoute: typeof AppAdminEmailTemplatesRoute
@@ -1986,8 +1986,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppShortLinksRoute: AppShortLinksRoute,
   AppAdminAffiliatesRoute: AppAdminAffiliatesRoute,
   AppAdminBrandingLinksRoute: AppAdminBrandingLinksRoute,
-  AppAdminChatbotTemplatesRoute: AppAdminChatbotTemplatesRoute,
   AppAdminCapabilitiesRoute: AppAdminCapabilitiesRoute,
+  AppAdminChatbotTemplatesRoute: AppAdminChatbotTemplatesRoute,
   AppAdminCreatorManagementRoute: AppAdminCreatorManagementRouteWithChildren,
   AppAdminCreatorsRoute: AppAdminCreatorsRouteWithChildren,
   AppAdminEmailTemplatesRoute: AppAdminEmailTemplatesRoute,

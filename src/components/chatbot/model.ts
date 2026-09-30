@@ -18,6 +18,14 @@ import {
 
 export const uid = (): string => crypto.randomUUID();
 
+/**
+ * A Webhook step's signing secret: 24 random bytes as hex, the same shape the server makes.
+ * Created the moment the step is added, so it can be shown and copied before anything is saved;
+ * the server keeps whatever the builder sends from then on.
+ */
+export const newWebhookSecret = (): string =>
+  Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
+
 /** Delay presets, in seconds (prototype `DELAYS`). */
 export const DELAY_PRESETS = [0, 2, 5, 10, 30, 60, 300, 3600] as const;
 /** Follow-up presets, measured from the step's own send (prototype `FU_TIMES`). */
@@ -41,6 +49,7 @@ export const STEP_LABEL: Record<StepType, string> = {
   WEBHOOK: "Webhook",
   NOTIFY: "Notify the team",
   SPLIT: "A/B split",
+  FOLLOW_GATE: "Ask to follow",
 };
 
 export function newStep(type: StepType, position: number): ChatbotStep {
@@ -114,7 +123,7 @@ export function newStep(type: StepType, position: number): ChatbotStep {
         ...base,
         name: "Send to webhook",
         body: null,
-        config: { url: "", nextStepId: null },
+        config: { url: "", nextStepId: null, secret: newWebhookSecret() },
       };
     case "NOTIFY":
       return {
@@ -133,6 +142,20 @@ export function newStep(type: StepType, position: number): ChatbotStep {
             { label: "A", percent: 50, stepId: null },
             { label: "B", percent: 50, stepId: null },
           ],
+        },
+      };
+    case "FOLLOW_GATE":
+      return {
+        ...base,
+        name: "Ask to follow",
+        body: "Follow us and I'll send it your way 👇",
+        config: {
+          visitLabel: "Visit profile",
+          // The comment automation's follow-gate wording, so both read the same.
+          retryMessage:
+            "We still don't see a follow on your account. Open Visit profile, tap Follow, then tap Following ✅ again.",
+          followingStepId: null,
+          notFollowingStepId: null,
         },
       };
   }
@@ -193,6 +216,8 @@ export function stepSummary(s: ChatbotStep): string {
       : "Alert message not set";
   if (s.type === "WEBHOOK")
     return cfgStr(s, "url") ? `Sends to ${cfgStr(s, "url")}` : "Webhook address not set";
+  if (s.type === "FOLLOW_GATE")
+    return `Asks them to follow: ${(s.body ?? "").split("\n")[0] || "no message yet"}`;
   return (s.body ?? "").split("\n")[0] || (s.mediaAssetId ? "Media" : "Empty message");
 }
 
@@ -228,8 +253,11 @@ export function removeStep(steps: ChatbotStep[], id: string): ChatbotStep[] {
 }
 
 export function duplicateStep(s: ChatbotStep): ChatbotStep {
+  const copy = structuredClone(s);
+  // One secret per step: a copied Webhook step signs with its own, never the original's.
+  if (copy.type === "WEBHOOK") copy.config = { ...copy.config, secret: newWebhookSecret() };
   return {
-    ...structuredClone(s),
+    ...copy,
     id: uid(),
     name: `${s.name} copy`,
     buttons: s.buttons.map((b) => ({ ...b, id: uid() })),

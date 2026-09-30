@@ -4,6 +4,7 @@ import { RotateCcw, SendHorizontal, X } from "lucide-react";
 import {
   chatbotApi,
   type Chatbot,
+  type PreviewFollowState,
   type TestAction,
   type TestResult,
   type TranscriptEntry,
@@ -34,10 +35,12 @@ export function PreviewPanel({
   const [tab, setTab] = useState<"chat" | "contact">("chat");
   const [actions, setActions] = useState<TestAction[]>([]);
   const [contact, setContact] = useState<Contact>({ tags: [], answers: {} });
+  // What an Ask-to-follow check answers in the preview; Instagram is never asked from here.
+  const [followState, setFollowState] = useState<PreviewFollowState>("FOLLOWING");
 
   const test = useQuery({
-    queryKey: ["chatbot-test", workspaceId, bot.id, revision, actions, contact],
-    queryFn: () => chatbotApi.test(workspaceId, bot.id, { contact, actions }),
+    queryKey: ["chatbot-test", workspaceId, bot.id, revision, actions, contact, followState],
+    queryFn: () => chatbotApi.test(workspaceId, bot.id, { contact, actions, followState }),
     placeholderData: (prev) => prev,
     staleTime: Infinity,
   });
@@ -117,6 +120,11 @@ export function PreviewPanel({
             contact={contact}
             onChange={(c) => {
               setContact(c);
+              restart();
+            }}
+            followState={followState}
+            onFollowStateChange={(s) => {
+              setFollowState(s);
               restart();
             }}
           />
@@ -359,11 +367,16 @@ function TestContactPanel({
   bot,
   contact,
   onChange,
+  followState,
+  onFollowStateChange,
 }: {
   bot: Chatbot;
   contact: Contact;
   onChange: (c: Contact) => void;
+  followState: PreviewFollowState;
+  onFollowStateChange: (s: PreviewFollowState) => void;
 }) {
+  const asksToFollow = bot.steps.some((s) => s.type === "FOLLOW_GATE");
   const { tags, answers } = useMemo(() => {
     const t = new Map<string, string>();
     const a = new Map<string, string>();
@@ -403,6 +416,20 @@ function TestContactPanel({
         Pretend to be a contact with these tags and answers. The chat restarts so you can see which
         path each condition takes.
       </p>
+      {asksToFollow && (
+        <label className="mb-4 flex flex-col gap-1.5 text-xs font-semibold text-muted-foreground">
+          When they tap Following ✅
+          <select
+            className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-sm font-normal text-foreground"
+            value={followState}
+            onChange={(e) => onFollowStateChange(e.target.value as PreviewFollowState)}
+          >
+            <option value="FOLLOWING">They follow you</option>
+            <option value="NOT_FOLLOWING">They don't follow you yet</option>
+            <option value="UNKNOWN">Instagram won't say</option>
+          </select>
+        </label>
+      )}
       <div className="mb-2 text-xs font-semibold text-muted-foreground">Tags</div>
       {tags.length ? (
         <div className="mb-4 flex flex-wrap gap-1.5">

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CAPABILITY_GROUPS, groupChildren } from "./capability-groups";
 
 describe("Package Management capability groups (chatbot)", () => {
-  it("puts the 23 chatbot scopes in 5 groups, each exactly once", () => {
+  it("puts the 24 chatbot scopes in 5 groups, each exactly once", () => {
     const groups = CAPABILITY_GROUPS.chatbot;
     expect(groups.map((g) => g.name)).toEqual([
       "Core",
@@ -12,8 +12,8 @@ describe("Package Management capability groups (chatbot)", () => {
       "Business tools",
     ]);
     const keys = groups.flatMap((g) => g.keys);
-    expect(keys).toHaveLength(23);
-    expect(new Set(keys).size).toBe(23);
+    expect(keys).toHaveLength(24);
+    expect(new Set(keys).size).toBe(24);
   });
 
   it("never hides a scope the server adds later: it lands under Other", () => {

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -70,6 +71,14 @@ const TAB_ICONS: Record<string, typeof LayoutDashboard> = {
 };
 
 /**
+ * The tab bar's rendered height, safe-area padding included, published on `<html>` for anything
+ * that has to sit above it or clear it: the layout's bottom padding (`_app.tsx`) and fixed action
+ * bars such as the chatbot builder's. Measured, not assumed, so a font-size change or a different
+ * home-indicator inset never leaves something covered. `0px` while the bar is hidden (md and up).
+ */
+export const MOBILE_TAB_BAR_HEIGHT_VAR = "--mobile-tab-bar-h";
+
+/**
  * Bottom navigation for phones.
  *
  * **Not** a second navigation model. The items come from the same registry query the sidebar
@@ -84,6 +93,22 @@ export function MobileTabBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { current } = useApp();
   const { setOpenMobile } = useSidebar();
+  const navRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const root = document.documentElement;
+    // A hidden bar (`md:hidden`, display: none) measures 0, which is the right answer.
+    const publish = () => root.style.setProperty(MOBILE_TAB_BAR_HEIGHT_VAR, `${nav.getBoundingClientRect().height}px`);
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(nav);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty(MOBILE_TAB_BAR_HEIGHT_VAR);
+    };
+  }, []);
 
   const navQuery = useQuery({
     queryKey: ["navigation", current.id],
@@ -106,9 +131,10 @@ export function MobileTabBar() {
 
   return (
     <nav
+      ref={navRef}
       aria-label="Primary"
-      // `env(safe-area-inset-bottom)` keeps the row clear of the home indicator; the matching body
-      // padding is applied by the layout so nothing ends up trapped underneath.
+      // `env(safe-area-inset-bottom)` keeps the row clear of the home indicator. The layout pads by
+      // the measured height (MOBILE_TAB_BAR_HEIGHT_VAR) so nothing ends up trapped underneath.
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-topbar backdrop-blur-md backdrop-saturate-150 md:hidden"
     >

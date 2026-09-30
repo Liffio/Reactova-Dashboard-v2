@@ -15,9 +15,18 @@ export type StepType =
   | "START_CHATBOT"
   | "WEBHOOK"
   | "NOTIFY"
-  | "SPLIT";
+  | "SPLIT"
+  | "FOLLOW_GATE";
+
+/** What an Ask-to-follow check answers in the preview (Instagram is never asked there). */
+export type PreviewFollowState = "FOLLOWING" | "NOT_FOLLOWING" | "UNKNOWN";
 
 /** One delivery of a Webhook step, newest first. */
+/** The builder's Test send: the status your server answered with, or why nothing was sent. */
+export type WebhookTestResult =
+  | { ok: boolean; status: number; ms: number }
+  | { ok: false; status: null; ms: number; error: string };
+
 export interface WebhookDelivery {
   ok: boolean;
   at: string;
@@ -429,7 +438,12 @@ export const chatbotApi = {
   test: (
     workspaceId: string,
     id: string,
-    body: { contact: TestResult["contact"]; actions: TestAction[]; outsideHours?: boolean },
+    body: {
+      contact: TestResult["contact"];
+      actions: TestAction[];
+      outsideHours?: boolean;
+      followState?: PreviewFollowState;
+    },
   ) =>
     unwrap(
       apiRequest<{ data: TestResult }>(apiUri.chatbots.test(id), {
@@ -444,6 +458,18 @@ export const chatbotApi = {
         apiUri.chatbots.alertRecipients,
         { workspaceId },
       ),
+    ),
+  testWebhook: (
+    workspaceId: string,
+    id: string,
+    body: { url: string; secret: string; stepId: string; stepName?: string },
+  ) =>
+    unwrap(
+      apiRequest<{ data: WebhookTestResult }>(apiUri.chatbots.webhookTest(id), {
+        method: "POST",
+        workspaceId,
+        body,
+      }),
     ),
   webhookDeliveries: (workspaceId: string, id: string, stepId: string) =>
     unwrap(

@@ -202,6 +202,7 @@ export const apiUri = {
     test: (id: string) => `${V1}/chatbots/${id}/test`,
     webhookDeliveries: (id: string, stepId: string) =>
       `${V1}/chatbots/${id}/steps/${stepId}/webhook-deliveries`,
+    webhookTest: (id: string) => `${V1}/chatbots/${id}/webhook-test`,
     iceBreakers: `${V1}/chatbots/ice-breakers`,
     contacts: (qs: string) => `${V1}/chatbots/contacts${qs ? `?${qs}` : ""}`,
     contact: (contactId: string) => `${V1}/chatbots/contacts/${contactId}`,

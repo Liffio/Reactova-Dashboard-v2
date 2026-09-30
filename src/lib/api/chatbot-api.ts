@@ -18,6 +18,11 @@ export type StepType =
   | "SPLIT";
 
 /** One delivery of a Webhook step, newest first. */
+/** The builder's Test send: the status your server answered with, or why nothing was sent. */
+export type WebhookTestResult =
+  | { ok: boolean; status: number; ms: number }
+  | { ok: false; status: null; ms: number; error: string };
+
 export interface WebhookDelivery {
   ok: boolean;
   at: string;
@@ -444,6 +449,18 @@ export const chatbotApi = {
         apiUri.chatbots.alertRecipients,
         { workspaceId },
       ),
+    ),
+  testWebhook: (
+    workspaceId: string,
+    id: string,
+    body: { url: string; secret: string; stepId: string; stepName?: string },
+  ) =>
+    unwrap(
+      apiRequest<{ data: WebhookTestResult }>(apiUri.chatbots.webhookTest(id), {
+        method: "POST",
+        workspaceId,
+        body,
+      }),
     ),
   webhookDeliveries: (workspaceId: string, id: string, stepId: string) =>
     unwrap(

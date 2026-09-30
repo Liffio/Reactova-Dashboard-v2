@@ -402,7 +402,10 @@ function BuilderPage() {
       </header>
 
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_420px] max-[1180px]:grid-cols-[minmax(0,1fr)_350px] max-[900px]:grid-cols-1">
-        <section className="overflow-y-auto px-6 pt-6 pb-16 max-md:px-3 max-md:pb-28">
+        {/* At 900px and below the Preview / Go live bar is fixed over the page's end. The layout
+        already clears the tab bar, so this only clears the action bar (69px) plus a gap, and the
+        home-indicator inset where no tab bar takes it (768–900px). */}
+        <section className="overflow-y-auto px-6 pt-6 pb-16 max-[900px]:pb-[calc(5.5rem+max(0px,env(safe-area-inset-bottom,0px)-var(--mobile-tab-bar-h,0px)))] max-md:px-3">
           <div className="mx-auto max-w-[640px]">
             {blocking.length > 0 && (
               <div className="mb-4 rounded-xl border border-destructive-edge bg-destructive-wash p-3 text-[13px]">
@@ -570,7 +573,10 @@ function BuilderPage() {
         />
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 hidden gap-2 border-t border-border bg-background/90 px-3 pt-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+10px)] backdrop-blur-md max-[900px]:flex">
+      {/* Sits on top of the app's tab bar, not behind it: offset by the tab bar's measured height
+      (0 where there is none). The tab bar already clears the home indicator, so this bar adds the
+      inset only where it is the bottom-most thing on screen. */}
+      <div className="fixed inset-x-0 bottom-[var(--mobile-tab-bar-h,0px)] z-20 hidden gap-2 border-t border-border bg-background/90 px-3 pt-2.5 pb-[calc(10px+max(0px,env(safe-area-inset-bottom,0px)-var(--mobile-tab-bar-h,0px)))] backdrop-blur-md max-[900px]:flex">
         <Button
           variant="outline"
           className="h-12 flex-1 rounded-xl text-[15px]"

@@ -199,9 +199,10 @@ function AppLayout() {
               <AppSidebar />
               <div className="flex min-h-screen min-w-0 flex-1 flex-col">
                 <TopBar />
-                {/* 92px clears the tab bar plus its safe-area padding, so nothing at the end of a
-                page ends up trapped underneath it. */}
-                <main className="flex flex-1 flex-col pb-[92px] md:pb-0">
+                {/* Clears the tab bar by its measured height, safe-area padding included (see
+                MOBILE_TAB_BAR_HEIGHT_VAR), so nothing at the end of a page ends up trapped underneath
+                it. 92px only until the bar has measured itself. */}
+                <main className="flex flex-1 flex-col pb-[var(--mobile-tab-bar-h,92px)] md:pb-0">
                   {/* Above the page, not inside it: an expired plan is a property of the workspace, so
                   it has to be visible on every route rather than on whichever ones remembered.
                   Unwrapped, and it carries its own spacing — a wrapper here would add padding to

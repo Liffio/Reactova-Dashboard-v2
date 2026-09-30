@@ -2578,6 +2578,7 @@ const DM_JOB_STATUS_VALUES: readonly AdminDmJobStatus[] = [
   "FAILED",
   "RETRYING",
   "SKIPPED_PRIVATE_REPLY_USED",
+  "SKIPPED_THREAD_PAUSED",
 ];
 
 const DM_JOB_STATUS_CLASS: Record<AdminDmJobStatus, string> = {
@@ -2588,6 +2589,7 @@ const DM_JOB_STATUS_CLASS: Record<AdminDmJobStatus, string> = {
   // Muted, not destructive: this is a clean stand-down, not a failure, and colouring it red
   // would send operators chasing an account problem that does not exist.
   SKIPPED_PRIVATE_REPLY_USED: "border-muted-foreground/30 text-muted-foreground",
+  SKIPPED_THREAD_PAUSED: "border-muted-foreground/30 text-muted-foreground",
 };
 
 /** The raw enum value is unreadable in a 32-char badge. */
@@ -2597,6 +2599,7 @@ const DM_JOB_STATUS_LABEL: Record<AdminDmJobStatus, string> = {
   FAILED: "Failed",
   RETRYING: "Retrying",
   SKIPPED_PRIVATE_REPLY_USED: "Skipped · reply used",
+  SKIPPED_THREAD_PAUSED: "Skipped · teammate in chat",
 };
 
 /** Defaults to `FAILED` — the brief's own framing for this surface ("failed DM jobs"); the status
@@ -2667,7 +2670,7 @@ function DmJobsCard({ wsId }: { wsId: string }) {
                       "max-w-[220px] truncate text-xs",
                       // A skip carries an explanatory note, not an error. Rendering it red sends
                       // operators chasing a problem that is not there.
-                      job.status === "SKIPPED_PRIVATE_REPLY_USED"
+                      job.status === "SKIPPED_PRIVATE_REPLY_USED" || job.status === "SKIPPED_THREAD_PAUSED"
                         ? "text-muted-foreground"
                         : "text-destructive",
                     )}

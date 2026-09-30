@@ -275,7 +275,7 @@ function ContactSheet({
                     ? `${c.pausedChatbot.name ?? "One chatbot"} is paused for this person`
                     : "Every chatbot is paused for this person"}{" "}
                   until {when(c.botPausedUntil)} because {pauseWhy[c.pausedReason ?? "MANUAL"]}.
-                  {c.pausedChatbot && " Your other chatbots still reply to them."}
+                  {c.pausedReason !== "MANUAL" && " If they type a keyword or tap a button, the chatbot or automation it belongs to answers and the pause ends."}
                 </p>
               ) : (
                 <p>The bot is replying to this person.</p>

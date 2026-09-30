@@ -408,9 +408,7 @@ export type AdminDmJobStatus =
   | "SENT"
   | "FAILED"
   | "RETRYING"
-  | "SKIPPED_PRIVATE_REPLY_USED"
-  /** A comment's hand-off to a chatbot, held because a teammate was in the person's thread. */
-  | "SKIPPED_THREAD_PAUSED";
+  | "SKIPPED_PRIVATE_REPLY_USED";
 
 export type AdminDmJob = {
   id: string;

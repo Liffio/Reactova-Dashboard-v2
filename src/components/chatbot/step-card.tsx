@@ -256,7 +256,7 @@ export function StepCard({
               typePill(step),
             )}
           >
-            {STEP_LABEL[step.type]}
+            {STEP_LABEL[step.type] ?? "Unsupported step"}
           </span>
           {first && (
             <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-accent-foreground">

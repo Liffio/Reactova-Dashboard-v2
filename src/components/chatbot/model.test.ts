@@ -20,3 +20,13 @@ describe("webhook signing secrets in the builder", () => {
     expect(copy.id).not.toBe(original.id);
   });
 });
+
+describe("Ask to follow in the builder", () => {
+  it("a new step has its message, the Visit profile label, the reminder and two open paths", () => {
+    const step = newStep("FOLLOW_GATE", 3);
+    expect(step.body?.trim()).toBeTruthy();
+    expect(step.config).toMatchObject({ visitLabel: "Visit profile", followingStepId: null, notFollowingStepId: null });
+    expect(String(step.config.retryMessage)).toContain("Following");
+    expect(step.buttons).toEqual([]);
+  });
+});

@@ -99,6 +99,12 @@ const ADD_OPTIONS: Array<{ type: StepType; label: string; hint: string; feature?
     hint: "Send their details and answers to another tool",
     feature: "webhook_step",
   },
+  {
+    type: "FOLLOW_GATE",
+    label: "Ask to follow",
+    hint: "Ask them to follow, then go one way or the other",
+    feature: "follow_gate",
+  },
 ];
 
 const useSingleOpen = () => {

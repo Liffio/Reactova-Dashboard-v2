@@ -49,6 +49,7 @@ export const STEP_LABEL: Record<StepType, string> = {
   WEBHOOK: "Webhook",
   NOTIFY: "Notify the team",
   SPLIT: "A/B split",
+  FOLLOW_GATE: "Ask to follow",
 };
 
 export function newStep(type: StepType, position: number): ChatbotStep {
@@ -143,6 +144,20 @@ export function newStep(type: StepType, position: number): ChatbotStep {
           ],
         },
       };
+    case "FOLLOW_GATE":
+      return {
+        ...base,
+        name: "Ask to follow",
+        body: "Follow us and I'll send it your way 👇",
+        config: {
+          visitLabel: "Visit profile",
+          // The comment automation's follow-gate wording, so both read the same.
+          retryMessage:
+            "We still don't see a follow on your account. Open Visit profile, tap Follow, then tap Following ✅ again.",
+          followingStepId: null,
+          notFollowingStepId: null,
+        },
+      };
   }
 }
 
@@ -201,6 +216,8 @@ export function stepSummary(s: ChatbotStep): string {
       : "Alert message not set";
   if (s.type === "WEBHOOK")
     return cfgStr(s, "url") ? `Sends to ${cfgStr(s, "url")}` : "Webhook address not set";
+  if (s.type === "FOLLOW_GATE")
+    return `Asks them to follow: ${(s.body ?? "").split("\n")[0] || "no message yet"}`;
   return (s.body ?? "").split("\n")[0] || (s.mediaAssetId ? "Media" : "Empty message");
 }
 

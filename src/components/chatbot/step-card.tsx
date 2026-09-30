@@ -15,6 +15,7 @@ import { WebhookEditor } from "./webhook-editor";
 import { NotifyEditor } from "./notify-editor";
 import { HandoverAssignee } from "./handover-assignee";
 import { SplitEditor } from "./split-editor";
+import { FollowGateEditor } from "./follow-gate-editor";
 import {
   ButtonList,
   ConditionEditor,
@@ -118,6 +119,27 @@ function Summary({
   steps: StepRef[];
   chatbots: ChatbotRef[];
 }) {
+  if (step.type === "FOLLOW_GATE") {
+    return (
+      <>
+        <p className="truncate text-[13px] text-muted-foreground">{stepSummary(step)}</p>
+        <div className="flex flex-wrap gap-1.5">
+          <RouteChip
+            label="Following"
+            to={{ kind: "step", id: cfgStr(step, "followingStepId") }}
+            steps={steps}
+            chatbots={chatbots}
+          />
+          <RouteChip
+            label="Not following"
+            to={{ kind: "step", id: cfgStr(step, "notFollowingStepId") }}
+            steps={steps}
+            chatbots={chatbots}
+          />
+        </div>
+      </>
+    );
+  }
   if (step.type === "CONDITION") {
     return (
       <>
@@ -199,7 +221,8 @@ export function StepCard({
   const setButtons = (buttons: ChatbotButton[]) => onChange({ ...step, buttons });
   const waits =
     (step.type === "MESSAGE" && step.buttons.some((b) => b.action !== "LINK")) ||
-    step.type === "QUESTION";
+    step.type === "QUESTION" ||
+    step.type === "FOLLOW_GATE";
   const pick = { steps, chatbots, onNewStep, onJump };
   // D4: what this step does outside the account's business hours.
   const outside = (step.config.outsideHours ?? {}) as {
@@ -368,7 +391,10 @@ export function StepCard({
             </label>
           )}
 
-          {(step.type === "MESSAGE" || step.type === "QUESTION" || step.type === "HANDOVER") && (
+          {(step.type === "MESSAGE" ||
+            step.type === "QUESTION" ||
+            step.type === "HANDOVER" ||
+            step.type === "FOLLOW_GATE") && (
             <div>
               <div className="mb-1.5 text-xs font-semibold text-muted-foreground">
                 {step.type === "QUESTION"
@@ -397,6 +423,12 @@ export function StepCard({
                   }}
                 />
               </div>
+              {step.type === "FOLLOW_GATE" && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Sent with the buttons below. Instagram allows 640 characters on a message with
+                  buttons ({(step.body ?? "").trim().length}/640).
+                </p>
+              )}
               {step.type === "HANDOVER" && (
                 <>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -412,6 +444,14 @@ export function StepCard({
                 </>
               )}
             </div>
+          )}
+
+          {step.type === "FOLLOW_GATE" && (
+            <FollowGateEditor
+              step={step}
+              onChange={(config) => onChange({ ...step, config })}
+              {...pick}
+            />
           )}
 
           {step.type === "QUESTION" && (
@@ -531,7 +571,7 @@ export function StepCard({
                       />
                     </SettingsRow>
                   ))}
-                {!features.business_hours ? (
+                {step.type === "FOLLOW_GATE" ? null : !features.business_hours ? (
                   <LockedRow
                     capability="chatbot:business_hours"
                     feature="Business hours"

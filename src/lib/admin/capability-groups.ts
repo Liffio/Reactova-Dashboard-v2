@@ -37,6 +37,7 @@ export const CAPABILITY_GROUPS: Record<string, CapabilityGroup[]> = {
         "chatbot:personalization",
         "chatbot:business_hours",
         "chatbot:templates",
+        "chatbot:follow_gate",
       ],
     },
     {

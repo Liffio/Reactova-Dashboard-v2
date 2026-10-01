@@ -203,6 +203,9 @@ export const apiUri = {
     webhookDeliveries: (id: string, stepId: string) =>
       `${V1}/chatbots/${id}/steps/${stepId}/webhook-deliveries`,
     webhookTest: (id: string) => `${V1}/chatbots/${id}/webhook-test`,
+    /** Step media: upload (multipart `file` + `kind`), and delete one nothing uses any more. */
+    media: (id: string) => `${V1}/chatbots/${id}/media`,
+    mediaItem: (id: string, mediaId: string) => `${V1}/chatbots/${id}/media/${mediaId}`,
     iceBreakers: `${V1}/chatbots/ice-breakers`,
     contacts: (qs: string) => `${V1}/chatbots/contacts${qs ? `?${qs}` : ""}`,
     contact: (contactId: string) => `${V1}/chatbots/contacts/${contactId}`,

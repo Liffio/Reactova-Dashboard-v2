@@ -6,7 +6,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MAX_QUICK_REPLIES, type ChatbotButton, type ChatbotStep } from "@/lib/api/chatbot-api";
+import {
+  MAX_QUICK_REPLIES,
+  type ChatbotButton,
+  type ChatbotMedia,
+  type ChatbotStep,
+} from "@/lib/api/chatbot-api";
 import { cn } from "@/lib/utils";
 import { STEP_LABEL, cfgStr, formatDelay, stepSummary } from "./model";
 import { LockedRow } from "./upgrade";
@@ -16,6 +21,7 @@ import { NotifyEditor } from "./notify-editor";
 import { HandoverAssignee } from "./handover-assignee";
 import { SplitEditor } from "./split-editor";
 import { FollowGateEditor } from "./follow-gate-editor";
+import { MediaControl } from "./media-control";
 import {
   ButtonList,
   ConditionEditor,
@@ -49,6 +55,11 @@ interface Props {
   /** Answer keys saved by this chatbot's Question steps, for merge fields. */
   answerKeys: string[];
   chatbotId: string;
+  workspaceId: string;
+  /** Signed views of the steps' files (`Chatbot.media`). */
+  media: Record<string, ChatbotMedia> | undefined;
+  onMediaUploaded: (step: ChatbotStep, view: ChatbotMedia, replaced: string | null) => void;
+  onMediaRemove: (step: ChatbotStep, mediaAssetId: string) => void;
   onToggle: () => void;
   onChange: (step: ChatbotStep) => void;
   onAction: (a: StepAction) => void;
@@ -210,6 +221,10 @@ export function StepCard({
   features,
   answerKeys,
   chatbotId,
+  workspaceId,
+  media,
+  onMediaUploaded,
+  onMediaRemove,
   onToggle,
   onChange,
   onAction,
@@ -389,6 +404,20 @@ export function StepCard({
                 ))}
               </select>
             </label>
+          )}
+
+          {/* Above the text because it is sent before it, as its own message. A file left on another
+          step type (the type was changed) still shows here so it can be removed. */}
+          {(step.type === "MESSAGE" || step.mediaAssetId) && (
+            <MediaControl
+              workspaceId={workspaceId}
+              chatbotId={chatbotId}
+              mediaAssetId={step.mediaAssetId}
+              media={media}
+              enabled={features.media_messages && step.type === "MESSAGE"}
+              onUploaded={(view, replaced) => onMediaUploaded(step, view, replaced)}
+              onRemove={(id) => onMediaRemove(step, id)}
+            />
           )}
 
           {(step.type === "MESSAGE" ||

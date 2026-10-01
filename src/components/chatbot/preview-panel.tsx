@@ -337,12 +337,16 @@ function Entry({
             {p.text}
           </Bubble>
         ) : p.part === "quickReplies" ? (
-          <div key={i} className="mt-1 flex flex-wrap justify-end gap-1.5">
+          // As Instagram shows them: filled, tinted chips on the bot's side, under its message.
+          <div
+            key={i}
+            className="mt-0.5 flex max-w-[85%] flex-wrap justify-start gap-1.5 self-start"
+          >
             {p.buttons.map((b) => (
               <button
                 key={b.id}
                 type="button"
-                className="rounded-full border border-muted-foreground/40 px-3 py-1.5 text-xs font-medium text-bubble-in-foreground hover:border-primary hover:text-primary"
+                className="rounded-full border border-primary-edge bg-primary-wash px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
                 onClick={() => onTap(b.id)}
               >
                 {b.label}

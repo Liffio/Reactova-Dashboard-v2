@@ -4,6 +4,7 @@ import {
   chatbotApi,
   chatbotKeys,
   type Chatbot,
+  type ChatbotMedia,
   type ChatbotStep,
   type GraphInput,
 } from "@/lib/api/chatbot-api";
@@ -15,6 +16,8 @@ import { toGraph } from "./model";
 export type SaveState = "idle" | "saving" | "saved" | "error";
 
 const SAVE_DEBOUNCE_MS = 800;
+/** Under the 15 minutes a signed media link lives. */
+const MEDIA_REFRESH_MS = 12 * 60_000;
 
 /**
  * The builder's draft (code spec §11.2): local-first, saved whole with a debounce.
@@ -47,6 +50,24 @@ export function useChatbotEditor(workspaceId: string, chatbotId: string) {
     if (query.data && !bot) setBot(query.data);
   }, [query.data, bot]);
 
+  /**
+   * Files taken off a step, waiting for a save that no longer refers to them before they are
+   * deleted (the server refuses while a draft step uses one). Best effort: a file another step or a
+   * published version still uses answers 409 and simply stays.
+   */
+  const removedMedia = useRef(new Set<string>());
+  const dropUnreferencedMedia = useCallback(
+    (saved: Chatbot) => {
+      const used = new Set(saved.steps.map((s) => s.mediaAssetId).filter(Boolean));
+      for (const id of [...removedMedia.current]) {
+        if (used.has(id)) continue;
+        removedMedia.current.delete(id);
+        void chatbotApi.deleteMedia(workspaceId, chatbotId, id).catch(() => undefined);
+      }
+    },
+    [workspaceId, chatbotId],
+  );
+
   const flush = useCallback((): Promise<void> => {
     if (timer.current) {
       clearTimeout(timer.current);
@@ -69,9 +90,12 @@ export function useChatbotEditor(workspaceId: string, chatbotId: string) {
                 version: saved.version,
                 publishedAt: saved.publishedAt,
                 hasUnpublishedChanges: saved.hasUnpublishedChanges,
+                // Freshly signed links for every file the saved steps use (they last 15 minutes).
+                media: { ...b.media, ...saved.media },
               }
             : b,
         );
+        dropUnreferencedMedia(saved);
         setSaveState(pending.current ? "saving" : "saved");
         setRevision((r) => r + 1);
         void queryClient.invalidateQueries({ queryKey: chatbotKeys.list(workspaceId) });
@@ -86,7 +110,31 @@ export function useChatbotEditor(workspaceId: string, chatbotId: string) {
         );
       });
     return inflight.current;
-  }, [workspaceId, chatbotId, queryClient]);
+  }, [workspaceId, chatbotId, queryClient, dropUnreferencedMedia]);
+
+  /** A file just uploaded: known to the builder at once, before any save signs it again. */
+  const addMedia = useCallback((view: ChatbotMedia) => {
+    setBot((b) => (b ? { ...b, media: { ...b.media, [view.mediaAssetId]: view } } : b));
+  }, []);
+
+  /** Delete this file once a save no longer uses it. */
+  const releaseMedia = useCallback((mediaAssetId: string) => {
+    removedMedia.current.add(mediaAssetId);
+  }, []);
+
+  const hasMedia = !!bot?.steps.some((s) => s.mediaAssetId);
+  // Links last 15 minutes. A page left open re-signs them before they run out, so previews keep
+  // working; only `media` is taken from the fetch, never the steps being edited.
+  useEffect(() => {
+    if (!hasMedia) return;
+    const t = setInterval(() => {
+      void chatbotApi
+        .get(workspaceId, chatbotId)
+        .then((fresh) => setBot((b) => (b ? { ...b, media: { ...b.media, ...fresh.media } } : b)))
+        .catch(() => undefined);
+    }, MEDIA_REFRESH_MS);
+    return () => clearInterval(t);
+  }, [workspaceId, chatbotId, hasMedia]);
 
   const update = useCallback(
     (fn: (b: Chatbot) => Chatbot) => {
@@ -136,6 +184,8 @@ export function useChatbotEditor(workspaceId: string, chatbotId: string) {
     update,
     updateSteps,
     absorb,
+    addMedia,
+    releaseMedia,
     flush,
   };
 }

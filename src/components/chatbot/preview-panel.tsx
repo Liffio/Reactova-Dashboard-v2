@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RotateCcw, SendHorizontal, X } from "lucide-react";
+import { ImageOff, RotateCcw, SendHorizontal, X } from "lucide-react";
 import {
   chatbotApi,
   type Chatbot,
+  type ChatbotMedia,
   type PreviewFollowState,
   type TestAction,
   type TestResult,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/api/chatbot-api";
 import { cn } from "@/lib/utils";
 import { conditionRules, cfgStr, formatDelay } from "./model";
+import { formatDuration, previewParts, type MediaState } from "./media";
 
 type Contact = TestResult["contact"];
 
@@ -233,7 +235,13 @@ function Phone({
         {error && <Sys>Couldn't run the preview. Your latest changes may not be saved yet.</Sys>}
         {loading && <Sys>Loading…</Sys>}
         {visible.map((e, i) => (
-          <Entry key={i} e={e} />
+          <Entry
+            key={i}
+            e={e}
+            media={bot.media}
+            awaitingTap={!!canTap && e === lastBot}
+            onTap={(buttonId) => onAct({ kind: "tap", buttonId })}
+          />
         ))}
         {typing === "typing" && (
           <div className="flex gap-1 self-start rounded-[18px] rounded-bl-md bg-bubble-in px-3.5 py-3 text-bubble-in-foreground">
@@ -247,30 +255,6 @@ function Phone({
           </div>
         )}
         {typing && typing !== "typing" && <Sys>{typing}</Sys>}
-        {canTap && lastBot?.buttons && lastBot.buttons.length > 0 && (
-          <div className="mt-1 flex flex-wrap justify-end gap-1.5">
-            {lastBot.buttons.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                className={cn(
-                  "rounded-full border border-muted-foreground/40 px-3 py-1.5 text-xs font-medium text-bubble-in-foreground",
-                  b.action === "LINK" ? "w-full" : "hover:border-primary hover:text-primary",
-                )}
-                onClick={() =>
-                  b.action === "LINK" ? undefined : onAct({ kind: "tap", buttonId: b.id })
-                }
-                title={
-                  b.action === "LINK"
-                    ? `Opens ${b.url ?? "the link"} — the chat stays where it is`
-                    : undefined
-                }
-              >
-                {b.action === "LINK" ? `🔗 ${b.label}` : b.label}
-              </button>
-            ))}
-          </div>
-        )}
         {nextFollowUp && (
           <button
             type="button"
@@ -328,15 +312,101 @@ const endText = (reason: string | null) =>
       ? "Stopped: these steps loop into each other."
       : "End of the chat.";
 
-function Entry({ e }: { e: TranscriptEntry }) {
+/** A bot entry in Instagram's order: the file, the text, its quick replies, then the link card. */
+function Entry({
+  e,
+  media,
+  awaitingTap,
+  onTap,
+}: {
+  e: TranscriptEntry;
+  media: Record<string, ChatbotMedia> | undefined;
+  awaitingTap: boolean;
+  onTap: (buttonId: string) => void;
+}) {
   if (e.from === "system") return <Sys>{e.text}</Sys>;
   if (e.from === "person") return <Bubble from="person">{e.text}</Bubble>;
   return (
     <>
       {e.kind === "FOLLOW_UP" && <Sys>Follow-up · no reply yet</Sys>}
-      {e.mediaAssetId && <Bubble from="bot">🖼️ Media</Bubble>}
-      {e.text && <Bubble from="bot">{e.text}</Bubble>}
+      {previewParts(e, media, awaitingTap).map((p, i) =>
+        p.part === "media" ? (
+          <MediaBubble key={i} state={p.state} />
+        ) : p.part === "text" ? (
+          <Bubble key={i} from="bot">
+            {p.text}
+          </Bubble>
+        ) : p.part === "quickReplies" ? (
+          <div key={i} className="mt-1 flex flex-wrap justify-end gap-1.5">
+            {p.buttons.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                className="rounded-full border border-muted-foreground/40 px-3 py-1.5 text-xs font-medium text-bubble-in-foreground hover:border-primary hover:text-primary"
+                onClick={() => onTap(b.id)}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div
+            key={i}
+            className="w-[80%] self-start overflow-hidden rounded-[18px] rounded-bl-md bg-bubble-in text-bubble-in-foreground"
+          >
+            <div className="px-3 py-2 text-[13px] leading-snug">{p.text}</div>
+            {p.buttons.map((b) => (
+              <div
+                key={b.id}
+                className="border-t border-muted-foreground/20 px-3 py-1.5 text-center text-xs font-medium"
+                title={`Opens ${b.url ?? "the link"} — the chat stays where it is`}
+              >
+                🔗 {b.label}
+              </div>
+            ))}
+          </div>
+        ),
+      )}
     </>
+  );
+}
+
+function MediaBubble({ state }: { state: Exclude<MediaState, { kind: "none" }> }) {
+  if (state.kind === "missing")
+    return (
+      <div className="flex max-w-[80%] items-center gap-2 self-start rounded-[18px] rounded-bl-md border border-dashed border-muted-foreground/40 px-3 py-2 text-[12px] text-muted-foreground">
+        <ImageOff className="h-4 w-4 shrink-0" aria-hidden />
+        File missing — only the text is sent
+      </div>
+    );
+  const m = state.media;
+  const duration = formatDuration(m.durationSeconds);
+  if (m.kind === "audio")
+    return (
+      <div className="flex max-w-[80%] items-center gap-2 self-start rounded-[18px] rounded-bl-md bg-bubble-in px-2 py-1.5 text-bubble-in-foreground">
+        <audio controls preload="none" src={m.url ?? undefined} className="h-8 max-w-[200px]" />
+        {duration && <span className="text-[11px] opacity-70">{duration}</span>}
+      </div>
+    );
+  return (
+    <div className="relative max-w-[70%] self-start overflow-hidden rounded-[18px] rounded-bl-md bg-bubble-in">
+      {m.kind === "image" ? (
+        <img src={m.url ?? undefined} alt="" className="block max-h-56 w-full object-cover" />
+      ) : (
+        <video
+          src={m.url ?? undefined}
+          poster={m.thumbnailUrl ?? undefined}
+          controls
+          preload="none"
+          className="block max-h-56 w-full"
+        />
+      )}
+      {m.kind === "video" && duration && (
+        <span className="pointer-events-none absolute top-1.5 right-1.5 rounded bg-black/70 px-1 text-[10px] text-white">
+          {duration}
+        </span>
+      )}
+    </div>
   );
 }
 

@@ -553,3 +553,92 @@ export async function apiUploadRequest<T>(
   }
   return (await res.json()) as T;
 }
+
+export type ApiUploadProgressConfig = ApiUploadConfig & {
+  /** 0 to 1 as the body goes out. Not called when the browser can't measure it. */
+  onProgress?: (fraction: number) => void;
+  signal?: AbortSignal;
+};
+
+/**
+ * `apiUploadRequest` with upload progress, for files big enough that a silent wait reads as broken
+ * (a 25 MB chatbot video). `fetch` cannot report upload progress, so this is the one place the
+ * client uses XMLHttpRequest. Same headers, same credentials, same errors as `apiUploadRequest`;
+ * an abort rejects with the same `AbortError` a cancelled `fetch` would.
+ */
+export function apiUploadRequestWithProgress<T>(
+  path: string,
+  formData: FormData,
+  config: ApiUploadProgressConfig = {},
+): Promise<T> {
+  const token = resolveRequestToken(config.token);
+  const headers: Record<string, string> = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...notifyDeliveryHeaders(),
+    ...resolveWorkspaceHeader(config, false),
+    ...reauthHeaders(),
+  };
+
+  return new Promise<T>((resolve, reject) => {
+    if (config.signal?.aborted) {
+      reject(newAbortError());
+      return;
+    }
+    const xhr = new XMLHttpRequest();
+    xhr.open(config.method ?? "POST", `${API_BASE}${path}`);
+    xhr.withCredentials = true;
+    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && e.total > 0) config.onProgress?.(Math.min(1, e.loaded / e.total));
+    };
+    const onAbort = () => xhr.abort();
+    config.signal?.addEventListener("abort", onAbort, { once: true });
+    const done = () => config.signal?.removeEventListener("abort", onAbort);
+
+    xhr.onabort = () => {
+      done();
+      reject(newAbortError());
+    };
+    xhr.onerror = () => {
+      done();
+      reject(new ApiError(NETWORK_ERROR_MESSAGE, "NETWORK_ERROR"));
+    };
+    xhr.onload = () => {
+      done();
+      const requestId = xhr.getResponseHeader("X-Request-Id") ?? undefined;
+      let payload: unknown = null;
+      try {
+        payload = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch {
+        payload = null;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(payload as T);
+        return;
+      }
+      if (RETRYABLE_STATUSES.has(xhr.status)) {
+        reject(
+          new ApiError(
+            NETWORK_ERROR_MESSAGE,
+            "SERVER_UNAVAILABLE",
+            undefined,
+            undefined,
+            requestId,
+          ),
+        );
+        return;
+      }
+      const code = (payload as { code?: string } | null)?.code;
+      reject(
+        new ApiError(
+          formatApiErrorBody(payload ?? {}),
+          code,
+          xhr.status,
+          payload ?? undefined,
+          requestId,
+        ),
+      );
+    };
+    xhr.send(formData);
+  });
+}

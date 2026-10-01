@@ -1,5 +1,5 @@
 import { apiUri } from "./apiUri";
-import { apiRequest } from "./http";
+import { apiRequest, apiUploadRequestWithProgress } from "./http";
 
 /**
  * Chatbots. Types mirror `server/src/types/chatbot.ts` and the views in
@@ -103,6 +103,29 @@ export interface ChatbotTrigger {
   isEnabled: boolean;
 }
 
+export type ChatbotMediaKind = "image" | "video" | "audio";
+
+/**
+ * A step's file, as the server describes it. `url` and `thumbnailUrl` are signed links that work
+ * for 15 minutes from when they were fetched — never store them; the builder refreshes them on
+ * every save and on a timer. Null when the file is gone or links can't be signed right now.
+ */
+export interface ChatbotMedia {
+  mediaAssetId: string;
+  kind: ChatbotMediaKind;
+  url: string | null;
+  thumbnailUrl: string | null;
+  contentType: string;
+  sizeBytes: number;
+  /** Instagram's limit for this kind, to show the size against. */
+  maxBytes: number;
+  durationSeconds: number | null;
+  width: number | null;
+  height: number | null;
+  originalName: string;
+  missing: boolean;
+}
+
 export interface Chatbot {
   id: string;
   name: string;
@@ -118,6 +141,8 @@ export interface Chatbot {
   firstStepId: string | null;
   steps: ChatbotStep[];
   triggers: ChatbotTrigger[];
+  /** Every file the steps use, keyed by id, signed for this load (`GET /:id`, `PUT /:id/graph`). */
+  media?: Record<string, ChatbotMedia>;
 }
 
 export interface ChatbotListItem {
@@ -210,10 +235,18 @@ export interface ConversationMessage {
   /** `business`: sent from the account but not by this chatbot, usually a person in Instagram. */
   from: "contact" | "bot" | "business";
   text: string | null;
+  /** The step file this bot message carried (see `ConversationTranscript.media`). */
+  mediaAssetId?: string | null;
 }
 export type ConversationSummaryItem =
   | { kind: "started"; at: string; entry: string | null }
-  | { kind: "step"; at: string; stepName: string; text: string | null }
+  | {
+      kind: "step";
+      at: string;
+      stepName: string;
+      text: string | null;
+      mediaAssetId?: string | null;
+    }
   | { kind: "follow_up"; at: string; stepName: string; text: string | null }
   | { kind: "fallback"; at: string; text: string | null }
   | { kind: "tap"; at: string; label: string }
@@ -228,8 +261,15 @@ export type ConversationTranscript =
       messages: ConversationMessage[];
       partial: boolean;
       summary: ConversationSummaryItem[];
+      /** The files it shows, keyed by id, signed for this page load. */
+      media?: Record<string, ChatbotMedia>;
     }
-  | { mode: "summary"; reason: ConversationSummaryReason; summary: ConversationSummaryItem[] };
+  | {
+      mode: "summary";
+      reason: ConversationSummaryReason;
+      summary: ConversationSummaryItem[];
+      media?: Record<string, ChatbotMedia>;
+    };
 
 export type TestAction =
   | { kind: "tap"; buttonId: string }
@@ -386,6 +426,28 @@ export const chatbotApi = {
         body: patch,
       }),
     ),
+  /** One file for a Message step. The server decides the kind from the bytes; `kind` is what the
+   *  author picked, so a mismatch comes back as a clear error rather than a surprise. */
+  uploadMedia: (
+    workspaceId: string,
+    id: string,
+    file: File,
+    kind: ChatbotMediaKind,
+    opts: { onProgress?: (fraction: number) => void; signal?: AbortSignal } = {},
+  ) => {
+    const form = new FormData();
+    form.append("kind", kind);
+    form.append("file", file);
+    return unwrap(
+      apiUploadRequestWithProgress<{ data: ChatbotMedia }>(apiUri.chatbots.media(id), form, {
+        workspaceId,
+        ...opts,
+      }),
+    );
+  },
+  /** 409 CHATBOT_MEDIA_IN_USE while a draft step or a published version still uses the file. */
+  deleteMedia: (workspaceId: string, id: string, mediaId: string) =>
+    apiRequest<void>(apiUri.chatbots.mediaItem(id, mediaId), { method: "DELETE", workspaceId }),
   saveGraph: (workspaceId: string, id: string, graph: GraphInput) =>
     unwrap(
       apiRequest<{ data: Chatbot }>(apiUri.chatbots.graph(id), {

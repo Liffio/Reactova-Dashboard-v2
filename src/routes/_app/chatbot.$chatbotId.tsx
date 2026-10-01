@@ -504,6 +504,23 @@ function BuilderPage() {
                     features={features}
                     answerKeys={answerKeys}
                     chatbotId={bot.id}
+                    workspaceId={ws}
+                    media={bot.media}
+                    onMediaUploaded={(step, view, replaced) => {
+                      editor.addMedia(view);
+                      setSteps((xs) =>
+                        xs.map((x) =>
+                          x.id === step.id ? { ...x, mediaAssetId: view.mediaAssetId } : x,
+                        ),
+                      );
+                      if (replaced) editor.releaseMedia(replaced);
+                    }}
+                    onMediaRemove={(step, id) => {
+                      setSteps((xs) =>
+                        xs.map((x) => (x.id === step.id ? { ...x, mediaAssetId: null } : x)),
+                      );
+                      editor.releaseMedia(id);
+                    }}
                     onToggle={() => toggleOpen(s.id)}
                     onChange={(next) => setSteps((xs) => xs.map((x) => (x.id === s.id ? next : x)))}
                     onAction={(a) => onAction(s, i, a)}

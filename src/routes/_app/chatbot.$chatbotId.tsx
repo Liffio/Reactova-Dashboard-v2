@@ -40,7 +40,7 @@ import { TriggerCard } from "@/components/chatbot/trigger-card";
 import { PreviewPanel } from "@/components/chatbot/preview-panel";
 import { IceBreakerSheet } from "@/components/chatbot/ice-breakers";
 import { StatusPill, publishErrorMessage, publishProblems } from "@/components/chatbot/shared";
-import { duplicateStep, newStep, removeStep } from "@/components/chatbot/model";
+import { autoLink, duplicateStep, newStep, removeStep } from "@/components/chatbot/model";
 import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
 import { UsageMeter, atCap } from "@/components/chatbot/usage-meter";
 import { SaveAsTemplateDialog } from "@/components/chatbot/save-as-template";
@@ -153,6 +153,8 @@ function BuilderPage() {
 
   const singleOpen = useSingleOpen();
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+  /** The step last opened: a step added from the menu goes after it, linked from it. */
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [reorder, setReorder] = useState(false);
   const [flashId, setFlashId] = useState<string | null>(null);
   // Template library curators (`platform:module_manage`) can turn this flow into a template.
@@ -166,7 +168,10 @@ function BuilderPage() {
 
   // First step open on arrival, like the prototype.
   useEffect(() => {
-    if (bot && openIds.size === 0 && bot.steps[0]) setOpenIds(new Set([bot.steps[0].id]));
+    if (bot && openIds.size === 0 && bot.steps[0]) {
+      setOpenIds(new Set([bot.steps[0].id]));
+      setActiveId(bot.steps[0].id);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bot?.id]);
 
@@ -175,8 +180,10 @@ function BuilderPage() {
       setOpenIds((prev) => {
         const next = new Set(singleOpen ? [] : prev);
         const open = force ?? !prev.has(id);
-        if (open) next.add(id);
-        else next.delete(id);
+        if (open) {
+          next.add(id);
+          setActiveId(id);
+        } else next.delete(id);
         return next;
       });
     },
@@ -224,6 +231,38 @@ function BuilderPage() {
   // "+ Talk to a person" points at the chatbot's Handover step, so its closing message, assignee and
   // buttons apply; one is created when there is none.
   const handoverStepIds = bot.steps.filter((x) => x.type === "HANDOVER").map((x) => x.id);
+
+  /**
+   * "Add step": the new step goes right after the step last opened and is linked from it — into
+   * its first empty slot, never over an existing link (autoLink). A short notice names the slot so
+   * it can be changed; it blocks nothing. With no step open, it is added at the end, unlinked.
+   */
+  const addStepFromMenu = (type: StepType) => {
+    const steps = bot.steps;
+    const i = activeId ? steps.findIndex((x) => x.id === activeId) : -1;
+    const s = newStep(type, steps.length);
+    if (i < 0) {
+      setSteps((xs) => [...xs, s]);
+    } else {
+      const prev = steps[i];
+      const linked = autoLink(prev, s.id);
+      setSteps((xs) => {
+        const at = xs.findIndex((x) => x.id === prev.id);
+        if (at < 0) return [...xs, s];
+        const next = xs.map((x) => (x.id === prev.id && linked ? linked.step : x));
+        next.splice(at + 1, 0, s);
+        return next;
+      });
+      toast.info(
+        linked
+          ? `Linked from "${prev.name}" as ${linked.slot}. Change it there any time.`
+          : `"${prev.name}" already goes somewhere, so the new step isn't linked yet.`,
+      );
+    }
+    toggleOpen(s.id, true);
+    setTimeout(() => flash(s.id), 50);
+    return s.id;
+  };
 
   const addStep = (type: StepType) => {
     const s = newStep(type, bot.steps.length);
@@ -569,7 +608,7 @@ function BuilderPage() {
                                     capability: `chatbot:${o.feature}`,
                                     feature: `${o.label} step`,
                                   })
-                                : addStep(o.type)
+                                : addStepFromMenu(o.type)
                             }
                           >
                             <span className={cn("flex flex-1 flex-col", locked && "opacity-60")}>

@@ -24,6 +24,7 @@ export function MediaControl({
   mediaAssetId,
   media,
   enabled,
+  wrongStep = false,
   onUploaded,
   onRemove,
 }: {
@@ -33,6 +34,8 @@ export function MediaControl({
   media: Record<string, ChatbotMedia> | undefined;
   /** `chatbot:media_messages`. Without it the row stays, locked, and opens the upgrade sheet. */
   enabled: boolean;
+  /** The file sits on a step type that never sends one: say so, offer only Remove. */
+  wrongStep?: boolean;
   /** A new file is ready: put it on the step (replacing any old one). */
   onUploaded: (view: ChatbotMedia, replaced: string | null) => void;
   onRemove: (mediaAssetId: string) => void;
@@ -145,10 +148,16 @@ export function MediaControl({
               <Trash2 className="h-3.5 w-3.5" /> Remove
             </Button>
           </div>
-          {!enabled && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Your plan doesn't include images, video or audio, so this step sends its text only.
+          {wrongStep ? (
+            <p className="mt-2 text-xs text-warning">
+              This kind of step never sends a file. Remove it, or put it on a Message step.
             </p>
+          ) : (
+            !enabled && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Your plan doesn't include images, video or audio, so this step sends its text only.
+              </p>
+            )
           )}
         </div>
       )}

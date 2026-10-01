@@ -233,6 +233,8 @@ export function StepCard({
 }: Props) {
   const first = index === 0;
   const isCond = step.type === "CONDITION";
+  // Only Message and Question steps send a file (the publish gate refuses one anywhere else).
+  const wrongMediaStep = step.type !== "MESSAGE" && step.type !== "QUESTION";
   const setButtons = (buttons: ChatbotButton[]) => onChange({ ...step, buttons });
   const waits =
     (step.type === "MESSAGE" && step.buttons.some((b) => b.action !== "LINK")) ||
@@ -414,7 +416,8 @@ export function StepCard({
               chatbotId={chatbotId}
               mediaAssetId={step.mediaAssetId}
               media={media}
-              enabled={features.media_messages && step.type === "MESSAGE"}
+              enabled={features.media_messages && !wrongMediaStep}
+              wrongStep={wrongMediaStep}
               onUploaded={(view, replaced) => onMediaUploaded(step, view, replaced)}
               onRemove={(id) => onMediaRemove(step, id)}
             />

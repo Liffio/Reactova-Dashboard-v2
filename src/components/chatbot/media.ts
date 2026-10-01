@@ -100,7 +100,7 @@ export type PreviewPart =
   | { part: "linkCard"; text: string; buttons: NonNullable<TranscriptEntry["buttons"]> };
 
 export function previewParts(
-  e: Pick<TranscriptEntry, "text" | "buttons" | "mediaAssetId">,
+  e: Pick<TranscriptEntry, "text" | "buttons" | "mediaAssetId" | "kind">,
   media: Record<string, ChatbotMedia> | undefined,
   awaitingTap: boolean,
 ): PreviewPart[] {
@@ -112,7 +112,10 @@ export function previewParts(
   // Instagram refuses quick replies on an empty message; the server sends 👇 in that case.
   const text = e.text || (taps.length ? "👇" : "");
   if (text) out.push({ part: "text", text });
-  if (awaitingTap && taps.length) out.push({ part: "quickReplies", buttons: taps });
+  // A handover's buttons show too: Instagram shows them under the closing message, though the
+  // conversation has ended (a tap there starts a new run).
+  if ((awaitingTap || e.kind === "HANDOVER") && taps.length)
+    out.push({ part: "quickReplies", buttons: taps });
   if (links.length)
     out.push({
       part: "linkCard",

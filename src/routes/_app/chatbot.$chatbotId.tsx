@@ -221,6 +221,10 @@ function BuilderPage() {
     .map((s) => (typeof s.config.answerKey === "string" ? s.config.answerKey.trim() : ""))
     .filter(Boolean);
   const setSteps = editor.updateSteps;
+  // "+ Talk to a person" points at the chatbot's Handover step, so its closing message, assignee and
+  // buttons apply; one is created when there is none.
+  const handoverStepIds = bot.steps.filter((x) => x.type === "HANDOVER").map((x) => x.id);
+
   const addStep = (type: StepType) => {
     const s = newStep(type, bot.steps.length);
     setSteps((xs) => [...xs, s]);
@@ -525,6 +529,8 @@ function BuilderPage() {
                     onChange={(next) => setSteps((xs) => xs.map((x) => (x.id === s.id ? next : x)))}
                     onAction={(a) => onAction(s, i, a)}
                     onNewStep={() => addStep("MESSAGE")}
+                    handoverStepIds={handoverStepIds}
+                    onAddHandover={() => handoverStepIds[0] ?? addStep("HANDOVER")}
                     onJump={(id) => flash(id, true)}
                   />
                 ))

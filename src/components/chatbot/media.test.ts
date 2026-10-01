@@ -93,6 +93,15 @@ describe("the phone preview follows the real send order", () => {
     ]);
   });
 
+  it("a handover's buttons show under its closing message although nothing awaits a tap", () => {
+    const parts = previewParts(
+      { text: "Someone will reply", buttons: [tap], mediaAssetId: null, kind: "HANDOVER" },
+      {},
+      false,
+    );
+    expect(parts.map((p) => p.part)).toEqual(["text", "quickReplies"]);
+  });
+
   it("buttons with no text still send something to hang the quick replies on", () => {
     expect(previewParts({ text: "", buttons: [tap], mediaAssetId: null }, {}, true)[0]).toEqual({
       part: "text",

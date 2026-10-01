@@ -346,7 +346,14 @@ function Entry({
               <button
                 key={b.id}
                 type="button"
-                className="rounded-full border border-primary-edge bg-primary-wash px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
+                className="rounded-full border border-primary-edge bg-primary-wash px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 disabled:cursor-default disabled:hover:bg-primary-wash"
+                // On a handover only the real thread can take the tap: it starts a new run there.
+                disabled={!awaitingTap}
+                title={
+                  awaitingTap
+                    ? undefined
+                    : "In Instagram, tapping this ends the pause and goes where the button points"
+                }
                 onClick={() => onTap(b.id)}
               >
                 {b.label}

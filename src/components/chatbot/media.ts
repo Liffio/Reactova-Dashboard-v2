@@ -6,7 +6,8 @@ import type { ChatbotMedia, ChatbotMediaKind, TranscriptEntry } from "@/lib/api/
  * not names) are the real ones and its message wins whenever they disagree.
  */
 
-const MB = 1024 * 1024;
+/** Decimal, matching the server: the stricter reading of Meta's "25MB" and "8MB". */
+const MB = 1_000_000;
 
 export const MEDIA_KINDS: Record<
   ChatbotMediaKind,
@@ -57,7 +58,7 @@ export function precheckMediaFile(
 export function formatBytes(bytes: number): string {
   return bytes >= MB
     ? `${(bytes / MB).toFixed(1)} MB`
-    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    : `${Math.max(1, Math.round(bytes / 1000))} KB`;
 }
 
 /** 0:07, 1:05, 1:02:03. */

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ChatbotMedia } from "@/lib/api/chatbot-api";
 import { formatBytes, formatDuration, mediaState, precheckMediaFile, previewParts } from "./media";
 
-const MB = 1024 * 1024;
+const MB = 1_000_000;
 const media = (over: Partial<ChatbotMedia> = {}): ChatbotMedia => ({
   mediaAssetId: "m1",
   kind: "image",
@@ -43,7 +43,7 @@ describe("checking a file before upload", () => {
 
 describe("formatting", () => {
   it("sizes", () => {
-    expect(formatBytes(1536 * 1024)).toBe("1.5 MB");
+    expect(formatBytes(1_500_000)).toBe("1.5 MB");
     expect(formatBytes(300)).toBe("1 KB");
   });
   it("durations", () => {

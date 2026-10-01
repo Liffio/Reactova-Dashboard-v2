@@ -103,6 +103,12 @@ export interface ChatbotTrigger {
   isEnabled: boolean;
 }
 
+/** How long a handover and a human reply keep the bot quiet for a person (chatbot_global_settings). */
+export interface ChatbotPauseSettings {
+  handoverPauseMinutes: number;
+  humanReplyPauseMinutes: number;
+}
+
 export type ChatbotMediaKind = "image" | "video" | "audio";
 
 /**
@@ -512,6 +518,11 @@ export const chatbotApi = {
         body,
       }),
     ),
+  /** The real pause lengths, in minutes, for copy that explains them. */
+  pauseSettings: (workspaceId: string) =>
+    unwrap(
+      apiRequest<{ data: ChatbotPauseSettings }>(apiUri.chatbots.pauseSettings, { workspaceId }),
+    ),
   alertRecipients: (workspaceId: string) =>
     unwrap(
       apiRequest<{ data: Array<{ id: string; name: string | null; email: string }> }>(
@@ -628,4 +639,5 @@ export const chatbotKeys = {
   ice: (ws: string) => ["chatbot-ice-breakers", ws] as const,
   contacts: (ws: string) => ["chatbot-contacts", ws] as const,
   analytics: (ws: string, id: string, days: number) => ["chatbot-analytics", ws, id, days] as const,
+  pauseSettings: (ws: string) => ["chatbot-pause-settings", ws] as const,
 };

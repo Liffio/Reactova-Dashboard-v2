@@ -22,6 +22,7 @@ import { HandoverAssignee } from "./handover-assignee";
 import { SplitEditor } from "./split-editor";
 import { FollowGateEditor } from "./follow-gate-editor";
 import { MediaControl } from "./media-control";
+import { describeMinutes, usePauseSettings } from "./pause-settings";
 import {
   ButtonList,
   ConditionEditor,
@@ -206,6 +207,22 @@ function Summary({
           ))}
         </div>
       )}
+    </>
+  );
+}
+
+/**
+ * What a handover does next, with the real pause lengths. Until they load, the sentence leaves the
+ * length out rather than guess one.
+ */
+function HandoverPauseHint({ workspaceId }: { workspaceId: string }) {
+  const settings = usePauseSettings(workspaceId).data;
+  if (!settings) return <>Then the bot goes quiet for this person and your team is notified.</>;
+  return (
+    <>
+      Then the bot goes quiet for this person for {describeMinutes(settings.handoverPauseMinutes)}{" "}
+      and your team is notified. Each reply your team sends from Instagram also keeps it quiet for{" "}
+      {describeMinutes(settings.humanReplyPauseMinutes)}.
     </>
   );
 }
@@ -464,7 +481,7 @@ export function StepCard({
               {step.type === "HANDOVER" && (
                 <>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Then the bot goes quiet for 24 hours and your team is notified.
+                    <HandoverPauseHint workspaceId={workspaceId} />
                   </p>
                   <div className="mt-2">
                     <HandoverAssignee

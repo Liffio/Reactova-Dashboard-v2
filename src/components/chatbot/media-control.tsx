@@ -42,7 +42,10 @@ export function MediaControl({
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [picking, setPicking] = useState<ChatbotMediaKind>("image");
-  const [uploading, setUploading] = useState<{ name: string; size: number } | null>(null);
+  const [uploading, setUploading] = useState<{ name: string; size: number; sent: number } | null>(
+    null,
+  );
+  const abort = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
   const state = mediaState(mediaAssetId, media);
 
@@ -70,14 +73,22 @@ export function MediaControl({
       setError(early);
       return;
     }
-    setUploading({ name: file.name, size: file.size });
+    const controller = new AbortController();
+    abort.current = controller;
+    setUploading({ name: file.name, size: file.size, sent: 0 });
     setError(null);
     try {
-      const view = await chatbotApi.uploadMedia(workspaceId, chatbotId, file, picking);
+      const view = await chatbotApi.uploadMedia(workspaceId, chatbotId, file, picking, {
+        signal: controller.signal,
+        onProgress: (sent) => setUploading((u) => (u ? { ...u, sent } : u)),
+      });
       onUploaded(view, mediaAssetId);
     } catch (e) {
-      setError(getUserErrorMessage(e, "Couldn't upload that file. Please try again."));
+      // Cancelled by the person: nothing to report.
+      if (!(e instanceof DOMException && e.name === "AbortError"))
+        setError(getUserErrorMessage(e, "Couldn't upload that file. Please try again."));
     } finally {
+      abort.current = null;
       setUploading(null);
     }
   };
@@ -100,14 +111,43 @@ export function MediaControl({
       />
 
       {uploading ? (
-        <div className="rounded-xl border border-border p-3" role="status" aria-live="polite">
+        <div className="rounded-xl border border-border p-3">
           <div className="flex items-center gap-2 text-sm">
             <Loader2 className="h-4 w-4 animate-spin text-primary" aria-hidden />
-            <span className="min-w-0 flex-1 truncate">Uploading {uploading.name}</span>
-            <span className="text-xs text-muted-foreground">{formatBytes(uploading.size)}</span>
+            <span className="min-w-0 flex-1 truncate">
+              {uploading.sent < 1 ? `Uploading ${uploading.name}` : `Checking ${uploading.name}`}
+            </span>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {uploading.sent < 1
+                ? `${formatBytes(uploading.size * uploading.sent)} of ${formatBytes(uploading.size)}`
+                : formatBytes(uploading.size)}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2"
+              onClick={() => abort.current?.abort()}
+            >
+              Cancel
+            </Button>
           </div>
-          <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
-            <div className="h-full w-1/3 animate-[pulse_1.2s_ease-in-out_infinite] rounded-full bg-primary" />
+          {/* Sent is the body leaving the browser; then the server checks and stores it (Checking…). */}
+          <div
+            className="mt-2 h-1 overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-label={`Uploading ${uploading.name}`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(uploading.sent * 100)}
+          >
+            <div
+              className={cn(
+                "h-full rounded-full bg-primary transition-[width] duration-200",
+                uploading.sent >= 1 && "animate-pulse",
+              )}
+              style={{ width: `${Math.max(2, Math.round(uploading.sent * 100))}%` }}
+            />
           </div>
         </div>
       ) : state.kind === "none" ? (

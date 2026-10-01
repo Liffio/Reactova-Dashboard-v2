@@ -1,5 +1,5 @@
 import { apiUri } from "./apiUri";
-import { apiRequest, apiUploadRequest } from "./http";
+import { apiRequest, apiUploadRequestWithProgress } from "./http";
 
 /**
  * Chatbots. Types mirror `server/src/types/chatbot.ts` and the views in
@@ -235,10 +235,18 @@ export interface ConversationMessage {
   /** `business`: sent from the account but not by this chatbot, usually a person in Instagram. */
   from: "contact" | "bot" | "business";
   text: string | null;
+  /** The step file this bot message carried (see `ConversationTranscript.media`). */
+  mediaAssetId?: string | null;
 }
 export type ConversationSummaryItem =
   | { kind: "started"; at: string; entry: string | null }
-  | { kind: "step"; at: string; stepName: string; text: string | null }
+  | {
+      kind: "step";
+      at: string;
+      stepName: string;
+      text: string | null;
+      mediaAssetId?: string | null;
+    }
   | { kind: "follow_up"; at: string; stepName: string; text: string | null }
   | { kind: "fallback"; at: string; text: string | null }
   | { kind: "tap"; at: string; label: string }
@@ -253,8 +261,15 @@ export type ConversationTranscript =
       messages: ConversationMessage[];
       partial: boolean;
       summary: ConversationSummaryItem[];
+      /** The files it shows, keyed by id, signed for this page load. */
+      media?: Record<string, ChatbotMedia>;
     }
-  | { mode: "summary"; reason: ConversationSummaryReason; summary: ConversationSummaryItem[] };
+  | {
+      mode: "summary";
+      reason: ConversationSummaryReason;
+      summary: ConversationSummaryItem[];
+      media?: Record<string, ChatbotMedia>;
+    };
 
 export type TestAction =
   | { kind: "tap"; buttonId: string }
@@ -413,12 +428,21 @@ export const chatbotApi = {
     ),
   /** One file for a Message step. The server decides the kind from the bytes; `kind` is what the
    *  author picked, so a mismatch comes back as a clear error rather than a surprise. */
-  uploadMedia: (workspaceId: string, id: string, file: File, kind: ChatbotMediaKind) => {
+  uploadMedia: (
+    workspaceId: string,
+    id: string,
+    file: File,
+    kind: ChatbotMediaKind,
+    opts: { onProgress?: (fraction: number) => void; signal?: AbortSignal } = {},
+  ) => {
     const form = new FormData();
     form.append("kind", kind);
     form.append("file", file);
     return unwrap(
-      apiUploadRequest<{ data: ChatbotMedia }>(apiUri.chatbots.media(id), form, { workspaceId }),
+      apiUploadRequestWithProgress<{ data: ChatbotMedia }>(apiUri.chatbots.media(id), form, {
+        workspaceId,
+        ...opts,
+      }),
     );
   },
   /** 409 CHATBOT_MEDIA_IN_USE while a draft step or a published version still uses the file. */

@@ -1,15 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, Info } from "lucide-react";
+import { ChevronLeft, ImageOff, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   chatbotApi,
+  type ChatbotMedia,
   type ConversationMessage,
   type ConversationSummaryItem,
   type ConversationSummaryReason,
 } from "@/lib/api/chatbot-api";
 import { getUserErrorMessage } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
+import { formatDuration, mediaState } from "./media";
 
 const time = (iso: string) =>
   new Date(iso).toLocaleString(undefined, {
@@ -93,7 +95,7 @@ export function ConversationView({
           )}
           <ol className="flex flex-col gap-2" aria-label="Messages">
             {t.messages.map((m) => (
-              <Bubble key={m.id} message={m} />
+              <Bubble key={m.id} message={m} media={t.media} />
             ))}
           </ol>
           <p className="text-[11px] text-muted-foreground">
@@ -109,7 +111,7 @@ export function ConversationView({
               the person typed.
             </p>
           </div>
-          <SummaryList items={t.summary} />
+          <SummaryList items={t.summary} media={t.media} />
         </>
       )}
     </div>
@@ -125,7 +127,13 @@ function Notice({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Bubble({ message: m }: { message: ConversationMessage }) {
+function Bubble({
+  message: m,
+  media,
+}: {
+  message: ConversationMessage;
+  media?: Record<string, ChatbotMedia>;
+}) {
   const mine = m.from !== "contact";
   return (
     <li
@@ -143,7 +151,11 @@ function Bubble({ message: m }: { message: ConversationMessage }) {
             "rounded-br-md border border-border bg-background text-foreground",
         )}
       >
-        {m.text ?? <span className="italic opacity-80">Attachment or sticker</span>}
+        {m.mediaAssetId ? (
+          <SentMedia id={m.mediaAssetId} media={media} />
+        ) : (
+          (m.text ?? <span className="italic opacity-80">Attachment or sticker</span>)
+        )}
       </div>
       <span className="px-1 text-[11px] text-muted-foreground">
         {WHO[m.from] ? `${WHO[m.from]} · ` : ""}
@@ -160,7 +172,13 @@ const ENDED: Record<string, string> = {
   EXPIRED: "Timed out",
 };
 
-function SummaryList({ items }: { items: ConversationSummaryItem[] }) {
+function SummaryList({
+  items,
+  media,
+}: {
+  items: ConversationSummaryItem[];
+  media?: Record<string, ChatbotMedia>;
+}) {
   if (!items.length) {
     return (
       <p className="text-xs text-muted-foreground">Nothing was recorded for this conversation.</p>
@@ -170,7 +188,7 @@ function SummaryList({ items }: { items: ConversationSummaryItem[] }) {
     <ol className="flex flex-col gap-2.5 border-l border-border pl-3.5" aria-label="Summary">
       {items.map((it, i) => (
         <li key={i} className="text-sm">
-          <SummaryLine item={it} />
+          <SummaryLine item={it} media={media} />
           <span className="block text-[11px] text-muted-foreground">{time(it.at)}</span>
         </li>
       ))}
@@ -178,7 +196,13 @@ function SummaryList({ items }: { items: ConversationSummaryItem[] }) {
   );
 }
 
-function SummaryLine({ item: it }: { item: ConversationSummaryItem }) {
+function SummaryLine({
+  item: it,
+  media,
+}: {
+  item: ConversationSummaryItem;
+  media?: Record<string, ChatbotMedia>;
+}) {
   switch (it.kind) {
     case "started":
       return <span className="text-muted-foreground">Conversation started</span>;
@@ -189,6 +213,11 @@ function SummaryLine({ item: it }: { item: ConversationSummaryItem }) {
           <span className="text-muted-foreground">
             {it.kind === "follow_up" ? "Follow-up sent" : "Sent"} · {it.stepName}
           </span>
+          {it.kind === "step" && it.mediaAssetId && (
+            <span className="mt-1 block">
+              <SentMedia id={it.mediaAssetId} media={media} />
+            </span>
+          )}
           {it.text && <span className="mt-0.5 block whitespace-pre-wrap">{it.text}</span>}
         </span>
       );
@@ -208,4 +237,45 @@ function SummaryLine({ item: it }: { item: ConversationSummaryItem }) {
     case "ended":
       return <span className="text-muted-foreground">{ENDED[it.reason] ?? "Ended"}</span>;
   }
+}
+
+/**
+ * A file a step sent, from links signed for this page load. Gone since (purged or deleted) says so
+ * rather than showing a broken image.
+ */
+function SentMedia({ id, media }: { id: string; media?: Record<string, ChatbotMedia> }) {
+  const state = mediaState(id, media);
+  if (state.kind !== "ready" || !state.media.url)
+    return (
+      <span className="flex items-center gap-1.5 text-xs italic opacity-80">
+        <ImageOff className="h-3.5 w-3.5" aria-hidden /> File no longer available
+      </span>
+    );
+  const m = state.media;
+  const duration = formatDuration(m.durationSeconds);
+  if (m.kind === "image")
+    return (
+      <img
+        src={m.url!}
+        alt={m.originalName}
+        className="block max-h-48 max-w-full rounded-lg"
+        loading="lazy"
+      />
+    );
+  if (m.kind === "video")
+    return (
+      <video
+        src={m.url!}
+        poster={m.thumbnailUrl ?? undefined}
+        controls
+        preload="none"
+        className="block max-h-48 max-w-full rounded-lg"
+      />
+    );
+  return (
+    <span className="flex items-center gap-2">
+      <audio controls preload="none" src={m.url!} className="h-8 max-w-[220px]" />
+      {duration && <span className="text-[11px] opacity-80">{duration}</span>}
+    </span>
+  );
 }

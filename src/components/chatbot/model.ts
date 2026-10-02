@@ -24,7 +24,9 @@ export const uid = (): string => crypto.randomUUID();
  * the server keeps whatever the builder sends from then on.
  */
 export const newWebhookSecret = (): string =>
-  Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
+  Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
 
 /** Delay presets, in seconds (prototype `DELAYS`). */
 export const DELAY_PRESETS = [0, 2, 5, 10, 30, 60, 300, 3600] as const;
@@ -270,3 +272,69 @@ export function duplicateStep(s: ChatbotStep): ChatbotStep {
 }
 
 /* Templates are the server's library (GET /chatbots/templates, chatbot:templates). */
+
+/**
+ * Links a step just added from the "Add step" menu into the step that was open, without ever
+ * overwriting a link: the first empty slot in the order that step's editor shows them. Returns the
+ * updated step and the slot's name for the notice, or null when nothing was empty.
+ *
+ * Condition and Split have no single "next": the first empty branch is filled (Yes before
+ * Otherwise, paths in order) and the notice names it, so the choice is visible and easy to change.
+ */
+export function autoLink(
+  prev: ChatbotStep,
+  newId: string,
+): { step: ChatbotStep; slot: string } | null {
+  const c = prev.config;
+  const empty = (key: string) => !cfgStr(prev, key);
+  const withConfig = (key: string, slot: string) => ({
+    step: { ...prev, config: { ...c, [key]: newId } },
+    slot,
+  });
+  const firstFreeButton = () => {
+    const i = prev.buttons.findIndex((b) => b.action === "NEXT_STEP" && !b.targetStepId);
+    if (i < 0) return null;
+    const buttons = prev.buttons.map((b, j) => (j === i ? { ...b, targetStepId: newId } : b));
+    return { step: { ...prev, buttons }, slot: `the "${prev.buttons[i].label}" button` };
+  };
+
+  switch (prev.type) {
+    case "MESSAGE": {
+      const viaButton = firstFreeButton();
+      if (viaButton) return viaButton;
+      // Without flow buttons a Message chains straight on; with them, "next" is never used.
+      const hasFlowButtons = prev.buttons.some((b) => b.action !== "LINK");
+      return !hasFlowButtons && empty("nextStepId")
+        ? withConfig("nextStepId", "its next step")
+        : null;
+    }
+    case "HANDOVER":
+      return firstFreeButton();
+    case "QUESTION":
+      return empty("nextStepId") ? withConfig("nextStepId", "Then") : null;
+    case "WEBHOOK":
+    case "NOTIFY":
+      return empty("nextStepId") ? withConfig("nextStepId", "its next step") : null;
+    case "FOLLOW_GATE":
+      if (empty("followingStepId")) return withConfig("followingStepId", "Following");
+      return empty("notFollowingStepId") ? withConfig("notFollowingStepId", "Not following") : null;
+    case "CONDITION":
+      if (empty("yesStepId")) return withConfig("yesStepId", "Yes");
+      return empty("elseStepId") ? withConfig("elseStepId", "Otherwise") : null;
+    case "SPLIT": {
+      const paths = Array.isArray(c.paths)
+        ? (c.paths as Array<{ label?: string; percent?: number; stepId?: string | null }>)
+        : [];
+      const i = paths.findIndex((p) => !p.stepId);
+      if (i < 0) return null;
+      const next = paths.map((p, j) => (j === i ? { ...p, stepId: newId } : p));
+      return {
+        step: { ...prev, config: { ...c, paths: next } },
+        slot: `path ${paths[i].label ?? i + 1}`,
+      };
+    }
+    default:
+      // Start another chatbot ends this flow; nothing comes after it.
+      return null;
+  }
+}

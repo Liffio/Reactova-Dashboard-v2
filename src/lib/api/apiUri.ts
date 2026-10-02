@@ -190,6 +190,8 @@ export const apiUri = {
     templates: `${V1}/chatbots/templates`,
     businessHours: `${V1}/chatbots/business-hours`,
     alertRecipients: `${V1}/chatbots/alert-recipients`,
+    /** How long a handover and a human reply keep the bot quiet (chatbot_global_settings). */
+    pauseSettings: `${V1}/chatbots/pause-settings`,
     byId: (id: string) => `${V1}/chatbots/${id}`,
     graph: (id: string) => `${V1}/chatbots/${id}/graph`,
     duplicate: (id: string) => `${V1}/chatbots/${id}/duplicate`,

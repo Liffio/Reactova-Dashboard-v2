@@ -22,6 +22,7 @@ import { HandoverAssignee } from "./handover-assignee";
 import { SplitEditor } from "./split-editor";
 import { FollowGateEditor } from "./follow-gate-editor";
 import { MediaControl } from "./media-control";
+import { describeMinutes, usePauseSettings } from "./pause-settings";
 import {
   ButtonList,
   ConditionEditor,
@@ -64,6 +65,9 @@ interface Props {
   onChange: (step: ChatbotStep) => void;
   onAction: (a: StepAction) => void;
   onNewStep: () => string;
+  /** The chatbot's Handover step, created if there is none, for "+ Talk to a person". */
+  onAddHandover: () => string;
+  handoverStepIds: string[];
   onJump: (id: string) => void;
 }
 
@@ -210,6 +214,22 @@ function Summary({
   );
 }
 
+/**
+ * What a handover does next, with the real pause lengths. Until they load, the sentence leaves the
+ * length out rather than guess one.
+ */
+function HandoverPauseHint({ workspaceId }: { workspaceId: string }) {
+  const settings = usePauseSettings(workspaceId).data;
+  if (!settings) return <>Then the bot goes quiet for this person and your team is notified.</>;
+  return (
+    <>
+      Then the bot goes quiet for this person for {describeMinutes(settings.handoverPauseMinutes)}{" "}
+      and your team is notified. Each reply your team sends from Instagram also keeps it quiet for{" "}
+      {describeMinutes(settings.humanReplyPauseMinutes)}.
+    </>
+  );
+}
+
 export function StepCard({
   step,
   index,
@@ -229,6 +249,8 @@ export function StepCard({
   onChange,
   onAction,
   onNewStep,
+  onAddHandover,
+  handoverStepIds,
   onJump,
 }: Props) {
   const first = index === 0;
@@ -464,13 +486,32 @@ export function StepCard({
               {step.type === "HANDOVER" && (
                 <>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Then the bot goes quiet for 24 hours and your team is notified.
+                    <HandoverPauseHint workspaceId={workspaceId} />
                   </p>
                   <div className="mt-2">
                     <HandoverAssignee
                       step={step}
                       enabled={features.handover_routing}
                       onChange={(config) => onChange({ ...step, config })}
+                    />
+                  </div>
+                  {/* Sent with the closing message: another topic beside "someone will reply". A tap
+                  ends the pause and goes where the button points. */}
+                  <div className="mt-3">
+                    <div className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
+                      <span>Buttons</span>
+                      <small className="font-normal">
+                        {step.buttons.length} of {MAX_QUICK_REPLIES}
+                      </small>
+                    </div>
+                    <ButtonList
+                      {...pick}
+                      selfId={step.id}
+                      buttons={step.buttons}
+                      max={MAX_QUICK_REPLIES}
+                      onChange={setButtons}
+                      allowHuman={false}
+                      addLabel="+ Offer another topic"
                     />
                   </div>
                 </>
@@ -514,6 +555,8 @@ export function StepCard({
                 buttons={step.buttons}
                 max={MAX_QUICK_REPLIES}
                 onChange={setButtons}
+                onAddHandover={onAddHandover}
+                handoverStepIds={handoverStepIds}
               />
               {!step.buttons.some((b) => b.action !== "LINK") && (
                 <div className="mt-2 flex min-w-0 items-center gap-1.5 rounded-[10px] border border-dashed border-border py-1 pr-1 pl-2.5 text-[13px] text-muted-foreground">

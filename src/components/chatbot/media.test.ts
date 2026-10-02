@@ -29,10 +29,24 @@ describe("checking a file before upload", () => {
 
   it("refuses a file over the kind's limit, saying how big it is", () => {
     expect(precheckMediaFile({ name: "a.png", size: 9 * MB }, "image")).toBe(
-      "This image is 9.0 MB. Instagram's limit for image is 8.0 MB.",
+      "This image is 9.0 MB (9,000,000 bytes). Instagram's limit for image is 8 MB (8,000,000 bytes).",
     );
     expect(precheckMediaFile({ name: "a.mp4", size: 25 * MB }, "video")).toBeNull();
     expect(precheckMediaFile({ name: "a.mp4", size: 25 * MB + 1 }, "video")).toMatch(/25\.0 MB/);
+  });
+
+  it("refuses iPhone HEIC and AVIF photos by name, saying what to do", () => {
+    for (const name of ["IMG_0001.HEIC", "photo.heif", "pic.avif"])
+      expect(precheckMediaFile({ name, size: 10 }, "image")).toMatch(
+        /HEIC.*JPEG or PNG.*Most Compatible/,
+      );
+  });
+
+  it("a 7.44 MiB photo (7,801,405 bytes) is under the 8,000,000-byte cap", () => {
+    expect(precheckMediaFile({ name: "photo.jpg", size: 7_801_405 }, "image")).toBeNull();
+    expect(precheckMediaFile({ name: "photo.jpg", size: 8_000_001 }, "image")).toMatch(
+      /8,000,001 bytes.*8 MB \(8,000,000 bytes\)/,
+    );
   });
 
   it("leaves everything else to the server", () => {
@@ -91,6 +105,15 @@ describe("the phone preview follows the real send order", () => {
       { part: "media", state: { kind: "missing" } },
       { part: "text", text: "Look" },
     ]);
+  });
+
+  it("a handover's buttons show under its closing message although nothing awaits a tap", () => {
+    const parts = previewParts(
+      { text: "Someone will reply", buttons: [tap], mediaAssetId: null, kind: "HANDOVER" },
+      {},
+      false,
+    );
+    expect(parts.map((p) => p.part)).toEqual(["text", "quickReplies"]);
   });
 
   it("buttons with no text still send something to hang the quick replies on", () => {

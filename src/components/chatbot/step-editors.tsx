@@ -264,7 +264,19 @@ interface ButtonListProps {
   onNewStep: () => string;
   onJump: (id: string) => void;
   addLabel?: string;
+  /** False on a Handover step: handing to a person again means nothing there. */
+  allowHuman?: boolean;
+  /**
+   * Offers "+ Talk to a person": a button to the chatbot's Handover step, created if there is none.
+   * Returns that step's id. Hidden once a button already goes there.
+   */
+  onAddHandover?: () => string;
+  /** Ids of the chatbot's Handover steps, to tell whether a button already goes to one. */
+  handoverStepIds?: string[];
 }
+
+/** The quick-add's label: what a person taps to ask for a human. */
+const TALK_TO_PERSON_LABEL = "Talk to a person";
 
 export function ButtonList({
   buttons,
@@ -276,6 +288,9 @@ export function ButtonList({
   onNewStep,
   onJump,
   addLabel = "+ Add button",
+  allowHuman = true,
+  onAddHandover,
+  handoverStepIds = [],
 }: ButtonListProps) {
   const set = (i: number, b: ChatbotButton) => onChange(buttons.map((x, j) => (j === i ? b : x)));
   const links = buttons.filter((b) => b.action === "LINK").length;
@@ -308,6 +323,7 @@ export function ButtonList({
             chatbots={chatbots}
             allowLink
             allowChatbot
+            allowHuman={allowHuman}
             onNewStep={onNewStep}
             onJump={onJump}
           />
@@ -331,13 +347,38 @@ export function ButtonList({
         </div>
       ))}
       {buttons.length < max && (
-        <button
-          type="button"
-          className="w-full rounded-[10px] border border-dashed border-border p-2 text-[13px] text-muted-foreground hover:border-primary hover:text-primary"
-          onClick={() => onChange([...buttons, newButton()])}
-        >
-          {addLabel}
-        </button>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            className="flex-1 rounded-[10px] border border-dashed border-border p-2 text-[13px] text-muted-foreground hover:border-primary hover:text-primary"
+            onClick={() => onChange([...buttons, newButton()])}
+          >
+            {addLabel}
+          </button>
+          {onAddHandover &&
+            !buttons.some(
+              (b) =>
+                b.action === "NEXT_STEP" &&
+                b.targetStepId &&
+                handoverStepIds.includes(b.targetStepId),
+            ) && (
+              <button
+                type="button"
+                className="rounded-[10px] border border-dashed border-border px-3 py-2 text-[13px] text-muted-foreground hover:border-primary hover:text-primary"
+                onClick={() =>
+                  onChange([
+                    ...buttons,
+                    {
+                      ...newButton("NEXT_STEP", TALK_TO_PERSON_LABEL),
+                      targetStepId: onAddHandover(),
+                    },
+                  ])
+                }
+              >
+                + {TALK_TO_PERSON_LABEL}
+              </button>
+            )}
+        </div>
       )}
     </div>
   );

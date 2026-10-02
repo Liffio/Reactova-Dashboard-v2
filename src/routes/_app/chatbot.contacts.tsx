@@ -40,6 +40,16 @@ export const Route = createFileRoute("/_app/chatbot/contacts")({
 
 const when = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
+/** Short end time for the row badge: just the time today, the date as well otherwise. */
+const until = (iso: string | null) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const today = d.toDateString() === new Date().toDateString();
+  return d.toLocaleString(
+    undefined,
+    today ? { timeStyle: "short" } : { dateStyle: "medium", timeStyle: "short" },
+  );
+};
 const pauseWhy = {
   HANDOVER: "asked for a person",
   HUMAN_REPLY: "your team replied",
@@ -152,10 +162,8 @@ function ContactsPage() {
                   </div>
                   {paused && (
                     <span className="rounded-full bg-warning-wash px-2 py-0.5 text-xs whitespace-nowrap">
-                      {c.pausedChatbot
-                        ? `${c.pausedChatbot.name ?? "A chatbot"} paused`
-                        : "All bots paused"}{" "}
-                      · {pauseWhy[c.pausedReason ?? "MANUAL"]}
+                      Bot paused for this person until {until(c.botPausedUntil)} ·{" "}
+                      {pauseWhy[c.pausedReason ?? "MANUAL"]}
                     </span>
                   )}
                   {c.assignedTo && (
@@ -271,11 +279,10 @@ function ContactSheet({
             <section className="rounded-xl border border-border p-3 text-sm">
               {paused ? (
                 <p>
-                  {c.pausedChatbot
-                    ? `${c.pausedChatbot.name ?? "One chatbot"} is paused for this person`
-                    : "Every chatbot is paused for this person"}{" "}
-                  until {when(c.botPausedUntil)} because {pauseWhy[c.pausedReason ?? "MANUAL"]}.
-                  {c.pausedReason !== "MANUAL" && " If they type a keyword or tap a button, the chatbot or automation it belongs to answers and the pause ends."}
+                  The bot is paused for this person until {when(c.botPausedUntil)} because{" "}
+                  {pauseWhy[c.pausedReason ?? "MANUAL"]}.
+                  {c.pausedReason !== "MANUAL" &&
+                    " If they type a keyword or tap a button, the chatbot or automation it belongs to answers and the pause ends."}
                 </p>
               ) : (
                 <p>The bot is replying to this person.</p>

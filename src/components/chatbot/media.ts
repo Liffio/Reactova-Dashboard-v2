@@ -46,10 +46,12 @@ export function precheckMediaFile(
   const ext = file.name.toLowerCase().split(".").pop() ?? "";
   if (ext === "mp3")
     return `MP3 isn't supported by Instagram messages. Upload audio as ${MEDIA_KINDS.audio.formats} instead.`;
+  if (["heic", "heif", "avif"].includes(ext))
+    return "iPhone HEIC and AVIF photos aren't supported. Upload a JPEG or PNG instead. On iPhone: Settings → Camera → Formats → Most Compatible.";
   if (ext === "gif")
     return `GIFs aren't supported. Upload a still image as ${MEDIA_KINDS.image.formats}, or the animation as an MP4 video.`;
   if (file.size > k.maxBytes)
-    return `This ${kind} is ${formatBytes(file.size)}. Instagram's limit for ${kind} is ${formatBytes(k.maxBytes)}.`;
+    return `This ${kind} is ${exactBytes(file.size)}. Instagram's limit for ${kind} is ${limitBytes(k.maxBytes)}.`;
   if (file.size === 0) return "This file is empty.";
   return null;
 }
@@ -59,6 +61,20 @@ export function formatBytes(bytes: number): string {
   return bytes >= MB
     ? `${(bytes / MB).toFixed(1)} MB`
     : `${Math.max(1, Math.round(bytes / 1000))} KB`;
+}
+
+/**
+ * A size with its byte count, as the server words it: file managers disagree about megabytes
+ * (Windows shows 7,801,405 bytes as "7.44 MB"), and the byte count settles it.
+ */
+export function exactBytes(bytes: number): string {
+  return `${formatBytes(bytes)} (${bytes.toLocaleString("en-US")} bytes)`;
+}
+
+/** A cap, as Meta states it: "8 MB (8,000,000 bytes)". */
+export function limitBytes(bytes: number): string {
+  const mb = bytes / MB;
+  return `${Number.isInteger(mb) ? mb : mb.toFixed(1)} MB (${bytes.toLocaleString("en-US")} bytes)`;
 }
 
 /** 0:07, 1:05, 1:02:03. */
@@ -100,7 +116,7 @@ export type PreviewPart =
   | { part: "linkCard"; text: string; buttons: NonNullable<TranscriptEntry["buttons"]> };
 
 export function previewParts(
-  e: Pick<TranscriptEntry, "text" | "buttons" | "mediaAssetId">,
+  e: Pick<TranscriptEntry, "text" | "buttons" | "mediaAssetId" | "kind">,
   media: Record<string, ChatbotMedia> | undefined,
   awaitingTap: boolean,
 ): PreviewPart[] {
@@ -112,7 +128,10 @@ export function previewParts(
   // Instagram refuses quick replies on an empty message; the server sends 👇 in that case.
   const text = e.text || (taps.length ? "👇" : "");
   if (text) out.push({ part: "text", text });
-  if (awaitingTap && taps.length) out.push({ part: "quickReplies", buttons: taps });
+  // A handover's buttons show too: Instagram shows them under the closing message, though the
+  // conversation has ended (a tap there starts a new run).
+  if ((awaitingTap || e.kind === "HANDOVER") && taps.length)
+    out.push({ part: "quickReplies", buttons: taps });
   if (links.length)
     out.push({
       part: "linkCard",

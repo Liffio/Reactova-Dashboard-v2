@@ -545,7 +545,7 @@ function BuilderPage() {
                     steps={stepRefs}
                     chatbots={chatbots}
                     features={features}
-                    followUpLimit={others.data?.limits.followUpsPerStep}
+                    limits={others.data?.limits}
                     answerKeys={answerKeys}
                     chatbotId={bot.id}
                     workspaceId={ws}

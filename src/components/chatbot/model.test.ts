@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { ChatbotStep } from "@/lib/api/chatbot-api";
-import { MAX_FOLLOW_UPS } from "@/lib/api/chatbot-api";
-import { autoLink, duplicateStep, followUpCap, newButton, newStep, newWebhookSecret } from "./model";
+import { MAX_CONDITION_RULES, MAX_FOLLOW_UPS } from "@/lib/api/chatbot-api";
+import { autoLink, conditionRuleCap, duplicateStep, followUpCap, newButton, newStep, newWebhookSecret } from "./model";
 
 describe("webhook signing secrets in the builder", () => {
   it("a new Webhook step has its secret before anything is saved", () => {
@@ -109,5 +109,20 @@ describe("follow-ups per step in the builder", () => {
 
   it("offers nothing until the plan's limits have loaded", () => {
     expect(followUpCap(undefined)).toBeUndefined();
+  });
+});
+
+describe("rules per condition in the builder", () => {
+  it("offers each plan its own number: Free none, Starter 5, Growth 15", () => {
+    expect([0, 5, 15].map(conditionRuleCap)).toEqual([0, 5, 15]);
+  });
+
+  it("unlimited plans get the ceiling of 50", () => {
+    expect(MAX_CONDITION_RULES).toBe(50);
+    expect(conditionRuleCap(null)).toBe(50);
+  });
+
+  it("offers nothing until the plan's limits have loaded", () => {
+    expect(conditionRuleCap(undefined)).toBeUndefined();
   });
 });

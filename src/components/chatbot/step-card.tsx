@@ -9,6 +9,7 @@ import {
 import {
   MAX_QUICK_REPLIES,
   type ChatbotButton,
+  type ChatbotLimits,
   type ChatbotMedia,
   type ChatbotStep,
 } from "@/lib/api/chatbot-api";
@@ -53,8 +54,8 @@ interface Props {
   chatbots: ChatbotRef[];
   /** `useModuleFeatures("chatbot")`: a missing capability locks its row, never hides it. */
   features: Record<string, boolean>;
-  /** The plan's `limits.followUpsPerStep`: `null` is unlimited, `undefined` while it loads. */
-  followUpLimit: number | null | undefined;
+  /** The plan's builder limits (`null` is unlimited); `undefined` while they load. */
+  limits: ChatbotLimits | undefined;
   /** Answer keys saved by this chatbot's Question steps, for merge fields. */
   answerKeys: string[];
   chatbotId: string;
@@ -241,7 +242,7 @@ export function StepCard({
   steps,
   chatbots,
   features,
-  followUpLimit,
+  limits,
   answerKeys,
   chatbotId,
   workspaceId,
@@ -385,6 +386,7 @@ export function StepCard({
           {isCond && (
             <ConditionEditor
               step={step}
+              limit={limits?.conditionRules}
               onChange={(config) => onChange({ ...step, config })}
               {...pick}
             />
@@ -644,7 +646,7 @@ export function StepCard({
                     >
                       <FollowUpEditor
                         step={step}
-                        limit={followUpLimit}
+                        limit={limits?.followUpsPerStep}
                         onChange={(followUps) => onChange({ ...step, followUps })}
                         {...pick}
                       />

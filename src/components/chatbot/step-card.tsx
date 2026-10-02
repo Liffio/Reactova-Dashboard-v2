@@ -53,6 +53,8 @@ interface Props {
   chatbots: ChatbotRef[];
   /** `useModuleFeatures("chatbot")`: a missing capability locks its row, never hides it. */
   features: Record<string, boolean>;
+  /** The plan's `limits.followUpsPerStep`: `null` is unlimited, `undefined` while it loads. */
+  followUpLimit: number | null | undefined;
   /** Answer keys saved by this chatbot's Question steps, for merge fields. */
   answerKeys: string[];
   chatbotId: string;
@@ -239,6 +241,7 @@ export function StepCard({
   steps,
   chatbots,
   features,
+  followUpLimit,
   answerKeys,
   chatbotId,
   workspaceId,
@@ -641,6 +644,7 @@ export function StepCard({
                     >
                       <FollowUpEditor
                         step={step}
+                        limit={followUpLimit}
                         onChange={(followUps) => onChange({ ...step, followUps })}
                         {...pick}
                       />

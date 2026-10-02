@@ -49,7 +49,8 @@ export const MAX_DELAY_SECONDS = 82_800;
 export const MAX_QUICK_REPLIES = 13;
 export const MAX_BUTTON_LABEL = 20;
 export const MAX_CONDITION_RULES = 5;
-export const MAX_FOLLOW_UPS = 2;
+/** Ceiling under every plan; the plan's `limits.followUpsPerStep` sets the real number (see `followUpCap`). */
+export const MAX_FOLLOW_UPS = 3;
 export const MAX_FOLLOW_UP_BUTTONS = 3;
 export const DEFAULT_STEP_DELAY_SECONDS = 2;
 

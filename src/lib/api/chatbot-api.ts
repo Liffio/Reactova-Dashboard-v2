@@ -46,6 +46,7 @@ export type TriggerType =
   | "COMMENT_AUTOMATION";
 
 export const MAX_DELAY_SECONDS = 82_800;
+/** Meta's quick-reply maximum: the ceiling under every plan; `limits.buttonsPerStep` sets the real number (see `buttonCap`). */
 export const MAX_QUICK_REPLIES = 13;
 export const MAX_BUTTON_LABEL = 20;
 /** Ceiling under every plan; the plan's `limits.conditionRules` sets the real number (see `conditionRuleCap`). */

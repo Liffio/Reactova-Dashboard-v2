@@ -7,14 +7,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  MAX_QUICK_REPLIES,
   type ChatbotButton,
   type ChatbotLimits,
   type ChatbotMedia,
   type ChatbotStep,
 } from "@/lib/api/chatbot-api";
 import { cn } from "@/lib/utils";
-import { STEP_LABEL, cfgStr, formatDelay, stepSummary } from "./model";
+import { STEP_LABEL, buttonCap, cfgStr, formatDelay, stepSummary } from "./model";
 import { LockedRow } from "./upgrade";
 import { MergeFieldPicker } from "./merge-fields";
 import { WebhookEditor } from "./webhook-editor";
@@ -262,6 +261,17 @@ export function StepCard({
   // Only Message and Question steps send a file (the publish gate refuses one anywhere else).
   const wrongMediaStep = step.type !== "MESSAGE" && step.type !== "QUESTION";
   const setButtons = (buttons: ChatbotButton[]) => onChange({ ...step, buttons });
+  // Reply buttons on this plan; none are offered until the plan's limits have loaded.
+  const btnCap = buttonCap(limits?.buttonsPerStep);
+  const btnCount = (
+    <small className={cn("font-normal", btnCap !== undefined && step.buttons.length > btnCap && "text-amber-600")}>
+      {btnCap === undefined
+        ? step.buttons.length
+        : step.buttons.length > btnCap
+          ? `${step.buttons.length} of ${btnCap}: remove ${step.buttons.length - btnCap} to publish`
+          : `${step.buttons.length} of ${btnCap}`}
+    </small>
+  );
   const waits =
     (step.type === "MESSAGE" && step.buttons.some((b) => b.action !== "LINK")) ||
     step.type === "QUESTION" ||
@@ -505,15 +515,13 @@ export function StepCard({
                   <div className="mt-3">
                     <div className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
                       <span>Buttons</span>
-                      <small className="font-normal">
-                        {step.buttons.length} of {MAX_QUICK_REPLIES}
-                      </small>
+                      {btnCount}
                     </div>
                     <ButtonList
                       {...pick}
                       selfId={step.id}
                       buttons={step.buttons}
-                      max={MAX_QUICK_REPLIES}
+                      max={btnCap ?? 0}
                       onChange={setButtons}
                       allowHuman={false}
                       addLabel="+ Offer another topic"
@@ -550,15 +558,13 @@ export function StepCard({
             <div>
               <div className="mb-1.5 flex items-center justify-between text-xs font-semibold text-muted-foreground">
                 <span>Reply buttons</span>
-                <small className="font-normal">
-                  {step.buttons.length} of {MAX_QUICK_REPLIES}
-                </small>
+                {btnCount}
               </div>
               <ButtonList
                 {...pick}
                 selfId={step.id}
                 buttons={step.buttons}
-                max={MAX_QUICK_REPLIES}
+                max={btnCap ?? 0}
                 onChange={setButtons}
                 onAddHandover={onAddHandover}
                 handoverStepIds={handoverStepIds}

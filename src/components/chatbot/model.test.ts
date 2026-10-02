@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { ChatbotStep } from "@/lib/api/chatbot-api";
-import { MAX_CONDITION_RULES, MAX_FOLLOW_UPS } from "@/lib/api/chatbot-api";
-import { autoLink, conditionRuleCap, duplicateStep, followUpCap, newButton, newStep, newWebhookSecret } from "./model";
+import { MAX_CONDITION_RULES, MAX_FOLLOW_UPS, MAX_QUICK_REPLIES } from "@/lib/api/chatbot-api";
+import { autoLink, buttonCap, conditionRuleCap, duplicateStep, followUpCap, newButton, newStep, newWebhookSecret } from "./model";
 
 describe("webhook signing secrets in the builder", () => {
   it("a new Webhook step has its secret before anything is saved", () => {
@@ -124,5 +124,22 @@ describe("rules per condition in the builder", () => {
 
   it("offers nothing until the plan's limits have loaded", () => {
     expect(conditionRuleCap(undefined)).toBeUndefined();
+  });
+});
+
+describe("reply buttons per step in the builder", () => {
+  it("offers the plan's number: 13 everywhere today, 6 the day a package is lowered to 6", () => {
+    expect(buttonCap(13)).toBe(13);
+    expect(buttonCap(6)).toBe(6);
+  });
+
+  it("never past Meta's 13, unlimited plans included", () => {
+    expect(MAX_QUICK_REPLIES).toBe(13);
+    expect(buttonCap(null)).toBe(13);
+    expect(buttonCap(20)).toBe(13);
+  });
+
+  it("offers nothing until the plan's limits have loaded", () => {
+    expect(buttonCap(undefined)).toBeUndefined();
   });
 });

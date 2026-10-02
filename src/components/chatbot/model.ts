@@ -2,6 +2,7 @@ import {
   DEFAULT_STEP_DELAY_SECONDS,
   MAX_CONDITION_RULES,
   MAX_FOLLOW_UPS,
+  MAX_QUICK_REPLIES,
   type ButtonAction,
   type Chatbot,
   type ChatbotButton,
@@ -31,6 +32,9 @@ function planCap(limit: number | null | undefined, ceiling: number): number | un
 
 /** Follow-ups per step: `limits.followUpsPerStep` under `MAX_FOLLOW_UPS`. */
 export const followUpCap = (limit: number | null | undefined) => planCap(limit, MAX_FOLLOW_UPS);
+
+/** Reply buttons per step: `limits.buttonsPerStep` under `MAX_QUICK_REPLIES`. */
+export const buttonCap = (limit: number | null | undefined) => planCap(limit, MAX_QUICK_REPLIES);
 
 /** Rules per condition: `limits.conditionRules` under `MAX_CONDITION_RULES`. */
 export const conditionRuleCap = (limit: number | null | undefined) => planCap(limit, MAX_CONDITION_RULES);

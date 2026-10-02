@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { ChatbotStep } from "@/lib/api/chatbot-api";
-import { autoLink, duplicateStep, newButton, newStep, newWebhookSecret } from "./model";
+import { MAX_FOLLOW_UPS } from "@/lib/api/chatbot-api";
+import { autoLink, duplicateStep, followUpCap, newButton, newStep, newWebhookSecret } from "./model";
 
 describe("webhook signing secrets in the builder", () => {
   it("a new Webhook step has its secret before anything is saved", () => {
@@ -91,5 +92,22 @@ describe("autoLink: a new step is linked from the step that was open", () => {
     const ho = { ...newStep("HANDOVER", 0), buttons: [newButton("NEXT_STEP", "Other topic")] };
     expect(link(ho)!.step.buttons[0].targetStepId).toBe("NEW");
     expect(link(newStep("START_CHATBOT", 0))).toBeNull();
+  });
+});
+
+describe("follow-ups per step in the builder", () => {
+  it("shows each plan's own maximum, not a fixed number", () => {
+    // Free, Starter, Growth, Business/Creator/Agency as set in prod
+    expect([0, 1, 2, 3].map(followUpCap)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("an unlimited package gets the ceiling of 3; nothing goes past it", () => {
+    expect(MAX_FOLLOW_UPS).toBe(3);
+    expect(followUpCap(null)).toBe(3);
+    expect(followUpCap(10)).toBe(3);
+  });
+
+  it("offers nothing until the plan's limits have loaded", () => {
+    expect(followUpCap(undefined)).toBeUndefined();
   });
 });

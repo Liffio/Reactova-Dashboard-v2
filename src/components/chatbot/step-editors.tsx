@@ -16,7 +16,6 @@ import {
   MAX_CONDITION_RULES,
   MAX_DELAY_SECONDS,
   MAX_FOLLOW_UP_BUTTONS,
-  MAX_FOLLOW_UPS,
   MAX_QUICK_REPLIES,
   type AnswerType,
   type ChatbotButton,
@@ -32,6 +31,7 @@ import {
   FOLLOW_UP_PRESETS,
   cfgStr,
   conditionRules,
+  followUpCap,
   formatDelay,
   newButton,
   uid,
@@ -531,17 +531,31 @@ export function DelayControl({
 /** Only rendered when the workspace has `chatbot:follow_ups`; the step card shows a locked row otherwise. */
 export function FollowUpEditor({
   step,
+  limit,
   onChange,
   ...pick
 }: {
   step: ChatbotStep;
+  /** The plan's `followUpsPerStep`; `null` is unlimited, `undefined` while it loads. */
+  limit: number | null | undefined;
   onChange: (fus: ChatbotFollowUp[]) => void;
 } & Omit<ButtonListProps, "buttons" | "onChange" | "max" | "selfId" | "addLabel">) {
   const fus = step.followUps;
   const set = (k: number, f: ChatbotFollowUp) => onChange(fus.map((x, j) => (j === k ? f : x)));
+  const cap = followUpCap(limit);
   return (
     <>
-      <span>Sent if they don't reply.</span>
+      <span>
+        Sent if they don't reply.
+        {cap === 0
+          ? " Follow-ups aren't included in your plan."
+          : cap !== undefined && ` Up to ${cap} on your plan.`}
+      </span>
+      {cap !== undefined && fus.length > cap && (
+        <span className="text-amber-600">
+          Your plan sends only the first {cap}. Remove {fus.length - cap} to publish.
+        </span>
+      )}
       {fus.map((f, k) => (
         <div
           key={f.id}
@@ -611,7 +625,7 @@ export function FollowUpEditor({
           )}
         </div>
       ))}
-      {fus.length < MAX_FOLLOW_UPS && (
+      {cap !== undefined && fus.length < cap && (
         <button
           type="button"
           className="w-full rounded-[10px] border border-dashed border-border p-2 text-[13px] hover:border-primary hover:text-primary"

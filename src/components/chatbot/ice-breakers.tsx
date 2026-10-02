@@ -31,7 +31,7 @@ export function IceBreakerBand({
   canEdit,
 }: {
   slots: IceBreakerSlot[];
-  chatbots: Array<{ id: string; name: string; icon?: string | null }>;
+  chatbots: Array<{ id: string; name: string; icon?: string | null; status?: string }>;
   onEdit: () => void;
   canEdit: boolean;
 }) {
@@ -85,6 +85,14 @@ export function IceBreakerBand({
                   >
                     {v.chatbot.icon && <span aria-hidden>{v.chatbot.icon}</span>}
                     <span className="truncate">{v.chatbot.name}</span>
+                    {!v.live && (
+                      <span
+                        className="shrink-0 rounded-full border border-warning-edge bg-warning-wash px-1.5 text-[11px] text-warning-foreground"
+                        title="Hidden on Instagram until this chatbot is live"
+                      >
+                        Not live
+                      </span>
+                    )}
                   </Link>
                 ) : (
                   <span className="shrink-0 rounded-full border border-warning-edge bg-warning-wash px-2.5 py-1 text-xs font-medium text-warning-foreground">
@@ -158,7 +166,7 @@ export function IceBreakerSheet({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   slots: IceBreakerSlot[];
-  chatbots: Array<{ id: string; name: string }>;
+  chatbots: Array<{ id: string; name: string; status?: string }>;
 }) {
   const queryClient = useQueryClient();
   const [rows, setRows] = useState(SLOTS.map((n) => ({ slot: n, text: "", chatbotId: "" })));
@@ -234,6 +242,7 @@ export function IceBreakerSheet({
                   {chatbots.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
+                      {c.status && c.status !== "LIVE" ? " (not live: hidden until it is)" : ""}
                     </option>
                   ))}
                 </select>

@@ -33,7 +33,20 @@ describe("iceBreakerSlotViews", () => {
       state: "used",
       text: "Work with us?",
       chatbot: { id: "b", name: "Collab requests", icon: "🤝" },
+      live: true,
     });
+  });
+
+  it("a slot on a chatbot that is not live still holds the slot, marked as hidden on Instagram", () => {
+    const r = iceBreakerSlotViews(
+      [slot(1, "Prices?", "a"), slot(2, "Hours?", "b")],
+      [
+        { id: "a", name: "Pricing", status: "DRAFT" },
+        { id: "b", name: "Hours", status: "LIVE" },
+      ],
+    );
+    expect(r.views.slice(0, 2).map((v) => (v.state === "used" ? v.live : null))).toEqual([false, true]);
+    expect(r.used).toBe(2);
   });
 
   it("a question whose chatbot is gone (or never set) is not counted, and is not shown as empty", () => {

@@ -118,12 +118,20 @@ const ACTION_RESOLVERS: Record<string, ActionResolver> = {
   open_creator_program: () => ({ label: "View program", to: "/creators-program" }),
   open_connections: () => ({ label: "Reconnect", to: "/settings" }),
   open_ai_tokens: () => ({ label: "View usage", to: "/settings" }),
+  open_chatbots: () => ({ label: "Open chatbots", to: "/chatbot" }),
+  open_chatbot_contacts: () => ({ label: "Open contacts", to: "/chatbot/contacts" }),
+  // Handover alerts send `OPEN_CHATBOT_CONTACT` + { contactId }. The contacts
+  // page has no URL for a single contact yet, so this lands on the list.
+  open_chatbot_contact: () => ({ label: "Open contacts", to: "/chatbot/contacts" }),
 };
 
+/** Keys are lowercase; the server's casing is not, so lookup ignores case. */
 export function resolveNotificationAction(item: NotificationItem): NotificationAction | null {
   if (!item.actionType) return null;
-  const resolver = ACTION_RESOLVERS[item.actionType];
-  return resolver ? resolver(item.actionPayload) : null;
+  const key = item.actionType.toLowerCase();
+  // Own keys only: "constructor" or "__proto__" must not reach Object.prototype.
+  if (!Object.hasOwn(ACTION_RESOLVERS, key)) return null;
+  return ACTION_RESOLVERS[key](item.actionPayload);
 }
 
 /* ── Time windows ─────────────────────────────────────────────────────────── */

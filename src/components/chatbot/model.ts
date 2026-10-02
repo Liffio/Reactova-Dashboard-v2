@@ -1,5 +1,6 @@
 import {
   DEFAULT_STEP_DELAY_SECONDS,
+  MAX_CONDITION_RULES,
   MAX_FOLLOW_UPS,
   type ButtonAction,
   type Chatbot,
@@ -20,13 +21,19 @@ import {
 export const uid = (): string => crypto.randomUUID();
 
 /**
- * Follow-ups a step may have on this plan: the package's `followUpsPerStep` (`null` is unlimited)
- * under `MAX_FOLLOW_UPS`. `undefined` while the limits are still loading.
+ * How many the builder offers on this plan: the package's limit (`null` is unlimited) under the
+ * code's ceiling. `undefined` while the limits are still loading.
  */
-export function followUpCap(limit: number | null | undefined): number | undefined {
+function planCap(limit: number | null | undefined, ceiling: number): number | undefined {
   if (limit === undefined) return undefined;
-  return limit === null ? MAX_FOLLOW_UPS : Math.min(Math.max(limit, 0), MAX_FOLLOW_UPS);
+  return limit === null ? ceiling : Math.min(Math.max(limit, 0), ceiling);
 }
+
+/** Follow-ups per step: `limits.followUpsPerStep` under `MAX_FOLLOW_UPS`. */
+export const followUpCap = (limit: number | null | undefined) => planCap(limit, MAX_FOLLOW_UPS);
+
+/** Rules per condition: `limits.conditionRules` under `MAX_CONDITION_RULES`. */
+export const conditionRuleCap = (limit: number | null | undefined) => planCap(limit, MAX_CONDITION_RULES);
 
 /**
  * A Webhook step's signing secret: 24 random bytes as hex, the same shape the server makes.

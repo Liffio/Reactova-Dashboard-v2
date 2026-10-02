@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   MAX_BUTTON_LABEL,
-  MAX_CONDITION_RULES,
   MAX_DELAY_SECONDS,
   MAX_FOLLOW_UP_BUTTONS,
   MAX_QUICK_REPLIES,
@@ -30,6 +29,7 @@ import {
   DELAY_PRESETS,
   FOLLOW_UP_PRESETS,
   cfgStr,
+  conditionRuleCap,
   conditionRules,
   followUpCap,
   formatDelay,
@@ -660,6 +660,7 @@ export function FollowUpEditor({
 
 export function ConditionEditor({
   step,
+  limit,
   onChange,
   steps,
   chatbots,
@@ -667,6 +668,8 @@ export function ConditionEditor({
   onJump,
 }: {
   step: ChatbotStep;
+  /** The plan's `conditionRules`; `null` is unlimited, `undefined` while it loads. */
+  limit: number | null | undefined;
   onChange: (config: Record<string, unknown>) => void;
   steps: StepRef[];
   chatbots: ChatbotRef[];
@@ -677,6 +680,7 @@ export function ConditionEditor({
   const rules = conditionRules(step);
   const setRules = (r: Rule[]) => onChange({ ...step.config, rules: r });
   const setRule = (k: number, r: Rule) => setRules(rules.map((x, j) => (j === k ? r : x)));
+  const cap = conditionRuleCap(limit);
   const path = (key: "yesStepId" | "elseStepId", label: string, tone: string) => (
     <div className="flex min-w-0 items-center gap-1.5 rounded-[10px] border border-border bg-card py-1 pr-1 pl-2.5">
       <span className={cn("rounded-md px-2 py-0.5 text-xs font-semibold", tone)}>{label}</span>
@@ -719,6 +723,15 @@ export function ConditionEditor({
         </div>
         of these are true
       </div>
+      {cap !== undefined && (
+        <span className={cn("text-xs", rules.length > cap ? "text-amber-600" : "text-muted-foreground")}>
+          {cap === 0
+            ? "Condition rules aren't included in your plan."
+            : rules.length > cap
+              ? `Your plan allows ${cap} rule${cap === 1 ? "" : "s"} per condition. Remove ${rules.length - cap} to publish; until then this condition takes its Else path.`
+              : `Up to ${cap} rule${cap === 1 ? "" : "s"} on your plan.`}
+        </span>
+      )}
       <div className="flex flex-col gap-1">
         {rules.map((r, k) => (
           <div key={k}>
@@ -792,7 +805,7 @@ export function ConditionEditor({
           </div>
         ))}
       </div>
-      {rules.length < MAX_CONDITION_RULES && (
+      {cap !== undefined && rules.length < cap && (
         <button
           type="button"
           className="w-full rounded-[10px] border border-dashed border-border p-2 text-[13px] text-muted-foreground hover:border-primary hover:text-primary"

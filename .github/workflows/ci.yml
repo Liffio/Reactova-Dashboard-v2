@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The creator-program contract is duplicated into this repo on purpose: the dashboard can't import
+  # across a repo boundary. The backend owns it; this repo carries a byte-for-byte copy
+  # (src/features/creator-program/contract.ts and status.fixtures.json).
+  #
+  # The backend's CI runs the same comparison, but on its own that check goes red in the repo where
+  # nobody made the change: the copies drifted on 2026-09-16 when this repo's contract.ts gained
+  # `queued_for_review`, and the backend's CI then failed on every run until 2026-10-03. Running it
+  # here too fails the PR that causes the drift, whichever side it is made on.
+  #
+  # The comparison itself is the backend's script, run from the backend checkout, so there is one
+  # implementation of the check and the two repos can't disagree about what "identical" means.
+  contract-parity:
+    name: Creator contract parity
+    runs-on: ubuntu-latest
+    steps:
+      # The backend repo is private, so reading it needs a token with read access to it. Checked
+      # first, and fatal: a parity check that passes when it couldn't compare anything is worse
+      # than none, because the green tick claims the copies match.
+      - name: Require CONTRACT_CHECK_TOKEN
+        env:
+          CONTRACT_CHECK_TOKEN: ${{ secrets.CONTRACT_CHECK_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CONTRACT_CHECK_TOKEN}" ]; then
+            echo "::error::CONTRACT_CHECK_TOKEN is not set in this repo, so Liffio/Reactova-Dashboard-Backend-v2 cannot be checked out and contract parity cannot be verified. Failing rather than passing vacuously — set the secret with read access (Contents: read) to that repo."
+            exit 1
+          fi
+          echo "CONTRACT_CHECK_TOKEN is present."
+
+      - name: Checkout dashboard
+        uses: actions/checkout@v4
+        with:
+          path: dashboard
+
+      - name: Checkout API
+        id: api
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: Liffio/Reactova-Dashboard-Backend-v2
+          ref: main
+          token: ${{ secrets.CONTRACT_CHECK_TOKEN }}
+          path: api
+
+      - name: Require API checkout to have succeeded
+        if: steps.api.outcome != 'success'
+        run: |
+          echo "::error::Backend checkout did not succeed (outcome: ${{ steps.api.outcome }}). Contract parity was NOT verified. Check that CONTRACT_CHECK_TOKEN has not expired and still grants read access to Liffio/Reactova-Dashboard-Backend-v2."
+          exit 1
+
+      - name: Diff contract copies
+        run: bash api/.github/scripts/check-contract-parity.sh api dashboard

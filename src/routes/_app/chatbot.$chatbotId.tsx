@@ -528,6 +528,7 @@ function BuilderPage() {
                 ice={ice.data?.slots ?? []}
                 onOpenIce={() => setIceOpen(true)}
                 onChanged={(triggers) => editor.absorb({ triggers })}
+                onDefaultReplyChanged={(defaultReply) => editor.absorb({ defaultReply })}
                 keywordLimit={others.data ? others.data.limits.keywordsPerBot : undefined}
               />
 

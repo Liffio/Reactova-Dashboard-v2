@@ -152,6 +152,8 @@ export interface Chatbot {
   triggers: ChatbotTrigger[];
   /** Every file the steps use, keyed by id, signed for this load (`GET /:id`, `PUT /:id/graph`). */
   media?: Record<string, ChatbotMedia>;
+  /** Which chatbot on this account currently holds the default reply, even when it isn't this one. */
+  defaultReply: { chatbotId: string; chatbotName: string } | null;
 }
 
 export interface ChatbotListItem {
@@ -349,6 +351,8 @@ export interface ChatbotListResponse {
   live: number;
   limits: ChatbotLimits;
   usage: { conversationsThisMonth: number };
+  /** The account-wide default reply holds on at most one chatbot; null when nobody has it on. */
+  defaultReply: { chatbotId: string; chatbotName: string } | null;
 }
 
 export const WEEK_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
@@ -500,6 +504,14 @@ export const chatbotApi = {
     ),
   removeTrigger: (workspaceId: string, id: string, triggerId: string) =>
     apiRequest<void>(apiUri.chatbots.trigger(id, triggerId), { method: "DELETE", workspaceId }),
+  /** Account-wide: turning it on here atomically takes it off whichever chatbot had it. */
+  setDefaultReply: (workspaceId: string, id: string, enabled: boolean) =>
+    unwrap(
+      apiRequest<{ data: { movedFrom: { id: string; name: string } | null } }>(
+        apiUri.chatbots.defaultReply(id),
+        { method: "PUT", workspaceId, body: { enabled } },
+      ),
+    ),
   analytics: (workspaceId: string, id: string, days = 30) =>
     unwrap(
       apiRequest<{ data: ChatbotAnalytics }>(apiUri.chatbots.analytics(id, days), { workspaceId }),

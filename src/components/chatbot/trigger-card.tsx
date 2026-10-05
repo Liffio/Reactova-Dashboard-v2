@@ -12,6 +12,7 @@ import { useModuleFeatures } from "@/hooks/use-features";
 import { useUpgradeInfo } from "@/hooks/use-capability-plan";
 import { PlanChip, useUpgradeSheet } from "./upgrade";
 import { UsageMeter } from "./usage-meter";
+import { Switch } from "@/components/ui/switch";
 import { getUserErrorMessage } from "@/lib/user-facing-error";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -24,8 +25,6 @@ const chipText = (t: ChatbotTrigger) => {
       return t.value ? `Story reply with "${t.value}"` : "Any story reply";
     case "STORY_MENTION":
       return "Story mention";
-    case "DEFAULT_REPLY":
-      return "Default reply";
     default:
       return "Comment automation";
   }
@@ -42,6 +41,7 @@ export function TriggerCard({
   ice,
   onOpenIce,
   onChanged,
+  onDefaultReplyChanged,
   keywordLimit,
 }: {
   workspaceId: string;
@@ -49,19 +49,20 @@ export function TriggerCard({
   ice: IceBreakerSlot[];
   onOpenIce: () => void;
   onChanged: (triggers: ChatbotTrigger[]) => void;
+  onDefaultReplyChanged: (defaultReply: Chatbot["defaultReply"]) => void;
   /** The plan's keywords per chatbot (`null` unlimited, `undefined` not loaded yet). */
   keywordLimit?: number | null;
 }) {
   const queryClient = useQueryClient();
   const f = useModuleFeatures("chatbot");
   const [value, setValue] = useState("");
-  const [kind, setKind] = useState<"KEYWORD" | "STORY_REPLY" | "STORY_MENTION" | "DEFAULT_REPLY">(
-    "KEYWORD",
-  );
+  const [kind, setKind] = useState<"KEYWORD" | "STORY_REPLY" | "STORY_MENTION">("KEYWORD");
   const [exact, setExact] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [defaultBusy, setDefaultBusy] = useState(false);
   const mine = ice.filter((x) => x.chatbotId === bot.id && x.text.trim());
+  const isDefaultHolder = bot.defaultReply?.chatbotId === bot.id;
 
   const add = async () => {
     const v = value.trim();
@@ -99,6 +100,24 @@ export function TriggerCard({
     }
   };
 
+  const toggleDefaultReply = async (next: boolean) => {
+    if (next && !f.default_reply) {
+      openUpgrade({ capability: "chatbot:default_reply", feature: "Default reply" });
+      return;
+    }
+    setDefaultBusy(true);
+    try {
+      const res = await chatbotApi.setDefaultReply(workspaceId, bot.id, next);
+      onDefaultReplyChanged(next ? { chatbotId: bot.id, chatbotName: bot.name } : null);
+      if (res.movedFrom) toast.info(`Moved off "${res.movedFrom.name}" — only one chatbot answers unmatched DMs at a time.`);
+      void queryClient.invalidateQueries({ queryKey: chatbotKeys.list(workspaceId) });
+    } catch (e) {
+      toast.error(getUserErrorMessage(e, "Couldn't update the default reply."));
+    } finally {
+      setDefaultBusy(false);
+    }
+  };
+
   const openUpgrade = useUpgradeSheet();
   // A <select> option cannot hold a chip, so a locked option names its plan in the text instead.
   const storyPlan = useUpgradeInfo("chatbot:story_triggers").planName;
@@ -120,14 +139,6 @@ export function TriggerCard({
       capability: "chatbot:story_triggers",
       feature: "Story triggers",
       plan: storyPlan,
-    },
-    {
-      v: "DEFAULT_REPLY",
-      label: "Default reply",
-      ok: f.default_reply,
-      capability: "chatbot:default_reply",
-      feature: "Default reply",
-      plan: defaultPlan,
     },
   ] as const;
 
@@ -152,7 +163,7 @@ export function TriggerCard({
         )}
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-        {bot.triggers.map((t) => (
+        {bot.triggers.filter((t) => t.type !== "DEFAULT_REPLY").map((t) => (
           <span
             key={t.id}
             className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-medium"
@@ -247,6 +258,29 @@ export function TriggerCard({
         )}
       </div>
       {error && <div className="mt-1.5 text-xs text-primary">{error}</div>}
+
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1 text-xs font-medium">
+            Default reply
+            {!f.default_reply && <PlanChip capability="chatbot:default_reply" />}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {isDefaultHolder
+              ? "This bot answers when nothing else matches."
+              : bot.defaultReply
+                ? `Currently "${bot.defaultReply.chatbotName}" answers when nothing else matches.`
+                : "Nobody answers unmatched DMs yet."}
+          </p>
+        </div>
+        <Switch
+          checked={isDefaultHolder}
+          disabled={defaultBusy}
+          onCheckedChange={(next) => void toggleDefaultReply(next)}
+          aria-label="This bot answers when nothing else matches"
+        />
+      </div>
+
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         {mine.length ? (
           <>

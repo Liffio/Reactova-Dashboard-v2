@@ -200,6 +200,7 @@ export const apiUri = {
     resume: (id: string) => `${V1}/chatbots/${id}/resume`,
     triggers: (id: string) => `${V1}/chatbots/${id}/triggers`,
     trigger: (id: string, triggerId: string) => `${V1}/chatbots/${id}/triggers/${triggerId}`,
+    defaultReply: (id: string) => `${V1}/chatbots/${id}/default-reply`,
     analytics: (id: string, days: number) => `${V1}/chatbots/${id}/analytics?days=${days}`,
     test: (id: string) => `${V1}/chatbots/${id}/test`,
     webhookDeliveries: (id: string, stepId: string) =>

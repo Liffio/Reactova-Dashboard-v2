@@ -48,7 +48,15 @@ export type AdminAffiliatePayoutRow = {
   status: string;
   payoutMethod: string;
   requestedAt: string;
-  affiliateProfile: (Omit<AdminAffiliateRow, "user"> & { user: AdminAffiliateUserRef | null }) | null;
+  /**
+   * Where to send the money, decrypted for the admin. Saved-account payouts carry
+   * `{ method, bankScheme, countryCode, legalName, detailsMasked, details }`; older payouts carry
+   * whatever the client sent at the time. `null` when it cannot be decrypted.
+   */
+  destination: Record<string, unknown> | null;
+  affiliateProfile:
+    | (Omit<AdminAffiliateRow, "user"> & { user: AdminAffiliateUserRef | null })
+    | null;
 };
 
 /**
@@ -63,7 +71,9 @@ export type AdminFlaggedReferralRow = {
   fraudFlagged: boolean;
   attributedAt: string;
   referredUser: AdminAffiliateUserRef | null;
-  affiliateProfile: (Omit<AdminAffiliateRow, "user"> & { user: AdminAffiliateUserRef | null }) | null;
+  affiliateProfile:
+    | (Omit<AdminAffiliateRow, "user"> & { user: AdminAffiliateUserRef | null })
+    | null;
 };
 
 /** Paginated envelope used by `GET /admin/affiliate/list`. */
@@ -158,7 +168,7 @@ export type AdminKycSubmission = {
   affiliate: { id: string; user?: { email?: string; name?: string } } | null;
   tier: "L1" | "L2" | "L3";
   status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
-  documents: Array<{ type: string; fileUrl: string; uploadedAt: string }>;
+  documents: Array<{ type: string; label?: string; fileUrl: string; uploadedAt: string }>;
   submittedAt: string;
   reviewedAt: string | null;
   rejectionReason: string | null;

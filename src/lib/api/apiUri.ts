@@ -383,6 +383,8 @@ export const apiUri = {
     summary: `${V1}/affiliate/summary`,
     kycStatus: `${V1}/affiliate/kyc/status`,
     kycSubmit: `${V1}/affiliate/kyc/submit`,
+    payoutAccount: `${V1}/affiliate/payout-account`,
+    payoutAccountConfig: `${V1}/affiliate/payout-account/config`,
   },
 
   creator: {

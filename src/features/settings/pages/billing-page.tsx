@@ -36,7 +36,6 @@ import {
   createBillingCheckout,
   fetchInvoiceViewHtml,
   fetchInvoicePdf,
-  requestInvoicePdf,
   saveBlob,
   invoiceFileName,
   type BillingInvoiceRow,
@@ -125,6 +124,10 @@ const STATUS_TONES: Record<string, ChipTone> = {
 };
 
 const statusTone = (status: string): ChipTone => STATUS_TONES[status.toUpperCase()] ?? "muted";
+
+/** Whether View and Download will produce a document. `hasPdf`/`hasDocument` cover older APIs. */
+const canOpenInvoice = (inv: BillingInvoiceRow): boolean =>
+  Boolean(inv.canOpen || inv.hasPdf || inv.hasDocument);
 
 function formatInvoiceAmount(amountCents: number, currency: string): string {
   try {
@@ -232,28 +235,19 @@ export function BillingPage({ search = {} }: { search?: BillingSearch }) {
   const countryName = (iso: string) => Country.getCountryByCode(iso)?.name ?? iso;
 
   /**
-   * Open a stored invoice document. Not a plain `<a href>` — see `fetchInvoiceViewHtml`'s comment:
-   * the route is bearer-token authenticated and a bare navigation never attaches that header.
-   */
-  /**
-   * Save an invoice PDF, producing it first if it was never rendered.
-   *
-   * Offered when the row has stored bytes (`hasPdf`) **or** can still produce them
-   * (`canRenderPdf`). Keying on `hasPdf` alone is what made this button permanently dead for any
-   * invoice whose issuance-time render failed: the flag was truthful and the state had no way out,
-   * so the customer saw a disabled control on their own paid invoice forever.
-   *
-   * Still disabled, with a reason, when neither holds. Those rows genuinely have no document and
-   * cannot honestly be given one — see the route, which refuses for the same reason rather than
-   * composing a tax invoice out of today's configuration.
+   * Save an invoice PDF. The server issues and renders it on first request if the payment never got
+   * one, so this is offered for every captured payment. Not a plain `<a href>`: the route is
+   * bearer-token authenticated and a bare navigation never attaches that header.
    */
   const downloadInvoicePdf = async (inv: BillingInvoiceRow) => {
     setDownloadingId(inv.id);
     try {
-      const blob = inv.hasPdf
-        ? await fetchInvoicePdf(workspaceId, inv.id)
-        : await requestInvoicePdf(workspaceId, inv.id);
+      const blob = await fetchInvoicePdf(workspaceId, inv.id);
       saveBlob(blob, invoiceFileName(inv, "pdf"));
+      // The first download may have just given the invoice its number.
+      if (!inv.invoiceNumber) {
+        void queryClient.invalidateQueries({ queryKey: ["billing-invoices", workspaceId] });
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not download invoice");
     } finally {
@@ -261,16 +255,24 @@ export function BillingPage({ search = {} }: { search?: BillingSearch }) {
     }
   };
 
-  const openInvoiceView = async (hostedInvoiceUrl: string) => {
+  const openInvoiceView = async (inv: BillingInvoiceRow) => {
+    // Opened synchronously, inside the click, so popup blockers allow it; filled once the document
+    // arrives. `noopener` would make `window.open` return null, so the opener is cut by hand.
+    const tab = window.open("", "_blank");
+    if (tab) tab.opener = null;
     try {
-      const blob = await fetchInvoiceViewHtml(workspaceId, hostedInvoiceUrl);
+      const blob = await fetchInvoiceViewHtml(workspaceId, inv.id);
       const url = URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener,noreferrer");
-      // Give the new tab time to load the object URL before revoking it — matches the download
-      // pattern in admin.plugins_.signing-keys.tsx.
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch {
-      toast.error("Could not open invoice");
+      if (tab) tab.location.href = url;
+      else window.open(url, "_blank", "noopener,noreferrer");
+      // Give the new tab time to load the object URL before revoking it.
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      if (!inv.invoiceNumber) {
+        void queryClient.invalidateQueries({ queryKey: ["billing-invoices", workspaceId] });
+      }
+    } catch (error) {
+      tab?.close();
+      toast.error(error instanceof Error ? error.message : "Could not open invoice");
     }
   };
 
@@ -1106,13 +1108,14 @@ export function BillingPage({ search = {} }: { search?: BillingSearch }) {
               {invoices.map((inv) => (
                 <tr key={inv.id}>
                   <Td className="font-mono text-[13px]">
-                    {inv.hostedInvoiceUrl && inv.invoiceNumber ? (
+                    {canOpenInvoice(inv) && canDownloadInvoices ? (
                       <button
                         type="button"
-                        onClick={() => void openInvoiceView(inv.hostedInvoiceUrl!)}
+                        onClick={() => void openInvoiceView(inv)}
                         className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 font-mono text-[13px] text-foreground hover:text-[#C20F3B]"
                       >
-                        {inv.invoiceNumber} <ExternalLink aria-hidden className="size-3" />
+                        {inv.invoiceNumber ?? "View invoice"}{" "}
+                        <ExternalLink aria-hidden className="size-3" />
                       </button>
                     ) : (
                       (inv.invoiceNumber ?? <span className="text-muted-foreground">—</span>)
@@ -1144,21 +1147,15 @@ export function BillingPage({ search = {} }: { search?: BillingSearch }) {
                     <IconButton
                       label="Download invoice PDF"
                       disabled={
-                        !canDownloadInvoices ||
-                        (!inv.hasPdf && !inv.canRenderPdf) ||
-                        downloadingId === inv.id
+                        !canDownloadInvoices || !canOpenInvoice(inv) || downloadingId === inv.id
                       }
                       onClick={() => void downloadInvoicePdf(inv)}
                       title={
                         !canDownloadInvoices
                           ? "Invoice downloads are turned off for you. Ask the owner if you need them."
-                          : inv.hasPdf
+                          : canOpenInvoice(inv)
                             ? "Download this invoice as a PDF"
-                            : inv.canRenderPdf
-                              ? "Prepare this invoice as a PDF and download it"
-                              : inv.hasDocument
-                                ? "This invoice was issued before PDF support. Use View to open it."
-                                : "This payment was not issued as an invoice, so there is no document"
+                            : "This payment has no invoice"
                       }
                     >
                       {downloadingId === inv.id ? (

@@ -337,6 +337,9 @@ export const apiUri = {
     quote: `${V1}/billing/quote`,
     invoices: `${V1}/billing/invoices`,
     invoicesAll: `${V1}/billing/invoices/all`,
+    /** The customer's own invoice as HTML. Authed — see `fetchInvoiceViewHtml`, not an `<a href>`. */
+    invoiceView: (invoiceId: string) =>
+      `${V1}/billing/invoices/${encodeURIComponent(invoiceId)}/view`,
     /** The customer's own invoice PDF. Authed — see `fetchInvoicePdf`, not an `<a href>`. */
     invoicePdf: (invoiceId: string) =>
       `${V1}/billing/invoices/${encodeURIComponent(invoiceId)}/pdf`,

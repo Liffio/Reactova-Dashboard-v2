@@ -111,6 +111,11 @@ export type BillingInvoiceRow = {
    * composed from, so asking for it will produce the real document rather than a reconstruction.
    */
   canRenderPdf?: boolean;
+  /**
+   * Whether View and Download will produce a document. True for every captured payment: the server
+   * issues and renders the invoice from the database on first request if it was never stored.
+   */
+  canOpen?: boolean;
 };
 
 export type CheckoutInput = {
@@ -149,102 +154,61 @@ export function listAllBillingInvoices(workspaceId: string) {
 }
 
 /**
- * Fetch a stored invoice document for viewing. (Task 7, plan/gst-invoicing.md)
- *
- * 🔴 `hostedInvoiceUrl` (e.g. `/api/v1/billing/invoices/<id>/view`) sits behind `requireAuth`, which
- * reads the bearer token from the `Authorization` header only — there is no cookie fallback. A plain
- * `<a href={hostedInvoiceUrl}>` opened in a new tab is a bare browser navigation, so it never attaches
- * that header and the request 401s. Fetched manually here instead — same shape as
- * `leads-api.ts`'s `exportLeadsCsv` and `admin.affiliates.tsx`'s `openKycDocument` — and the caller
- * opens the returned blob in a new tab, which renders the stored HTML exactly as `text/html`.
+ * The server's reason for refusing a document, when it gave one (e.g. a missing billing state),
+ * so the customer sees what to fix rather than a generic failure.
  */
-export async function fetchInvoiceViewHtml(
+async function invoiceErrorMessage(res: Response, fallback: string): Promise<string> {
+  if (res.status === 404) return "This invoice could not be found";
+  const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
+  return typeof body?.error === "string" ? body.error : fallback;
+}
+
+async function fetchInvoiceDocument(
   workspaceId: string,
-  hostedInvoiceUrl: string,
+  path: string,
+  fallback: string,
 ): Promise<Blob> {
   const token = authStore.getState().accessToken;
-  const res = await fetch(`${API_BASE}${hostedInvoiceUrl}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       "x-workspace-id": workspaceId,
     },
   });
-  if (!res.ok) {
-    throw new Error("Unable to open invoice right now");
-  }
+  if (!res.ok) throw new Error(await invoiceErrorMessage(res, fallback));
   return res.blob();
 }
 
 /**
- * Ask the server to produce a PDF that does not exist yet, and wait for it.
+ * Fetch an invoice as HTML for viewing.
  *
- * The server renders on its worker rather than in the request — PDF composition is kept off the
- * API process on purpose (see the route's comment: a 1 GiB cap, no swap, that queue pinned to
- * concurrency 1). So `POST` returns 202 "asked for" and the bytes appear shortly afterwards. This
- * polls the `GET` until they do.
+ * 🔴 The route sits behind `requireAuth`, which reads the bearer token from the `Authorization`
+ * header only — there is no cookie fallback. A plain `<a href>` opened in a new tab is a bare
+ * browser navigation, never attaches that header, and 401s. Fetched manually here instead; the
+ * caller opens the returned blob in a new tab.
  *
- * ⚠️ Bounded, and it gives up rather than spinning. A worker that is down is the exact condition
- * that produced the missing PDF in the first place, so "the queue never drains" is a live
- * possibility here, not a hypothetical. Ten attempts over roughly 20 seconds, then an honest error.
+ * The server produces the document on the first request if the payment never got one, so this
+ * works for every captured payment, not only those whose invoice was stored at payment time.
  */
-export async function requestInvoicePdf(workspaceId: string, invoiceId: string): Promise<Blob> {
-  const token = authStore.getState().accessToken;
-  const res = await fetch(`${API_BASE}${apiUri.billing.invoicePdf(invoiceId)}`, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      "x-workspace-id": workspaceId,
-    },
-  });
-  if (!res.ok) {
-    throw new Error(
-      res.status === 404
-        ? "This invoice cannot be turned into a PDF"
-        : "Unable to prepare this invoice right now",
-    );
-  }
-
-  // `{ ready: true }` means it was already there, so skip straight to the download.
-  const body = (await res.json().catch(() => ({}))) as { ready?: boolean };
-  if (body.ready) return fetchInvoicePdf(workspaceId, invoiceId);
-
-  for (let attempt = 0; attempt < 10; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    try {
-      return await fetchInvoicePdf(workspaceId, invoiceId);
-    } catch {
-      // Still rendering. The GET 404s until the bytes are stored, which is the signal to wait.
-    }
-  }
-  throw new Error("Your invoice is still being prepared. Try again in a minute.");
+export function fetchInvoiceViewHtml(workspaceId: string, invoiceId: string): Promise<Blob> {
+  return fetchInvoiceDocument(
+    workspaceId,
+    apiUri.billing.invoiceView(invoiceId),
+    "Unable to open invoice right now",
+  );
 }
 
 /**
- * Fetch a stored invoice PDF.
- *
- * Same reason this is a manual `fetch` rather than an `<a href>` as `fetchInvoiceViewHtml` above:
- * the route sits behind `requireAuth`, which reads the bearer token from the `Authorization` header
- * only, and a bare browser navigation attaches no such header. The caller saves the returned blob.
+ * Fetch an invoice PDF. Same manual-fetch reason as `fetchInvoiceViewHtml`. The server renders it
+ * in the request the first time and stores it, so the first download can take a few seconds.
  */
-export async function fetchInvoicePdf(workspaceId: string, invoiceId: string): Promise<Blob> {
-  const token = authStore.getState().accessToken;
-  const res = await fetch(`${API_BASE}${apiUri.billing.invoicePdf(invoiceId)}`, {
-    credentials: "include",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      "x-workspace-id": workspaceId,
-    },
-  });
-  if (!res.ok) {
-    throw new Error(
-      res.status === 404
-        ? "No PDF is available for this invoice yet"
-        : "Unable to download invoice right now",
-    );
-  }
-  return res.blob();
+export function fetchInvoicePdf(workspaceId: string, invoiceId: string): Promise<Blob> {
+  return fetchInvoiceDocument(
+    workspaceId,
+    apiUri.billing.invoicePdf(invoiceId),
+    "Unable to download invoice right now",
+  );
 }
 
 /**

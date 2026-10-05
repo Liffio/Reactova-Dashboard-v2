@@ -58,7 +58,7 @@ export function TriggerCard({
   const [kind, setKind] = useState<"KEYWORD" | "STORY_REPLY" | "STORY_MENTION" | "DEFAULT_REPLY">(
     "KEYWORD",
   );
-  const [exact, setExact] = useState(false);
+  const [exact, setExact] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const mine = ice.filter((x) => x.chatbotId === bot.id && x.text.trim());
@@ -204,20 +204,46 @@ export function TriggerCard({
               }}
             />
           )}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void add()}
-            className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium"
-          >
-            Add
-          </button>
         </span>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void add()}
+          className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Add
+        </button>
         {kind === "KEYWORD" && (
-          <label className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <input type="checkbox" checked={exact} onChange={(e) => setExact(e.target.checked)} />{" "}
-            Exact match
-          </label>
+          <div
+            role="radiogroup"
+            aria-label="Match type"
+            className="inline-flex items-center overflow-hidden rounded-full border border-border text-xs font-medium"
+          >
+            <button
+              type="button"
+              role="radio"
+              aria-checked={exact}
+              onClick={() => setExact(true)}
+              className={cn(
+                "px-2 py-0.5",
+                exact ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-primary",
+              )}
+            >
+              Exact
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={!exact}
+              onClick={() => setExact(false)}
+              className={cn(
+                "px-2 py-0.5",
+                !exact ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-primary",
+              )}
+            >
+              Contains
+            </button>
+          </div>
         )}
       </div>
       {error && <div className="mt-1.5 text-xs text-primary">{error}</div>}

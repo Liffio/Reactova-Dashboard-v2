@@ -722,9 +722,14 @@ function InvoiceRow({
             type="button"
             variant="ghost"
             size="sm"
-            disabled={!invoice.hasPdf || busy !== null}
+            // Any issued invoice: the server draws the PDF on request when none is stored.
+            disabled={!(invoice.hasPdf || invoice.invoiceNumber) || busy !== null}
             onClick={() => void downloadPdf()}
-            title={invoice.hasPdf ? "Download the PDF" : "No PDF is available for this invoice"}
+            title={
+              invoice.hasPdf || invoice.invoiceNumber
+                ? "Download the PDF"
+                : "Not issued yet. Use Issue invoice first."
+            }
           >
             {busy === "pdf" ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />

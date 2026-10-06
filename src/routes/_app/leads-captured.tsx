@@ -11,15 +11,17 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PaginationBar } from "@/components/ui/pagination-bar";
+import { LeadDetailPanel } from "@/components/leads/lead-detail-panel";
 import { exportLeadsCsv, type Lead } from "@/lib/api/leads-api";
 import { apiUri } from "@/lib/api/apiUri";
 import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
 import { LIMITS } from "@/lib/validation";
-import { formatHandle } from "@/lib/format";
+import { formatDateTime, formatHandle } from "@/lib/format";
 import { realHandle, UNKNOWN_PERSON } from "@/lib/instagram-identity";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { FeatureGate } from "@/components/access/feature-gate";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/leads-captured")({
   head: () => ({ meta: [{ title: "Leads Captured — Liffio" }] }),
@@ -36,10 +38,34 @@ function LeadsRoute() {
 
 const PAGE_SIZE = 25;
 
+/** "All · Comment · Chatbot" (spec Part 3 filters). `undefined` clears the filter. */
+const SOURCE_TABS: Array<{ label: string; value: "Comment" | "Chatbot" | undefined }> = [
+  { label: "All", value: undefined },
+  { label: "Comment", value: "Comment" },
+  { label: "Chatbot", value: "Chatbot" },
+];
+
+function YesNoDash({ value }: { value: boolean | null }) {
+  if (value === null) return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <Badge
+      variant="outline"
+      className={
+        value
+          ? "border-success/30 bg-success/10 text-success"
+          : "border-border bg-muted text-muted-foreground"
+      }
+    >
+      {value ? "Yes" : "No"}
+    </Badge>
+  );
+}
+
 function LeadsPage() {
   const { current } = useApp();
   const workspaceId = current.id;
   const [exporting, setExporting] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   /**
    * Moved onto the shared contract from a hand-rolled `limit`/`offset` query.
@@ -76,7 +102,11 @@ function LeadsPage() {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const blob = await exportLeadsCsv(workspaceId);
+      const blob = await exportLeadsCsv(workspaceId, {
+        search: list.search ? { value: list.search } : undefined,
+        filters: list.filters,
+        sort: list.sort,
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -115,15 +145,70 @@ function LeadsPage() {
       />
 
       <div className="space-y-5 p-4 sm:p-6 md:p-10">
-        <div className="relative max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by username or email…"
-            className="pl-9"
-            value={list.search}
-            onChange={(e) => list.setSearch(e.target.value.slice(0, LIMITS.genericName.max))}
-            maxLength={LIMITS.genericName.max}
-          />
+        {/* Pinned on mobile — filtering is how you avoid scrolling a long list on a phone (spec
+            Part 3). Desktop has room to see everything at once, so it scrolls with the page there. */}
+        <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center gap-2 bg-background px-4 py-2 max-md:border-b md:static md:mx-0 md:px-0 md:py-0">
+          <div className="relative min-w-[220px] max-w-sm flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search by username, email or phone…"
+              className="pl-9"
+              value={list.search}
+              onChange={(e) => list.setSearch(e.target.value.slice(0, LIMITS.genericName.max))}
+              maxLength={LIMITS.genericName.max}
+            />
+          </div>
+
+          {!redacted.has("source") && (
+            <div className="flex gap-1.5">
+              {SOURCE_TABS.map((tab) => (
+                <Button
+                  key={tab.label}
+                  size="sm"
+                  variant={list.getFilter("source") === tab.value ? "default" : "outline"}
+                  onClick={() => list.setFilter("source", "eq", tab.value)}
+                >
+                  {tab.label}
+                </Button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-1.5">
+            {!redacted.has("placement") && (
+              <Button
+                size="sm"
+                variant={list.getFilter("placement") === "Ad" ? "default" : "outline"}
+                onClick={() =>
+                  list.setFilter("placement", "eq", list.getFilter("placement") === "Ad" ? undefined : "Ad")
+                }
+              >
+                Ads
+              </Button>
+            )}
+            {!emailRedacted && (
+              <Button
+                size="sm"
+                variant={list.getFilter("email") === false ? "default" : "outline"}
+                onClick={() =>
+                  list.setFilter("email", "isNull", list.getFilter("email") === false ? undefined : false)
+                }
+              >
+                Has email
+              </Button>
+            )}
+            {!redacted.has("linkClicked") && (
+              <Button
+                size="sm"
+                variant={list.getFilter("linkClicked") === true ? "default" : "outline"}
+                onClick={() =>
+                  list.setFilter("linkClicked", "eq", list.getFilter("linkClicked") === true ? undefined : true)
+                }
+              >
+                Clicked
+              </Button>
+            )}
+          </div>
         </div>
 
         {list.error && (
@@ -146,7 +231,7 @@ function LeadsPage() {
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
               {list.isNarrowed
-                ? "No leads match your search."
+                ? "No leads match your search or filters."
                 : "Leads are captured when someone clicks your DM link. Activate an automation to start capturing."}
             </p>
           </div>
@@ -156,12 +241,18 @@ function LeadsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <th className="px-6 py-3 font-medium">User</th>
-                    <th className="px-4 py-3 font-medium hidden sm:table-cell">Automation</th>
+                    <th className="px-6 py-3 font-medium">Lead</th>
+                    <th className="px-4 py-3 font-medium">Source</th>
                     <th className="px-4 py-3 font-medium hidden md:table-cell">Keyword</th>
-                    <th className="px-4 py-3 font-medium hidden lg:table-cell">Source</th>
-                    <th className="px-4 py-3 font-medium">Link clicked</th>
+                    <th className="px-4 py-3 font-medium hidden md:table-cell">Placement</th>
+                    <th className="px-4 py-3 font-medium hidden md:table-cell">Media</th>
+                    <th className="px-4 py-3 font-medium hidden md:table-cell">Email</th>
+                    <th className="px-4 py-3 font-medium hidden md:table-cell">Phone</th>
+                    <th className="px-4 py-3 font-medium hidden md:table-cell">Tags</th>
+                    <th className="px-4 py-3 font-medium hidden md:table-cell">Following</th>
+                    <th className="px-4 py-3 font-medium hidden md:table-cell">Clicked</th>
                     <th className="px-6 py-3 font-medium">Captured</th>
+                    <th className="px-4 py-3 font-medium hidden md:table-cell">Last seen</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -169,11 +260,28 @@ function LeadsPage() {
                     // Every identity field is null when the package hides lead identity. A username
                     // column that held only the Instagram id (no handle known yet) is not a handle.
                     const username = realHandle(lead.igUsername, lead.igUserId);
+                    const handle = formatHandle(username);
                     const initials = (lead.displayName?.trim() || username || "")
                       .slice(0, 2)
                       .toUpperCase();
                     return (
-                      <tr key={lead.id} className="border-b last:border-0 hover:bg-muted/30">
+                      <tr
+                        key={lead.id}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`View ${handle ?? lead.displayName ?? "lead"}`}
+                        onClick={() => setSelectedLead(lead)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedLead(lead);
+                          }
+                        }}
+                        className={cn(
+                          "cursor-pointer border-b last:border-0 hover:bg-muted/30",
+                          selectedLead?.id === lead.id && "bg-muted/50",
+                        )}
+                      >
                         <td className="px-6 py-3.5">
                           <div className="flex items-center gap-3">
                             <Avatar className="h-8 w-8 shrink-0">
@@ -182,29 +290,21 @@ function LeadsPage() {
                                 {initials || <User className="h-3.5 w-3.5" aria-hidden />}
                               </AvatarFallback>
                             </Avatar>
+                            {/* Username bold, display name beneath (spec Part 3 — "Lead cell"). */}
                             <div className="min-w-0">
-                              <p className="truncate font-medium">
-                                {formatHandle(username) ??
-                                  lead.displayName ??
-                                  (identityRedacted ? "Hidden on your plan" : UNKNOWN_PERSON)}
+                              <p className="truncate font-semibold">
+                                {handle ?? (identityRedacted ? "Hidden on your plan" : UNKNOWN_PERSON)}
                               </p>
-                              {lead.email && (
+                              {lead.displayName && (
                                 <p className="truncate text-xs text-muted-foreground">
-                                  {lead.email}
-                                </p>
-                              )}
-                              {!lead.email && emailRedacted && (
-                                <p className="truncate text-xs italic text-muted-foreground">
-                                  Email hidden on your plan
+                                  {lead.displayName}
                                 </p>
                               )}
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3.5 hidden sm:table-cell">
-                          <span className="truncate text-xs text-muted-foreground max-w-35 block">
-                            {lead.automationName}
-                          </span>
+                        <td className="px-4 py-3.5">
+                          <span className="text-xs text-muted-foreground">{lead.source ?? "—"}</span>
                         </td>
                         <td className="px-4 py-3.5 hidden md:table-cell">
                           {lead.keyword ? (
@@ -215,30 +315,44 @@ function LeadsPage() {
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3.5 hidden lg:table-cell">
+                        <td className="px-4 py-3.5 hidden md:table-cell">
+                          <span className="text-xs text-muted-foreground">{lead.placement ?? "—"}</span>
+                        </td>
+                        <td className="px-4 py-3.5 hidden md:table-cell">
                           <span className="text-xs text-muted-foreground capitalize">
                             {lead.sourceMediaType ?? "—"}
                           </span>
                         </td>
-                        <td className="px-4 py-3.5">
-                          {lead.linkClicked === null ? (
-                            // Hidden by the package — not "No", which would state a fact we withheld.
-                            <span className="text-xs text-muted-foreground">—</span>
+                        <td className="px-4 py-3.5 hidden md:table-cell">
+                          <span className="truncate text-xs text-muted-foreground max-w-40 block">
+                            {lead.email ?? (emailRedacted ? "Hidden on your plan" : "—")}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 hidden md:table-cell">
+                          <span className="text-xs text-muted-foreground">
+                            {lead.phone ?? (emailRedacted ? "Hidden on your plan" : "—")}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 hidden md:table-cell">
+                          {lead.tags.length > 0 ? (
+                            <span className="truncate text-xs text-muted-foreground max-w-32 block">
+                              {lead.tags.join(", ")}
+                            </span>
                           ) : (
-                            <Badge
-                              variant="outline"
-                              className={
-                                lead.linkClicked
-                                  ? "border-success/30 bg-success/10 text-success"
-                                  : "border-border bg-muted text-muted-foreground"
-                              }
-                            >
-                              {lead.linkClicked ? "Yes" : "No"}
-                            </Badge>
+                            <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </td>
+                        <td className="px-4 py-3.5 hidden md:table-cell">
+                          <YesNoDash value={lead.isFollowing} />
+                        </td>
+                        <td className="px-4 py-3.5 hidden md:table-cell">
+                          <YesNoDash value={lead.linkClicked} />
+                        </td>
                         <td className="px-6 py-3.5 text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(lead.capturedAt).toLocaleDateString()}
+                          {formatDateTime(lead.capturedAt)}
+                        </td>
+                        <td className="px-4 py-3.5 hidden text-xs text-muted-foreground whitespace-nowrap md:table-cell">
+                          {formatDateTime(lead.lastInteractionAt)}
                         </td>
                       </tr>
                     );
@@ -266,6 +380,8 @@ function LeadsPage() {
           </div>
         )}
       </div>
+
+      <LeadDetailPanel lead={selectedLead} onClose={() => setSelectedLead(null)} />
     </div>
   );
 }

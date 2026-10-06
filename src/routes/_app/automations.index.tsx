@@ -395,7 +395,25 @@ function AutomationsPage() {
                   key={a.id}
                   variants={staggerItem}
                   whileHover={{ y: -2, transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] } }}
-                  className="group relative flex flex-col rounded-2xl border bg-card p-5 shadow-soft transition-shadow hover:shadow-glow"
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Edit ${a.name}`}
+                  // Same affordance as a chatbot card (chatbot.index.tsx): the whole card opens
+                  // the editor, and only an element a click would otherwise act on — the live
+                  // switch, the kebab's own button, a tooltip trigger — opts out. The three-dot
+                  // menu keeps its other actions (pause/resume, delete); its own "Edit" item is
+                  // now redundant with the card but left in place rather than removed.
+                  onClick={(e) => {
+                    if (!(e.target as HTMLElement).closest("button,[role=switch]"))
+                      void navigate({ to: "/automations/$automationId/edit", params: { automationId: a.id } });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      void navigate({ to: "/automations/$automationId/edit", params: { automationId: a.id } });
+                    }
+                  }}
+                  className="group relative flex cursor-pointer flex-col rounded-2xl border bg-card p-5 shadow-soft transition-shadow hover:shadow-glow"
                 >
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div className="grid h-10 w-10 place-items-center rounded-xl bg-accent">

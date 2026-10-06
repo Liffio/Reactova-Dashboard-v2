@@ -277,7 +277,7 @@ function AdminAffiliatesPage() {
                                 className="rounded-md border px-2 py-1 text-xs hover:bg-muted"
                                 onClick={() => void openKycDocument(d.fileUrl)}
                               >
-                                {d.type}
+                                {d.label ?? d.type}
                               </button>
                             ))}
                           </div>
@@ -345,7 +345,10 @@ function AdminAffiliatesPage() {
                         <td className="px-6 py-3.5 font-medium tabular-nums">
                           ${Number(p.amount).toFixed(2)}
                         </td>
-                        <td className="px-4 py-3.5 text-xs text-muted-foreground">{p.payoutMethod}</td>
+                        <td className="px-4 py-3.5 text-xs text-muted-foreground">
+                          <div>{p.payoutMethod}</div>
+                          <PayoutDestination destination={p.destination} />
+                        </td>
                         <td className="px-4 py-3.5">
                           <Badge variant="outline">{p.status}</Badge>
                         </td>
@@ -553,5 +556,29 @@ function AdminAffiliatesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** The payout destination in full, for the admin sending the money. */
+function PayoutDestination({ destination }: { destination: Record<string, unknown> | null }) {
+  if (!destination) return null;
+  const details = (destination.details ?? destination) as Record<string, unknown>;
+  const rows = Object.entries({
+    ...(destination.legalName ? { legalName: destination.legalName } : {}),
+    ...(destination.countryCode ? { country: destination.countryCode } : {}),
+    ...details,
+  }).filter(([, v]) => typeof v === "string" || typeof v === "number");
+  return (
+    <details className="mt-1">
+      <summary className="cursor-pointer select-none">Pay to</summary>
+      <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 font-mono text-[11px] text-foreground">
+        {rows.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt className="text-muted-foreground">{k}</dt>
+            <dd className="select-all">{String(v)}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
   );
 }

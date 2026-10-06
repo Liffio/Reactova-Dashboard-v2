@@ -1,11 +1,13 @@
 import { apiUri } from "./apiUri";
 import { apiRequest, apiUploadRequest } from "./http";
 
-export type KycTier = "L1" | "L2" | "L3";
+export type KycTier = "L1" | "L2" | "L3" | "INTL";
+export type Residency = "IN" | "INTL";
 export type KycSubmissionStatus = "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 
 export type KycStatusResponse = {
   kycStatus: string | null;
+  residency: Residency | null;
   latestSubmission: {
     id: string;
     tier: KycTier;
@@ -115,6 +117,56 @@ export type AffiliatePayout = {
   status: string;
   method: string;
   requestedAt: string;
+  paidAt: string | null;
+};
+
+export type AffiliateCommission = {
+  id: string;
+  amount: number;
+  grossAmount: number;
+  status: string;
+  currency: string;
+  holdUntil: string | null;
+  createdAt: string;
+};
+
+export type Paged<T> = { items: T[]; page: number; limit: number; total: number };
+
+/** `GET /payouts/kyc-status` — `documentsNeeded` uses the server's document keys (PAN, GOVT_ID…). */
+export type PayoutKycStatus = {
+  kycRequired: boolean;
+  kycStatus: string | null;
+  tier: KycTier | null;
+  documentsNeeded: string[];
+  residency: Residency | null;
+};
+
+export type BankScheme = "IBAN" | "US" | "UK" | "AU" | "CA" | "SWIFT";
+
+/** Saved payout destination. Never contains a full account value. */
+export type PayoutAccount = {
+  residency: Residency;
+  countryCode: string;
+  legalName: string;
+  phoneDialCode: string;
+  phoneMasked: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  region: string | null;
+  postalCode: string;
+  method: "UPI" | "BANK_IN" | "BANK_INTL";
+  bankScheme: BankScheme | null;
+  detailsMasked: { label: string; display: string };
+  updatedAt: string;
+};
+
+/** Everything the payout and KYC forms render from; the server owns these lists and rules. */
+export type PayoutAccountConfig = {
+  countries: Array<{ code: string; name: string; dialCode: string; scheme: BankScheme | null }>;
+  indianStates: string[];
+  regionOptionalCountries: string[];
+  documentLabels: Record<string, string>;
 };
 
 export function getAffiliateProfile() {
@@ -156,35 +208,68 @@ export function listAffiliatePayouts() {
   return apiRequest<AffiliatePayout[]>(apiUri.affiliate.payouts);
 }
 
-export function getAffiliateKycStatus() {
-  return apiRequest<{ status: string; reason?: string | null }>(apiUri.affiliate.payoutsKycStatus);
+export function listAffiliateCommissions(params: { status?: string; page: number; limit: number }) {
+  const q = new URLSearchParams({ page: String(params.page), limit: String(params.limit) });
+  if (params.status) q.set("status", params.status);
+  return apiRequest<Paged<AffiliateCommission>>(`${apiUri.affiliate.commissions}?${q}`);
 }
 
-export function requestAffiliatePayout(body: {
-  amount: number;
-  payoutMethod: string;
-  payoutDetails: Record<string, string>;
-}) {
-  return apiRequest<unknown>(apiUri.affiliate.payoutsRequest, { method: "POST", body });
+export function getAffiliateKycStatus() {
+  return apiRequest<PayoutKycStatus>(apiUri.affiliate.payoutsKycStatus);
+}
+
+/** Pays to the saved payout account; only the amount is sent. */
+export function requestAffiliatePayout(amount: number) {
+  return apiRequest<{ id: string; status: string; amount: number }>(
+    apiUri.affiliate.payoutsRequest,
+    {
+      method: "POST",
+      body: { amount },
+    },
+  );
+}
+
+export function getPayoutAccount() {
+  return apiRequest<PayoutAccount | null>(apiUri.affiliate.payoutAccount);
+}
+
+export function getPayoutAccountConfig() {
+  return apiRequest<PayoutAccountConfig>(apiUri.affiliate.payoutAccountConfig);
+}
+
+/** Field errors come back on the thrown ApiError's `body.fieldErrors`. */
+export function savePayoutAccount(body: Record<string, unknown>) {
+  return apiRequest<PayoutAccount>(apiUri.affiliate.payoutAccount, { method: "PUT", body });
 }
 
 export function getAffiliateKycSubmissionStatus() {
   return apiRequest<KycStatusResponse>(apiUri.affiliate.kycStatus);
 }
 
+/** Upload field name per document key, matching the server's multer fields. */
+export const KYC_UPLOAD_FIELD: Record<string, string> = {
+  PAN: "pan",
+  AADHAAR: "aadhaar",
+  BANK_ACCOUNT: "bankAccount",
+  GOVT_ID: "govtId",
+  ADDRESS_PROOF: "addressProof",
+  TRC: "trc",
+  FORM_10F: "form10f",
+  NO_PE: "noPe",
+};
+
 export function submitAffiliateKyc(input: {
   tier: KycTier;
   panNumber?: string;
-  pan?: File;
-  aadhaar?: File;
-  bankAccount?: File;
+  /** Keyed by document key (PAN, GOVT_ID…). */
+  files: Record<string, File>;
 }) {
   const formData = new FormData();
   formData.set("tier", input.tier);
   if (input.panNumber) formData.set("panNumber", input.panNumber);
-  if (input.pan) formData.set("pan", input.pan);
-  if (input.aadhaar) formData.set("aadhaar", input.aadhaar);
-  if (input.bankAccount) formData.set("bankAccount", input.bankAccount);
+  for (const [doc, file] of Object.entries(input.files)) {
+    formData.set(KYC_UPLOAD_FIELD[doc] ?? doc, file);
+  }
   return apiUploadRequest<{
     id: string;
     tier: KycTier;

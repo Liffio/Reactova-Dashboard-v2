@@ -16,10 +16,18 @@ export type Lead = {
   igUsername: string | null;
   displayName: string | null;
   email: string | null;
+  /** `null` when the package withholds it — rides the same `lead:view_email` gate as `email`. */
+  phone: string | null;
   keyword: string | null;
   triggerType: string | null;
+  /** What triggered the lead: Comment | Chatbot | Story | Mention. */
+  source: string | null;
   sourceMediaId: string | null;
   sourceMediaType: string | null;
+  /** Where a comment landed: Organic | Ad. Null for a chatbot lead. */
+  placement: string | null;
+  adTitle: string | null;
+  tags: string[];
   profilePicUrl: string | null;
   isFollowing: boolean | null;
   linkClicked: boolean | null;
@@ -43,15 +51,32 @@ export type LeadsListParams = {
   offset?: number;
 };
 
-/** Download the CSV export (returns a Blob the caller saves). */
-export async function exportLeadsCsv(workspaceId: string): Promise<Blob> {
+export type LeadsExportFilter = { key: string; op: string; value?: unknown };
+
+export type LeadsExportRequest = {
+  search?: { value: string };
+  filters?: LeadsExportFilter[];
+  sort?: { key: string; dir: "asc" | "desc" };
+};
+
+/**
+ * Download the CSV export (returns a Blob the caller saves).
+ *
+ * POST, not GET: the export shares the list's filter/search/sort contract (`/leads/search`) so
+ * its dynamic question columns reflect the same narrowed set the page is showing, not every lead
+ * in the workspace (spec Part 4 — "columns change with the filter").
+ */
+export async function exportLeadsCsv(workspaceId: string, request: LeadsExportRequest = {}): Promise<Blob> {
   const token = authStore.getState().accessToken;
   const res = await fetch(`${API_BASE}${apiUri.leads.export}`, {
+    method: "POST",
     credentials: "include",
     headers: {
+      "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       "x-workspace-id": workspaceId,
     },
+    body: JSON.stringify(request),
   });
   if (!res.ok) {
     throw new Error("Unable to export leads right now");

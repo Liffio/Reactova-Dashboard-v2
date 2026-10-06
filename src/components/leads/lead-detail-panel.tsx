@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatDateTime, formatHandle } from "@/lib/format";
 import { realHandle, UNKNOWN_PERSON } from "@/lib/instagram-identity";
+import { FollowingStatus } from "@/components/leads/following-status";
 import { cn } from "@/lib/utils";
 import type { Lead } from "@/lib/api/leads-api";
 
@@ -118,25 +119,34 @@ function LeadDetailContent({ lead, onClose }: { lead: Lead; onClose: () => void 
         </Button>
       </div>
 
+      {/*
+       * Every field the desktop table shows, always rendered — mobile has no three-column
+       * overview to fall back on, so a value this lead doesn't have reads as "—", not as an
+       * omitted field (spec item 1: the point of tap-for-detail is that the detail is complete).
+       */}
       <div className="divide-y divide-border border-y border-border">
-        {lead.source && (
-          <Field label="Source">
-            {lead.source}
-            {lead.keyword ? ` · ${lead.keyword}` : ""}
-          </Field>
-        )}
-        {lead.placement && <Field label="Placement">{lead.placement}</Field>}
-        {lead.email && <Field label="Email">{lead.email}</Field>}
-        {lead.phone && <Field label="Phone">{lead.phone}</Field>}
+        <Field label="Source">{lead.source ?? "—"}</Field>
+        <Field label="Keyword">
+          {lead.keyword ? (
+            <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[11px]">
+              {lead.keyword}
+            </span>
+          ) : (
+            "—"
+          )}
+        </Field>
+        <Field label="Placement">{lead.placement ?? "—"}</Field>
+        <Field label="Email">{lead.email ?? "—"}</Field>
+        <Field label="Phone">{lead.phone ?? "—"}</Field>
+        <Field label="Tags">{lead.tags.length > 0 ? lead.tags.join(" · ") : "—"}</Field>
+        <Field label="Following">
+          <FollowingStatus value={lead.isFollowing} />
+        </Field>
+        <Field label="Link clicked">
+          {lead.linkClicked === null ? "—" : lead.linkClicked ? "Yes" : "No"}
+        </Field>
         <Field label="Captured">{formatDateTime(lead.capturedAt)}</Field>
         <Field label="Last seen">{formatDateTime(lead.lastInteractionAt)}</Field>
-        {lead.tags.length > 0 && <Field label="Tags">{lead.tags.join(" · ")}</Field>}
-        {lead.isFollowing !== null && (
-          <Field label="Following">{lead.isFollowing ? "Yes" : "No"}</Field>
-        )}
-        {lead.linkClicked !== null && (
-          <Field label="Link clicked">{lead.linkClicked ? "Yes" : "No"}</Field>
-        )}
       </div>
 
       <div className="mt-5">

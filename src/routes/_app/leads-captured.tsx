@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Download, Search, User, UserPlus } from "lucide-react";
+import { ChevronRight, Download, Search, User, UserPlus } from "lucide-react";
 import { toast } from "@/lib/toast";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -12,12 +12,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PaginationBar } from "@/components/ui/pagination-bar";
 import { LeadDetailPanel } from "@/components/leads/lead-detail-panel";
+import { FollowingStatus } from "@/components/leads/following-status";
 import { exportLeadsCsv, type Lead } from "@/lib/api/leads-api";
 import { apiUri } from "@/lib/api/apiUri";
 import { useServerList } from "@/hooks/use-server-list";
 import { useApp } from "@/state/app-context";
 import { LIMITS } from "@/lib/validation";
-import { formatDateTime, formatHandle } from "@/lib/format";
+import { formatDateShort, formatDateTime, formatHandle } from "@/lib/format";
 import { realHandle, UNKNOWN_PERSON } from "@/lib/instagram-identity";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { FeatureGate } from "@/components/access/feature-gate";
@@ -245,7 +246,6 @@ function LeadsPage() {
                     <th className="px-4 py-3 font-medium">Source</th>
                     <th className="px-4 py-3 font-medium hidden md:table-cell">Keyword</th>
                     <th className="px-4 py-3 font-medium hidden md:table-cell">Placement</th>
-                    <th className="px-4 py-3 font-medium hidden md:table-cell">Media</th>
                     <th className="px-4 py-3 font-medium hidden md:table-cell">Email</th>
                     <th className="px-4 py-3 font-medium hidden md:table-cell">Phone</th>
                     <th className="px-4 py-3 font-medium hidden md:table-cell">Tags</th>
@@ -253,6 +253,9 @@ function LeadsPage() {
                     <th className="px-4 py-3 font-medium hidden md:table-cell">Clicked</th>
                     <th className="px-6 py-3 font-medium">Captured</th>
                     <th className="px-4 py-3 font-medium hidden md:table-cell">Last seen</th>
+                    {/* No label — the chevron itself is the affordance (spec item 3), not a column
+                        with content. */}
+                    <th className="w-8 px-2 py-3" aria-hidden />
                   </tr>
                 </thead>
                 <tbody>
@@ -319,11 +322,6 @@ function LeadsPage() {
                           <span className="text-xs text-muted-foreground">{lead.placement ?? "—"}</span>
                         </td>
                         <td className="px-4 py-3.5 hidden md:table-cell">
-                          <span className="text-xs text-muted-foreground capitalize">
-                            {lead.sourceMediaType ?? "—"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 hidden md:table-cell">
                           <span className="truncate text-xs text-muted-foreground max-w-40 block">
                             {lead.email ?? (emailRedacted ? "Hidden on your plan" : "—")}
                           </span>
@@ -343,16 +341,22 @@ function LeadsPage() {
                           )}
                         </td>
                         <td className="px-4 py-3.5 hidden md:table-cell">
-                          <YesNoDash value={lead.isFollowing} />
+                          <FollowingStatus value={lead.isFollowing} />
                         </td>
                         <td className="px-4 py-3.5 hidden md:table-cell">
                           <YesNoDash value={lead.linkClicked} />
                         </td>
+                        {/* Short on purpose — this column has no room below `md` for
+                            `formatDateTime`'s full output, which was overflowing (spec item 2).
+                            The full date and time are still in the detail panel. */}
                         <td className="px-6 py-3.5 text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDateTime(lead.capturedAt)}
+                          {formatDateShort(lead.capturedAt)}
                         </td>
                         <td className="px-4 py-3.5 hidden text-xs text-muted-foreground whitespace-nowrap md:table-cell">
                           {formatDateTime(lead.lastInteractionAt)}
+                        </td>
+                        <td className="px-2 py-3.5 text-muted-foreground">
+                          <ChevronRight className="h-4 w-4" aria-hidden />
                         </td>
                       </tr>
                     );

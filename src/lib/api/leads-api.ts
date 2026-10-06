@@ -23,7 +23,6 @@ export type Lead = {
   /** What triggered the lead: Comment | Chatbot | Story | Mention. */
   source: string | null;
   sourceMediaId: string | null;
-  sourceMediaType: string | null;
   /** Where a comment landed: Organic | Ad. Null for a chatbot lead. */
   placement: string | null;
   adTitle: string | null;

@@ -38,6 +38,13 @@ export interface InstagramIdentity {
 
 export const UNKNOWN_PERSON = "Instagram user";
 export const WITHHELD_HINT = "Instagram didn't share this person's profile.";
+/**
+ * Why `isFollowing` is null rather than true/false: Instagram only shares it once the person has
+ * messaged the account, tapped an ice breaker, or tapped a persistent menu button — a commenter
+ * who has done none of those cannot be looked up. Not a loading failure.
+ */
+export const FOLLOW_UNKNOWN_HINT =
+  "Instagram only shares this once the person messages the account.";
 
 export function instagramIdentity(p: {
   igUserId?: string | null;

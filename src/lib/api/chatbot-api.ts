@@ -154,6 +154,9 @@ export interface Chatbot {
   media?: Record<string, ChatbotMedia>;
   /** Which chatbot on this account currently holds the default reply, even when it isn't this one. */
   defaultReply: { chatbotId: string; chatbotName: string } | null;
+  /** Conversations running right now. Pausing only refuses new ones by default — this is what the
+   *  pause confirmation counts before offering to end them instead. */
+  activeSessionCount: number;
 }
 
 export interface ChatbotListItem {
@@ -166,6 +169,8 @@ export interface ChatbotListItem {
   updatedAt: string;
   stepCount: number;
   chats30d: number;
+  /** See Chatbot.activeSessionCount. */
+  activeSessionCount: number;
   triggers: ChatbotTrigger[];
 }
 
@@ -477,9 +482,15 @@ export const chatbotApi = {
     unwrap(
       apiRequest<{ data: Chatbot }>(apiUri.chatbots.publish(id), { method: "POST", workspaceId }),
     ),
-  pause: (workspaceId: string, id: string) =>
+  /** `endRunning`: stop conversations already under way too (the pause confirmation's hard-stop
+   *  choice). Default — and what every other caller gets — only refuses new ones. */
+  pause: (workspaceId: string, id: string, endRunning?: boolean) =>
     unwrap(
-      apiRequest<{ data: Chatbot }>(apiUri.chatbots.pause(id), { method: "POST", workspaceId }),
+      apiRequest<{ data: Chatbot }>(apiUri.chatbots.pause(id), {
+        method: "POST",
+        workspaceId,
+        body: endRunning ? { endRunning } : undefined,
+      }),
     ),
   resume: (workspaceId: string, id: string) =>
     unwrap(

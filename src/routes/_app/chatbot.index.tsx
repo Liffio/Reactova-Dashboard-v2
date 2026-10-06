@@ -37,6 +37,7 @@ import {
   type ChatbotListItem,
   type ChatbotTemplateSummary,
 } from "@/lib/api/chatbot-api";
+import { PauseConfirmDialog } from "@/components/chatbot/pause-confirm-dialog";
 import { isWorkspaceReady } from "@/lib/api/active-workspace";
 import { getUserErrorMessage } from "@/lib/user-facing-error";
 import { toast } from "@/lib/toast";
@@ -88,6 +89,7 @@ function ChatbotListPage() {
   const [picking, setPicking] = useState(false);
   const [iceOpen, setIceOpen] = useState(false);
   const [deleting, setDeleting] = useState<ChatbotListItem | null>(null);
+  const [pausing, setPausing] = useState<ChatbotListItem | null>(null);
 
   const list = useQuery({
     queryKey: chatbotKeys.list(ws),
@@ -132,13 +134,14 @@ function ChatbotListPage() {
   });
 
   const toggle = useMutation({
-    mutationFn: async (b: ChatbotListItem) => {
-      if (b.status === "LIVE") return chatbotApi.pause(ws, b.id);
+    mutationFn: async ({ b, endRunning }: { b: ChatbotListItem; endRunning?: boolean }) => {
+      if (b.status === "LIVE") return chatbotApi.pause(ws, b.id, endRunning);
       if (b.status === "PAUSED" && b.version > 0) return chatbotApi.resume(ws, b.id);
       return chatbotApi.publish(ws, b.id);
     },
     onSuccess: (bot) => {
       refresh();
+      setPausing(null);
       toast.success(bot.status === "LIVE" ? `${bot.name} is live` : `${bot.name} paused`);
     },
     onError: (e) => toast.error(publishErrorMessage(e)),
@@ -177,7 +180,12 @@ function ChatbotListPage() {
       });
       return;
     }
-    toggle.mutate(b);
+    // Pausing with nobody running: nothing to choose between, so there's nothing to ask.
+    if (b.status === "LIVE" && b.activeSessionCount > 0) {
+      setPausing(b);
+      return;
+    }
+    toggle.mutate({ b });
   };
 
   return (
@@ -423,6 +431,17 @@ function ChatbotListPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {pausing && (
+        <PauseConfirmDialog
+          open
+          chatbotName={pausing.name}
+          activeSessionCount={pausing.activeSessionCount}
+          busy={toggle.isPending}
+          onCancel={() => setPausing(null)}
+          onConfirm={(endRunning) => toggle.mutate({ b: pausing, endRunning })}
+        />
+      )}
     </div>
   );
 }

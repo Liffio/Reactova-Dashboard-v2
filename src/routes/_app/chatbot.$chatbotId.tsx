@@ -44,6 +44,7 @@ import { autoLink, duplicateStep, newStep, removeStep } from "@/components/chatb
 import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
 import { UsageMeter, atCap } from "@/components/chatbot/usage-meter";
 import { SaveAsTemplateDialog } from "@/components/chatbot/save-as-template";
+import { PauseConfirmDialog } from "@/components/chatbot/pause-confirm-dialog";
 import { usePlatformAuthz } from "@/hooks/use-platform-authz";
 
 export const Route = createFileRoute("/_app/chatbot/$chatbotId")({
@@ -165,6 +166,7 @@ function BuilderPage() {
   const [iceOpen, setIceOpen] = useState(false);
   const [problems, setProblems] = useState<PublishProblem[]>([]);
   const [busy, setBusy] = useState(false);
+  const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false);
 
   // First step open on arrival, like the prototype.
   useEffect(() => {
@@ -297,15 +299,37 @@ function BuilderPage() {
       ? "Resume"
       : "Go live";
 
+  /**
+   * Shared by the primary button and the dropdown's "Pause chatbot" item (shown instead when
+   * there are unpublished changes, so the primary button reads "Publish changes" there). Called
+   * with no argument, which is the signal to ask first when there's something running to ask
+   * about; the pause confirmation dialog's own buttons are the only callers that pass one.
+   */
+  const requestPause = async (endRunning?: boolean) => {
+    if (endRunning === undefined && bot.activeSessionCount > 0) {
+      setPauseConfirmOpen(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      await editor.flush();
+      const next = await chatbotApi.pause(ws, bot.id, endRunning);
+      editor.absorb(next);
+      void queryClient.invalidateQueries({ queryKey: chatbotKeys.list(ws) });
+      setPauseConfirmOpen(false);
+      toast.success(`${next.name} paused`);
+    } catch (e) {
+      toast.error(getUserErrorMessage(e, "Couldn't pause the chatbot."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const goLive = async () => {
+    if (primaryLabel === "Pause") return requestPause();
     // Blocked before the request: going live past the plan's live-chatbot cap opens the sheet.
     const listing = others.data;
-    if (
-      primaryLabel !== "Pause" &&
-      bot.status !== "LIVE" &&
-      listing &&
-      atCap(listing.live, listing.limit)
-    ) {
+    if (bot.status !== "LIVE" && listing && atCap(listing.live, listing.limit)) {
       openUpgrade({
         limit: true,
         title: "You're using all your live chatbots",
@@ -318,11 +342,7 @@ function BuilderPage() {
     try {
       await editor.flush();
       const next =
-        primaryLabel === "Pause"
-          ? await chatbotApi.pause(ws, bot.id)
-          : primaryLabel === "Resume"
-            ? await chatbotApi.resume(ws, bot.id)
-            : await chatbotApi.publish(ws, bot.id);
+        primaryLabel === "Resume" ? await chatbotApi.resume(ws, bot.id) : await chatbotApi.publish(ws, bot.id);
       editor.absorb(next);
       void queryClient.invalidateQueries({ queryKey: chatbotKeys.list(ws) });
       toast.success(
@@ -388,7 +408,7 @@ function BuilderPage() {
             </DropdownMenuItem>
             {live && bot.hasUnpublishedChanges && canUpdate && (
               <DropdownMenuItem
-                onSelect={() => void chatbotApi.pause(ws, bot.id).then(editor.absorb)}
+                onSelect={() => void requestPause()}
               >
                 Pause chatbot
               </DropdownMenuItem>
@@ -449,6 +469,15 @@ function BuilderPage() {
           </Button>
         )}
       </header>
+
+      <PauseConfirmDialog
+        open={pauseConfirmOpen}
+        chatbotName={bot.name}
+        activeSessionCount={bot.activeSessionCount}
+        busy={busy}
+        onCancel={() => setPauseConfirmOpen(false)}
+        onConfirm={(endRunning) => void requestPause(endRunning)}
+      />
 
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_420px] max-[1180px]:grid-cols-[minmax(0,1fr)_350px] max-[900px]:grid-cols-1">
         {/* At 900px and below the Preview / Go live bar is fixed over the page's end. The layout

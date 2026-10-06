@@ -146,7 +146,7 @@ export const LEAD_CAPABILITIES = {
   INTERACTION_TIMELINE: "lead:interaction_timeline",
   SOURCE_MEDIA: "lead:source_media",
   TRIGGER_PROVENANCE: "lead:trigger_provenance",
-  VIEW_EMAIL: "lead:view_email",
+  VIEW_CONTACT: "lead:view_contact",
   VIEW_IDENTITY: "lead:view_identity",
 } as const;
 
@@ -318,7 +318,7 @@ export const ALL_CAPABILITY_KEYS = [
   "lead:interaction_timeline",
   "lead:source_media",
   "lead:trigger_provenance",
-  "lead:view_email",
+  "lead:view_contact",
   "lead:view_identity",
   "platform:admin_manage",
   "platform:affiliate_manage",

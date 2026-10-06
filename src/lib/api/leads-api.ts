@@ -16,7 +16,7 @@ export type Lead = {
   igUsername: string | null;
   displayName: string | null;
   email: string | null;
-  /** `null` when the package withholds it — rides the same `lead:view_email` gate as `email`. */
+  /** `null` when the package withholds it — rides the same `lead:view_contact` gate as `email`. */
   phone: string | null;
   keyword: string | null;
   triggerType: string | null;

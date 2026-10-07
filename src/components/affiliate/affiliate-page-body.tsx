@@ -19,6 +19,7 @@ import { BalanceCard } from "./balance-card";
 import { PayoutAccountDialog } from "./payout-account-dialog";
 import { getPayoutState, usd } from "./payout-state";
 import { RequestPayoutDialog } from "./request-payout-dialog";
+import { HeroArt } from "./illustrations";
 import { ShareCard } from "./share-card";
 import { KycUploadDialog, VerificationPanel } from "./verification-panel";
 
@@ -88,7 +89,7 @@ export function AffiliatePageBody({ profile }: { profile: AffiliateProfile }) {
   };
 
   const copyLink = async () => {
-    const url = links.data?.customLink ?? links.data?.randomLink;
+    const url = links.data?.homeCustomLink ?? links.data?.homeRandomLink;
     if (!url) return;
     await navigator.clipboard.writeText(url);
     toast.success("Referral link copied");
@@ -97,9 +98,10 @@ export function AffiliatePageBody({ profile }: { profile: AffiliateProfile }) {
   const loading = payouts.isLoading || account.isLoading || kyc.isLoading;
 
   return (
-    <div className="mx-auto max-w-[1180px] px-4 pb-16 pt-6 sm:px-6 md:px-8 md:pt-7">
-      <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between md:gap-6">
-        <div>
+    <div className="mx-auto max-w-[1440px] px-4 pb-16 pt-6 sm:px-6 md:px-8 md:pt-7">
+      <div className="relative mb-5 flex flex-col gap-4 overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/[0.08] via-card to-card px-5 py-5 sm:px-6 md:min-h-[150px] md:flex-row md:items-end md:justify-between md:gap-6 md:py-6">
+        <HeroArt className="absolute -top-1 right-0 hidden h-[150px] w-auto opacity-90 lg:block xl:right-6" />
+        <div className="relative">
           <h1 className="font-display text-[30px] font-semibold leading-tight tracking-tight">
             Affiliate Program
           </h1>
@@ -109,7 +111,7 @@ export function AffiliatePageBody({ profile }: { profile: AffiliateProfile }) {
           </p>
         </div>
         {terms && (
-          <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:justify-end md:px-0 [scrollbar-width:none]">
+          <div className="relative -mx-5 flex gap-1.5 overflow-x-auto px-5 sm:-mx-6 sm:px-6 md:mx-0 md:flex-wrap md:justify-end md:px-0 [scrollbar-width:none]">
             {[
               terms.commissionRatePercent !== undefined && [
                 `${terms.commissionRatePercent}%`,

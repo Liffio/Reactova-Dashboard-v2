@@ -29,20 +29,25 @@ export function StatusBadge({
 
 export function EmptyState({
   icon,
+  art,
   title,
   children,
   actions,
 }: {
   icon: ReactNode;
+  /** Optional illustration shown instead of the icon tile. */
+  art?: ReactNode;
   title: string;
   children: ReactNode;
   actions?: ReactNode;
 }) {
   return (
     <div className="flex flex-col items-center px-6 pb-12 pt-11 text-center">
-      <div className="mb-3.5 grid h-11 w-11 place-items-center rounded-xl bg-muted text-muted-foreground [&_svg]:h-5 [&_svg]:w-5">
-        {icon}
-      </div>
+      {art ?? (
+        <div className="mb-3.5 grid h-11 w-11 place-items-center rounded-xl bg-muted text-muted-foreground [&_svg]:h-5 [&_svg]:w-5">
+          {icon}
+        </div>
+      )}
       <h3 className="font-display text-base font-semibold">{title}</h3>
       <p className="mb-4 mt-1.5 max-w-[44ch] text-sm text-muted-foreground">{children}</p>
       {actions && <div className="flex flex-wrap justify-center gap-2">{actions}</div>}

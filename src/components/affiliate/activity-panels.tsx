@@ -20,6 +20,7 @@ import {
   relativeTime,
 } from "./affiliate-format";
 import { EmptyState, StatusBadge } from "./affiliate-ui";
+import { EmptyArt } from "./illustrations";
 import { usd } from "./payout-state";
 
 const DateCell = ({ iso }: { iso: string }) => (
@@ -63,6 +64,7 @@ export function ReferralsPanel({
     return (
       <EmptyState
         icon={<Users />}
+        art={<EmptyArt kind="referrals" className="mb-3 h-[92px] w-auto" />}
         title="No referrals yet"
         actions={
           <Button size="sm" variant="outline" onClick={onCopyLink}>
@@ -221,7 +223,11 @@ export function CommissionsPanel({ terms }: { terms?: AffiliateProgramTerms }) {
         ))}
       </div>
       {data && data.items.length === 0 ? (
-        <EmptyState icon={<Receipt />} title="No commissions yet">
+        <EmptyState
+          icon={<Receipt />}
+          art={<EmptyArt kind="commissions" className="mb-3 h-[92px] w-auto" />}
+          title="No commissions yet"
+        >
           {terms?.commissionRatePercent !== undefined && terms.holdDays
             ? `You earn ${terms.commissionRatePercent}% each time a referred workspace pays. Each commission is held for ${terms.holdDays} days, then becomes available to withdraw.`
             : "You earn a commission each time a referred workspace pays."}
@@ -330,6 +336,7 @@ export function PayoutsPanel({
       {payouts.length === 0 ? (
         <EmptyState
           icon={<Wallet />}
+          art={<EmptyArt kind="payouts" className="mb-3 h-[92px] w-auto" />}
           title="No payouts yet"
           actions={
             canRequest ? (

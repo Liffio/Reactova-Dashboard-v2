@@ -21,6 +21,7 @@ import {
   type PayoutKycStatus,
 } from "@/lib/api/affiliate-api";
 import { fmtDate, KYC_DOCUMENT_HINT, SHEET_DIALOG } from "./affiliate-format";
+import { VerificationArt } from "./illustrations";
 
 type Tone = "ok" | "warn" | "bad" | "neutral";
 const TONE: Record<Tone, string> = {
@@ -146,6 +147,18 @@ export function VerificationPanel({
       </div>
 
       <aside className="border-border/60 text-[13px] text-muted-foreground lg:border-l lg:pl-6">
+        <VerificationArt
+          state={
+            status === "verified"
+              ? "verified"
+              : status === "pending_review"
+                ? "pending"
+                : status === "rejected"
+                  ? "rejected"
+                  : "none"
+          }
+          className="mb-4 h-[104px] w-auto"
+        />
         <h4 className="mb-2 text-[13px] font-semibold text-foreground">Why we ask</h4>
         <p className="mb-3">
           {intl

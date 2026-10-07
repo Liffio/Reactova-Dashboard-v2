@@ -1,6 +1,15 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { AlertCircle, Check, Clock, Lock, ShieldCheck, ShieldAlert, Shield } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Clock,
+  Lock,
+  ShieldCheck,
+  ShieldAlert,
+  Shield,
+  Upload,
+} from "lucide-react";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,11 +26,13 @@ import {
 import {
   submitAffiliateKyc,
   type KycStatusResponse,
+  type KycTier,
   type PayoutAccount,
   type PayoutKycStatus,
 } from "@/lib/api/affiliate-api";
 import { fmtDate, KYC_DOCUMENT_HINT, SHEET_DIALOG } from "./affiliate-format";
-import { VerificationArt } from "./illustrations";
+import { DocumentsArt, VerificationArt } from "./illustrations";
+import { KycDocumentsCard } from "./kyc-documents";
 
 type Tone = "ok" | "warn" | "bad" | "neutral";
 const TONE: Record<Tone, string> = {
@@ -95,6 +106,16 @@ export function VerificationPanel({
   }
 
   const showDocs = docs.length > 0 && !(kyc?.kycRequired && !account && !status);
+  // Upload is always offered except while a review is open (the server allows one pending at a time).
+  const canUpload = status !== "pending_review" && latest?.status !== "PENDING_REVIEW";
+  if (!action && canUpload) {
+    action = (
+      <Button variant="outline" className="gap-1.5" onClick={onUpload}>
+        <Upload className="h-4 w-4" />
+        {status === "verified" ? "Upload new documents" : "Add verification documents"}
+      </Button>
+    );
+  }
 
   return (
     <div className="grid gap-7 px-4 pb-6 pt-5 sm:px-5 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -144,6 +165,12 @@ export function VerificationPanel({
           </div>
         )}
         {action && <div className="mt-4 flex flex-wrap gap-2">{action}</div>}
+
+        <KycDocumentsCard
+          documents={submission?.documents ?? []}
+          canUpload={canUpload}
+          onUpload={onUpload}
+        />
       </div>
 
       <aside className="border-border/60 text-[13px] text-muted-foreground lg:border-l lg:pl-6">
@@ -182,19 +209,22 @@ const ACCEPT = ".jpg,.jpeg,.png,.pdf";
 export function KycUploadDialog({
   open,
   onOpenChange,
-  kyc,
+  tier,
+  docs,
+  intl,
   labels,
   onSubmitted,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  kyc: PayoutKycStatus | undefined;
+  /** Required tier when a payout needs KYC, otherwise the residency's base tier (early upload). */
+  tier: KycTier | null;
+  docs: string[];
+  intl: boolean;
   labels: Record<string, string>;
   onSubmitted: () => void;
 }) {
-  const docs = kyc?.documentsNeeded ?? [];
   const needsPan = docs.includes("PAN");
-  const intl = kyc?.residency === "INTL";
   const [files, setFiles] = useState<Record<string, File>>({});
   const [pan, setPan] = useState("");
   const [consent, setConsent] = useState(false);
@@ -202,11 +232,15 @@ export function KycUploadDialog({
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const ready =
-    !!kyc?.tier && docs.every((d) => files[d]) && (!needsPan || PAN.test(pan)) && consent;
+    !!tier &&
+    docs.length > 0 &&
+    docs.every((d) => files[d]) &&
+    (!needsPan || PAN.test(pan)) &&
+    consent;
 
   const mutation = useMutation({
     mutationFn: () =>
-      submitAffiliateKyc({ tier: kyc!.tier!, panNumber: needsPan ? pan : undefined, files }),
+      submitAffiliateKyc({ tier: tier!, panNumber: needsPan ? pan : undefined, files }),
     onSuccess: () => {
       toast.success("Documents submitted for review");
       setFiles({});
@@ -237,6 +271,14 @@ export function KycUploadDialog({
           </DialogTitle>
           <DialogDescription>JPG, PNG or PDF, up to 10 MB each.</DialogDescription>
         </DialogHeader>
+
+        <div className="flex items-center gap-3 rounded-xl border border-dashed bg-primary/[0.04] px-3 py-2.5">
+          <DocumentsArt className="h-14 w-auto flex-none" />
+          <p className="text-[12.5px] leading-snug text-muted-foreground">
+            Clear photos or scans, all four corners visible. We review most documents within 2
+            business days.
+          </p>
+        </div>
 
         {needsPan && (
           <div className="space-y-1.5">

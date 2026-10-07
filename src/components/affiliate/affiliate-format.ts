@@ -74,3 +74,10 @@ export const KYC_DOCUMENT_HINT: Record<string, string> = {
   FORM_10F: "Filed on the Indian income tax portal",
   NO_PE: "Signed statement that you have no fixed place of business in India",
 };
+
+/** KYC submission statuses as the affiliate sees them on their own documents. */
+export const KYC_SUBMISSION_STATUS: Record<string, { label: string; tone: Tone }> = {
+  PENDING_REVIEW: { label: "In review", tone: "warn" },
+  APPROVED: { label: "Approved", tone: "ok" },
+  REJECTED: { label: "Needs changes", tone: "bad" },
+};

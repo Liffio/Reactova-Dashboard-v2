@@ -96,6 +96,13 @@ export function AffiliatePageBody({ profile }: { profile: AffiliateProfile }) {
   };
 
   const loading = payouts.isLoading || account.isLoading || kyc.isLoading;
+  // A payout that needs KYC decides the tier; otherwise an early upload uses the residency's base tier.
+  const required = !!kyc.data?.kycRequired && !!kyc.data.tier;
+  const uploadTier = required ? kyc.data!.tier : (kycSubmission.data?.voluntary?.tier ?? null);
+  const uploadDocs = required
+    ? (kyc.data?.documentsNeeded ?? [])
+    : (kycSubmission.data?.voluntary?.documents ?? []);
+  const uploadIntl = uploadTier === "INTL";
 
   return (
     <div className="mx-auto max-w-[1440px] px-4 pb-16 pt-6 sm:px-6 md:px-8 md:pt-7">
@@ -247,7 +254,9 @@ export function AffiliatePageBody({ profile }: { profile: AffiliateProfile }) {
       <KycUploadDialog
         open={dialog === "kyc"}
         onOpenChange={(o) => setDialog(o ? "kyc" : null)}
-        kyc={kyc.data}
+        tier={uploadTier}
+        docs={uploadDocs}
+        intl={uploadIntl}
         labels={config.data?.documentLabels ?? {}}
         onSubmitted={() => refresh(KEYS.kyc, KEYS.kycSubmission, KEYS.profile)}
       />

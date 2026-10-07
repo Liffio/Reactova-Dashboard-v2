@@ -2,6 +2,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   AlertCircle,
+  Building2,
   Check,
   Clock,
   Lock,
@@ -9,6 +10,7 @@ import {
   ShieldAlert,
   Shield,
   Upload,
+  UserRound,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,7 @@ import {
 import {
   submitAffiliateKyc,
   type KycStatusResponse,
+  type KycEntityType,
   type KycTier,
   type PayoutAccount,
   type PayoutKycStatus,
@@ -189,7 +192,7 @@ export function VerificationPanel({
         <h4 className="mb-2 text-[13px] font-semibold text-foreground">Why we ask</h4>
         <p className="mb-3">
           {intl
-            ? "Liffio is an Indian company. Your tax residency documents let us apply your country's tax treaty with India instead of the default Indian withholding rate."
+            ? "Your US tax form tells us how to treat your payouts for US tax purposes, and proof of residence confirms where you live."
             : "Indian tax rules require ID for affiliate payouts above set yearly amounts. The documents we ask for depend on how much you've been paid this financial year."}
         </p>
         <h4 className="mb-2 text-[13px] font-semibold text-foreground">Who sees your documents</h4>
@@ -203,6 +206,7 @@ export function VerificationPanel({
 }
 
 const PAN = /^[A-Z]{5}\d{4}[A-Z]$/;
+const GSTIN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 const MAX_BYTES = 10 * 1024 * 1024;
 const ACCEPT = ".jpg,.jpeg,.png,.pdf";
 
@@ -210,7 +214,8 @@ export function KycUploadDialog({
   open,
   onOpenChange,
   tier,
-  docs,
+  docs: defaultDocs,
+  documentSets,
   intl,
   labels,
   onSubmitted,
@@ -220,13 +225,20 @@ export function KycUploadDialog({
   /** Required tier when a payout needs KYC, otherwise the residency's base tier (early upload). */
   tier: KycTier | null;
   docs: string[];
+  /** Server's per-tier sets for an individual vs a business; falls back to `docs`. */
+  documentSets?: Record<KycTier, Record<KycEntityType, string[]>>;
   intl: boolean;
   labels: Record<string, string>;
   onSubmitted: () => void;
 }) {
-  const needsPan = docs.includes("PAN");
+  const [entity, setEntity] = useState<KycEntityType>("individual");
+  const docs = (tier && documentSets?.[tier]?.[entity]) || defaultDocs;
+  const companyPan = docs.includes("COMPANY_PAN");
+  const needsPan = docs.includes("PAN") || companyPan;
+  const needsGstin = docs.includes("GSTIN_CERT");
   const [files, setFiles] = useState<Record<string, File>>({});
   const [pan, setPan] = useState("");
+  const [gstin, setGstin] = useState("");
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -236,15 +248,31 @@ export function KycUploadDialog({
     docs.length > 0 &&
     docs.every((d) => files[d]) &&
     (!needsPan || PAN.test(pan)) &&
+    (!needsGstin || GSTIN.test(gstin)) &&
     consent;
+
+  const chooseEntity = (next: KycEntityType) => {
+    if (next === entity) return;
+    // Different document list: files picked for the other one no longer apply.
+    setEntity(next);
+    setFiles({});
+    setError(null);
+  };
 
   const mutation = useMutation({
     mutationFn: () =>
-      submitAffiliateKyc({ tier: tier!, panNumber: needsPan ? pan : undefined, files }),
+      submitAffiliateKyc({
+        tier: tier!,
+        entityType: entity,
+        panNumber: needsPan ? pan : undefined,
+        gstin: needsGstin ? gstin : undefined,
+        files,
+      }),
     onSuccess: () => {
       toast.success("Documents submitted for review");
       setFiles({});
       setPan("");
+      setGstin("");
       setConsent(false);
       onSubmitted();
       onOpenChange(false);
@@ -267,7 +295,11 @@ export function KycUploadDialog({
       <DialogContent className={SHEET_DIALOG}>
         <DialogHeader>
           <DialogTitle>
-            {intl ? "Verify your identity and tax residency" : "Verify your identity"}
+            {entity === "business"
+              ? "Verify your business"
+              : intl
+                ? "Verify your tax status and residence"
+                : "Verify your identity"}
           </DialogTitle>
           <DialogDescription>JPG, PNG or PDF, up to 10 MB each.</DialogDescription>
         </DialogHeader>
@@ -280,9 +312,43 @@ export function KycUploadDialog({
           </p>
         </div>
 
+        <div role="radiogroup" aria-label="Verify as" className="grid grid-cols-2 gap-2">
+          {(
+            [
+              ["individual", "Individual", "Creator or freelancer", UserRound],
+              ["business", "Business", "Agency or company", Building2],
+            ] as const
+          ).map(([value, title, sub, Icon]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={entity === value}
+              onClick={() => chooseEntity(value)}
+              className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                entity === value
+                  ? "border-primary bg-primary/[0.06] ring-1 ring-primary"
+                  : "hover:bg-muted/60"
+              }`}
+            >
+              <span
+                className={`grid h-8 w-8 flex-none place-items-center rounded-lg ${
+                  entity === value ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{title}</span>
+                <span className="block truncate text-xs text-muted-foreground">{sub}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+
         {needsPan && (
           <div className="space-y-1.5">
-            <Label htmlFor="kyc-pan">PAN number</Label>
+            <Label htmlFor="kyc-pan">{companyPan ? "Company PAN number" : "PAN number"}</Label>
             <Input
               id="kyc-pan"
               autoFocus
@@ -295,6 +361,25 @@ export function KycUploadDialog({
             {pan.length === 10 && !PAN.test(pan) && (
               <p className="text-xs text-destructive" role="alert">
                 Enter a valid PAN, like ABCDE1234F
+              </p>
+            )}
+          </div>
+        )}
+
+        {needsGstin && (
+          <div className="space-y-1.5">
+            <Label htmlFor="kyc-gstin">GSTIN</Label>
+            <Input
+              id="kyc-gstin"
+              className="font-mono"
+              placeholder="22ABCDE1234F1Z5"
+              maxLength={15}
+              value={gstin}
+              onChange={(e) => setGstin(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+            />
+            {gstin.length === 15 && !GSTIN.test(gstin) && (
+              <p className="text-xs text-destructive" role="alert">
+                Enter a valid GSTIN, like 22ABCDE1234F1Z5
               </p>
             )}
           </div>
@@ -376,7 +461,7 @@ function KycDataNotice({ intl }: { intl: boolean }) {
         <li>
           <b className="font-medium text-foreground">Why:</b>{" "}
           {intl
-            ? "to apply your country's tax treaty with India to your payouts."
+            ? "to confirm your tax status and where you live before we pay you."
             : "Indian tax law needs your PAN for affiliate payouts. The other documents confirm the account is yours."}
         </li>
         <li>

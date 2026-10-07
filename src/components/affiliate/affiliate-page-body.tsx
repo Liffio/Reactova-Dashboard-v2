@@ -256,6 +256,7 @@ export function AffiliatePageBody({ profile }: { profile: AffiliateProfile }) {
         onOpenChange={(o) => setDialog(o ? "kyc" : null)}
         tier={uploadTier}
         docs={uploadDocs}
+        documentSets={kycSubmission.data?.documentSets}
         intl={uploadIntl}
         labels={config.data?.documentLabels ?? {}}
         onSubmitted={() => refresh(KEYS.kyc, KEYS.kycSubmission, KEYS.profile)}

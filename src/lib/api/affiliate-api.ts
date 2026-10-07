@@ -258,18 +258,32 @@ export const KYC_UPLOAD_FIELD: Record<string, string> = {
   NO_PE: "noPe",
 };
 
-export function submitAffiliateKyc(input: {
+/** Version of the KYC data notice shown in the upload dialog. Must equal the server's
+ *  `AFFILIATE_KYC_CONSENT_VERSION`; bump both when the notice copy changes. */
+export const KYC_CONSENT_VERSION = "2026-10-07";
+
+type KycSubmitInput = {
   tier: KycTier;
   panNumber?: string;
   /** Keyed by document key (PAN, GOVT_ID…). */
   files: Record<string, File>;
-}) {
+};
+
+/** Only called after the user ticks the consent checkbox, so consent is always sent as given. */
+export function buildKycFormData(input: KycSubmitInput): FormData {
   const formData = new FormData();
   formData.set("tier", input.tier);
   if (input.panNumber) formData.set("panNumber", input.panNumber);
+  formData.set("kycConsent", "true");
+  formData.set("consentVersion", KYC_CONSENT_VERSION);
   for (const [doc, file] of Object.entries(input.files)) {
     formData.set(KYC_UPLOAD_FIELD[doc] ?? doc, file);
   }
+  return formData;
+}
+
+export function submitAffiliateKyc(input: KycSubmitInput) {
+  const formData = buildKycFormData(input);
   return apiUploadRequest<{
     id: string;
     tier: KycTier;

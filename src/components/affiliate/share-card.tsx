@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Check, Copy, Mail, Pencil, Share2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
+import { ShareFlowArt } from "./illustrations";
 import {
   setCustomAffiliateCode,
   type AffiliateLinks,
@@ -19,9 +20,12 @@ export function ShareCard({
   onCodeSaved: () => void;
 }) {
   const terms = profile.programTerms;
-  const url = links?.customLink ?? links?.randomLink ?? "";
+  // Homepage link is the primary one: it is what copy, the share sheet and the social intents use.
+  const url = links?.homeCustomLink ?? links?.homeRandomLink ?? "";
+  const signupUrl = links?.customLink ?? links?.randomLink ?? "";
   const cut = url.indexOf("?");
   const [copied, setCopied] = useState(false);
+  const [copiedSignup, setCopiedSignup] = useState(false);
   const [editing, setEditing] = useState(false);
   const [code, setCode] = useState(profile.customCode ?? "");
 
@@ -31,6 +35,14 @@ export function ShareCard({
     setCopied(true);
     toast.success("Referral link copied");
     setTimeout(() => setCopied(false), 1800);
+  };
+
+  const copySignup = async () => {
+    if (!signupUrl) return;
+    await navigator.clipboard.writeText(signupUrl);
+    setCopiedSignup(true);
+    toast.success("Sign-up link copied");
+    setTimeout(() => setCopiedSignup(false), 1800);
   };
 
   const share = async () => {
@@ -66,7 +78,10 @@ export function ShareCard({
 
   return (
     <div className="flex flex-col rounded-2xl border bg-card p-5 shadow-soft sm:p-[22px]">
-      <h2 className="font-display text-[17px] font-semibold tracking-tight">Share and earn</h2>
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="font-display text-[17px] font-semibold tracking-tight">Share and earn</h2>
+        <ShareFlowArt className="-mt-1 h-10 w-auto flex-none" />
+      </div>
       {terms?.commissionRatePercent !== undefined && (
         <p className="mb-4 mt-1 text-[13px] text-muted-foreground">
           You earn {terms.commissionRatePercent}% of every payment from workspaces that sign up with
@@ -95,6 +110,26 @@ export function ShareCard({
           {copied ? "Copied" : "Copy link"}
         </button>
       </div>
+
+      {signupUrl && (
+        <div className="mt-2 flex min-w-0 items-center gap-2 rounded-xl border border-dashed px-3 py-1.5">
+          <span className="flex-none text-[12px] font-medium text-muted-foreground">
+            Sign-up page link
+          </span>
+          <span className="min-w-0 flex-1 truncate font-mono text-[12px]">{signupUrl}</span>
+          <button
+            onClick={copySignup}
+            aria-label="Copy sign-up page link"
+            className="inline-flex h-7 w-7 flex-none items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            {copiedSignup ? (
+              <Check className="h-3.5 w-3.5 text-success" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+          </button>
+        </div>
+      )}
 
       <div className="mt-3 flex items-center justify-between gap-2.5 px-0.5">
         <div className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">

@@ -21,9 +21,34 @@ export type KycStatusResponse = {
   documents?: KycMyDocument[];
   /** Tier and documents for an upload made before a payout requires one. */
   voluntary?: { tier: KycTier; documents: string[] };
+  /** Where the document lists come from: payout account residency, else the user's country. */
+  region?: KycRegion;
   /** Required documents per tier for an individual vs a business. */
   documentSets?: Record<KycTier, Record<KycEntityType, string[]>>;
 };
+
+export type KycRegion = {
+  residency: Residency | null;
+  source: "payout_account" | "country" | null;
+  country: string | null;
+};
+
+/** One line telling the affiliate which country's documents they're looking at. */
+export function kycRegionLabel(region: KycRegion | undefined): string | null {
+  if (!region?.residency) return null;
+  if (region.source === "payout_account") {
+    return region.residency === "INTL"
+      ? "Showing documents for affiliates outside India, from your payout details"
+      : "Showing documents for India, from your payout details";
+  }
+  let name = region.country ?? "";
+  try {
+    name = new Intl.DisplayNames(["en"], { type: "region" }).of(name) ?? name;
+  } catch {
+    // Unknown code: show it as-is.
+  }
+  return `Showing documents for ${name}`;
+}
 
 export type KycMyDocument = {
   type: string;

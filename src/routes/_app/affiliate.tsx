@@ -28,10 +28,12 @@ function AffiliateRoute() {
  * surfaced on the affiliate profile. If the API did not report it we omit the
  * number rather than printing a stale literal.
  */
-const commissionHeadline = (ratePercent: number | undefined) =>
-  ratePercent === undefined
-    ? "Earn a recurring commission for every customer you refer."
-    : `Earn ${ratePercent}% recurring commission for every customer you refer.`;
+const commissionHeadline = (ratePercent: number | undefined, windowMonths: number | undefined) => {
+  const rate =
+    ratePercent === undefined ? "a recurring commission" : `${ratePercent}% recurring commission`;
+  const period = windowMonths ? ` for ${windowMonths} months after their first payment` : "";
+  return `Earn ${rate} on every customer you refer${period}.`;
+};
 
 function AffiliatePage() {
   const queryClient = useQueryClient();
@@ -65,7 +67,10 @@ function AffiliatePage() {
       <div>
         <PageHeader
           title="Affiliate Program"
-          description={commissionHeadline(profile.programTerms?.commissionRatePercent)}
+          description={commissionHeadline(
+            profile.programTerms?.commissionRatePercent,
+            profile.programTerms?.commissionWindowMonths,
+          )}
         />
         <div className="p-4 sm:p-6 md:p-10">
           <AffiliateOnboarding onGetStarted={() => setConsentOpen(true)} />

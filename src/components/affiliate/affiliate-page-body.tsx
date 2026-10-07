@@ -124,6 +124,10 @@ export function AffiliatePageBody({ profile }: { profile: AffiliateProfile }) {
                 `${terms.commissionRatePercent}%`,
                 "recurring commission",
               ],
+              terms.commissionWindowMonths && [
+                `${terms.commissionWindowMonths} months`,
+                "per referred customer",
+              ],
               terms.holdDays && [`${terms.holdDays}-day`, "hold"],
               terms.minPayoutUsd !== undefined && [
                 usd(terms.minPayoutUsd).replace(/\.00$/, ""),

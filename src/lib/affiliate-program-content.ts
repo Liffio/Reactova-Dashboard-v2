@@ -1,12 +1,12 @@
-export const AFFILIATE_CONSENT_VERSION = "1.0";
+export const AFFILIATE_CONSENT_VERSION = "1.1";
 
 /**
  * Program terms as published in version `AFFILIATE_CONSENT_VERSION` of the
  * affiliate agreement.
  *
  * These are NOT the live operating values — the server is authoritative
- * (`AFFILIATE_COMMISSION_RATE` / `AFFILIATE_MIN_PAYOUT` / `AFFILIATE_HOLD_DAYS`
- * env vars, surfaced as `programTerms` on `GET /affiliate/profile`). Live
+ * (`AFFILIATE_COMMISSION_RATE` / `AFFILIATE_MIN_PAYOUT` / `AFFILIATE_HOLD_DAYS` /
+ * `AFFILIATE_COMMISSION_WINDOW_MONTHS` env vars, surfaced as `programTerms` on `GET /affiliate/profile`). Live
  * surfaces (dashboard header, payout dialog) must read the API values. These
  * constants exist only so the versioned marketing and legal copy below has a
  * single source, because a published agreement must not silently change under a
@@ -17,6 +17,7 @@ export const AFFILIATE_COMMISSION_RATE_PERCENT = 50;
 export const AFFILIATE_REFERRAL_DISCOUNT = 0.1;
 export const AFFILIATE_REFERRAL_DISCOUNT_PERCENT = 10;
 export const AFFILIATE_HOLD_DAYS = 20;
+export const AFFILIATE_COMMISSION_WINDOW_MONTHS = 6;
 export const AFFILIATE_MIN_PAYOUT_USD = 50;
 
 export const AFFILIATE_HOW_IT_WORKS = [
@@ -32,8 +33,8 @@ export const AFFILIATE_HOW_IT_WORKS = [
   },
   {
     step: "3",
-    title: `You earn ${AFFILIATE_COMMISSION_RATE_PERCENT}% recurring`,
-    body: `You receive ${AFFILIATE_COMMISSION_RATE_PERCENT}% of every subscription payment while they remain an active paying customer.`,
+    title: `You earn ${AFFILIATE_COMMISSION_RATE_PERCENT}% for ${AFFILIATE_COMMISSION_WINDOW_MONTHS} months`,
+    body: `You receive ${AFFILIATE_COMMISSION_RATE_PERCENT}% of every subscription payment they make in the ${AFFILIATE_COMMISSION_WINDOW_MONTHS} months after their first payment. Payments after that window don't earn commission.`,
   },
   {
     step: "4",
@@ -43,7 +44,7 @@ export const AFFILIATE_HOW_IT_WORKS = [
 ] as const;
 
 export const AFFILIATE_BENEFITS = [
-  `${AFFILIATE_COMMISSION_RATE_PERCENT}% lifetime recurring commission on referred subscriptions`,
+  `${AFFILIATE_COMMISSION_RATE_PERCENT}% recurring commission on each referred customer for ${AFFILIATE_COMMISSION_WINDOW_MONTHS} months`,
   `${AFFILIATE_REFERRAL_DISCOUNT_PERCENT}% discount for your referrals on their first payment`,
   "Custom referral code (one per account)",
   "Dashboard with referrals, commissions, and payout history",
@@ -63,7 +64,7 @@ export const AFFILIATE_PROGRAM_TERMS_SECTIONS = [
     id: "commission",
     title: "2. Commission structure",
     paragraphs: [
-      "You earn fifty percent (50%) of the net subscription amount paid by each referred customer for as long as that customer maintains an active paid subscription, unless otherwise stated by Liffio in writing.",
+      `You earn fifty percent (50%) of the net subscription amount paid by each referred customer during the ${AFFILIATE_COMMISSION_WINDOW_MONTHS} months following that customer's first qualifying payment, unless otherwise stated by Liffio in writing. Payments made after this ${AFFILIATE_COMMISSION_WINDOW_MONTHS}-month window do not earn commission, even if the customer remains subscribed.`,
       "Referred customers receive a one-time ten percent (10%) discount on their first qualifying payment when they use your valid referral link or code at signup.",
       "Commission amounts are calculated after applicable discounts and exclude taxes, chargebacks, and refunded payments. If a payment is refunded or disputed, related commissions may be reversed.",
     ],

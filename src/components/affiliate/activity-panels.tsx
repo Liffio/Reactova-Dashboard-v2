@@ -30,6 +30,11 @@ const DateCell = ({ iso }: { iso: string }) => (
   </div>
 );
 
+const daysLeft = (iso: string) => {
+  const days = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  return days <= 1 ? "Ends today" : `${days} days left`;
+};
+
 const Amount = ({ n }: { n: number }) => (
   <span className="font-display text-sm font-semibold tabular-nums">{usd(n)}</span>
 );
@@ -161,6 +166,28 @@ export function ReferralsPanel({
                 <span className="text-[13px] text-muted-foreground">No workspace yet</span>
               ),
           },
+          {
+            header: "Earning window",
+            mobile: "detail",
+            cell: (r) =>
+              r.commissionEndsAt ? (
+                <div>
+                  <div
+                    className={`whitespace-nowrap ${r.commissionWindowActive ? "" : "text-muted-foreground"}`}
+                  >
+                    {r.commissionWindowActive ? "Until " : "Ended "}
+                    {fmtDate(r.commissionEndsAt)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {r.commissionWindowActive
+                      ? daysLeft(r.commissionEndsAt)
+                      : "No commission on later payments"}
+                  </div>
+                </div>
+              ) : (
+                <span className="text-[13px] text-muted-foreground">Starts at first payment</span>
+              ),
+          },
           { header: "Referred", mobile: "detail", cell: (r) => <DateCell iso={r.attributedAt} /> },
         ]}
       />
@@ -229,7 +256,7 @@ export function CommissionsPanel({ terms }: { terms?: AffiliateProgramTerms }) {
           title="No commissions yet"
         >
           {terms?.commissionRatePercent !== undefined && terms.holdDays
-            ? `You earn ${terms.commissionRatePercent}% each time a referred workspace pays. Each commission is held for ${terms.holdDays} days, then becomes available to withdraw.`
+            ? `You earn ${terms.commissionRatePercent}% each time a referred workspace pays${terms.commissionWindowMonths ? `, for ${terms.commissionWindowMonths} months from their first payment` : ""}. Each commission is held for ${terms.holdDays} days, then becomes available to withdraw.`
             : "You earn a commission each time a referred workspace pays."}
         </EmptyState>
       ) : (

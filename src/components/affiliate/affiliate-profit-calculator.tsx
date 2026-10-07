@@ -3,6 +3,7 @@ import { Globe } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAffiliateCalculatorConfig } from "@/hooks/use-affiliate-calculator";
+import { AFFILIATE_COMMISSION_WINDOW_MONTHS } from "@/lib/affiliate-program-content";
 
 const SLIDER_MIN = 1;
 const SLIDER_MAX = 500;
@@ -23,10 +24,11 @@ export function AffiliateProfitCalculator() {
   const { data: config, isLoading, isError } = useAffiliateCalculatorConfig();
   const [referrals, setReferrals] = useState(DEFAULT_REFERRALS);
 
-  const yearlyEarnings = useMemo(() => {
+  // Each referred customer earns for AFFILIATE_COMMISSION_WINDOW_MONTHS from their first payment.
+  const windowEarnings = useMemo(() => {
     if (!config) return 0;
     const count = Math.max(SLIDER_MIN, Math.min(SLIDER_MAX, referrals));
-    return count * config.monthlyCommissionPerReferral * 12;
+    return count * config.monthlyCommissionPerReferral * AFFILIATE_COMMISSION_WINDOW_MONTHS;
   }, [referrals, config]);
 
   if (isLoading) {
@@ -73,7 +75,7 @@ export function AffiliateProfitCalculator() {
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm font-medium text-muted-foreground">Number of referrals per month</p>
+          <p className="text-sm font-medium text-muted-foreground">Number of paying referrals</p>
           <span className="inline-flex min-w-[3.25rem] items-center justify-center rounded-lg bg-primary px-3 py-1.5 text-sm font-bold tabular-nums text-primary-foreground shadow-sm ring-2 ring-primary/20">
             {referrals}
           </span>
@@ -86,7 +88,7 @@ export function AffiliateProfitCalculator() {
             max={SLIDER_MAX}
             step={1}
             onValueChange={([value]) => setReferrals(value ?? DEFAULT_REFERRALS)}
-            aria-label="Number of referrals per month"
+            aria-label="Number of paying referrals"
           />
           <div className="mt-2 flex justify-between text-[10px] font-medium text-muted-foreground tabular-nums">
             <span>{SLIDER_MIN}</span>
@@ -95,15 +97,19 @@ export function AffiliateProfitCalculator() {
         </div>
 
         <p className="mt-8 font-display text-4xl sm:text-5xl font-extrabold text-foreground tabular-nums tracking-tight">
-          {formatRegionalAmount(yearlyEarnings, currency)}
-          <span className="text-2xl sm:text-3xl font-semibold text-muted-foreground">/year</span>
+          {formatRegionalAmount(windowEarnings, currency)}
+          <span className="text-2xl sm:text-3xl font-semibold text-muted-foreground">
+            {" "}
+            over {AFFILIATE_COMMISSION_WINDOW_MONTHS} months
+          </span>
         </p>
 
         <p className="mt-4 text-xs sm:text-sm text-muted-foreground leading-relaxed max-w-xl">
           *Based on {commissionRatePercent}% commission on the {config.planName} plan (
           {formatRegionalAmount(planMonthly, currency)}/mo per referral →{" "}
-          {formatRegionalAmount(monthlyCommissionPerReferral, currency)}/mo to you). Pricing shown
-          in {config.region === "india" ? "Indian rupees" : "US dollars"}
+          {formatRegionalAmount(monthlyCommissionPerReferral, currency)}/mo to you, for{" "}
+          {AFFILIATE_COMMISSION_WINDOW_MONTHS} months from each referral's first payment). Pricing
+          shown in {config.region === "india" ? "Indian rupees" : "US dollars"}
           {config.regionSource === "ip"
             ? " based on your location"
             : config.regionSource === "profile"

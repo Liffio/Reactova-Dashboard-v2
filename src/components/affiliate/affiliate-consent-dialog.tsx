@@ -9,6 +9,7 @@ import {
 } from "@/components/legal/consent-agreement-dialog";
 import {
   AFFILIATE_COMMISSION_RATE_PERCENT,
+  AFFILIATE_COMMISSION_WINDOW_MONTHS,
   AFFILIATE_CONSENT_VERSION,
   AFFILIATE_MIN_PAYOUT_USD,
   AFFILIATE_PROGRAM_TERMS_SECTIONS,
@@ -107,7 +108,7 @@ export function AffiliateConsentDialog({
     },
     {
       id: "affiliate-commission",
-      label: `I understand the commission structure (${AFFILIATE_COMMISSION_RATE_PERCENT}% recurring, ${AFFILIATE_REFERRAL_DISCOUNT_PERCENT}% referral discount, hold period, and reversal on refunds/chargebacks).`,
+      label: `I understand the commission structure (${AFFILIATE_COMMISSION_RATE_PERCENT}% recurring for ${AFFILIATE_COMMISSION_WINDOW_MONTHS} months per referred customer, ${AFFILIATE_REFERRAL_DISCOUNT_PERCENT}% referral discount, hold period, and reversal on refunds/chargebacks).`,
     },
     {
       id: "affiliate-payout",

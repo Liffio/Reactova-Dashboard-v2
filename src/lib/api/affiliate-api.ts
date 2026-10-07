@@ -97,6 +97,8 @@ export type AffiliateProgramTerms = {
   commissionRatePercent?: number;
   minPayoutUsd?: number;
   holdDays?: number;
+  /** Months each referred customer earns commission, from their first commissioned payment. */
+  commissionWindowMonths?: number;
   currency?: string;
 };
 
@@ -173,6 +175,10 @@ export type AffiliateReferral = {
   isActive: boolean;
   discountUsed: boolean;
   attributedAt: string;
+  /** Opens at the referred customer's first commissioned payment; both null before that. Older API builds omit them. */
+  commissionStartedAt?: string | null;
+  commissionEndsAt?: string | null;
+  commissionWindowActive?: boolean;
   /**
    * `handle` is the workspace name; the API does not expose the referred
    * workspace's plan, so the UI must not claim to show one.

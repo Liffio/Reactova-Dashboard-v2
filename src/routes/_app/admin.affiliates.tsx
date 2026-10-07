@@ -267,7 +267,22 @@ function AdminAffiliatesPage() {
                           {s.affiliate?.user?.email ?? s.affiliateProfileId}
                         </td>
                         <td className="px-4 py-3.5">
-                          <Badge variant="outline">{s.tier}</Badge>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge variant="outline">{s.tier}</Badge>
+                            <Badge variant="secondary">
+                              {s.entityType === "business" ? "Business" : "Individual"}
+                            </Badge>
+                          </div>
+                          {s.gstin && (
+                            <div className="mt-1 font-mono text-xs text-muted-foreground">
+                              GSTIN {s.gstin}
+                            </div>
+                          )}
+                          {s.documents.some((d) => d.type === "ADDRESS_PROOF") && (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Check residence proof is ≤ 90 days old
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3.5">
                           <div className="flex flex-wrap gap-1.5">

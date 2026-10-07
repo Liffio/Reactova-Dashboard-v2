@@ -21,6 +21,8 @@ export type KycStatusResponse = {
   documents?: KycMyDocument[];
   /** Tier and documents for an upload made before a payout requires one. */
   voluntary?: { tier: KycTier; documents: string[] };
+  /** Required documents per tier for an individual vs a business. */
+  documentSets?: Record<KycTier, Record<KycEntityType, string[]>>;
 };
 
 export type KycMyDocument = {
@@ -298,7 +300,15 @@ export const KYC_UPLOAD_FIELD: Record<string, string> = {
   TRC: "trc",
   FORM_10F: "form10f",
   NO_PE: "noPe",
+  COMPANY_PAN: "companyPan",
+  GSTIN_CERT: "gstinCert",
+  INCORPORATION_CERT: "incorporationCert",
+  BOARD_RESOLUTION: "boardResolution",
+  US_TAX_FORM: "usTaxForm",
+  US_TAX_FORM_ENTITY: "usTaxFormEntity",
 };
+
+export type KycEntityType = "individual" | "business";
 
 /** Version of the KYC data notice shown in the upload dialog. Must equal the server's
  *  `AFFILIATE_KYC_CONSENT_VERSION`; bump both when the notice copy changes. */
@@ -306,7 +316,9 @@ export const KYC_CONSENT_VERSION = "2026-10-07";
 
 type KycSubmitInput = {
   tier: KycTier;
+  entityType?: KycEntityType;
   panNumber?: string;
+  gstin?: string;
   /** Keyed by document key (PAN, GOVT_ID…). */
   files: Record<string, File>;
 };
@@ -315,7 +327,9 @@ type KycSubmitInput = {
 export function buildKycFormData(input: KycSubmitInput): FormData {
   const formData = new FormData();
   formData.set("tier", input.tier);
+  formData.set("entityType", input.entityType ?? "individual");
   if (input.panNumber) formData.set("panNumber", input.panNumber);
+  if (input.gstin) formData.set("gstin", input.gstin);
   formData.set("kycConsent", "true");
   formData.set("consentVersion", KYC_CONSENT_VERSION);
   for (const [doc, file] of Object.entries(input.files)) {

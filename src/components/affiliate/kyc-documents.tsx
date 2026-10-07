@@ -64,12 +64,6 @@ export function KycDocumentsCard({
           <p className="mb-3.5 mt-1 max-w-[42ch] text-[13px] text-muted-foreground">
             Verify early and your first payout won't wait on a review. Files are stored privately.
           </p>
-          {canUpload && (
-            <Button size="sm" onClick={onUpload} className="gap-1.5">
-              <Upload className="h-3.5 w-3.5" />
-              Add verification documents
-            </Button>
-          )}
         </div>
       ) : (
         <ul>

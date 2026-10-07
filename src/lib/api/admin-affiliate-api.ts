@@ -166,7 +166,9 @@ export type AdminKycSubmission = {
   id: string;
   affiliateProfileId: string;
   affiliate: { id: string; user?: { email?: string; name?: string } } | null;
-  tier: "L1" | "L2" | "L3";
+  tier: "L1" | "L2" | "L3" | "INTL";
+  entityType?: "individual" | "business";
+  gstin?: string | null;
   status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
   documents: Array<{ type: string; label?: string; fileUrl: string; uploadedAt: string }>;
   submittedAt: string;

@@ -66,7 +66,7 @@ export const SHEET_DIALOG =
 /** One-line upload instructions per KYC document key (spec §7). Names come from the server. */
 export const KYC_DOCUMENT_HINT: Record<string, string> = {
   PAN: "Front side, all four corners visible",
-  AADHAAR: "Front and back, as one PDF or two images merged",
+  AADHAAR: "Masked Aadhaar from myaadhaar.uidai.gov.in: only the last 4 digits visible",
   BANK_ACCOUNT: "Cancelled cheque or a recent bank statement",
   GOVT_ID: "Photo page, all four corners visible",
   ADDRESS_PROOF: "Utility bill or bank statement from the last 3 months",

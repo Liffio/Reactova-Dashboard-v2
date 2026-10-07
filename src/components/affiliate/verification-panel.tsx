@@ -1,10 +1,11 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { AlertCircle, Check, Clock, ShieldCheck, ShieldAlert, Shield } from "lucide-react";
+import { AlertCircle, Check, Clock, Lock, ShieldCheck, ShieldAlert, Shield } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -183,10 +184,12 @@ export function KycUploadDialog({
   const intl = kyc?.residency === "INTL";
   const [files, setFiles] = useState<Record<string, File>>({});
   const [pan, setPan] = useState("");
+  const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const ready = !!kyc?.tier && docs.every((d) => files[d]) && (!needsPan || PAN.test(pan));
+  const ready =
+    !!kyc?.tier && docs.every((d) => files[d]) && (!needsPan || PAN.test(pan)) && consent;
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -195,6 +198,7 @@ export function KycUploadDialog({
       toast.success("Documents submitted for review");
       setFiles({});
       setPan("");
+      setConsent(false);
       onSubmitted();
       onOpenChange(false);
     },
@@ -272,6 +276,20 @@ export function KycUploadDialog({
           ))}
         </ul>
 
+        <KycDataNotice intl={intl} />
+
+        <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug">
+          <Checkbox
+            id="kyc-consent"
+            className="mt-0.5"
+            checked={consent}
+            onCheckedChange={(v) => setConsent(v === true)}
+          />
+          <span>
+            I agree to Liffio processing these documents to verify my identity and meet tax law.
+          </span>
+        </label>
+
         {error && (
           <p className="text-sm text-destructive" role="alert">
             {error}
@@ -288,5 +306,37 @@ export function KycUploadDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** DPDP notice: why, who, where, how long. Shown before consent; bump KYC_CONSENT_VERSION when it changes. */
+function KycDataNotice({ intl }: { intl: boolean }) {
+  return (
+    <div className="rounded-xl border bg-muted/40 p-3.5 text-[12.5px] leading-relaxed text-muted-foreground">
+      <p className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-foreground">
+        <Lock className="h-3.5 w-3.5" aria-hidden />
+        How we use your documents
+      </p>
+      <ul className="list-disc space-y-1 pl-4">
+        <li>
+          <b className="font-medium text-foreground">Why:</b>{" "}
+          {intl
+            ? "to apply your country's tax treaty with India to your payouts."
+            : "Indian tax law needs your PAN for affiliate payouts. The other documents confirm the account is yours."}
+        </li>
+        <li>
+          <b className="font-medium text-foreground">Who sees them:</b> you and Liffio's
+          verification team. Every view is logged.
+        </li>
+        <li>
+          <b className="font-medium text-foreground">Where:</b> a private, encrypted store. They're
+          never public.
+        </li>
+        <li>
+          <b className="font-medium text-foreground">How long:</b> while you're an affiliate, then
+          for as long as tax law requires (currently up to 8 years). After that they're deleted.
+        </li>
+      </ul>
+    </div>
   );
 }

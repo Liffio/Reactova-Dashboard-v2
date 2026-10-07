@@ -1,5 +1,6 @@
 import { apiUri } from "./apiUri";
-import { apiRequest, apiUploadRequest } from "./http";
+import { API_BASE, apiRequest, apiUploadRequest } from "./http";
+import { authStore } from "@/lib/auth/auth-store";
 
 export type KycTier = "L1" | "L2" | "L3" | "INTL";
 export type Residency = "IN" | "INTL";
@@ -16,7 +17,48 @@ export type KycStatusResponse = {
     reviewedAt: string | null;
     rejectionReason: string | null;
   } | null;
+  /** Documents of the latest submission, for the "Your documents" card. */
+  documents?: KycMyDocument[];
+  /** Tier and documents for an upload made before a payout requires one. */
+  voluntary?: { tier: KycTier; documents: string[] };
 };
+
+export type KycMyDocument = {
+  type: string;
+  label: string;
+  fileUrl: string;
+  uploadedAt: string;
+  status: KycSubmissionStatus;
+};
+
+const KYC_EXT: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/png": "png",
+  "image/jpeg": "jpg",
+};
+
+/** Readable download name, e.g. `PAN_2026-10-07.pdf`. */
+export function kycDocumentFilename(
+  doc: Pick<KycMyDocument, "type" | "uploadedAt">,
+  mimeType: string,
+): string {
+  return `${doc.type}_${doc.uploadedAt.slice(0, 10)}.${KYC_EXT[mimeType] ?? "bin"}`;
+}
+
+/** Manual fetch (same reason as `fetchInvoicePdf`): the document route needs the bearer token. */
+export async function fetchKycDocument(fileUrl: string): Promise<Blob> {
+  const token = authStore.getState().accessToken;
+  const res = await fetch(`${API_BASE}${fileUrl}`, {
+    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    throw new Error(
+      res.status === 404 ? "This document could not be found" : "Could not load the document",
+    );
+  }
+  return res.blob();
+}
 
 /**
  * Affiliate program terms as configured server-side. Optional because an older

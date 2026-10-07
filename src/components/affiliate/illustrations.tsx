@@ -285,3 +285,45 @@ function Sparkle({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
     />
   );
 }
+
+/** Upload area and empty "Your documents": fanned pages with an upload arrow. */
+export function DocumentsArt({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 160 96"
+      fill="none"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={cn("pointer-events-none select-none", className)}
+    >
+      <ellipse cx="80" cy="88" rx="56" ry="5" className="fill-foreground/[0.05]" />
+      <circle cx="80" cy="46" r="40" className="fill-primary/[0.07]" />
+      <g transform="translate(36 22) rotate(-12)">
+        <rect width="40" height="52" rx="6" className={cn("fill-card", LINE)} />
+        <rect x="8" y="12" width="22" height="3" rx="1.5" className="fill-foreground/20" />
+        <rect x="8" y="20" width="16" height="3" rx="1.5" className="fill-foreground/15" />
+      </g>
+      <g transform="translate(86 18) rotate(12)">
+        <rect width="40" height="52" rx="6" className={cn("fill-card", LINE)} />
+        <rect x="8" y="12" width="22" height="3" rx="1.5" className="fill-foreground/20" />
+        <rect x="8" y="20" width="18" height="3" rx="1.5" className="fill-foreground/15" />
+      </g>
+      <g transform="translate(58 14)">
+        <rect width="44" height="58" rx="7" className={cn("fill-card", LINE)} />
+        <rect x="8" y="9" width="16" height="9" rx="2.5" className="fill-primary/20" />
+        <rect x="8" y="24" width="28" height="3" rx="1.5" className="fill-foreground/20" />
+        <rect x="8" y="32" width="20" height="3" rx="1.5" className="fill-foreground/15" />
+        <circle cx="22" cy="48" r="9" className="fill-primary/15 stroke-primary" />
+        <path
+          d="M22 52.5 V43.5 M18 47 L22 43 L26 47"
+          className="stroke-primary"
+          strokeWidth={1.8}
+        />
+      </g>
+      <Sparkle x={26} y={24} s={0.7} />
+      <Sparkle x={138} y={64} s={0.6} />
+    </svg>
+  );
+}

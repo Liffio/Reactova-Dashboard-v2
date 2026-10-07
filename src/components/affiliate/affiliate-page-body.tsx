@@ -257,6 +257,8 @@ export function AffiliatePageBody({ profile }: { profile: AffiliateProfile }) {
         tier={uploadTier}
         docs={uploadDocs}
         documentSets={kycSubmission.data?.documentSets}
+        region={kycSubmission.data?.region}
+        askRegion={!required && !kycSubmission.data?.region?.residency}
         intl={uploadIntl}
         labels={config.data?.documentLabels ?? {}}
         onSubmitted={() => refresh(KEYS.kyc, KEYS.kycSubmission, KEYS.profile)}

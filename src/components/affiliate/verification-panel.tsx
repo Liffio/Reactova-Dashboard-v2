@@ -5,6 +5,7 @@ import {
   Building2,
   Check,
   Clock,
+  Globe,
   Lock,
   ShieldCheck,
   ShieldAlert,
@@ -28,7 +29,9 @@ import {
 import {
   submitAffiliateKyc,
   type KycStatusResponse,
+  kycRegionLabel,
   type KycEntityType,
+  type KycRegion,
   type KycTier,
   type PayoutAccount,
   type PayoutKycStatus,
@@ -61,7 +64,7 @@ export function VerificationPanel({
   onUpload: () => void;
 }) {
   const status = kyc?.kycStatus ?? null;
-  const intl = (kyc?.residency ?? account?.residency) === "INTL";
+  const intl = (kyc?.residency ?? account?.residency ?? submission?.region?.residency) === "INTL";
   const docs = kyc?.documentsNeeded ?? [];
   const latest = submission?.latestSubmission ?? null;
 
@@ -213,10 +216,12 @@ const ACCEPT = ".jpg,.jpeg,.png,.pdf";
 export function KycUploadDialog({
   open,
   onOpenChange,
-  tier,
+  tier: givenTier,
   docs: defaultDocs,
   documentSets,
-  intl,
+  intl: givenIntl,
+  region,
+  askRegion,
   labels,
   onSubmitted,
 }: {
@@ -228,10 +233,18 @@ export function KycUploadDialog({
   /** Server's per-tier sets for an individual vs a business; falls back to `docs`. */
   documentSets?: Record<KycTier, Record<KycEntityType, string[]>>;
   intl: boolean;
+  /** Where the lists come from (payout account, else the user's country). */
+  region?: KycRegion;
+  /** True when neither is known: the dialog asks India vs outside India. */
+  askRegion: boolean;
   labels: Record<string, string>;
   onSubmitted: () => void;
 }) {
   const [entity, setEntity] = useState<KycEntityType>("individual");
+  const [pickedRegion, setPickedRegion] = useState<"IN" | "INTL">("IN");
+  const tier: KycTier | null = askRegion ? (pickedRegion === "INTL" ? "INTL" : "L1") : givenTier;
+  const intl = askRegion ? pickedRegion === "INTL" : givenIntl;
+  const regionLine = askRegion ? null : kycRegionLabel(region);
   const docs = (tier && documentSets?.[tier]?.[entity]) || defaultDocs;
   const companyPan = docs.includes("COMPANY_PAN");
   const needsPan = docs.includes("PAN") || companyPan;
@@ -250,6 +263,13 @@ export function KycUploadDialog({
     (!needsPan || PAN.test(pan)) &&
     (!needsGstin || GSTIN.test(gstin)) &&
     consent;
+
+  const chooseRegion = (next: "IN" | "INTL") => {
+    if (next === pickedRegion) return;
+    setPickedRegion(next);
+    setFiles({});
+    setError(null);
+  };
 
   const chooseEntity = (next: KycEntityType) => {
     if (next === entity) return;
@@ -311,6 +331,46 @@ export function KycUploadDialog({
             business days.
           </p>
         </div>
+
+        {regionLine && (
+          <p className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+            <Globe className="h-3.5 w-3.5" aria-hidden />
+            {regionLine}
+          </p>
+        )}
+
+        {askRegion && (
+          <div className="space-y-1.5">
+            <p className="text-[13px] font-medium">Where are you based?</p>
+            <div
+              role="radiogroup"
+              aria-label="Where are you based"
+              className="inline-flex rounded-lg border p-0.5"
+            >
+              {(
+                [
+                  ["IN", "India"],
+                  ["INTL", "Outside India"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={pickedRegion === value}
+                  onClick={() => chooseRegion(value)}
+                  className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                    pickedRegion === value
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div role="radiogroup" aria-label="Verify as" className="grid grid-cols-2 gap-2">
           {(

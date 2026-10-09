@@ -75,28 +75,6 @@ export const STEP_LABEL: Record<StepType, string> = {
   FOLLOW_GATE: "Ask to follow",
 };
 
-/**
- * The name `newStep` gives each type, and the one `isDefaultStepName` (auto-name.ts) checks a step
- * against to tell "still the default" from "someone typed their own name" (spec: chatbot-ui-fixes
- * item 7). Handover, Start-another-chatbot, Webhook, Notify and A/B split get a name here that
- * never needs to change again — there is no varying content to name them from, so item 7's auto-
- * naming only ever touches Message, Question and Condition.
- */
-export const DEFAULT_STEP_NAME: Record<StepType, string> = {
-  MESSAGE: "New step",
-  QUESTION: "New question",
-  CONDITION: "New condition",
-  HANDOVER: "Hand to a person",
-  START_CHATBOT: "Start another chatbot",
-  WEBHOOK: "Webhook",
-  NOTIFY: "Notify the team",
-  SPLIT: "A/B split",
-  FOLLOW_GATE: "Ask to follow",
-};
-
-/** A fresh Message step's sample body — not "content the person added" (auto-name.ts). */
-export const DEFAULT_MESSAGE_BODY = "Type your reply here";
-
 export function newStep(type: StepType, position: number): ChatbotStep {
   const base = {
     id: uid(),
@@ -120,14 +98,14 @@ export function newStep(type: StepType, position: number): ChatbotStep {
     case "MESSAGE":
       return {
         ...base,
-        name: DEFAULT_STEP_NAME.MESSAGE,
-        body: DEFAULT_MESSAGE_BODY,
+        name: "New step",
+        body: "Type your reply here",
         config: { nextStepId: null },
       };
     case "QUESTION":
       return {
         ...base,
-        name: DEFAULT_STEP_NAME.QUESTION,
+        name: "New question",
         body: "What's your email?",
         config: {
           answerKey: "email",
@@ -140,7 +118,7 @@ export function newStep(type: StepType, position: number): ChatbotStep {
     case "CONDITION":
       return {
         ...base,
-        name: DEFAULT_STEP_NAME.CONDITION,
+        name: "New condition",
         body: null,
         config: {
           match: "all",
@@ -152,35 +130,35 @@ export function newStep(type: StepType, position: number): ChatbotStep {
     case "HANDOVER":
       return {
         ...base,
-        name: DEFAULT_STEP_NAME.HANDOVER,
+        name: "Hand to a person",
         body: "Got it! Someone from our team will reply here soon 🙌",
         config: { nextStepId: null },
       };
     case "START_CHATBOT":
       return {
         ...base,
-        name: DEFAULT_STEP_NAME.START_CHATBOT,
+        name: "Start another chatbot",
         body: null,
         config: { targetChatbotId: "" },
       };
     case "WEBHOOK":
       return {
         ...base,
-        name: DEFAULT_STEP_NAME.WEBHOOK,
+        name: "Send to webhook",
         body: null,
         config: { url: "", nextStepId: null, secret: newWebhookSecret() },
       };
     case "NOTIFY":
       return {
         ...base,
-        name: DEFAULT_STEP_NAME.NOTIFY,
+        name: "Notify the team",
         body: null,
         config: { memberIds: [], message: "{{username|Someone}} needs a hand", nextStepId: null },
       };
     case "SPLIT":
       return {
         ...base,
-        name: DEFAULT_STEP_NAME.SPLIT,
+        name: "A/B split",
         body: null,
         config: {
           paths: [
@@ -192,21 +170,15 @@ export function newStep(type: StepType, position: number): ChatbotStep {
     case "FOLLOW_GATE":
       return {
         ...base,
-        name: DEFAULT_STEP_NAME.FOLLOW_GATE,
+        name: "Ask to follow",
         body: "Follow us and I'll send it your way 👇",
         config: {
           visitLabel: "Visit profile",
-          followingLabel: "Following ✅",
           // The comment automation's follow-gate wording, so both read the same.
           retryMessage:
             "We still don't see a follow on your account. Open Visit profile, tap Follow, then tap Following ✅ again.",
           followingStepId: null,
           notFollowingStepId: null,
-          // Default true (spec: chatbot-ui-fixes item 4) — keep reminding rather than falling
-          // through to Not following after the reprompt count.
-          loopIfNotFollowing: true,
-          followingRowLabel: "Following",
-          notFollowingRowLabel: "Not following",
         },
       };
   }

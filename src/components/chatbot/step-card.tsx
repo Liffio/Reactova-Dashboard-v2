@@ -1,4 +1,4 @@
-import { ChevronDown, Clock, MoonStar, MoreHorizontal, Repeat, Tag, TriangleAlert, UserPlus } from "lucide-react";
+import { ChevronDown, Clock, MoonStar, MoreHorizontal, Repeat, Tag, UserPlus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,8 +14,6 @@ import {
 } from "@/lib/api/chatbot-api";
 import { cn } from "@/lib/utils";
 import { STEP_LABEL, buttonCap, cfgStr, formatDelay, stepSummary } from "./model";
-import { isDefaultStepName, maybeAutoName } from "./auto-name";
-import { EditableName } from "./editable-name";
 import { LockedRow } from "./upgrade";
 import { MergeFieldPicker } from "./merge-fields";
 import { WebhookEditor } from "./webhook-editor";
@@ -51,8 +49,6 @@ interface Props {
   total: number;
   open: boolean;
   flash: boolean;
-  /** No reachable next step and not a deliberate end — spec: chatbot-ui-fixes item 6. */
-  broken: boolean;
   steps: StepRef[];
   chatbots: ChatbotRef[];
   /** `useModuleFeatures("chatbot")`: a missing capability locks its row, never hides it. */
@@ -242,7 +238,6 @@ export function StepCard({
   total,
   open,
   flash,
-  broken,
   steps,
   chatbots,
   features,
@@ -266,10 +261,6 @@ export function StepCard({
   // Only Message and Question steps send a file (the publish gate refuses one anywhere else).
   const wrongMediaStep = step.type !== "MESSAGE" && step.type !== "QUESTION";
   const setButtons = (buttons: ChatbotButton[]) => onChange({ ...step, buttons });
-  // Spec item 7: auto-name from content, but only while the name is still the default, and never
-  // colliding with another step's name.
-  const otherStepNames = steps.filter((s) => s.id !== step.id).map((s) => s.name);
-  const autoName = (next: ChatbotStep) => maybeAutoName(next, otherStepNames, media);
   // Reply buttons on this plan; none are offered until the plan's limits have loaded.
   const btnCap = buttonCap(limits?.buttonsPerStep);
   const btnCount = (
@@ -304,7 +295,6 @@ export function StepCard({
         "relative mb-3.5 rounded-2xl border border-border bg-card shadow-card transition-[border-color,box-shadow] hover:border-primary/35",
         open && "border-primary/55 shadow-glow",
         flash && "border-primary shadow-glow",
-        broken && !flash && "border-destructive-edge",
       )}
     >
       <span
@@ -314,11 +304,9 @@ export function StepCard({
           isCond && "border-transparent bg-cond text-cond-foreground",
           first && "border-transparent bg-brand-gradient text-white",
           open && !first && "border-primary text-primary",
-          broken && "border-transparent bg-destructive text-destructive-foreground",
         )}
-        title={broken ? "This step is broken" : undefined}
       >
-        {broken ? <TriangleAlert className="h-3.5 w-3.5" /> : index + 1}
+        {index + 1}
       </span>
 
       <div
@@ -328,14 +316,16 @@ export function StepCard({
         }}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <EditableName
-            className="-ml-2 min-w-0 flex-1"
-            inputClassName="font-display text-[15px] font-semibold"
-            value={step.name}
-            isDefault={isDefaultStepName(step)}
-            ariaLabel="Step name"
-            onCommit={(name) => onChange({ ...step, name })}
-          />
+          {open ? (
+            <input
+              className="-ml-2 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 font-display text-[15px] font-semibold hover:bg-muted focus:border-border focus:bg-background focus:outline-none"
+              value={step.name}
+              aria-label="Step name"
+              onChange={(e) => onChange({ ...step, name: e.target.value })}
+            />
+          ) : (
+            <span className="truncate font-display text-[15px] font-semibold">{step.name}</span>
+          )}
           <span
             className={cn(
               "rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap max-sm:hidden",
@@ -408,7 +398,6 @@ export function StepCard({
               step={step}
               limit={limits?.conditionRules}
               onChange={(config) => onChange({ ...step, config })}
-              onRuleNameBlur={() => onChange(autoName(step))}
               {...pick}
             />
           )}
@@ -489,7 +478,6 @@ export function StepCard({
                 value={step.body ?? ""}
                 aria-label="Message"
                 onChange={(e) => onChange({ ...step, body: e.target.value })}
-                onBlur={() => onChange(autoName(step))}
               />
               <div className="mt-1">
                 <MergeFieldPicker
@@ -555,7 +543,7 @@ export function StepCard({
           {step.type === "QUESTION" && (
             <QuestionEditor
               step={step}
-              onChange={(config) => onChange(autoName({ ...step, config }))}
+              onChange={(config) => onChange({ ...step, config })}
               {...pick}
             />
           )}
@@ -582,7 +570,7 @@ export function StepCard({
                 handoverStepIds={handoverStepIds}
               />
               {!step.buttons.some((b) => b.action !== "LINK") && (
-                <div className="mt-2 flex min-w-0 items-center gap-1.5 rounded-[10px] border border-border bg-card py-1 pr-1 pl-2.5 text-[13px] text-muted-foreground transition-colors hover:border-primary/35 hover:bg-muted">
+                <div className="mt-2 flex min-w-0 items-center gap-1.5 rounded-[10px] border border-dashed border-border py-1 pr-1 pl-2.5 text-[13px] text-muted-foreground">
                   <span className="flex-1">With no buttons, continue to</span>
                   <TargetPicker
                     value={{ kind: "step", id: cfgStr(step, "nextStepId") }}

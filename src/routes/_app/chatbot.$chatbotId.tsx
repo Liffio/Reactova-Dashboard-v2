@@ -43,6 +43,7 @@ import { StatusPill, publishErrorMessage, publishProblems } from "@/components/c
 import { autoLink, duplicateStep, newStep, removeStep } from "@/components/chatbot/model";
 import { brokenStepIds, findBrokenSteps } from "@/components/chatbot/broken-steps";
 import { maybeAutoName } from "@/components/chatbot/auto-name";
+import { maybeAutoNameChatbot } from "@/components/chatbot/auto-name-chatbot";
 import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
 import { UsageMeter, atCap } from "@/components/chatbot/usage-meter";
 import { SaveAsTemplateDialog } from "@/components/chatbot/save-as-template";
@@ -362,6 +363,13 @@ function BuilderPage() {
     setBusy(true);
     setProblems([]);
     try {
+      // Spec item 8: name the bot from its own content, but only on go-live — never while typing
+      // — and only while it's still on the blank-create default. A no-op once it's been named
+      // (by this, or by the person) or on a template-started bot, which never carries that name.
+      const otherBotNames = (others.data?.chatbots ?? [])
+        .filter((c) => c.id !== bot.id)
+        .map((c) => c.name);
+      editor.update((b) => maybeAutoNameChatbot(b, otherBotNames));
       await editor.flush();
       const next =
         primaryLabel === "Resume" ? await chatbotApi.resume(ws, bot.id) : await chatbotApi.publish(ws, bot.id);

@@ -41,6 +41,10 @@ import { PreviewPanel } from "@/components/chatbot/preview-panel";
 import { IceBreakerSheet } from "@/components/chatbot/ice-breakers";
 import { StatusPill, publishErrorMessage, publishProblems } from "@/components/chatbot/shared";
 import { autoLink, duplicateStep, newStep, removeStep } from "@/components/chatbot/model";
+import { brokenStepIds, findBrokenSteps } from "@/components/chatbot/broken-steps";
+import { maybeAutoName } from "@/components/chatbot/auto-name";
+import { isDefaultChatbotName, maybeAutoNameChatbot } from "@/components/chatbot/auto-name-chatbot";
+import { EditableName } from "@/components/chatbot/editable-name";
 import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
 import { UsageMeter, atCap } from "@/components/chatbot/usage-meter";
 import { SaveAsTemplateDialog } from "@/components/chatbot/save-as-template";
@@ -224,6 +228,15 @@ function BuilderPage() {
     );
   }
 
+  // Live mirror of the publish gate's structural checks (spec: chatbot-ui-fixes item 6). Recomputed
+  // on every render so the banner, the outline and the count drop the moment each one is fixed,
+  // with no round trip to the publish endpoint.
+  const brokenLive = useMemo(
+    () => findBrokenSteps(bot.steps, bot.firstStepId),
+    [bot.steps, bot.firstStepId],
+  );
+  const brokenIds = useMemo(() => brokenStepIds(brokenLive), [brokenLive]);
+
   const stepRefs = bot.steps.map((s, index) => ({ id: s.id, name: s.name, index }));
   const answerKeys = bot.steps
     .filter((s) => s.type === "QUESTION")
@@ -337,9 +350,27 @@ function BuilderPage() {
       });
       return;
     }
+    // Blocked before the request too: the same "broken step" check the banner shows live, so a
+    // publish nobody can fix mid-flow never reaches the server (spec: chatbot-ui-fixes item 6).
+    if (primaryLabel !== "Resume" && brokenLive.length > 0) {
+      toast.error(
+        brokenLive.length === 1
+          ? "1 step is broken. Fix it before going live."
+          : `${brokenLive.length} steps are broken. Fix them before going live.`,
+      );
+      flash(brokenLive[0].stepId, true);
+      return;
+    }
     setBusy(true);
     setProblems([]);
     try {
+      // Spec item 8: name the bot from its own content, but only on go-live — never while typing
+      // — and only while it's still on the blank-create default. A no-op once it's been named
+      // (by this, or by the person) or on a template-started bot, which never carries that name.
+      const otherBotNames = (others.data?.chatbots ?? [])
+        .filter((c) => c.id !== bot.id)
+        .map((c) => c.name);
+      editor.update((b) => maybeAutoNameChatbot(b, otherBotNames));
       await editor.flush();
       const next =
         primaryLabel === "Resume" ? await chatbotApi.resume(ws, bot.id) : await chatbotApi.publish(ws, bot.id);
@@ -364,7 +395,14 @@ function BuilderPage() {
   const saveText = { idle: "", saving: "Saving…", saved: "Saved", error: "Not saved" }[
     editor.saveState
   ];
-  const blocking = problems.filter((p) => p.severity === "error");
+  // The live check pre-empts the publish request (goLive, above) whenever it finds anything, so a
+  // server-returned broken-step problem here means the live check missed it — keep both, but drop
+  // the server's copy to avoid saying the same step is broken twice.
+  const blocking = problems.filter((p) => p.severity === "error" && !brokenIds.has(p.stepId ?? ""));
+  const banner = [
+    ...brokenLive.map((b) => ({ message: b.message, stepId: b.stepId as string | undefined })),
+    ...blocking.map((p) => ({ message: p.message, stepId: p.stepId ?? p.stepIds?.[0] })),
+  ];
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -379,12 +417,14 @@ function BuilderPage() {
         </Button>
         <div className="min-w-0 flex-[1_1_160px]">
           <div className="text-xs leading-tight text-muted-foreground max-md:hidden">Chatbots</div>
-          <input
-            className="-ml-1.5 w-full max-w-[360px] min-w-0 rounded-md border-0 bg-transparent px-1.5 py-0.5 font-display text-lg font-bold tracking-tight hover:bg-muted focus:bg-muted focus:outline-none"
+          <EditableName
+            className="-ml-1.5 w-full max-w-[360px]"
+            inputClassName="font-display text-lg font-bold tracking-tight"
             value={bot.name}
-            aria-label="Chatbot name"
+            isDefault={isDefaultChatbotName(bot.name)}
+            ariaLabel="Chatbot name"
             disabled={!canUpdate}
-            onChange={(e) => editor.update((b) => ({ ...b, name: e.target.value }))}
+            onCommit={(name) => editor.update((b) => ({ ...b, name }))}
           />
         </div>
         <StatusPill status={bot.status} />
@@ -485,30 +525,36 @@ function BuilderPage() {
         home-indicator inset where no tab bar takes it (768–900px). */}
         <section className="overflow-y-auto px-6 pt-6 pb-16 max-[900px]:pb-[calc(5.5rem+max(0px,env(safe-area-inset-bottom,0px)-var(--mobile-tab-bar-h,0px)))] max-md:px-3">
           <div className="mx-auto max-w-[640px]">
-            {blocking.length > 0 && (
+            {banner.length > 0 && (
               <div className="mb-4 rounded-xl border border-destructive-edge bg-destructive-wash p-3 text-[13px]">
                 <div className="mb-1 flex items-center gap-1.5 font-semibold">
                   <TriangleAlert className="h-4 w-4" /> Fix these before going live
+                  {brokenLive.length > 0 && (
+                    <button
+                      type="button"
+                      className="ml-auto text-xs font-medium text-primary hover:underline"
+                      onClick={() => flash(brokenLive[0].stepId, true)}
+                    >
+                      Show me
+                    </button>
+                  )}
                 </div>
                 <ul className="flex flex-col gap-0.5">
-                  {blocking.map((p, i) => {
-                    const target = p.stepId ?? p.stepIds?.[0];
-                    return (
-                      <li key={i}>
-                        {target ? (
-                          <button
-                            type="button"
-                            className="text-left hover:underline"
-                            onClick={() => flash(target, true)}
-                          >
-                            {p.message}
-                          </button>
-                        ) : (
-                          p.message
-                        )}
-                      </li>
-                    );
-                  })}
+                  {banner.map((p, i) => (
+                    <li key={i}>
+                      {p.stepId ? (
+                        <button
+                          type="button"
+                          className="text-left hover:underline"
+                          onClick={() => flash(p.stepId!, true)}
+                        >
+                          {p.message}
+                        </button>
+                      ) : (
+                        p.message
+                      )}
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
@@ -572,6 +618,7 @@ function BuilderPage() {
                     total={bot.steps.length}
                     open={openIds.has(s.id)}
                     flash={flashId === s.id}
+                    broken={brokenIds.has(s.id)}
                     steps={stepRefs}
                     chatbots={chatbots}
                     features={features}
@@ -584,7 +631,13 @@ function BuilderPage() {
                       editor.addMedia(view);
                       setSteps((xs) =>
                         xs.map((x) =>
-                          x.id === step.id ? { ...x, mediaAssetId: view.mediaAssetId } : x,
+                          x.id === step.id
+                            ? maybeAutoName(
+                                { ...x, mediaAssetId: view.mediaAssetId },
+                                xs.filter((o) => o.id !== x.id).map((o) => o.name),
+                                { ...bot.media, [view.mediaAssetId]: view },
+                              )
+                            : x,
                         ),
                       );
                       if (replaced) editor.releaseMedia(replaced);

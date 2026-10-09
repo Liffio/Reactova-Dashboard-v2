@@ -75,6 +75,28 @@ export const STEP_LABEL: Record<StepType, string> = {
   FOLLOW_GATE: "Ask to follow",
 };
 
+/**
+ * The name `newStep` gives each type, and the one `isDefaultStepName` (auto-name.ts) checks a step
+ * against to tell "still the default" from "someone typed their own name" (spec: chatbot-ui-fixes
+ * item 7). Handover, Start-another-chatbot, Webhook, Notify and A/B split get a name here that
+ * never needs to change again — there is no varying content to name them from, so item 7's auto-
+ * naming only ever touches Message, Question and Condition.
+ */
+export const DEFAULT_STEP_NAME: Record<StepType, string> = {
+  MESSAGE: "New step",
+  QUESTION: "New question",
+  CONDITION: "New condition",
+  HANDOVER: "Hand to a person",
+  START_CHATBOT: "Start another chatbot",
+  WEBHOOK: "Webhook",
+  NOTIFY: "Notify the team",
+  SPLIT: "A/B split",
+  FOLLOW_GATE: "Ask to follow",
+};
+
+/** A fresh Message step's sample body — not "content the person added" (auto-name.ts). */
+export const DEFAULT_MESSAGE_BODY = "Type your reply here";
+
 export function newStep(type: StepType, position: number): ChatbotStep {
   const base = {
     id: uid(),
@@ -98,14 +120,14 @@ export function newStep(type: StepType, position: number): ChatbotStep {
     case "MESSAGE":
       return {
         ...base,
-        name: "New step",
-        body: "Type your reply here",
+        name: DEFAULT_STEP_NAME.MESSAGE,
+        body: DEFAULT_MESSAGE_BODY,
         config: { nextStepId: null },
       };
     case "QUESTION":
       return {
         ...base,
-        name: "New question",
+        name: DEFAULT_STEP_NAME.QUESTION,
         body: "What's your email?",
         config: {
           answerKey: "email",
@@ -118,7 +140,7 @@ export function newStep(type: StepType, position: number): ChatbotStep {
     case "CONDITION":
       return {
         ...base,
-        name: "New condition",
+        name: DEFAULT_STEP_NAME.CONDITION,
         body: null,
         config: {
           match: "all",
@@ -130,35 +152,35 @@ export function newStep(type: StepType, position: number): ChatbotStep {
     case "HANDOVER":
       return {
         ...base,
-        name: "Hand to a person",
+        name: DEFAULT_STEP_NAME.HANDOVER,
         body: "Got it! Someone from our team will reply here soon 🙌",
         config: { nextStepId: null },
       };
     case "START_CHATBOT":
       return {
         ...base,
-        name: "Start another chatbot",
+        name: DEFAULT_STEP_NAME.START_CHATBOT,
         body: null,
         config: { targetChatbotId: "" },
       };
     case "WEBHOOK":
       return {
         ...base,
-        name: "Send to webhook",
+        name: DEFAULT_STEP_NAME.WEBHOOK,
         body: null,
         config: { url: "", nextStepId: null, secret: newWebhookSecret() },
       };
     case "NOTIFY":
       return {
         ...base,
-        name: "Notify the team",
+        name: DEFAULT_STEP_NAME.NOTIFY,
         body: null,
         config: { memberIds: [], message: "{{username|Someone}} needs a hand", nextStepId: null },
       };
     case "SPLIT":
       return {
         ...base,
-        name: "A/B split",
+        name: DEFAULT_STEP_NAME.SPLIT,
         body: null,
         config: {
           paths: [
@@ -170,7 +192,7 @@ export function newStep(type: StepType, position: number): ChatbotStep {
     case "FOLLOW_GATE":
       return {
         ...base,
-        name: "Ask to follow",
+        name: DEFAULT_STEP_NAME.FOLLOW_GATE,
         body: "Follow us and I'll send it your way 👇",
         config: {
           visitLabel: "Visit profile",

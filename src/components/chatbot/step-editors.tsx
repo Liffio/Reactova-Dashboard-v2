@@ -662,6 +662,7 @@ export function ConditionEditor({
   step,
   limit,
   onChange,
+  onRuleNameBlur,
   steps,
   chatbots,
   onNewStep,
@@ -671,6 +672,9 @@ export function ConditionEditor({
   /** The plan's `conditionRules`; `null` is unlimited, `undefined` while it loads. */
   limit: number | null | undefined;
   onChange: (config: Record<string, unknown>) => void;
+  /** Spec item 7: the first rule's name drives the step's auto-name, but only commit on blur — not
+   *  on every keystroke of a tag or field name. */
+  onRuleNameBlur?: () => void;
   steps: StepRef[];
   chatbots: ChatbotRef[];
   onNewStep: () => string;
@@ -765,6 +769,7 @@ export function ConditionEditor({
                 aria-label="Name"
                 placeholder={r.kind === "answer" ? "Answer name, e.g. followers" : "Tag name"}
                 onChange={(e) => setRule(k, { ...r, name: e.target.value })}
+                onBlur={k === 0 ? onRuleNameBlur : undefined}
               />
               {r.kind === "answer" && (
                 <>

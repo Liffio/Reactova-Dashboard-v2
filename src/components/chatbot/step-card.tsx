@@ -14,6 +14,7 @@ import {
 } from "@/lib/api/chatbot-api";
 import { cn } from "@/lib/utils";
 import { STEP_LABEL, buttonCap, cfgStr, formatDelay, stepSummary } from "./model";
+import { maybeAutoName } from "./auto-name";
 import { LockedRow } from "./upgrade";
 import { MergeFieldPicker } from "./merge-fields";
 import { WebhookEditor } from "./webhook-editor";
@@ -264,6 +265,10 @@ export function StepCard({
   // Only Message and Question steps send a file (the publish gate refuses one anywhere else).
   const wrongMediaStep = step.type !== "MESSAGE" && step.type !== "QUESTION";
   const setButtons = (buttons: ChatbotButton[]) => onChange({ ...step, buttons });
+  // Spec item 7: auto-name from content, but only while the name is still the default, and never
+  // colliding with another step's name.
+  const otherStepNames = steps.filter((s) => s.id !== step.id).map((s) => s.name);
+  const autoName = (next: ChatbotStep) => maybeAutoName(next, otherStepNames, media);
   // Reply buttons on this plan; none are offered until the plan's limits have loaded.
   const btnCap = buttonCap(limits?.buttonsPerStep);
   const btnCount = (
@@ -404,6 +409,7 @@ export function StepCard({
               step={step}
               limit={limits?.conditionRules}
               onChange={(config) => onChange({ ...step, config })}
+              onRuleNameBlur={() => onChange(autoName(step))}
               {...pick}
             />
           )}
@@ -484,6 +490,7 @@ export function StepCard({
                 value={step.body ?? ""}
                 aria-label="Message"
                 onChange={(e) => onChange({ ...step, body: e.target.value })}
+                onBlur={() => onChange(autoName(step))}
               />
               <div className="mt-1">
                 <MergeFieldPicker
@@ -549,7 +556,7 @@ export function StepCard({
           {step.type === "QUESTION" && (
             <QuestionEditor
               step={step}
-              onChange={(config) => onChange({ ...step, config })}
+              onChange={(config) => onChange(autoName({ ...step, config }))}
               {...pick}
             />
           )}

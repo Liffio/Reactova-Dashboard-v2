@@ -42,6 +42,7 @@ import { IceBreakerSheet } from "@/components/chatbot/ice-breakers";
 import { StatusPill, publishErrorMessage, publishProblems } from "@/components/chatbot/shared";
 import { autoLink, duplicateStep, newStep, removeStep } from "@/components/chatbot/model";
 import { brokenStepIds, findBrokenSteps } from "@/components/chatbot/broken-steps";
+import { maybeAutoName } from "@/components/chatbot/auto-name";
 import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
 import { UsageMeter, atCap } from "@/components/chatbot/usage-meter";
 import { SaveAsTemplateDialog } from "@/components/chatbot/save-as-template";
@@ -619,7 +620,13 @@ function BuilderPage() {
                       editor.addMedia(view);
                       setSteps((xs) =>
                         xs.map((x) =>
-                          x.id === step.id ? { ...x, mediaAssetId: view.mediaAssetId } : x,
+                          x.id === step.id
+                            ? maybeAutoName(
+                                { ...x, mediaAssetId: view.mediaAssetId },
+                                xs.filter((o) => o.id !== x.id).map((o) => o.name),
+                                { ...bot.media, [view.mediaAssetId]: view },
+                              )
+                            : x,
                         ),
                       );
                       if (replaced) editor.releaseMedia(replaced);

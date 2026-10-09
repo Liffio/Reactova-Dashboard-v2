@@ -350,7 +350,7 @@ export function ButtonList({
         <div className="flex gap-1.5">
           <button
             type="button"
-            className="flex-1 rounded-[10px] border border-dashed border-border p-2 text-[13px] text-muted-foreground hover:border-primary hover:text-primary"
+            className="flex-1 rounded-[10px] border border-border bg-card p-2 text-[13px] font-medium text-foreground shadow-[0_1px_1px_oklch(0.15_0.02_30/0.04)] transition-colors hover:border-primary/50 hover:bg-muted active:bg-accent/60"
             onClick={() => onChange([...buttons, newButton()])}
           >
             {addLabel}
@@ -364,7 +364,7 @@ export function ButtonList({
             ) && (
               <button
                 type="button"
-                className="rounded-[10px] border border-dashed border-border px-3 py-2 text-[13px] text-muted-foreground hover:border-primary hover:text-primary"
+                className="rounded-[10px] border border-border bg-card px-3 py-2 text-[13px] font-medium text-foreground shadow-[0_1px_1px_oklch(0.15_0.02_30/0.04)] transition-colors hover:border-primary/50 hover:bg-muted active:bg-accent/60"
                 onClick={() =>
                   onChange([
                     ...buttons,
@@ -662,6 +662,7 @@ export function ConditionEditor({
   step,
   limit,
   onChange,
+  onRuleNameBlur,
   steps,
   chatbots,
   onNewStep,
@@ -671,6 +672,9 @@ export function ConditionEditor({
   /** The plan's `conditionRules`; `null` is unlimited, `undefined` while it loads. */
   limit: number | null | undefined;
   onChange: (config: Record<string, unknown>) => void;
+  /** Spec item 7: the first rule's name drives the step's auto-name, but only commit on blur — not
+   *  on every keystroke of a tag or field name. */
+  onRuleNameBlur?: () => void;
   steps: StepRef[];
   chatbots: ChatbotRef[];
   onNewStep: () => string;
@@ -765,6 +769,7 @@ export function ConditionEditor({
                 aria-label="Name"
                 placeholder={r.kind === "answer" ? "Answer name, e.g. followers" : "Tag name"}
                 onChange={(e) => setRule(k, { ...r, name: e.target.value })}
+                onBlur={k === 0 ? onRuleNameBlur : undefined}
               />
               {r.kind === "answer" && (
                 <>

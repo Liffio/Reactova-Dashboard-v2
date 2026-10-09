@@ -162,65 +162,70 @@ export function TriggerCard({
           />
         )}
       </div>
-      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-        {bot.triggers.filter((t) => t.type !== "DEFAULT_REPLY").map((t) => (
-          <span
-            key={t.id}
-            className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-medium"
-          >
-            <span className="truncate">{chipText(t)}</span>
-            <button
-              type="button"
-              className="pl-0.5 text-[15px] leading-none text-muted-foreground hover:text-primary"
-              aria-label="Remove trigger"
-              onClick={() => void remove(t)}
+      {bot.triggers.some((t) => t.type !== "DEFAULT_REPLY") && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          {bot.triggers.filter((t) => t.type !== "DEFAULT_REPLY").map((t) => (
+            <span
+              key={t.id}
+              className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-medium"
             >
-              ×
-            </button>
-          </span>
-        ))}
-        <span className="inline-flex items-center gap-1 rounded-full border border-dashed border-border py-0.5 pr-0.5 pl-1 focus-within:border-solid focus-within:border-primary">
-          <select
-            className="rounded-full bg-transparent px-1 text-xs font-medium outline-none"
-            aria-label="Trigger type"
-            value={kind}
-            onChange={(e) => {
-              const picked = kinds.find((k) => k.v === e.target.value);
-              if (picked && !picked.ok) {
-                openUpgrade({ capability: picked.capability, feature: picked.feature });
-                return;
+              <span className="truncate">{chipText(t)}</span>
+              <button
+                type="button"
+                className="pl-0.5 text-[15px] leading-none text-muted-foreground hover:text-primary"
+                aria-label="Remove trigger"
+                onClick={() => void remove(t)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* A row of its own, not sharing flex-wrap with the chips above: however many chips there
+      already are, this still has to fit on one line at 375px (spec: chatbot-ui-fixes item 2). */}
+      <div className="mt-2 flex w-fit max-w-full flex-nowrap items-center gap-1.5">
+        <select
+          className="shrink-0 rounded-lg border border-border bg-card px-1.5 py-1 text-xs font-medium outline-none focus:border-primary"
+          aria-label="Trigger type"
+          value={kind}
+          onChange={(e) => {
+            const picked = kinds.find((k) => k.v === e.target.value);
+            if (picked && !picked.ok) {
+              openUpgrade({ capability: picked.capability, feature: picked.feature });
+              return;
+            }
+            setKind(e.target.value as typeof kind);
+          }}
+        >
+          {kinds.map((k) => (
+            <option key={k.v} value={k.v}>
+              {k.ok ? k.label : `${k.label} 🔒 ${k.plan ?? "Upgrade"}`}
+            </option>
+          ))}
+        </select>
+        {(kind === "KEYWORD" || kind === "STORY_REPLY") && (
+          <input
+            className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            placeholder={kind === "KEYWORD" ? "Add keyword" : "Only if it says…"}
+            maxLength={30}
+            value={value}
+            aria-label="New keyword"
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void add();
               }
-              setKind(e.target.value as typeof kind);
             }}
-          >
-            {kinds.map((k) => (
-              <option key={k.v} value={k.v}>
-                {k.ok ? k.label : `${k.label} 🔒 ${k.plan ?? "Upgrade"}`}
-              </option>
-            ))}
-          </select>
-          {(kind === "KEYWORD" || kind === "STORY_REPLY") && (
-            <input
-              className="w-28 border-0 bg-transparent py-0.5 text-xs font-medium outline-none"
-              placeholder={kind === "KEYWORD" ? "Add keyword" : "Only if it says… (optional)"}
-              maxLength={30}
-              value={value}
-              aria-label="New keyword"
-              onChange={(e) => setValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  void add();
-                }
-              }}
-            />
-          )}
-        </span>
+          />
+        )}
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || (kind === "KEYWORD" && !value.trim())}
           onClick={() => void add()}
-          className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="shrink-0 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 disabled:shadow-none"
         >
           Add
         </button>
@@ -228,7 +233,7 @@ export function TriggerCard({
           <div
             role="radiogroup"
             aria-label="Match type"
-            className="inline-flex items-center overflow-hidden rounded-full border border-border text-xs font-medium"
+            className="inline-flex shrink-0 items-center overflow-hidden rounded-full border border-border text-xs font-medium"
           >
             <button
               type="button"

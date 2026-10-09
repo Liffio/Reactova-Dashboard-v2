@@ -582,7 +582,7 @@ export function StepCard({
                 handoverStepIds={handoverStepIds}
               />
               {!step.buttons.some((b) => b.action !== "LINK") && (
-                <div className="mt-2 flex min-w-0 items-center gap-1.5 rounded-[10px] border border-dashed border-border py-1 pr-1 pl-2.5 text-[13px] text-muted-foreground">
+                <div className="mt-2 flex min-w-0 items-center gap-1.5 rounded-[10px] border border-border bg-card py-1 pr-1 pl-2.5 text-[13px] text-muted-foreground transition-colors hover:border-primary/35 hover:bg-muted">
                   <span className="flex-1">With no buttons, continue to</span>
                   <TargetPicker
                     value={{ kind: "step", id: cfgStr(step, "nextStepId") }}

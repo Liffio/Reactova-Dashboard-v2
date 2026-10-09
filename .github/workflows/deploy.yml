@@ -66,6 +66,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Catches exactly the class of bug that took the chatbot builder down in production
+      # (2026-10-09): a conditional hook call. react-hooks/rules-of-hooks was already configured
+      # as an error in eslint.config.js — it was never run in CI, so it never ran at all. Scoped to
+      # skip prettier/prettier: ~12k pre-existing formatting findings (mostly what looks like a
+      # Windows-checkout line-ending artifact, not a CI-facing issue, plus some genuine drift) are
+      # a separate cleanup, not bundled into an incident-response commit. Every rule that catches
+      # an actual bug — react-hooks included — stays at its configured severity and gates the build.
+      - name: Lint
+        run: npm run lint:ci
+
       - name: Build
         run: npm run build
 

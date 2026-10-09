@@ -13,10 +13,17 @@ import { cfgStr } from "./model";
  * A Split path left empty is NOT broken here, on purpose: `splitConfigSchema`'s own comment says a
  * pathless path deliberately ends the run there, same as a Message with no buttons and no next
  * step. Only a Condition's branches are both mandatory, because a condition's only job is routing.
+ *
+ * Severity (reverted 2026-10-09, post-incident): a dead button, a deleted-step link and an empty
+ * condition branch are "error" — each one genuinely strands someone already mid-conversation.
+ * "Unreachable from entry" is "warning" — nobody mid-chat ever reaches an orphaned step, it's dead
+ * weight, not a broken conversation, so it's surfaced here but does not block go-live (see
+ * goLive() in chatbot.$chatbotId.tsx) — matching validation.ts on the server.
  */
 export interface BrokenStep {
   stepId: string;
   message: string;
+  severity: "error" | "warning";
 }
 
 /** Where a step leads with no input needed, and where it leads on a tap/answer — mirrors `edgesOf` (validation.ts). */
@@ -60,7 +67,7 @@ export function findBrokenSteps(steps: ChatbotStep[], firstStepId: string | null
     // invites a tap, so one that goes nowhere traps whoever taps it.
     for (const b of step.buttons) {
       if (b.action === "NEXT_STEP" && !b.targetStepId) {
-        out.push({ stepId: step.id, message: `"${b.label}" doesn't go anywhere` });
+        out.push({ stepId: step.id, message: `"${b.label}" doesn't go anywhere`, severity: "error" });
         break;
       }
     }
@@ -76,13 +83,13 @@ export function findBrokenSteps(steps: ChatbotStep[], firstStepId: string | null
     for (const [key, label] of refs) {
       const target = cfgStr(step, key);
       if (target && !ids.has(target)) {
-        out.push({ stepId: step.id, message: `${label} points at a step that was deleted` });
+        out.push({ stepId: step.id, message: `${label} points at a step that was deleted`, severity: "error" });
       }
     }
     // A condition always routes: an empty Yes or Else is half-wired, not a deliberate end.
     if (step.type === "CONDITION") {
-      if (!cfgStr(step, "yesStepId")) out.push({ stepId: step.id, message: "This condition's Yes path doesn't lead anywhere" });
-      if (!cfgStr(step, "elseStepId")) out.push({ stepId: step.id, message: "This condition's Else path doesn't lead anywhere" });
+      if (!cfgStr(step, "yesStepId")) out.push({ stepId: step.id, message: "This condition's Yes path doesn't lead anywhere", severity: "error" });
+      if (!cfgStr(step, "elseStepId")) out.push({ stepId: step.id, message: "This condition's Else path doesn't lead anywhere", severity: "error" });
     }
   }
 
@@ -99,14 +106,20 @@ export function findBrokenSteps(steps: ChatbotStep[], firstStepId: string | null
       if (step) queue.push(...edgesOf(step));
     }
     for (const step of steps) {
-      if (!seen.has(step.id)) out.push({ stepId: step.id, message: "Nothing leads to this step, so nobody will see it" });
+      if (!seen.has(step.id)) out.push({ stepId: step.id, message: "Nothing leads to this step, so nobody will see it", severity: "warning" });
     }
   }
 
   return out;
 }
 
-/** Just the ids, for outlining and the step-number marker. */
+/** Just the ids, for outlining and the step-number marker — every severity, so the orphaned-step
+ *  warning still gets a visual cue even though it no longer blocks go-live. */
 export function brokenStepIds(broken: BrokenStep[]): Set<string> {
   return new Set(broken.map((b) => b.stepId));
+}
+
+/** The subset that actually blocks go-live — everything except "unreachable from entry". */
+export function blockingBrokenSteps(broken: BrokenStep[]): BrokenStep[] {
+  return broken.filter((b) => b.severity === "error");
 }

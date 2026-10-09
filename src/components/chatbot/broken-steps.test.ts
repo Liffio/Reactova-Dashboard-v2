@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatbotButton, ChatbotStep } from "@/lib/api/chatbot-api";
-import { brokenStepIds, findBrokenSteps } from "./broken-steps";
+import { blockingBrokenSteps, brokenStepIds, findBrokenSteps } from "./broken-steps";
 
 /**
  * Live mirror of the server's structural "broken step" rules (validation.ts). Kept narrow on
@@ -40,10 +40,11 @@ describe("findBrokenSteps", () => {
     expect(findBrokenSteps([s1, s2], s1.id)).toEqual([]);
   });
 
-  it("flags a button with no target", () => {
+  it("flags a button with no target, as a blocking error", () => {
     const s1 = step({ type: "MESSAGE", buttons: [btn({ targetStepId: null })] });
     const broken = findBrokenSteps([s1], s1.id);
-    expect(broken).toEqual([{ stepId: s1.id, message: '"Go" doesn\'t go anywhere' }]);
+    expect(broken).toEqual([{ stepId: s1.id, message: '"Go" doesn\'t go anywhere', severity: "error" }]);
+    expect(blockingBrokenSteps(broken)).toHaveLength(1);
   });
 
   it("flags a condition with an empty Yes or Else, but not one fully wired", () => {
@@ -70,11 +71,15 @@ describe("findBrokenSteps", () => {
     expect(findBrokenSteps([s1], s1.id)[0]).toMatchObject({ stepId: s1.id });
   });
 
-  it("flags a step unreachable from the entry point", () => {
+  it("flags a step unreachable from the entry point as a warning, not blocking (reverted 2026-10-09)", () => {
     const s1 = step({ type: "MESSAGE" });
     const orphan = step({ type: "MESSAGE" });
     const broken = findBrokenSteps([s1, orphan], s1.id);
+    // Still shown — the banner and the per-step outline both key off brokenStepIds, every severity.
     expect(brokenStepIds(broken)).toEqual(new Set([orphan.id]));
+    expect(broken[0].severity).toBe("warning");
+    // But does not block go-live: a step nobody reaches is dead weight, not a broken conversation.
+    expect(blockingBrokenSteps(broken)).toEqual([]);
   });
 
   it("the count drops to zero once the only break is fixed", () => {

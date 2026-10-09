@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "lint:ci": "eslint . --rule \"{\\\"prettier/prettier\\\":\\\"off\\\"}\"",
     "format": "prettier --write .",
     "test": "vitest run"
   },

@@ -1,3 +1,4 @@
+import { Info } from "lucide-react";
 import type { ChatbotStep } from "@/lib/api/chatbot-api";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,7 @@ export function FollowGateEditor({
     labelKey: "followingRowLabel" | "notFollowingRowLabel",
     defaultLabel: string,
     tone: string,
+    hint: string,
   ) => (
     <div className="flex min-w-0 items-center gap-1.5 rounded-[10px] border border-border bg-card py-1 pr-1 pl-1.5">
       <input
@@ -52,6 +54,11 @@ export function FollowGateEditor({
         onChange={(e) => onChange({ ...step.config, [labelKey]: e.target.value })}
       />
       <span className="flex-1 text-[13px] text-muted-foreground">then</span>
+      {/* The explanatory sentence that used to sit as one paragraph below both rows, split so
+      each half attaches to the row it's actually about (spec: chatbot-ui-fixes item 5). */}
+      <span title={hint} className="shrink-0 text-muted-foreground">
+        <Info className="h-3.5 w-3.5" />
+      </span>
       <TargetPicker
         value={{ kind: "step", id: cfgStr(step, key) }}
         onPick={(t) => onChange({ ...step.config, [key]: t.kind === "step" ? t.id : null })}
@@ -126,20 +133,22 @@ export function FollowGateEditor({
       </div>
 
       <div className="flex flex-col gap-2">
-        {path("followingStepId", "followingRowLabel", "Following", "bg-success/10 text-success")}
-        {path("notFollowingStepId", "notFollowingRowLabel", "Not following", "bg-muted text-muted-foreground")}
-        <span className="text-muted-foreground">
-          {loop ? (
-            <>
-              <strong className="font-semibold text-foreground">Won't fire</strong> while the switch
-              above is on — a non-follower keeps getting reminded instead of reaching this route.
-            </>
-          ) : (
-            `Not following goes this way after ${MAX_REPROMPTS} reminders.`
-          )}{" "}
-          If Instagram won't say, they go the Following way: better to let one person through than
-          stop someone who did follow.
-        </span>
+        {path(
+          "followingStepId",
+          "followingRowLabel",
+          "Following",
+          "bg-success/10 text-success",
+          "Also reached when Instagram won't say — better to let one through than stop someone who did follow.",
+        )}
+        {path(
+          "notFollowingStepId",
+          "notFollowingRowLabel",
+          "Not following",
+          "bg-muted text-muted-foreground",
+          loop
+            ? "Won't fire while the loop switch above is on — a non-follower keeps getting reminded instead."
+            : `Only reached after ${MAX_REPROMPTS} reminders with no follow.`,
+        )}
       </div>
     </div>
   );

@@ -14,7 +14,8 @@ import {
 } from "@/lib/api/chatbot-api";
 import { cn } from "@/lib/utils";
 import { STEP_LABEL, buttonCap, cfgStr, formatDelay, stepSummary } from "./model";
-import { maybeAutoName } from "./auto-name";
+import { isDefaultStepName, maybeAutoName } from "./auto-name";
+import { EditableName } from "./editable-name";
 import { LockedRow } from "./upgrade";
 import { MergeFieldPicker } from "./merge-fields";
 import { WebhookEditor } from "./webhook-editor";
@@ -327,16 +328,14 @@ export function StepCard({
         }}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          {open ? (
-            <input
-              className="-ml-2 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 font-display text-[15px] font-semibold hover:bg-muted focus:border-border focus:bg-background focus:outline-none"
-              value={step.name}
-              aria-label="Step name"
-              onChange={(e) => onChange({ ...step, name: e.target.value })}
-            />
-          ) : (
-            <span className="truncate font-display text-[15px] font-semibold">{step.name}</span>
-          )}
+          <EditableName
+            className="-ml-2 min-w-0 flex-1"
+            inputClassName="font-display text-[15px] font-semibold"
+            value={step.name}
+            isDefault={isDefaultStepName(step)}
+            ariaLabel="Step name"
+            onCommit={(name) => onChange({ ...step, name })}
+          />
           <span
             className={cn(
               "rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap max-sm:hidden",

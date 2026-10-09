@@ -43,7 +43,8 @@ import { StatusPill, publishErrorMessage, publishProblems } from "@/components/c
 import { autoLink, duplicateStep, newStep, removeStep } from "@/components/chatbot/model";
 import { brokenStepIds, findBrokenSteps } from "@/components/chatbot/broken-steps";
 import { maybeAutoName } from "@/components/chatbot/auto-name";
-import { maybeAutoNameChatbot } from "@/components/chatbot/auto-name-chatbot";
+import { isDefaultChatbotName, maybeAutoNameChatbot } from "@/components/chatbot/auto-name-chatbot";
+import { EditableName } from "@/components/chatbot/editable-name";
 import { PlanChip, UpgradeSheetProvider, useUpgradeSheet } from "@/components/chatbot/upgrade";
 import { UsageMeter, atCap } from "@/components/chatbot/usage-meter";
 import { SaveAsTemplateDialog } from "@/components/chatbot/save-as-template";
@@ -416,12 +417,14 @@ function BuilderPage() {
         </Button>
         <div className="min-w-0 flex-[1_1_160px]">
           <div className="text-xs leading-tight text-muted-foreground max-md:hidden">Chatbots</div>
-          <input
-            className="-ml-1.5 w-full max-w-[360px] min-w-0 rounded-md border-0 bg-transparent px-1.5 py-0.5 font-display text-lg font-bold tracking-tight hover:bg-muted focus:bg-muted focus:outline-none"
+          <EditableName
+            className="-ml-1.5 w-full max-w-[360px]"
+            inputClassName="font-display text-lg font-bold tracking-tight"
             value={bot.name}
-            aria-label="Chatbot name"
+            isDefault={isDefaultChatbotName(bot.name)}
+            ariaLabel="Chatbot name"
             disabled={!canUpdate}
-            onChange={(e) => editor.update((b) => ({ ...b, name: e.target.value }))}
+            onCommit={(name) => editor.update((b) => ({ ...b, name }))}
           />
         </div>
         <StatusPill status={bot.status} />

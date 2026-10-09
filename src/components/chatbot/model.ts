@@ -196,11 +196,17 @@ export function newStep(type: StepType, position: number): ChatbotStep {
         body: "Follow us and I'll send it your way 👇",
         config: {
           visitLabel: "Visit profile",
+          followingLabel: "Following ✅",
           // The comment automation's follow-gate wording, so both read the same.
           retryMessage:
             "We still don't see a follow on your account. Open Visit profile, tap Follow, then tap Following ✅ again.",
           followingStepId: null,
           notFollowingStepId: null,
+          // Default true (spec: chatbot-ui-fixes item 4) — keep reminding rather than falling
+          // through to Not following after the reprompt count.
+          loopIfNotFollowing: true,
+          followingRowLabel: "Following",
+          notFollowingRowLabel: "Not following",
         },
       };
   }

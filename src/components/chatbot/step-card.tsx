@@ -1,4 +1,4 @@
-import { ChevronDown, Clock, MoonStar, MoreHorizontal, Repeat, Tag, UserPlus } from "lucide-react";
+import { ChevronDown, Clock, MoonStar, MoreHorizontal, Repeat, Tag, TriangleAlert, UserPlus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +49,8 @@ interface Props {
   total: number;
   open: boolean;
   flash: boolean;
+  /** No reachable next step and not a deliberate end — spec: chatbot-ui-fixes item 6. */
+  broken: boolean;
   steps: StepRef[];
   chatbots: ChatbotRef[];
   /** `useModuleFeatures("chatbot")`: a missing capability locks its row, never hides it. */
@@ -238,6 +240,7 @@ export function StepCard({
   total,
   open,
   flash,
+  broken,
   steps,
   chatbots,
   features,
@@ -295,6 +298,7 @@ export function StepCard({
         "relative mb-3.5 rounded-2xl border border-border bg-card shadow-card transition-[border-color,box-shadow] hover:border-primary/35",
         open && "border-primary/55 shadow-glow",
         flash && "border-primary shadow-glow",
+        broken && !flash && "border-destructive-edge",
       )}
     >
       <span
@@ -304,9 +308,11 @@ export function StepCard({
           isCond && "border-transparent bg-cond text-cond-foreground",
           first && "border-transparent bg-brand-gradient text-white",
           open && !first && "border-primary text-primary",
+          broken && "border-transparent bg-destructive text-destructive-foreground",
         )}
+        title={broken ? "This step is broken" : undefined}
       >
-        {index + 1}
+        {broken ? <TriangleAlert className="h-3.5 w-3.5" /> : index + 1}
       </span>
 
       <div

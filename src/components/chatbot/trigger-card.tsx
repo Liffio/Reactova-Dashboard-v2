@@ -183,52 +183,58 @@ export function TriggerCard({
         </div>
       )}
 
-      {/* A row of its own, not sharing flex-wrap with the chips above: however many chips there
-      already are, this still has to fit on one line at 375px (spec: chatbot-ui-fixes item 2). */}
-      <div className="mt-2 flex w-fit max-w-full flex-nowrap items-center gap-1.5">
-        <select
-          className="shrink-0 rounded-lg border border-border bg-card px-1.5 py-1 text-xs font-medium outline-none focus:border-primary"
-          aria-label="Trigger type"
-          value={kind}
-          onChange={(e) => {
-            const picked = kinds.find((k) => k.v === e.target.value);
-            if (picked && !picked.ok) {
-              openUpgrade({ capability: picked.capability, feature: picked.feature });
-              return;
-            }
-            setKind(e.target.value as typeof kind);
-          }}
-        >
-          {kinds.map((k) => (
-            <option key={k.v} value={k.v}>
-              {k.ok ? k.label : `${k.label} 🔒 ${k.plan ?? "Upgrade"}`}
-            </option>
-          ))}
-        </select>
-        {(kind === "KEYWORD" || kind === "STORY_REPLY") && (
-          <input
-            className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            placeholder={kind === "KEYWORD" ? "Add keyword" : "Only if it says…"}
-            maxLength={30}
-            value={value}
-            aria-label="New keyword"
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void add();
+      {/* flex-wrap, not nowrap (reverted 2026-10-09 follow-up): the type/field/Add row still has to
+      fit on its own line at 375px (item 2's original fix), but Exact/Contains now wraps onto a
+      line of its own there too instead of cramming four controls across — the inner row's
+      w-full-until-md is what forces that wrap. From md up there's room, so it rejoins the row. */}
+      <div className="mt-2 flex max-w-full flex-wrap items-center gap-1.5">
+        <div className="flex w-full flex-nowrap items-center gap-1.5 md:w-fit">
+          <select
+            className="shrink-0 rounded-lg border border-border bg-card px-1.5 py-1 text-xs font-medium outline-none focus:border-primary"
+            aria-label="Trigger type"
+            value={kind}
+            onChange={(e) => {
+              const picked = kinds.find((k) => k.v === e.target.value);
+              if (picked && !picked.ok) {
+                openUpgrade({ capability: picked.capability, feature: picked.feature });
+                return;
               }
+              setKind(e.target.value as typeof kind);
             }}
-          />
-        )}
-        <button
-          type="button"
-          disabled={busy || (kind === "KEYWORD" && !value.trim())}
-          onClick={() => void add()}
-          className="shrink-0 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 disabled:shadow-none"
-        >
-          Add
-        </button>
+          >
+            {kinds.map((k) => (
+              <option key={k.v} value={k.v}>
+                {k.ok ? k.label : `${k.label} 🔒 ${k.plan ?? "Upgrade"}`}
+              </option>
+            ))}
+          </select>
+          {(kind === "KEYWORD" || kind === "STORY_REPLY") && (
+            <input
+              className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2.5 py-1 text-xs font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              placeholder={kind === "KEYWORD" ? "Add keyword" : "Only if it says…"}
+              maxLength={30}
+              value={value}
+              aria-label="New keyword"
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void add();
+                }
+              }}
+            />
+          )}
+          <button
+            type="button"
+            disabled={busy || (kind === "KEYWORD" && !value.trim())}
+            onClick={() => void add()}
+            /* Stays brand red even disabled (a field-is-empty state, not an error) — greying it out
+            read as broken rather than "type something first" (incident follow-up, post-2026-10-09). */
+            className="shrink-0 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed"
+          >
+            Add
+          </button>
+        </div>
         {kind === "KEYWORD" && (
           <div
             role="radiogroup"
@@ -264,13 +270,13 @@ export function TriggerCard({
       </div>
       {error && <div className="mt-1.5 text-xs text-primary">{error}</div>}
 
-      <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
+      <div className="mt-3 flex items-start justify-between gap-3 border-t border-border pt-3">
         <div className="min-w-0">
           <p className="flex items-center gap-1 text-xs font-medium">
             Default reply
             {!f.default_reply && <PlanChip capability="chatbot:default_reply" />}
           </p>
-          <p className="truncate text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {isDefaultHolder
               ? "This bot answers when nothing else matches."
               : bot.defaultReply

@@ -120,9 +120,12 @@ export function FollowGateEditor({
         <div className="flex-1">
           <p className="font-semibold text-foreground">Keep reminding them to follow</p>
           <p className="font-normal text-muted-foreground">
+            {/* Reworded 2026-10-09 follow-up — the old copy described the mechanism (what the
+            reminder count does) rather than the choice (what happens once it runs out), which
+            read as confusing rather than as two plain options. */}
             {loop
-              ? `After ${MAX_REPROMPTS} reminders, keeps sending the same reminder instead of moving on.`
-              : `After ${MAX_REPROMPTS} reminders with no follow, moves on to Not following.`}
+              ? "On: keeps asking until they follow, with no limit on reminders."
+              : `Off: gives up after ${MAX_REPROMPTS} reminders and moves on to the Not following path.`}
           </p>
         </div>
         <Switch

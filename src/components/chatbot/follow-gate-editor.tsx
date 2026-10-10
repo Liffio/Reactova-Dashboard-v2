@@ -10,12 +10,16 @@ const MAX_LABEL = 20;
 /** Mirrors the server's FOLLOW_GATE_MAX_REPROMPTS (types/chatbot.ts) — not worth sharing a
  *  constant across repos for one number already spelled out in this copy. */
 const MAX_REPROMPTS = 3;
+/** Mirrors the server's FOLLOW_GATE_LOOP_CEILING (types/chatbot.ts): the hard cap on reminders
+ *  when looping is on, so the step can never truly have "no limit". */
+const LOOP_CEILING = 10;
 
 /**
  * "Ask to follow" (`chatbot:follow_gate`): the message goes out on a card with a Visit profile link
  * and a Following button, both with editable labels. A tap checks Instagram; following goes one
- * way, not following is asked again (up to three times) and then either loops or goes the other
- * way, depending on the loop switch. A normal step: it can sit anywhere in a flow, and either path
+ * way, not following is asked again (up to three times, or ten with the loop switch on) and then
+ * goes the other way regardless — the loop switch only changes how many reminders that takes, never
+ * whether it eventually happens. A normal step: it can sit anywhere in a flow, and either path
  * can lead on to more steps or end the chat.
  */
 export function FollowGateEditor({
@@ -111,7 +115,9 @@ export function FollowGateEditor({
           aria-label="Message when they haven't followed yet"
           onChange={(e) => onChange({ ...step.config, retryMessage: e.target.value })}
         />
-        <span className="font-normal">Sent with the buttons again, up to {MAX_REPROMPTS} times.</span>
+        <span className="font-normal">
+          Sent with the buttons again, up to {MAX_REPROMPTS} times.
+        </span>
       </label>
 
       {/* Next to the reminder count, since it's the same decision: what happens once the count
@@ -124,7 +130,7 @@ export function FollowGateEditor({
             reminder count does) rather than the choice (what happens once it runs out), which
             read as confusing rather than as two plain options. */}
             {loop
-              ? "On: keeps asking until they follow, with no limit on reminders."
+              ? `On: keeps asking for up to ${LOOP_CEILING} reminders, then moves on to the Not following path regardless.`
               : `Off: gives up after ${MAX_REPROMPTS} reminders and moves on to the Not following path.`}
           </p>
         </div>
@@ -149,7 +155,7 @@ export function FollowGateEditor({
           "Not following",
           "bg-muted text-muted-foreground",
           loop
-            ? "Won't fire while the loop switch above is on — a non-follower keeps getting reminded instead."
+            ? `Only reached after ${LOOP_CEILING} reminders with no follow — set this so they land somewhere instead of just running out of reminders.`
             : `Only reached after ${MAX_REPROMPTS} reminders with no follow.`,
         )}
       </div>

@@ -39,7 +39,9 @@ function edgesOf(step: ChatbotStep): string[] {
     case "CONDITION":
       return [s(c.yesStepId), s(c.elseStepId)].filter((x): x is string => !!x);
     case "QUESTION":
-      return [outside, s(c.nextStepId), s(c.skipStepId), ...buttonTargets].filter((x): x is string => !!x);
+      return [outside, s(c.nextStepId), s(c.skipStepId), ...buttonTargets].filter(
+        (x): x is string => !!x,
+      );
     case "MESSAGE":
     case "HANDOVER":
       return [s(c.nextStepId), outside, ...buttonTargets].filter((x): x is string => !!x);
@@ -67,7 +69,11 @@ export function findBrokenSteps(steps: ChatbotStep[], firstStepId: string | null
     // invites a tap, so one that goes nowhere traps whoever taps it.
     for (const b of step.buttons) {
       if (b.action === "NEXT_STEP" && !b.targetStepId) {
-        out.push({ stepId: step.id, message: `"${b.label}" doesn't go anywhere`, severity: "error" });
+        out.push({
+          stepId: step.id,
+          message: `"${b.label}" doesn't go anywhere`,
+          severity: "error",
+        });
         break;
       }
     }
@@ -83,13 +89,46 @@ export function findBrokenSteps(steps: ChatbotStep[], firstStepId: string | null
     for (const [key, label] of refs) {
       const target = cfgStr(step, key);
       if (target && !ids.has(target)) {
-        out.push({ stepId: step.id, message: `${label} points at a step that was deleted`, severity: "error" });
+        out.push({
+          stepId: step.id,
+          message: `${label} points at a step that was deleted`,
+          severity: "error",
+        });
       }
     }
     // A condition always routes: an empty Yes or Else is half-wired, not a deliberate end.
     if (step.type === "CONDITION") {
-      if (!cfgStr(step, "yesStepId")) out.push({ stepId: step.id, message: "This condition's Yes path doesn't lead anywhere", severity: "error" });
-      if (!cfgStr(step, "elseStepId")) out.push({ stepId: step.id, message: "This condition's Else path doesn't lead anywhere", severity: "error" });
+      if (!cfgStr(step, "yesStepId"))
+        out.push({
+          stepId: step.id,
+          message: "This condition's Yes path doesn't lead anywhere",
+          severity: "error",
+        });
+      if (!cfgStr(step, "elseStepId"))
+        out.push({
+          stepId: step.id,
+          message: "This condition's Else path doesn't lead anywhere",
+          severity: "error",
+        });
+    }
+    // Ask-to-follow with looping on (the default for a new step) and no Not-following route has no
+    // exit by its own configuration — every non-follower who keeps tapping just gets reminded again,
+    // forever, as far as this flow is concerned. (The runtime now holds a hard ceiling so a thread
+    // can never truly freeze, but that's a backstop, not a substitute for wiring an actual exit.)
+    // Unlike a Split path or a buttonless Message, this pairing is never a deliberate end: the loop
+    // switch's whole point is to keep the person on this step, so an empty Not-following route here
+    // is always a step nobody finished setting up.
+    if (
+      step.type === "FOLLOW_GATE" &&
+      step.config.loopIfNotFollowing !== false &&
+      !cfgStr(step, "notFollowingStepId")
+    ) {
+      out.push({
+        stepId: step.id,
+        message:
+          "Looping on with no Not following path traps anyone who doesn't follow. Set a Not following path, or turn looping off.",
+        severity: "error",
+      });
     }
   }
 
@@ -106,7 +145,12 @@ export function findBrokenSteps(steps: ChatbotStep[], firstStepId: string | null
       if (step) queue.push(...edgesOf(step));
     }
     for (const step of steps) {
-      if (!seen.has(step.id)) out.push({ stepId: step.id, message: "Nothing leads to this step, so nobody will see it", severity: "warning" });
+      if (!seen.has(step.id))
+        out.push({
+          stepId: step.id,
+          message: "Nothing leads to this step, so nobody will see it",
+          severity: "warning",
+        });
     }
   }
 

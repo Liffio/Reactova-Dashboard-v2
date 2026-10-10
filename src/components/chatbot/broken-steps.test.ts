@@ -43,7 +43,9 @@ describe("findBrokenSteps", () => {
   it("flags a button with no target, as a blocking error", () => {
     const s1 = step({ type: "MESSAGE", buttons: [btn({ targetStepId: null })] });
     const broken = findBrokenSteps([s1], s1.id);
-    expect(broken).toEqual([{ stepId: s1.id, message: '"Go" doesn\'t go anywhere', severity: "error" }]);
+    expect(broken).toEqual([
+      { stepId: s1.id, message: '"Go" doesn\'t go anywhere', severity: "error" },
+    ]);
     expect(blockingBrokenSteps(broken)).toHaveLength(1);
   });
 
@@ -66,6 +68,40 @@ describe("findBrokenSteps", () => {
     expect(findBrokenSteps([s1], s1.id)).toEqual([]);
   });
 
+  it("flags a Follow-gate step looping with no Not-following route — it can never fall through", () => {
+    const gate = step({
+      type: "FOLLOW_GATE",
+      config: { notFollowingStepId: null, loopIfNotFollowing: true },
+    });
+    const broken = findBrokenSteps([gate], gate.id);
+    expect(broken).toEqual([
+      {
+        stepId: gate.id,
+        message:
+          "Looping on with no Not following path traps anyone who doesn't follow. Set a Not following path, or turn looping off.",
+        severity: "error",
+      },
+    ]);
+    expect(blockingBrokenSteps(broken)).toHaveLength(1);
+  });
+
+  it("does not flag a Follow-gate step with looping off and no Not-following route — a deliberate end, same as a Split path", () => {
+    const gate = step({
+      type: "FOLLOW_GATE",
+      config: { notFollowingStepId: null, loopIfNotFollowing: false },
+    });
+    expect(findBrokenSteps([gate], gate.id)).toEqual([]);
+  });
+
+  it("does not flag a Follow-gate step looping with a Not-following route wired up", () => {
+    const sorry = step({ type: "MESSAGE" });
+    const gate = step({
+      type: "FOLLOW_GATE",
+      config: { notFollowingStepId: sorry.id, loopIfNotFollowing: true },
+    });
+    expect(findBrokenSteps([gate, sorry], gate.id)).toEqual([]);
+  });
+
   it("flags a link to a step that was deleted", () => {
     const s1 = step({ type: "MESSAGE", config: { nextStepId: "gone" } });
     expect(findBrokenSteps([s1], s1.id)[0]).toMatchObject({ stepId: s1.id });
@@ -85,7 +121,11 @@ describe("findBrokenSteps", () => {
   it("the count drops to zero once the only break is fixed", () => {
     const s2 = step({ type: "MESSAGE" });
     // s2 is linked from s1's own nextStepId, so fixing the dead button is the only change.
-    const s1 = step({ type: "MESSAGE", config: { nextStepId: s2.id }, buttons: [btn({ targetStepId: null })] });
+    const s1 = step({
+      type: "MESSAGE",
+      config: { nextStepId: s2.id },
+      buttons: [btn({ targetStepId: null })],
+    });
     expect(findBrokenSteps([s1, s2], s1.id)).toHaveLength(1);
     const fixed = { ...s1, buttons: [btn({ targetStepId: s2.id })] };
     expect(findBrokenSteps([fixed, s2], fixed.id)).toHaveLength(0);

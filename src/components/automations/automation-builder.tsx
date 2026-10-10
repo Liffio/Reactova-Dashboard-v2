@@ -7,8 +7,11 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Clapperboard,
   CloudOff,
   Cloudy,
+  Eye,
+  GalleryHorizontal,
   Hash,
   Link2,
   Loader2,
@@ -92,6 +95,8 @@ import {
 } from "./automation-form";
 import { FollowBeforeDmSection } from "./sections/follow-before-dm-section";
 import { FollowUpSequenceSection } from "./sections/follow-up-sequence-section";
+import { PostPreviewDialog } from "./post-preview-dialog";
+import { isVideoMedia } from "./post-media";
 import { DELAY_OPTIONS } from "./sections/follow-up-options";
 import { useWorkspacePlanKey } from "@/features/settings/use-workspace-plan";
 
@@ -340,6 +345,8 @@ export function AutomationBuilder({
    * be many Graph calls every time the editor opens on an account with hundreds of posts.
    */
   const [pickedMedia, setPickedMedia] = useState<PickerMedia | null>(null);
+  /** Index into `pickerItems` of the post open in the quick preview; null when closed. */
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const selectedFromLoaded = form.postId
     ? ((pickedMedia?.id === form.postId ? pickedMedia : undefined) ??
       pickerItems.find((m) => m.id === form.postId) ??
@@ -1202,43 +1209,73 @@ export function AutomationBuilder({
                           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                         </div>
                       )}
-                      {pickerItems.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => pickPost(item)}
-                          className={cn(
-                            "relative aspect-square overflow-hidden rounded-lg border-2 bg-muted transition-all",
-                            form.postId === item.id
-                              ? "border-primary"
-                              : "border-border hover:border-muted-foreground/50",
-                          )}
-                        >
-                          {item.thumbnailUrl ? (
-                            <img
-                              src={item.thumbnailUrl}
-                              alt={item.caption || "Instagram media"}
-                              className="absolute inset-0 h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10" />
-                          )}
-                          {/* Rendered ONLY when the count is known. A cached media entry from
+                      {pickerItems.map((item, index) => (
+                        // Two sibling buttons, select and preview, since a button cannot nest one.
+                        <div key={item.id} className="group relative aspect-square">
+                          <button
+                            type="button"
+                            onClick={() => pickPost(item)}
+                            className={cn(
+                              "absolute inset-0 overflow-hidden rounded-lg border-2 bg-muted transition-all",
+                              form.postId === item.id
+                                ? "border-primary"
+                                : "border-border hover:border-muted-foreground/50",
+                            )}
+                          >
+                            {item.thumbnailUrl ? (
+                              <img
+                                src={item.thumbnailUrl}
+                                alt={item.caption || "Instagram media"}
+                                className="absolute inset-0 h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10" />
+                            )}
+                            {/* Rendered ONLY when the count is known. A cached media entry from
                               before `comments_count` was requested carries null, and "0" on a post
                               with forty comments is worse than no number at all. */}
-                          {item.commentsCount != null && (
-                            <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                              {item.commentsCount} 💬
-                            </span>
-                          )}
-                          {form.postId === item.id && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-primary/25">
-                              <Check className="h-5 w-5 text-white" />
-                            </div>
-                          )}
-                        </button>
+                            {item.commentsCount != null && (
+                              <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                                {item.commentsCount} 💬
+                              </span>
+                            )}
+                            {(isVideoMedia(item) || item.mediaType === "CAROUSEL_ALBUM") && (
+                              <span className="absolute left-1 top-1 rounded bg-black/60 p-1 text-white">
+                                {isVideoMedia(item) ? (
+                                  <Clapperboard aria-label="Reel" className="size-3" />
+                                ) : (
+                                  <GalleryHorizontal aria-label="Carousel" className="size-3" />
+                                )}
+                              </span>
+                            )}
+                            {form.postId === item.id && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-primary/25">
+                                <Check className="h-5 w-5 text-white" />
+                              </div>
+                            )}
+                          </button>
+                          {/* Always shown on touch screens, where there is no hover to reveal it. */}
+                          <button
+                            type="button"
+                            aria-label={isVideoMedia(item) ? "Preview reel" : "Preview post"}
+                            title="Preview"
+                            onClick={() => setPreviewIndex(index)}
+                            className="absolute right-1 top-1 flex size-7 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white transition hover:scale-105 hover:bg-black/80 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                          >
+                            <Eye className="size-3.5" />
+                          </button>
+                        </div>
                       ))}
                     </div>
+                    <PostPreviewDialog
+                      items={pickerItems}
+                      index={previewIndex}
+                      onIndexChange={setPreviewIndex}
+                      onClose={() => setPreviewIndex(null)}
+                      selectedId={form.postId}
+                      onSelect={pickPost}
+                      handle={wizardData.data?.profile.username ?? current.igHandle ?? null}
+                    />
                     {/* Disabled, never hidden, so the grid does not jump when a page is the
                         first or the last. No page numbers: Graph pages by cursor. */}
                     <div className="flex items-center justify-between gap-2">
